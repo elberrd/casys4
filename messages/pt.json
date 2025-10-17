@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "create": "Criar"
+  },
+  "Navigation": {
+    "dashboard": "Painel",
+    "processManagement": "Gestão de Processos",
+    "processRequests": "Solicitações de Processos",
+    "mainProcesses": "Processos Principais",
+    "individualProcesses": "Processos Individuais",
+    "peopleCompanies": "Pessoas e Empresas",
+    "people": "Pessoas",
+    "companies": "Empresas",
+    "documents": "Documentos",
+    "tasks": "Tarefas",
+    "supportData": "Dados de Suporte",
+    "cboCodes": "Códigos CBO",
+    "consulates": "Consulados",
+    "cities": "Cidades",
+    "settings": "Configurações",
+    "playground": "Playground",
+    "models": "Modelos",
+    "documentation": "Documentação",
+    "history": "Histórico",
+    "starred": "Favoritos",
+    "genesis": "Genesis",
+    "explorer": "Explorador",
+    "quantum": "Quantum",
+    "introduction": "Introdução",
+    "getStarted": "Começar",
+    "tutorials": "Tutoriais",
+    "changelog": "Registro de Alterações",
+    "general": "Geral",
+    "team": "Equipe",
+    "billing": "Faturamento",
+    "limits": "Limites",
+    "projects": "Projetos",
+    "designEngineering": "Engenharia de Design",
+    "salesMarketing": "Vendas e Marketing",
+    "travel": "Viagem"
+  },
+  "Breadcrumbs": {
+    "dashboard": "Painel",
+    "processManagement": "Gestão de Processos",
+    "processRequests": "Solicitações de Processos",
+    "mainProcesses": "Processos Principais",
+    "individualProcesses": "Processos Individuais",
+    "peopleCompanies": "Pessoas e Empresas",
+    "people": "Pessoas",
+    "companies": "Empresas",
+    "documents": "Documentos",
+    "tasks": "Tarefas",
+    "supportData": "Dados de Suporte",
+    "cboCodes": "Códigos CBO",
+    "consulates": "Consulados",
+    "cities": "Cidades",
+    "settings": "Configurações"
+  },
+  "ProcessRequests": {
+    "title": "Solicitações de Processos"
+  },
+  "MainProcesses": {
+    "title": "Processos Principais"
+  },
+  "IndividualProcesses": {
+    "title": "Processos Individuais"
+  },
+  "People": {
+    "title": "Pessoas"
+  },
+  "Companies": {
+    "title": "Empresas"
+  },
+  "Documents": {
+    "title": "Documentos"
+  },
+  "Tasks": {
+    "title": "Tarefas"
+  },
+  "CboCodes": {
+    "title": "Códigos CBO"
+  },
+  "Consulates": {
+    "title": "Consulados"
+  },
+  "Cities": {
+    "title": "Cidades"
+  },
+  "Settings": {
+    "title": "Configurações",
+    "languagePreferences": "Preferências de Idioma",
+    "languageDescription": "Selecione o idioma de sua preferência para a interface",
+    "currentLanguage": "Idioma Atual",
+    "selectLanguage": "Selecionar Idioma",
+    "portuguese": "Português",
+    "english": "Inglês",
+    "languageChanged": "Idioma alterado com sucesso"
+  },
+  "Auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "signup": "Cadastrar",
+    "email": "E-mail",
+    "password": "Senha",
+    "forgotPassword": "Esqueceu a senha?",
+    "rememberMe": "Lembrar-me",
+    "signInWithGoogle": "Entrar com Google",
+    "signInWithGithub": "Entrar com Github"
+  },
+  "Metadata": {
+    "description": "Sistema de gerenciamento de processos de imigração CASYS4"
+  }
+}

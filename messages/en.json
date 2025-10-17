@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create"
+  },
+  "Navigation": {
+    "dashboard": "Dashboard",
+    "processManagement": "Process Management",
+    "processRequests": "Process Requests",
+    "mainProcesses": "Main Processes",
+    "individualProcesses": "Individual Processes",
+    "peopleCompanies": "People & Companies",
+    "people": "People",
+    "companies": "Companies",
+    "documents": "Documents",
+    "tasks": "Tasks",
+    "supportData": "Support Data",
+    "cboCodes": "CBO Codes",
+    "consulates": "Consulates",
+    "cities": "Cities",
+    "settings": "Settings",
+    "playground": "Playground",
+    "models": "Models",
+    "documentation": "Documentation",
+    "history": "History",
+    "starred": "Starred",
+    "genesis": "Genesis",
+    "explorer": "Explorer",
+    "quantum": "Quantum",
+    "introduction": "Introduction",
+    "getStarted": "Get Started",
+    "tutorials": "Tutorials",
+    "changelog": "Changelog",
+    "general": "General",
+    "team": "Team",
+    "billing": "Billing",
+    "limits": "Limits",
+    "projects": "Projects",
+    "designEngineering": "Design Engineering",
+    "salesMarketing": "Sales & Marketing",
+    "travel": "Travel"
+  },
+  "Breadcrumbs": {
+    "dashboard": "Dashboard",
+    "processManagement": "Process Management",
+    "processRequests": "Process Requests",
+    "mainProcesses": "Main Processes",
+    "individualProcesses": "Individual Processes",
+    "peopleCompanies": "People & Companies",
+    "people": "People",
+    "companies": "Companies",
+    "documents": "Documents",
+    "tasks": "Tasks",
+    "supportData": "Support Data",
+    "cboCodes": "CBO Codes",
+    "consulates": "Consulates",
+    "cities": "Cities",
+    "settings": "Settings"
+  },
+  "ProcessRequests": {
+    "title": "Process Requests"
+  },
+  "MainProcesses": {
+    "title": "Main Processes"
+  },
+  "IndividualProcesses": {
+    "title": "Individual Processes"
+  },
+  "People": {
+    "title": "People"
+  },
+  "Companies": {
+    "title": "Companies"
+  },
+  "Documents": {
+    "title": "Documents"
+  },
+  "Tasks": {
+    "title": "Tasks"
+  },
+  "CboCodes": {
+    "title": "CBO Codes"
+  },
+  "Consulates": {
+    "title": "Consulates"
+  },
+  "Cities": {
+    "title": "Cities"
+  },
+  "Settings": {
+    "title": "Settings",
+    "languagePreferences": "Language Preferences",
+    "languageDescription": "Select your preferred language for the interface",
+    "currentLanguage": "Current Language",
+    "selectLanguage": "Select Language",
+    "portuguese": "Portuguese",
+    "english": "English",
+    "languageChanged": "Language changed successfully"
+  },
+  "Auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "signup": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember Me",
+    "signInWithGoogle": "Sign in with Google",
+    "signInWithGithub": "Sign in with Github"
+  },
+  "Metadata": {
+    "description": "CASYS4 Immigration Process Management System"
+  }
+}
