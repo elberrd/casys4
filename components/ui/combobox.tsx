@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import * as React from "react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -12,43 +12,43 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/components/ui/popover";
 
 /**
  * Option type for combobox items
  */
 export interface ComboboxOption<T = string> {
-  value: T
-  label: string
-  icon?: React.ReactNode
-  disabled?: boolean
-  group?: string
+  value: T;
+  label: string;
+  icon?: React.ReactNode;
+  disabled?: boolean;
+  group?: string;
 }
 
 /**
  * Combobox component props
  */
 export interface ComboboxProps<T = string> {
-  options: ComboboxOption<T>[]
-  value?: T
-  defaultValue?: T
-  onValueChange?: (value: T | undefined) => void
-  placeholder?: string
-  searchPlaceholder?: string
-  emptyText?: string
-  disabled?: boolean
-  className?: string
-  triggerClassName?: string
-  contentClassName?: string
+  options: ComboboxOption<T>[];
+  value?: T;
+  defaultValue?: T;
+  onValueChange?: (value: T | undefined) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  className?: string;
+  triggerClassName?: string;
+  contentClassName?: string;
   /**
    * Enable multiple selection mode
    */
-  multiple?: false
+  multiple?: false;
 }
 
 /**
@@ -56,11 +56,11 @@ export interface ComboboxProps<T = string> {
  */
 export interface ComboboxMultipleProps<T = string>
   extends Omit<ComboboxProps<T>, "value" | "onValueChange" | "multiple"> {
-  value?: T[]
-  defaultValue?: T[]
-  onValueChange?: (value: T[]) => void
-  multiple: true
-  maxSelected?: number
+  value?: T[];
+  defaultValue?: T[];
+  onValueChange?: (value: T[]) => void;
+  multiple: true;
+  maxSelected?: number;
 }
 
 /**
@@ -79,46 +79,49 @@ function ComboboxSingle<T extends string = string>({
   triggerClassName,
   contentClassName,
 }: ComboboxProps<T>) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T | undefined>(
-    defaultValue
-  )
+    defaultValue,
+  );
 
   // Use controlled value if provided, otherwise use internal state
-  const selectedValue = value !== undefined ? value : internalValue
+  const selectedValue = value !== undefined ? value : internalValue;
 
   // Get the selected option
-  const selectedOption = options.find((option) => option.value === selectedValue)
+  const selectedOption = options.find(
+    (option) => option.value === selectedValue,
+  );
 
   // Group options by group property
   const groupedOptions = React.useMemo(() => {
-    const groups: Record<string, ComboboxOption<T>[]> = {}
-    const ungrouped: ComboboxOption<T>[] = []
+    const groups: Record<string, ComboboxOption<T>[]> = {};
+    const ungrouped: ComboboxOption<T>[] = [];
 
     options.forEach((option) => {
       if (option.group) {
         if (!groups[option.group]) {
-          groups[option.group] = []
+          groups[option.group] = [];
         }
-        groups[option.group].push(option)
+        groups[option.group].push(option);
       } else {
-        ungrouped.push(option)
+        ungrouped.push(option);
       }
-    })
+    });
 
-    return { groups, ungrouped }
-  }, [options])
+    return { groups, ungrouped };
+  }, [options]);
 
   const handleSelect = (optionValue: string) => {
-    const newValue = optionValue === selectedValue ? undefined : (optionValue as T)
+    const newValue =
+      optionValue === selectedValue ? undefined : (optionValue as T);
 
     if (value === undefined) {
-      setInternalValue(newValue)
+      setInternalValue(newValue);
     }
 
-    onValueChange?.(newValue)
-    setOpen(false)
-  }
+    onValueChange?.(newValue);
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -131,7 +134,7 @@ function ComboboxSingle<T extends string = string>({
           className={cn(
             "w-full justify-between",
             !selectedValue && "text-muted-foreground",
-            triggerClassName
+            triggerClassName,
           )}
         >
           {selectedOption ? (
@@ -145,7 +148,11 @@ function ComboboxSingle<T extends string = string>({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className={cn("w-[--radix-popover-trigger-width] p-0", contentClassName)}>
+      <PopoverContent
+        align="start"
+        className={cn("p-0", contentClassName)}
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+      >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -164,7 +171,9 @@ function ComboboxSingle<T extends string = string>({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        selectedValue === option.value ? "opacity-100" : "opacity-0"
+                        selectedValue === option.value
+                          ? "opacity-100"
+                          : "opacity-0",
                       )}
                     />
                     {option.icon && <span className="mr-2">{option.icon}</span>}
@@ -175,32 +184,38 @@ function ComboboxSingle<T extends string = string>({
             )}
 
             {/* Grouped options */}
-            {Object.entries(groupedOptions.groups).map(([groupName, groupOptions]) => (
-              <CommandGroup key={groupName} heading={groupName}>
-                {groupOptions.map((option) => (
-                  <CommandItem
-                    key={String(option.value)}
-                    value={String(option.value)}
-                    disabled={option.disabled}
-                    onSelect={handleSelect}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedValue === option.value ? "opacity-100" : "opacity-0"
+            {Object.entries(groupedOptions.groups).map(
+              ([groupName, groupOptions]) => (
+                <CommandGroup key={groupName} heading={groupName}>
+                  {groupOptions.map((option) => (
+                    <CommandItem
+                      key={String(option.value)}
+                      value={String(option.value)}
+                      disabled={option.disabled}
+                      onSelect={handleSelect}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedValue === option.value
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      {option.icon && (
+                        <span className="mr-2">{option.icon}</span>
                       )}
-                    />
-                    {option.icon && <span className="mr-2">{option.icon}</span>}
-                    {option.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ),
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 /**
@@ -220,61 +235,61 @@ function ComboboxMultiple<T extends string = string>({
   contentClassName,
   maxSelected,
 }: ComboboxMultipleProps<T>) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T[]>(
-    defaultValue || []
-  )
+    defaultValue || [],
+  );
 
   // Use controlled value if provided, otherwise use internal state
-  const selectedValues = value !== undefined ? value : internalValue
+  const selectedValues = value !== undefined ? value : internalValue;
 
   // Get the selected options
   const selectedOptions = options.filter((option) =>
-    selectedValues.includes(option.value)
-  )
+    selectedValues.includes(option.value),
+  );
 
   // Group options by group property
   const groupedOptions = React.useMemo(() => {
-    const groups: Record<string, ComboboxOption<T>[]> = {}
-    const ungrouped: ComboboxOption<T>[] = []
+    const groups: Record<string, ComboboxOption<T>[]> = {};
+    const ungrouped: ComboboxOption<T>[] = [];
 
     options.forEach((option) => {
       if (option.group) {
         if (!groups[option.group]) {
-          groups[option.group] = []
+          groups[option.group] = [];
         }
-        groups[option.group].push(option)
+        groups[option.group].push(option);
       } else {
-        ungrouped.push(option)
+        ungrouped.push(option);
       }
-    })
+    });
 
-    return { groups, ungrouped }
-  }, [options])
+    return { groups, ungrouped };
+  }, [options]);
 
   const handleSelect = (optionValue: string) => {
     const newValues = selectedValues.includes(optionValue as T)
       ? selectedValues.filter((v) => v !== optionValue)
       : maxSelected && selectedValues.length >= maxSelected
-      ? selectedValues
-      : [...selectedValues, optionValue as T]
+        ? selectedValues
+        : [...selectedValues, optionValue as T];
 
     if (value === undefined) {
-      setInternalValue(newValues)
+      setInternalValue(newValues);
     }
 
-    onValueChange?.(newValues)
-  }
+    onValueChange?.(newValues);
+  };
 
   const handleRemove = (optionValue: T) => {
-    const newValues = selectedValues.filter((v) => v !== optionValue)
+    const newValues = selectedValues.filter((v) => v !== optionValue);
 
     if (value === undefined) {
-      setInternalValue(newValues)
+      setInternalValue(newValues);
     }
 
-    onValueChange?.(newValues)
-  }
+    onValueChange?.(newValues);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -287,38 +302,42 @@ function ComboboxMultiple<T extends string = string>({
           className={cn(
             "w-full justify-between min-h-9 h-auto",
             selectedValues.length === 0 && "text-muted-foreground",
-            triggerClassName
+            triggerClassName,
           )}
         >
           <div className="flex flex-wrap gap-1 flex-1">
-            {selectedValues.length === 0 ? (
-              placeholder
-            ) : (
-              selectedOptions.map((option) => (
-                <span
-                  key={String(option.value)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs"
-                >
-                  {option.icon && <span className="h-3 w-3">{option.icon}</span>}
-                  {option.label}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemove(option.value)
-                    }}
-                    className="hover:bg-secondary-foreground/20 rounded-sm"
+            {selectedValues.length === 0
+              ? placeholder
+              : selectedOptions.map((option) => (
+                  <span
+                    key={String(option.value)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))
-            )}
+                    {option.icon && (
+                      <span className="h-3 w-3">{option.icon}</span>
+                    )}
+                    {option.label}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(option.value);
+                      }}
+                      className="hover:bg-secondary-foreground/20 rounded-sm"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className={cn("w-[--radix-popover-trigger-width] p-0", contentClassName)}>
+      <PopoverContent
+        align="start"
+        className={cn("p-0", contentClassName)}
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+      >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -331,13 +350,20 @@ function ComboboxMultiple<T extends string = string>({
                   <CommandItem
                     key={String(option.value)}
                     value={String(option.value)}
-                    disabled={option.disabled || (maxSelected !== undefined && selectedValues.length >= maxSelected && !selectedValues.includes(option.value))}
+                    disabled={
+                      option.disabled ||
+                      (maxSelected !== undefined &&
+                        selectedValues.length >= maxSelected &&
+                        !selectedValues.includes(option.value))
+                    }
                     onSelect={handleSelect}
                   >
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        selectedValues.includes(option.value) ? "opacity-100" : "opacity-0"
+                        selectedValues.includes(option.value)
+                          ? "opacity-100"
+                          : "opacity-0",
                       )}
                     />
                     {option.icon && <span className="mr-2">{option.icon}</span>}
@@ -348,32 +374,43 @@ function ComboboxMultiple<T extends string = string>({
             )}
 
             {/* Grouped options */}
-            {Object.entries(groupedOptions.groups).map(([groupName, groupOptions]) => (
-              <CommandGroup key={groupName} heading={groupName}>
-                {groupOptions.map((option) => (
-                  <CommandItem
-                    key={String(option.value)}
-                    value={String(option.value)}
-                    disabled={option.disabled || (maxSelected !== undefined && selectedValues.length >= maxSelected && !selectedValues.includes(option.value))}
-                    onSelect={handleSelect}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedValues.includes(option.value) ? "opacity-100" : "opacity-0"
+            {Object.entries(groupedOptions.groups).map(
+              ([groupName, groupOptions]) => (
+                <CommandGroup key={groupName} heading={groupName}>
+                  {groupOptions.map((option) => (
+                    <CommandItem
+                      key={String(option.value)}
+                      value={String(option.value)}
+                      disabled={
+                        option.disabled ||
+                        (maxSelected !== undefined &&
+                          selectedValues.length >= maxSelected &&
+                          !selectedValues.includes(option.value))
+                      }
+                      onSelect={handleSelect}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedValues.includes(option.value)
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      {option.icon && (
+                        <span className="mr-2">{option.icon}</span>
                       )}
-                    />
-                    {option.icon && <span className="mr-2">{option.icon}</span>}
-                    {option.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ),
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 /**
@@ -417,12 +454,12 @@ function ComboboxMultiple<T extends string = string>({
  * />
  */
 export function Combobox<T extends string = string>(
-  props: ComboboxProps<T> | ComboboxMultipleProps<T>
+  props: ComboboxProps<T> | ComboboxMultipleProps<T>,
 ) {
   if (props.multiple) {
-    return <ComboboxMultiple {...props} />
+    return <ComboboxMultiple {...props} />;
   }
-  return <ComboboxSingle {...props} />
+  return <ComboboxSingle {...props} />;
 }
 
-export { ComboboxSingle, ComboboxMultiple }
+export { ComboboxSingle, ComboboxMultiple };
