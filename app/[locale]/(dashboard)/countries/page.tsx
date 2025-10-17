@@ -7,37 +7,37 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CityFormDialog } from "@/components/cities/city-form-dialog"
-import { CitiesTable } from "@/components/cities/cities-table"
+import { CountryFormDialog } from "@/components/countries/country-form-dialog"
+import { CountriesTable } from "@/components/countries/countries-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CitiesPage() {
-  const t = useTranslations('Cities')
+export default function CountriesPage() {
+  const t = useTranslations('Countries')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"cities"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"countries"> | null>(null)
 
-  const cities = useQuery(api.cities.listWithRelations) ?? []
-  const deleteCity = useMutation(api.cities.remove)
+  const countries = useQuery(api.countries.list) ?? []
+  const deleteCountry = useMutation(api.countries.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('supportData') },
-    { label: tBreadcrumbs('cities') }
+    { label: tBreadcrumbs('countries') }
   ]
 
-  const handleEdit = (id: Id<"cities">) => {
+  const handleEdit = (id: Id<"countries">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"cities">) => {
+  const handleDelete = async (id: Id<"countries">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCity({ id })
+        await deleteCountry({ id })
       } catch (error) {
-        console.error("Error deleting city:", error)
+        console.error("Error deleting country:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +55,23 @@ export default function CitiesPage() {
           </Button>
         </div>
 
-        <CitiesTable
-          cities={cities}
+        <CountriesTable
+          countries={countries}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CityFormDialog
+        <CountryFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CityFormDialog
+          <CountryFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            cityId={editingId}
+            countryId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}

@@ -6,19 +6,15 @@ import {
   Command,
   FileText,
   FolderKanban,
-  Frame,
   GalleryVerticalEnd,
   Globe,
   LayoutDashboard,
   ListTodo,
-  Map,
-  PieChart,
   Settings2,
   Users,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
-import { NavProjects } from "@/components/nav-projects"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
 import {
@@ -118,16 +114,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: Globe,
       items: [
         {
+          title: t('countries'),
+          url: "/countries",
+        },
+        {
+          title: t('states'),
+          url: "/states",
+        },
+        {
+          title: t('cities'),
+          url: "/cities",
+        },
+        {
+          title: t('processTypes'),
+          url: "/process-types",
+        },
+        {
+          title: t('legalFrameworks'),
+          url: "/legal-frameworks",
+        },
+        {
           title: t('cboCodes'),
           url: "/cbo-codes",
         },
         {
           title: t('consulates'),
           url: "/consulates",
-        },
-        {
-          title: t('cities'),
-          url: "/cities",
         },
       ],
     },
@@ -136,24 +148,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/settings",
       icon: Settings2,
       items: [],
-    },
-  ]
-
-  const projects = [
-    {
-      name: t('designEngineering'),
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: t('salesMarketing'),
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: t('travel'),
-      url: "#",
-      icon: Map,
     },
   ]
 
@@ -170,7 +164,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMain} />
-        <NavProjects projects={projects} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

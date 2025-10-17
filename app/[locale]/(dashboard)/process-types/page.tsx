@@ -7,37 +7,37 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CityFormDialog } from "@/components/cities/city-form-dialog"
-import { CitiesTable } from "@/components/cities/cities-table"
+import { ProcessTypeFormDialog } from "@/components/process-types/process-type-form-dialog"
+import { ProcessTypesTable } from "@/components/process-types/process-types-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CitiesPage() {
-  const t = useTranslations('Cities')
+export default function ProcessTypesPage() {
+  const t = useTranslations('ProcessTypes')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"cities"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"processTypes"> | null>(null)
 
-  const cities = useQuery(api.cities.listWithRelations) ?? []
-  const deleteCity = useMutation(api.cities.remove)
+  const processTypes = useQuery(api.processTypes.list, {}) ?? []
+  const deleteProcessType = useMutation(api.processTypes.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('supportData') },
-    { label: tBreadcrumbs('cities') }
+    { label: tBreadcrumbs('processTypes') }
   ]
 
-  const handleEdit = (id: Id<"cities">) => {
+  const handleEdit = (id: Id<"processTypes">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"cities">) => {
+  const handleDelete = async (id: Id<"processTypes">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCity({ id })
+        await deleteProcessType({ id })
       } catch (error) {
-        console.error("Error deleting city:", error)
+        console.error("Error deleting process type:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +55,23 @@ export default function CitiesPage() {
           </Button>
         </div>
 
-        <CitiesTable
-          cities={cities}
+        <ProcessTypesTable
+          processTypes={processTypes}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CityFormDialog
+        <ProcessTypeFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CityFormDialog
+          <ProcessTypeFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            cityId={editingId}
+            processTypeId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}

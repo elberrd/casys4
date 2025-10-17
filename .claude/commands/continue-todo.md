@@ -5,6 +5,7 @@ You are tasked with continuing the development of tasks defined in `ai_docs/todo
 ## 1. Task Analysis Phase
 
 First, read and analyze the TODO file:
+
 - Read `ai_docs/todo.md` completely
 - Identify all tasks marked as incomplete (indicated by `- [ ]`)
 - Note the current section/phase of work
@@ -13,6 +14,7 @@ First, read and analyze the TODO file:
 ## 2. Verification Phase
 
 For each incomplete task:
+
 - **Double-check implementation status**: Search the codebase to verify the task is truly not done
 - Check if files exist at the specified paths
 - Verify if translation keys are present (for i18n tasks)
@@ -22,6 +24,7 @@ For each incomplete task:
 ## 3. Implementation Phase
 
 For tasks that are genuinely incomplete:
+
 - Work through tasks **in sequential order** (follow the task numbering)
 - Implement one complete section at a time (e.g., finish all of section 5 before moving to section 6)
 - Follow all quality checklists for each section
@@ -31,6 +34,7 @@ For tasks that are genuinely incomplete:
 ## 4. Quality Standards
 
 Ensure all implementations meet these criteria:
+
 - TypeScript with proper types (no `any` types)
 - Full internationalization using next-intl
 - Proper Convex integration where specified
@@ -42,6 +46,7 @@ Ensure all implementations meet these criteria:
 ## 5. Stopping Criteria
 
 You should continue working until ONE of these conditions is met:
+
 - **All tasks in the current major section are complete** (e.g., all of Section 5)
 - **You encounter a blocking issue** that prevents further progress
 - **Token budget is running low** (less than 20% remaining)
@@ -72,6 +77,7 @@ Please continue from where I left off, following the same quality standards and 
 - **Follow existing patterns** - check similar components for consistency
 - **Use pnpm** - this project uses pnpm, not npm
 - **Test as you go** - verify TypeScript compilation with `pnpm exec tsc --noEmit`
+- **At the end** - verify TypeScript compilation with `pnpm dev` - after ok, kill the port
 
 ## Example Workflow
 

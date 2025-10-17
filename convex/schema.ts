@@ -7,7 +7,42 @@ import { authTables } from "@convex-dev/auth/server";
 // The schema provides more precise TypeScript types.
 export default defineSchema({
   ...authTables,
-  numbers: defineTable({
-    value: v.number(),
+
+  // Geographic lookup tables
+  countries: defineTable({
+    name: v.string(),
   }),
+
+  states: defineTable({
+    name: v.string(),
+    countryId: v.id("countries"),
+  }).index("by_country", ["countryId"]),
+
+  cities: defineTable({
+    name: v.string(),
+    stateId: v.id("states"),
+    hasFederalPolice: v.boolean(),
+  }).index("by_state", ["stateId"]),
+
+  // Process configuration lookup tables
+  processTypes: defineTable({
+    name: v.string(),
+    code: v.string(),
+    description: v.string(),
+    category: v.string(),
+    estimatedDays: v.number(),
+    isActive: v.boolean(),
+    sortOrder: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
+
+  legalFrameworks: defineTable({
+    name: v.string(),
+    code: v.string(),
+    description: v.string(),
+    isActive: v.boolean(),
+  })
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
 });

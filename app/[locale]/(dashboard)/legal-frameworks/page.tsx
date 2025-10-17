@@ -7,37 +7,37 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CityFormDialog } from "@/components/cities/city-form-dialog"
-import { CitiesTable } from "@/components/cities/cities-table"
+import { LegalFrameworkFormDialog } from "@/components/legal-frameworks/legal-framework-form-dialog"
+import { LegalFrameworksTable } from "@/components/legal-frameworks/legal-frameworks-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CitiesPage() {
-  const t = useTranslations('Cities')
+export default function LegalFrameworksPage() {
+  const t = useTranslations('LegalFrameworks')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"cities"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"legalFrameworks"> | null>(null)
 
-  const cities = useQuery(api.cities.listWithRelations) ?? []
-  const deleteCity = useMutation(api.cities.remove)
+  const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
+  const deleteLegalFramework = useMutation(api.legalFrameworks.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('supportData') },
-    { label: tBreadcrumbs('cities') }
+    { label: tBreadcrumbs('legalFrameworks') }
   ]
 
-  const handleEdit = (id: Id<"cities">) => {
+  const handleEdit = (id: Id<"legalFrameworks">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"cities">) => {
+  const handleDelete = async (id: Id<"legalFrameworks">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCity({ id })
+        await deleteLegalFramework({ id })
       } catch (error) {
-        console.error("Error deleting city:", error)
+        console.error("Error deleting legal framework:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +55,23 @@ export default function CitiesPage() {
           </Button>
         </div>
 
-        <CitiesTable
-          cities={cities}
+        <LegalFrameworksTable
+          legalFrameworks={legalFrameworks}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CityFormDialog
+        <LegalFrameworkFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CityFormDialog
+          <LegalFrameworkFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            cityId={editingId}
+            legalFrameworkId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}

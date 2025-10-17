@@ -7,37 +7,37 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CityFormDialog } from "@/components/cities/city-form-dialog"
-import { CitiesTable } from "@/components/cities/cities-table"
+import { StateFormDialog } from "@/components/states/state-form-dialog"
+import { StatesTable } from "@/components/states/states-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CitiesPage() {
-  const t = useTranslations('Cities')
+export default function StatesPage() {
+  const t = useTranslations('States')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"cities"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"states"> | null>(null)
 
-  const cities = useQuery(api.cities.listWithRelations) ?? []
-  const deleteCity = useMutation(api.cities.remove)
+  const states = useQuery(api.states.listWithCountry) ?? []
+  const deleteState = useMutation(api.states.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('supportData') },
-    { label: tBreadcrumbs('cities') }
+    { label: tBreadcrumbs('states') }
   ]
 
-  const handleEdit = (id: Id<"cities">) => {
+  const handleEdit = (id: Id<"states">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"cities">) => {
+  const handleDelete = async (id: Id<"states">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCity({ id })
+        await deleteState({ id })
       } catch (error) {
-        console.error("Error deleting city:", error)
+        console.error("Error deleting state:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +55,23 @@ export default function CitiesPage() {
           </Button>
         </div>
 
-        <CitiesTable
-          cities={cities}
+        <StatesTable
+          states={states}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CityFormDialog
+        <StateFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CityFormDialog
+          <StateFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            cityId={editingId}
+            stateId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}
