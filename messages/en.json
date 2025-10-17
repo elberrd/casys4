@@ -63,18 +63,35 @@
     "cboCodes": "CBO Codes",
     "consulates": "Consulates",
     "documentTypes": "Document Types",
-    "settings": "Settings"
+    "settings": "Settings",
+    "newPerson": "New Person",
+    "newCompany": "New Company",
+    "newPassport": "New Passport",
+    "newEmployment": "New Employment",
+    "newDocument": "New Document",
+    "newTask": "New Task",
+    "newProcessRequest": "New Request",
+    "newMainProcess": "New Process",
+    "newIndividualProcess": "New Individual Process"
   },
   "ProcessRequests": {
-    "title": "Process Requests"
+    "title": "Process Requests",
+    "newRequest": "New Process Request",
+    "createTitle": "Create Process Request",
+    "createDescription": "Submit a new process request for approval"
   },
   "MainProcesses": {
-    "title": "Main Processes"
+    "title": "Main Processes",
+    "newProcess": "New Main Process",
+    "createTitle": "Create Main Process",
+    "createDescription": "Create a new immigration process container"
   },
   "IndividualProcesses": {
     "title": "Individual Processes",
     "createTitle": "Create Individual Process",
     "editTitle": "Edit Individual Process",
+    "newProcess": "New Individual Process",
+    "createDescription": "Add a person to an immigration process",
     "deleteConfirm": "Are you sure you want to delete this individual process?",
     "personName": "Person",
     "person": "Person",
@@ -125,6 +142,8 @@
     "title": "People",
     "createTitle": "Create Person",
     "editTitle": "Edit Person",
+    "newPerson": "New Person",
+    "createDescription": "Fill in the information to create a new person",
     "deleteConfirm": "Are you sure you want to delete this person?",
     "fullName": "Full Name",
     "email": "Email",
@@ -166,6 +185,8 @@
     "title": "Companies",
     "createTitle": "Create Company",
     "editTitle": "Edit Company",
+    "newCompany": "New Company",
+    "createDescription": "Fill in the information to create a new company",
     "deleteConfirm": "Are you sure you want to delete this company?",
     "name": "Company Name",
     "taxId": "Tax ID / CNPJ",
@@ -191,6 +212,7 @@
     "title": "Documents",
     "createTitle": "Create Document",
     "editTitle": "Edit Document",
+    "newDocument": "New Document",
     "createDescription": "Add a new document to the system",
     "editDescription": "Edit the document details below",
     "deleteConfirm": "Are you sure you want to delete this document?",
@@ -234,7 +256,10 @@
     "noResults": "No documents found"
   },
   "Tasks": {
-    "title": "Tasks"
+    "title": "Tasks",
+    "newTask": "New Task",
+    "createTitle": "Create Task",
+    "createDescription": "Create a new task and assign it to a team member"
   },
   "CboCodes": {
     "title": "CBO Codes",
@@ -367,6 +392,8 @@
     "title": "Passports",
     "createTitle": "Create Passport",
     "editTitle": "Edit Passport",
+    "newPassport": "New Passport",
+    "createDescription": "Fill in the information to register a new passport",
     "deleteConfirm": "Are you sure you want to delete this passport?",
     "person": "Person",
     "passportNumber": "Passport Number",
@@ -393,6 +420,8 @@
     "title": "Employment History",
     "createTitle": "Add Employment",
     "editTitle": "Edit Employment",
+    "newEmployment": "New Employment",
+    "createDescriptionPage": "Record a new employment relationship",
     "deleteConfirm": "Are you sure you want to delete this employment record?",
     "person": "Person",
     "company": "Company",

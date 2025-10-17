@@ -63,18 +63,35 @@
     "cboCodes": "Códigos CBO",
     "consulates": "Consulados",
     "documentTypes": "Tipos de Documento",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "newPerson": "Nova Pessoa",
+    "newCompany": "Nova Empresa",
+    "newPassport": "Novo Passaporte",
+    "newEmployment": "Novo Emprego",
+    "newDocument": "Novo Documento",
+    "newTask": "Nova Tarefa",
+    "newProcessRequest": "Nova Solicitação",
+    "newMainProcess": "Novo Processo",
+    "newIndividualProcess": "Novo Processo Individual"
   },
   "ProcessRequests": {
-    "title": "Solicitações de Processos"
+    "title": "Solicitações de Processos",
+    "newRequest": "Nova Solicitação de Processo",
+    "createTitle": "Criar Solicitação de Processo",
+    "createDescription": "Enviar uma nova solicitação de processo para aprovação"
   },
   "MainProcesses": {
-    "title": "Processos Principais"
+    "title": "Processos Principais",
+    "newProcess": "Novo Processo Principal",
+    "createTitle": "Criar Processo Principal",
+    "createDescription": "Criar um novo contêiner de processo de imigração"
   },
   "IndividualProcesses": {
     "title": "Processos Individuais",
     "createTitle": "Criar Processo Individual",
     "editTitle": "Editar Processo Individual",
+    "newProcess": "Novo Processo Individual",
+    "createDescription": "Adicionar uma pessoa a um processo de imigração",
     "deleteConfirm": "Tem certeza de que deseja excluir este processo individual?",
     "personName": "Pessoa",
     "person": "Pessoa",
@@ -125,6 +142,8 @@
     "title": "Pessoas",
     "createTitle": "Criar Pessoa",
     "editTitle": "Editar Pessoa",
+    "newPerson": "Nova Pessoa",
+    "createDescription": "Preencha as informações para criar uma nova pessoa",
     "deleteConfirm": "Tem certeza de que deseja excluir esta pessoa?",
     "fullName": "Nome Completo",
     "email": "E-mail",
@@ -166,6 +185,8 @@
     "title": "Empresas",
     "createTitle": "Criar Empresa",
     "editTitle": "Editar Empresa",
+    "newCompany": "Nova Empresa",
+    "createDescription": "Preencha as informações para criar uma nova empresa",
     "deleteConfirm": "Tem certeza de que deseja excluir esta empresa?",
     "name": "Nome da Empresa",
     "taxId": "CNPJ / Identificação Fiscal",
@@ -191,6 +212,7 @@
     "title": "Documentos",
     "createTitle": "Criar Documento",
     "editTitle": "Editar Documento",
+    "newDocument": "Novo Documento",
     "createDescription": "Adicionar um novo documento ao sistema",
     "editDescription": "Editar os detalhes do documento abaixo",
     "deleteConfirm": "Tem certeza de que deseja excluir este documento?",
@@ -234,7 +256,10 @@
     "noResults": "Nenhum documento encontrado"
   },
   "Tasks": {
-    "title": "Tarefas"
+    "title": "Tarefas",
+    "newTask": "Nova Tarefa",
+    "createTitle": "Criar Tarefa",
+    "createDescription": "Criar uma nova tarefa e atribuir a um membro da equipe"
   },
   "CboCodes": {
     "title": "Códigos CBO",
@@ -367,6 +392,8 @@
     "title": "Passaportes",
     "createTitle": "Criar Passaporte",
     "editTitle": "Editar Passaporte",
+    "newPassport": "Novo Passaporte",
+    "createDescription": "Preencha as informações para registrar um novo passaporte",
     "deleteConfirm": "Tem certeza de que deseja excluir este passaporte?",
     "person": "Pessoa",
     "passportNumber": "Número do Passaporte",
@@ -393,6 +420,8 @@
     "title": "Histórico de Emprego",
     "createTitle": "Adicionar Emprego",
     "editTitle": "Editar Emprego",
+    "newEmployment": "Novo Emprego",
+    "createDescriptionPage": "Registrar um novo relacionamento de emprego",
     "deleteConfirm": "Tem certeza de que deseja excluir este registro de emprego?",
     "person": "Pessoa",
     "company": "Empresa",

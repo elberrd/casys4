@@ -10,11 +10,13 @@ import { IndividualProcessFormDialog } from "@/components/individual-processes/i
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
+import { useRouter } from "next/navigation"
 
 export default function IndividualProcessesPage() {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
+  const router = useRouter()
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedProcessId, setSelectedProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
@@ -48,7 +50,7 @@ export default function IndividualProcessesPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={handleCreate}>
+          <Button onClick={() => router.push('/individual-processes/new')}>
             <Plus className="mr-2 h-4 w-4" />
             {tCommon('create')}
           </Button>

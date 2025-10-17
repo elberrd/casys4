@@ -10,11 +10,13 @@ import { Plus } from "lucide-react"
 import { PersonCompanyFormDialog } from "@/components/people-companies/person-company-form-dialog"
 import { PeopleCompaniesTable } from "@/components/people-companies/people-companies-table"
 import { Id } from "@/convex/_generated/dataModel"
+import { useRouter } from "next/navigation"
 
 export default function PeopleCompaniesPage() {
   const t = useTranslations('PeopleCompanies')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
+  const router = useRouter()
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState<Id<"peopleCompanies"> | null>(null)
@@ -48,7 +50,7 @@ export default function PeopleCompaniesPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={() => router.push('/people-companies/new')}>
             <Plus className="mr-2 h-4 w-4" />
             {tCommon('create')}
           </Button>

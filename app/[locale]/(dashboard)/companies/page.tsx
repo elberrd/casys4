@@ -10,13 +10,14 @@ import { Plus } from "lucide-react"
 import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
 import { CompaniesTable } from "@/components/companies/companies-table"
 import { Id } from "@/convex/_generated/dataModel"
+import { useRouter } from "next/navigation"
 
 export default function CompaniesPage() {
   const t = useTranslations('Companies')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
+  const router = useRouter()
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState<Id<"companies"> | null>(null)
 
   const companies = useQuery(api.companies.list, {}) ?? []
@@ -49,7 +50,7 @@ export default function CompaniesPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={() => router.push('/companies/new')}>
             <Plus className="mr-2 h-4 w-4" />
             {tCommon('create')}
           </Button>
@@ -59,12 +60,6 @@ export default function CompaniesPage() {
           companies={companies}
           onEdit={handleEdit}
           onDelete={handleDelete}
-        />
-
-        <CompanyFormDialog
-          open={isCreateOpen}
-          onOpenChange={setIsCreateOpen}
-          onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (

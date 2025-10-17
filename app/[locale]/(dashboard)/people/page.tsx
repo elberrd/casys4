@@ -10,13 +10,14 @@ import { Plus } from "lucide-react"
 import { PersonFormDialog } from "@/components/people/person-form-dialog"
 import { PeopleTable } from "@/components/people/people-table"
 import { Id } from "@/convex/_generated/dataModel"
+import { useRouter } from "next/navigation"
 
 export default function PeoplePage() {
   const t = useTranslations('People')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
+  const router = useRouter()
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState<Id<"people"> | null>(null)
 
   const people = useQuery(api.people.list, {}) ?? []
@@ -49,7 +50,7 @@ export default function PeoplePage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={() => router.push('/people/new')}>
             <Plus className="mr-2 h-4 w-4" />
             {tCommon('create')}
           </Button>
@@ -59,12 +60,6 @@ export default function PeoplePage() {
           people={people}
           onEdit={handleEdit}
           onDelete={handleDelete}
-        />
-
-        <PersonFormDialog
-          open={isCreateOpen}
-          onOpenChange={setIsCreateOpen}
-          onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (

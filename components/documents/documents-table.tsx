@@ -16,6 +16,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { FileIcon, Download, Edit, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ type Document = {
 export function DocumentsTable() {
   const t = useTranslations("Documents");
   const tCommon = useTranslations("Common");
+  const router = useRouter();
 
   const documents = useQuery(api.documents.list) ?? [];
   const removeDocument = useMutation(api.documents.remove);
@@ -281,10 +283,7 @@ export function DocumentsTable() {
           <div className="flex items-center justify-between gap-2">
             <DataGridFilter table={table} className="w-full sm:max-w-sm" />
             <Button
-              onClick={() => {
-                setEditingDocument(undefined);
-                setIsFormOpen(true);
-              }}
+              onClick={() => router.push('/documents/new')}
             >
               {t("createTitle")}
             </Button>
