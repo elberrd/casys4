@@ -27,12 +27,12 @@ export function DataGridTable() {
   const rows = table.getRowModel().rows
 
   return (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full overflow-x-auto">
       <table
         className={cn(
           "w-full caption-bottom text-sm",
-          tableLayout.width === "fixed" && "table-fixed",
-          tableLayout.width === "auto" && "table-auto",
+          tableLayout.width === "fixed" && "md:table-fixed",
+          "table-auto",
           tableClassNames.base
         )}
       >
@@ -61,9 +61,10 @@ export function DataGridTable() {
                     colSpan={header.colSpan}
                     style={{
                       width: header.getSize() !== 150 ? header.getSize() : undefined,
+                      minWidth: header.column.id === 'select' ? '40px' : header.column.id === 'actions' ? '60px' : '120px',
                     }}
                     className={cn(
-                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap",
                       tableLayout.dense && "h-8 px-1.5",
                       tableLayout.cellBorder && "border-r last:border-r-0",
                       meta?.headerClassName,
@@ -147,6 +148,7 @@ export function DataGridTable() {
                               cell.column.getSize() !== 150
                                 ? cell.column.getSize()
                                 : undefined,
+                            minWidth: cell.column.id === 'select' ? '40px' : cell.column.id === 'actions' ? '60px' : '120px',
                           }}
                           className={cn(
                             "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",

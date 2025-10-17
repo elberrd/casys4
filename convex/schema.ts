@@ -11,12 +11,17 @@ export default defineSchema({
   // Geographic lookup tables
   countries: defineTable({
     name: v.string(),
-  }),
+    code: v.string(),
+    iso3: v.string(),
+  }).index("by_code", ["code"]),
 
   states: defineTable({
     name: v.string(),
+    code: v.string(),
     countryId: v.id("countries"),
-  }).index("by_country", ["countryId"]),
+  })
+    .index("by_country", ["countryId"])
+    .index("by_code", ["code"]),
 
   cities: defineTable({
     name: v.string(),

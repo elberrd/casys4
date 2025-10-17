@@ -5,7 +5,16 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
-    "create": "Create"
+    "create": "Create",
+    "search": "Search...",
+    "clearSearch": "Clear search",
+    "actions": "Actions",
+    "moreActions": "More actions",
+    "itemsSelected": "{count} items selected",
+    "deselectAll": "Deselect all",
+    "deleteSelected": "Delete selected",
+    "bulkDeleteConfirm": "Are you sure you want to delete {count} items?",
+    "bulkDeleteSuccess": "{count} items deleted successfully"
   },
   "Navigation": {
     "dashboard": "Dashboard",

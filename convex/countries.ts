@@ -32,6 +32,8 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const countryId = await ctx.db.insert("countries", {
       name: args.name,
+      code: "",
+      iso3: "",
     });
 
     return countryId;
@@ -46,12 +48,12 @@ export const update = mutation({
     id: v.id("countries"),
     name: v.string(),
   },
-  handler: async (ctx, { id, name }) => {
-    await ctx.db.patch(id, {
-      name,
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      name: args.name,
     });
 
-    return id;
+    return args.id;
   },
 });
 

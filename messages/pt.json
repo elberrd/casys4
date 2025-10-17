@@ -5,7 +5,16 @@
     "cancel": "Cancelar",
     "delete": "Excluir",
     "edit": "Editar",
-    "create": "Criar"
+    "create": "Criar",
+    "search": "Pesquisar...",
+    "clearSearch": "Limpar pesquisa",
+    "actions": "Ações",
+    "moreActions": "Mais ações",
+    "itemsSelected": "{count} itens selecionados",
+    "deselectAll": "Desmarcar todos",
+    "deleteSelected": "Excluir selecionados",
+    "bulkDeleteConfirm": "Tem certeza de que deseja excluir {count} itens?",
+    "bulkDeleteSuccess": "{count} itens excluídos com sucesso"
   },
   "Navigation": {
     "dashboard": "Painel",

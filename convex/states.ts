@@ -65,6 +65,7 @@ export const listWithCountry = query({
 export const create = mutation({
   args: {
     name: v.string(),
+    code: v.string(),
     countryId: v.id("countries"),
   },
   handler: async (ctx, args) => {
@@ -74,8 +75,19 @@ export const create = mutation({
       throw new Error("Country not found");
     }
 
+    // Check if state code already exists
+    const existing = await ctx.db
+      .query("states")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .first();
+
+    if (existing) {
+      throw new Error("State with this code already exists");
+    }
+
     const stateId = await ctx.db.insert("states", {
       name: args.name,
+      code: args.code.toUpperCase(),
       countryId: args.countryId,
     });
 
@@ -90,21 +102,33 @@ export const update = mutation({
   args: {
     id: v.id("states"),
     name: v.string(),
+    code: v.string(),
     countryId: v.id("countries"),
   },
-  handler: async (ctx, { id, name, countryId }) => {
+  handler: async (ctx, args) => {
     // Check if country exists
-    const country = await ctx.db.get(countryId);
+    const country = await ctx.db.get(args.countryId);
     if (!country) {
       throw new Error("Country not found");
     }
 
-    await ctx.db.patch(id, {
-      name,
-      countryId,
+    // Check if another state with this code exists
+    const existing = await ctx.db
+      .query("states")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .first();
+
+    if (existing && existing._id !== args.id) {
+      throw new Error("Another state with this code already exists");
+    }
+
+    await ctx.db.patch(args.id, {
+      name: args.name,
+      code: args.code.toUpperCase(),
+      countryId: args.countryId,
     });
 
-    return id;
+    return args.id;
   },
 });
 

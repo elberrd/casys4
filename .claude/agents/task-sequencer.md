@@ -70,6 +70,15 @@ Every task sequence MUST include validation for:
 - Adherence to established component architecture
 - Props validation and documentation
 
+**Mobile Responsiveness**
+
+- All UI components must be fully responsive across mobile, tablet, and desktop viewports
+- Use Tailwind CSS responsive breakpoints (sm, md, lg, xl, 2xl)
+- Touch-friendly interactive elements (minimum 44x44px tap targets)
+- Proper overflow handling and scrolling behavior on mobile
+- Test across different screen sizes and orientations
+- Ensure data tables, forms, and dialogs work seamlessly on mobile devices
+
 **Testing Requirements**
 
 - Unit tests for business logic
@@ -138,6 +147,8 @@ Format your tasks in `/ai_docs/todo.md` using this structure:
 - [ ] Reusable components utilized
 - [ ] Clean code principles followed
 - [ ] Error handling implemented
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
 - [ ] Tests written
 
 ### 2. [Next Main Task]

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,17 +8,24 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   ColumnDef,
+  RowSelectionState,
 } from "@tanstack/react-table"
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid"
 import { DataGridTable } from "@/components/ui/data-grid-table"
 import { DataGridPagination } from "@/components/ui/data-grid-pagination"
 import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header"
 import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility"
+import { DataGridFilter } from "@/components/ui/data-grid-filter"
+import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
+import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
+import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Edit, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { createSelectColumn } from "@/lib/data-grid-utils"
+import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 
 interface State {
   _id: Id<"states">
@@ -38,13 +45,18 @@ interface StatesTableProps {
 export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
   const t = useTranslations('States')
   const tCommon = useTranslations('Common')
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const columns = useMemo<ColumnDef<State>[]>(
     () => [
+      createSelectColumn<State>(),
       {
         accessorKey: "name",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('name')} />
+        ),
+        cell: ({ row }) => (
+          <DataGridHighlightedCell text={row.original.name} />
         ),
       },
       {
@@ -53,28 +65,34 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('country')} />
         ),
+        cell: ({ row }) => (
+          <DataGridHighlightedCell text={row.original.country?.name || "-"} />
+        ),
       },
       {
         id: "actions",
-        header: tCommon('edit'),
+        header: () => <span className="sr-only">{tCommon('actions')}</span>,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onEdit(row.original._id)}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onDelete(row.original._id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <DataGridRowActions
+            actions={[
+              {
+                label: tCommon('edit'),
+                icon: <Edit className="h-4 w-4" />,
+                onClick: () => onEdit(row.original._id),
+                variant: "default",
+              },
+              {
+                label: tCommon('delete'),
+                icon: <Trash2 className="h-4 w-4" />,
+                onClick: () => onDelete(row.original._id),
+                variant: "destructive",
+                separator: true,
+              },
+            ]}
+          />
         ),
+        size: 50,
+        enableSorting: false,
         enableHiding: false,
       },
     ],
@@ -88,6 +106,12 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: globalFuzzyFilter,
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      rowSelection,
+    },
   })
 
   return (
@@ -100,13 +124,31 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
       }}
     >
       <div className="w-full space-y-2.5">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">{t('title')}</h3>
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
+          <DataGridFilter table={table} className="w-full sm:max-w-sm" />
           <DataGridColumnVisibility
             table={table}
-            trigger={<Button variant="outline" size="sm">Columns</Button>}
+            trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
           />
         </div>
+        <DataGridBulkActions
+          table={table}
+          actions={[
+            {
+              label: tCommon('deleteSelected'),
+              icon: <Trash2 className="h-4 w-4" />,
+              onClick: async (selectedRows) => {
+                if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
+                  for (const row of selectedRows) {
+                    await onDelete(row._id)
+                  }
+                  table.resetRowSelection()
+                }
+              },
+              variant: "destructive",
+            },
+          ]}
+        />
         <DataGridContainer>
           <ScrollArea>
             <DataGridTable />

@@ -147,17 +147,17 @@ export function DataGridPagination({
   return (
     <div
       className={cn(
-        "flex items-center justify-between px-2 py-2",
+        "flex items-center justify-between gap-2 px-2 py-2 flex-wrap",
         className
       )}
     >
       {/* Page size selector */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 shrink-0">
         {isLoading && sizesSkeleton ? (
           sizesSkeleton
         ) : (
           <>
-            <p className="text-sm font-medium">{rowsPerPageLabel}</p>
+            <p className="text-sm font-medium hidden sm:inline">{rowsPerPageLabel}</p>
             <Select
               value={`${pageSize}`}
               onValueChange={(value) => {
@@ -175,14 +175,15 @@ export function DataGridPagination({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs font-medium whitespace-nowrap">/ page</p>
           </>
         )}
       </div>
 
       {/* Info and pagination controls */}
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex items-center gap-2 sm:gap-6 lg:gap-8">
         {/* Info */}
-        <div className="flex items-center justify-center text-sm font-medium">
+        <div className="flex items-center justify-center text-xs sm:text-sm font-medium whitespace-nowrap">
           {isLoading && infoSkeleton ? (
             infoSkeleton
           ) : (
@@ -191,7 +192,7 @@ export function DataGridPagination({
         </div>
 
         {/* Pagination buttons */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           {/* First page */}
           <Button
             variant="outline"

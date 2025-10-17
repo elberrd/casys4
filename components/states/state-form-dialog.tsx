@@ -59,6 +59,7 @@ export function StateFormDialog({
     resolver: zodResolver(stateSchema),
     defaultValues: {
       name: "",
+      code: "",
       countryId: "",
     },
   })
@@ -68,11 +69,13 @@ export function StateFormDialog({
     if (state) {
       form.reset({
         name: state.name,
+        code: state.code,
         countryId: state.countryId,
       })
     } else if (!stateId) {
       form.reset({
         name: "",
+        code: "",
         countryId: "",
       })
     }
@@ -132,6 +135,25 @@ export function StateFormDialog({
                   <FormLabel>{t('name')}</FormLabel>
                   <FormControl>
                     <Input placeholder="São Paulo" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('code')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="SP"
+                      maxLength={2}
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

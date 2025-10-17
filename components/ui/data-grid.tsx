@@ -112,6 +112,7 @@ interface DataGridContextValue<TData> {
   emptyMessage: React.ReactNode | string
   tableLayout: Required<DataGridTableLayout>
   tableClassNames: Required<DataGridTableClassNames>
+  searchTerm: string
 }
 
 const DataGridContext = React.createContext<DataGridContextValue<any> | null>(
@@ -214,6 +215,7 @@ export function DataGrid<TData>({
       emptyMessage,
       tableLayout: mergedTableLayout,
       tableClassNames: mergedTableClassNames,
+      searchTerm: (table.getState().globalFilter as string) || "",
     }),
     [
       table,
@@ -225,6 +227,7 @@ export function DataGrid<TData>({
       emptyMessage,
       mergedTableLayout,
       mergedTableClassNames,
+      table.getState().globalFilter,
     ]
   )
 
@@ -248,7 +251,7 @@ export function DataGridContainer({
   return (
     <div
       className={cn(
-        "rounded-md border bg-background",
+        "rounded-md border bg-background w-full overflow-hidden",
         className
       )}
     >
