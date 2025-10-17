@@ -153,6 +153,54 @@ export default defineSchema({
     .index("by_category", ["category"])
     .index("by_active", ["isActive"]),
 
+  // Process management tables
+  mainProcesses: defineTable({
+    referenceNumber: v.string(),
+    companyId: v.id("companies"),
+    contactPersonId: v.id("people"),
+    processTypeId: v.id("processTypes"),
+    workplaceCityId: v.id("cities"),
+    consulateId: v.optional(v.id("consulates")),
+    isUrgent: v.boolean(),
+    requestDate: v.string(),
+    notes: v.optional(v.string()),
+    status: v.string(),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_processType", ["processTypeId"])
+    .index("by_status", ["status"])
+    .index("by_referenceNumber", ["referenceNumber"]),
+
+  individualProcesses: defineTable({
+    mainProcessId: v.id("mainProcesses"),
+    personId: v.id("people"),
+    status: v.string(),
+    legalFrameworkId: v.id("legalFrameworks"),
+    cboId: v.optional(v.id("cboCodes")),
+    mreOfficeNumber: v.optional(v.string()),
+    douNumber: v.optional(v.string()),
+    douSection: v.optional(v.string()),
+    douPage: v.optional(v.string()),
+    douDate: v.optional(v.string()),
+    protocolNumber: v.optional(v.string()),
+    rnmNumber: v.optional(v.string()),
+    rnmDeadline: v.optional(v.string()),
+    appointmentDateTime: v.optional(v.string()),
+    deadlineDate: v.optional(v.string()),
+    isActive: v.boolean(),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_mainProcess", ["mainProcessId"])
+    .index("by_person", ["personId"])
+    .index("by_status", ["status"])
+    .index("by_legalFramework", ["legalFrameworkId"])
+    .index("by_active", ["isActive"]),
+
   // Documents management
   documents: defineTable({
     name: v.string(),
