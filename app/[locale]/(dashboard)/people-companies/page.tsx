@@ -7,37 +7,36 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
-import { CompaniesTable } from "@/components/companies/companies-table"
+import { PersonCompanyFormDialog } from "@/components/people-companies/person-company-form-dialog"
+import { PeopleCompaniesTable } from "@/components/people-companies/people-companies-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CompaniesPage() {
-  const t = useTranslations('Companies')
+export default function PeopleCompaniesPage() {
+  const t = useTranslations('PeopleCompanies')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"companies"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"peopleCompanies"> | null>(null)
 
-  const companies = useQuery(api.companies.list, {}) ?? []
-  const deleteCompany = useMutation(api.companies.remove)
+  const relationships = useQuery(api.peopleCompanies.list, {}) ?? []
+  const deleteRelationship = useMutation(api.peopleCompanies.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('peopleCompanies') },
-    { label: tBreadcrumbs('companies') }
   ]
 
-  const handleEdit = (id: Id<"companies">) => {
+  const handleEdit = (id: Id<"peopleCompanies">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"companies">) => {
+  const handleDelete = async (id: Id<"peopleCompanies">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCompany({ id })
+        await deleteRelationship({ id })
       } catch (error) {
-        console.error("Error deleting company:", error)
+        console.error("Error deleting employment relationship:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +54,23 @@ export default function CompaniesPage() {
           </Button>
         </div>
 
-        <CompaniesTable
-          companies={companies}
+        <PeopleCompaniesTable
+          relationships={relationships}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CompanyFormDialog
+        <PersonCompanyFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CompanyFormDialog
+          <PersonCompanyFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            companyId={editingId}
+            relationshipId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}

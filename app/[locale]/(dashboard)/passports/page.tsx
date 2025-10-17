@@ -7,37 +7,37 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
-import { CompaniesTable } from "@/components/companies/companies-table"
+import { PassportFormDialog } from "@/components/passports/passport-form-dialog"
+import { PassportsTable } from "@/components/passports/passports-table"
 import { Id } from "@/convex/_generated/dataModel"
 
-export default function CompaniesPage() {
-  const t = useTranslations('Companies')
+export default function PassportsPage() {
+  const t = useTranslations('Passports')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"companies"> | null>(null)
+  const [editingId, setEditingId] = useState<Id<"passports"> | null>(null)
 
-  const companies = useQuery(api.companies.list, {}) ?? []
-  const deleteCompany = useMutation(api.companies.remove)
+  const passports = useQuery(api.passports.list, {}) ?? []
+  const deletePassport = useMutation(api.passports.remove)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('peopleCompanies') },
-    { label: tBreadcrumbs('companies') }
+    { label: tBreadcrumbs('passports') }
   ]
 
-  const handleEdit = (id: Id<"companies">) => {
+  const handleEdit = (id: Id<"passports">) => {
     setEditingId(id)
   }
 
-  const handleDelete = async (id: Id<"companies">) => {
+  const handleDelete = async (id: Id<"passports">) => {
     if (confirm(t('deleteConfirm'))) {
       try {
-        await deleteCompany({ id })
+        await deletePassport({ id })
       } catch (error) {
-        console.error("Error deleting company:", error)
+        console.error("Error deleting passport:", error)
         alert(t('errorDelete'))
       }
     }
@@ -55,23 +55,23 @@ export default function CompaniesPage() {
           </Button>
         </div>
 
-        <CompaniesTable
-          companies={companies}
+        <PassportsTable
+          passports={passports}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
 
-        <CompanyFormDialog
+        <PassportFormDialog
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
           onSuccess={() => setIsCreateOpen(false)}
         />
 
         {editingId && (
-          <CompanyFormDialog
+          <PassportFormDialog
             open={true}
             onOpenChange={(open) => !open && setEditingId(null)}
-            companyId={editingId}
+            passportId={editingId}
             onSuccess={() => setEditingId(null)}
           />
         )}

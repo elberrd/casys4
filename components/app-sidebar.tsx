@@ -94,6 +94,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t('companies'),
           url: "/companies",
         },
+        {
+          title: t('passports'),
+          url: "/passports",
+        },
+        {
+          title: t('peopleCompanies'),
+          url: "/people-companies",
+        },
       ],
     },
     {
@@ -140,6 +148,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           title: t('consulates'),
           url: "/consulates",
+        },
+        {
+          title: t('documentTypes'),
+          url: "/document-types",
         },
       ],
     },
