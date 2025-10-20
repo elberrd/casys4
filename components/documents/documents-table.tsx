@@ -36,6 +36,7 @@ import { DataGridTable } from "@/components/ui/data-grid-table";
 import { DataGridPagination } from "@/components/ui/data-grid-pagination";
 import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header";
 import { DataGridFilter } from "@/components/ui/data-grid-filter";
+import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility";
 import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
@@ -278,15 +279,25 @@ export function DocumentsTable() {
         table={table}
         recordCount={documents.length}
         emptyMessage={t("noResults")}
+        tableLayout={{
+          columnsVisibility: true,
+        }}
       >
         <div className="w-full space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
             <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-            <Button
-              onClick={() => router.push('/documents/new')}
-            >
-              {t("createTitle")}
-            </Button>
+            <div className="flex gap-2">
+              <DataGridColumnVisibility
+                table={table}
+                trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
+              />
+              <Button
+                onClick={() => router.push('/documents/new')}
+                className="w-full sm:w-auto"
+              >
+                {t("createTitle")}
+              </Button>
+            </div>
           </div>
           <DataGridBulkActions
             table={table}

@@ -88,6 +88,7 @@ export function CompanyFormPage({
       const submitData = {
         ...data,
         website: data.website || undefined,
+        cityId: data.cityId || undefined,
         contactPersonId: data.contactPersonId || undefined,
         notes: data.notes || undefined,
       }

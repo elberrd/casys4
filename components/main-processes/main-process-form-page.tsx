@@ -170,8 +170,9 @@ export function MainProcessFormPage({
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <div className="max-w-3xl">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Reference Number */}
         <FormField
           control={form.control}
@@ -403,5 +404,6 @@ export function MainProcessFormPage({
         </div>
       </form>
     </Form>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
@@ -80,15 +80,17 @@ export function DocumentTypeFormDialog({
   });
 
   // Update form when documentType data loads
-  if (documentType && form.getValues().name === "" && documentTypeId) {
-    form.reset({
-      name: documentType.name,
-      code: documentType.code,
-      category: documentType.category as any,
-      description: documentType.description,
-      isActive: documentType.isActive,
-    });
-  }
+  useEffect(() => {
+    if (documentType && documentTypeId) {
+      form.reset({
+        name: documentType.name,
+        code: documentType.code,
+        category: documentType.category as any,
+        description: documentType.description,
+        isActive: documentType.isActive,
+      });
+    }
+  }, [documentType, documentTypeId, form]);
 
   const onSubmit = async (data: DocumentTypeFormData) => {
     try {

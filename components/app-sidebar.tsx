@@ -106,10 +106,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ],
     },
     {
-      title: t('documents'),
-      url: "/documents",
+      title: t('documentsManagement'),
+      url: "#",
       icon: FileText,
-      items: [],
+      items: [
+        {
+          title: t('documents'),
+          url: "/documents",
+        },
+        {
+          title: t('documentTypes'),
+          url: "/document-types",
+        },
+        {
+          title: t('documentTemplates'),
+          url: "/document-templates",
+        },
+      ],
     },
     {
       title: t('tasks'),
@@ -150,27 +163,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t('consulates'),
           url: "/consulates",
         },
-        {
-          title: t('documentTypes'),
-          url: "/document-types",
-        },
-        {
-          title: t('documentTemplates'),
-          url: "/document-templates",
-        },
       ],
     },
     {
-      title: t('activityLogs'),
-      url: "/activity-logs",
-      icon: ScrollText,
-      items: [],
-    },
-    {
       title: t('settings'),
-      url: "/settings",
+      url: "#",
       icon: Settings2,
-      items: [],
+      items: [
+        {
+          title: t('settings'),
+          url: "/settings",
+        },
+        {
+          title: t('activityLogs'),
+          url: "/activity-logs",
+        },
+      ],
     },
   ]
 

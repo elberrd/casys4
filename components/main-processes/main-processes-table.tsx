@@ -15,11 +15,13 @@ import { DataGridTable } from "@/components/ui/data-grid-table"
 import { DataGridPagination } from "@/components/ui/data-grid-pagination"
 import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header"
 import { DataGridFilter } from "@/components/ui/data-grid-filter"
+import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility"
 import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Edit, Trash2, Eye, AlertCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
@@ -231,9 +233,18 @@ export function MainProcessesTable({
       table={table}
       recordCount={mainProcesses.length}
       emptyMessage={t('noResults')}
+      tableLayout={{
+        columnsVisibility: true,
+      }}
     >
       <div className="w-full space-y-2.5">
-        <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
+          <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+          <DataGridColumnVisibility
+            table={table}
+            trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
+          />
+        </div>
         {onDelete && (
           <DataGridBulkActions
             table={table}

@@ -100,7 +100,7 @@ export default defineSchema({
     taxId: v.string(),
     website: v.optional(v.string()),
     address: v.string(),
-    cityId: v.id("cities"),
+    cityId: v.optional(v.id("cities")),
     phoneNumber: v.string(),
     email: v.string(),
     contactPersonId: v.optional(v.id("people")),
