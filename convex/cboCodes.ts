@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 export const list = query({
   args: {
@@ -46,6 +47,9 @@ export const search = query({
   },
 });
 
+/**
+ * Mutation to create CBO code (admin only)
+ */
 export const create = mutation({
   args: {
     code: v.string(),
@@ -53,6 +57,8 @@ export const create = mutation({
     description: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     // Check for duplicate code
     const existing = await ctx.db
       .query("cboCodes")
@@ -71,6 +77,9 @@ export const create = mutation({
   },
 });
 
+/**
+ * Mutation to update CBO code (admin only)
+ */
 export const update = mutation({
   args: {
     id: v.id("cboCodes"),
@@ -79,6 +88,8 @@ export const update = mutation({
     description: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     const { id, ...updateData } = args;
 
     // Check for duplicate code (excluding current record)
@@ -95,9 +106,14 @@ export const update = mutation({
   },
 });
 
+/**
+ * Mutation to delete CBO code (admin only)
+ */
 export const remove = mutation({
   args: { id: v.id("cboCodes") },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     // TODO: Add cascade check when individual processes table is implemented
     // Check if any individual processes reference this CBO code
     await ctx.db.delete(args.id);

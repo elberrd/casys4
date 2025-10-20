@@ -35,14 +35,15 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 
 export const config = {
   // Match all pathnames except for
-  // - /api (API routes)
   // - /_next (Next.js internals)
   // - /_vercel (Vercel internals)
   // - /convex (Convex backend routes)
   // - static files (.*\\..*)
+  // Note: We INCLUDE /api routes so Convex Auth can handle authentication
   matcher: [
-    '/((?!api|_next|_vercel|convex|.*\\..*).*)',
+    '/((?!_next|_vercel|convex|.*\\..*).*)',
     '/',
-    '/(pt|en)/:path*'
+    '/(pt|en)/:path*',
+    '/(api|trpc)(.*)'
   ]
 };

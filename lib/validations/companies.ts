@@ -17,7 +17,7 @@ export const companySchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
   notes: z.string().optional().or(z.literal("")),
 });
 

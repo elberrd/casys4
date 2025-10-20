@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 /**
  * Query to list all cities with optional state filter
@@ -92,7 +93,7 @@ export const getWithFederalPolice = query({
 });
 
 /**
- * Mutation to create city
+ * Mutation to create city (admin only)
  */
 export const create = mutation({
   args: {
@@ -101,6 +102,8 @@ export const create = mutation({
     hasFederalPolice: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     // Check if state exists
     const state = await ctx.db.get(args.stateId);
     if (!state) {
@@ -118,7 +121,7 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update city
+ * Mutation to update city (admin only)
  */
 export const update = mutation({
   args: {
@@ -128,6 +131,8 @@ export const update = mutation({
     hasFederalPolice: v.boolean(),
   },
   handler: async (ctx, { id, ...args }) => {
+    await requireAdmin(ctx);
+
     // Check if state exists
     const state = await ctx.db.get(args.stateId);
     if (!state) {
@@ -145,11 +150,13 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete city
+ * Mutation to delete city (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("cities") },
   handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
+
     // Note: Add cascade checks here if there are related tables
     // For now, we'll just delete the city
     await ctx.db.delete(id);

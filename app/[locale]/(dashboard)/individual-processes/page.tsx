@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { IndividualProcessesTable } from "@/components/individual-processes/individual-processes-table"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
 import { Button } from "@/components/ui/button"
+import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Plus } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
@@ -34,6 +35,10 @@ export default function IndividualProcessesPage() {
     setIsDialogOpen(true)
   }
 
+  const handleView = (id: Id<"individualProcesses">) => {
+    router.push(`/individual-processes/${id}`)
+  }
+
   const handleEdit = (id: Id<"individualProcesses">) => {
     setSelectedProcessId(id)
     setIsDialogOpen(true)
@@ -50,14 +55,18 @@ export default function IndividualProcessesPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={() => router.push('/individual-processes/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            {tCommon('create')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportDataDialog defaultExportType="individualProcesses" />
+            <Button onClick={() => router.push('/individual-processes/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              {tCommon('create')}
+            </Button>
+          </div>
         </div>
 
         <IndividualProcessesTable
           individualProcesses={individualProcesses}
+          onView={handleView}
           onEdit={handleEdit}
         />
 

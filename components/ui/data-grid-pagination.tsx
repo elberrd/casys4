@@ -89,13 +89,13 @@ export function DataGridPagination({
 
   // Calculate from/to for display
   const from = pageIndex * pageSize + 1
-  const to = Math.min((pageIndex + 1) * pageSize, recordCount)
+  const to = Math.min((pageIndex + 1) * pageSize, recordCount ?? 0)
 
   // Format info text
   const formattedInfo = info
     .replace("{from}", from.toString())
     .replace("{to}", to.toString())
-    .replace("{count}", recordCount.toString())
+    .replace("{count}", (recordCount ?? 0).toString())
 
   // Generate page numbers for "more" mode
   const getPageNumbers = () => {

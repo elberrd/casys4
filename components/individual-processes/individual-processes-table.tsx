@@ -19,7 +19,8 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2, Eye } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
+import { Edit, Trash2, Eye, ListTodo } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -53,13 +54,17 @@ interface IndividualProcessesTableProps {
   onView?: (id: Id<"individualProcesses">) => void
   onEdit?: (id: Id<"individualProcesses">) => void
   onDelete?: (id: Id<"individualProcesses">) => void
+  onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status: string }>) => void
+  onBulkCreateTask?: (selected: IndividualProcess[]) => void
 }
 
 export function IndividualProcessesTable({
   individualProcesses,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  onBulkStatusUpdate,
+  onBulkCreateTask
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
@@ -91,20 +96,9 @@ export function IndividualProcessesTable({
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('status')} />
         ),
-        cell: ({ row }) => {
-          const status = row.original.status
-          const variant = status === "completed"
-            ? "default"
-            : status === "in_progress"
-            ? "secondary"
-            : "outline"
-
-          return (
-            <Badge variant={variant}>
-              {status}
-            </Badge>
-          )
-        },
+        cell: ({ row }) => (
+          <StatusBadge status={row.original.status} type="individual_process" />
+        ),
       },
       {
         accessorKey: "legalFramework.name",
@@ -217,11 +211,32 @@ export function IndividualProcessesTable({
     >
       <div className="w-full space-y-2.5">
         <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-        {onDelete && (
+        {(onDelete || onBulkStatusUpdate || onBulkCreateTask) && (
           <DataGridBulkActions
             table={table}
             actions={[
-              {
+              ...(onBulkCreateTask ? [{
+                label: t('createBulkTask'),
+                icon: <ListTodo className="h-4 w-4" />,
+                onClick: async (selectedRows) => {
+                  onBulkCreateTask(selectedRows)
+                },
+                variant: "default" as const,
+              }] : []),
+              ...(onBulkStatusUpdate ? [{
+                label: tCommon('updateStatus'),
+                icon: <Edit className="h-4 w-4" />,
+                onClick: async (selectedRows) => {
+                  const selected = selectedRows.map(row => ({
+                    _id: row._id,
+                    personId: row.person?._id || ("" as Id<"people">),
+                    status: row.status
+                  }))
+                  onBulkStatusUpdate(selected)
+                },
+                variant: "default" as const,
+              }] : []),
+              ...(onDelete ? [{
                 label: tCommon('deleteSelected'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: async (selectedRows) => {
@@ -232,8 +247,8 @@ export function IndividualProcessesTable({
                     table.resetRowSelection()
                   }
                 },
-                variant: "destructive",
-              },
+                variant: "destructive" as const,
+              }] : []),
             ]}
           />
         )}

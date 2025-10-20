@@ -53,7 +53,7 @@ export function CompanyFormDialog({
     companyId ? { id: companyId } : "skip"
   )
 
-  const cities = useQuery(api.cities.list) ?? []
+  const cities = useQuery(api.cities.listWithRelations) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
   const createCompany = useMutation(api.companies.create)
   const updateCompany = useMutation(api.companies.update)

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 export const list = query({
   args: {
@@ -95,6 +96,9 @@ export const get = query({
   },
 });
 
+/**
+ * Mutation to create consulate (admin only)
+ */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -105,6 +109,8 @@ export const create = mutation({
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     return await ctx.db.insert("consulates", {
       name: args.name,
       cityId: args.cityId,
@@ -116,6 +122,9 @@ export const create = mutation({
   },
 });
 
+/**
+ * Mutation to update consulate (admin only)
+ */
 export const update = mutation({
   args: {
     id: v.id("consulates"),
@@ -127,15 +136,22 @@ export const update = mutation({
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     const { id, ...updateData } = args;
 
     await ctx.db.patch(id, updateData);
   },
 });
 
+/**
+ * Mutation to delete consulate (admin only)
+ */
 export const remove = mutation({
   args: { id: v.id("consulates") },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     // TODO: Add cascade check when main processes table is implemented
     // Check if any main processes reference this consulate
     await ctx.db.delete(args.id);

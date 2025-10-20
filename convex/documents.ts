@@ -1,8 +1,64 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { Doc } from "./_generated/dataModel";
+import { QueryCtx, MutationCtx } from "./_generated/server";
 
-// List all documents with related data
+/**
+ * Helper function to determine if the current user can access a specific document
+ * Access rules:
+ * - Admins can access all documents
+ * - Clients can access documents if:
+ *   1. Document is tied to their company (companyId matches)
+ *   2. Document is tied to a person who belongs to their company (via peopleCompanies)
+ */
+async function canAccessDocument(
+  ctx: QueryCtx | MutationCtx,
+  document: Doc<"documents">
+): Promise<boolean> {
+  const userProfile = await getCurrentUserProfile(ctx);
+
+  // Admins have full access
+  if (userProfile.role === "admin") {
+    return true;
+  }
+
+  // Client users need company assignment
+  if (userProfile.role === "client") {
+    if (!userProfile.companyId) {
+      throw new Error("Client user must have a company assignment");
+    }
+
+    // Check if document is tied to client's company
+    if (document.companyId && document.companyId === userProfile.companyId) {
+      return true;
+    }
+
+    // Check if document is tied to a person who belongs to client's company
+    if (document.personId) {
+      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
+      const docPersonId = document.personId; // Assign to const for type narrowing
+      const personCompany = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_person_company", (q) =>
+          q.eq("personId", docPersonId).eq("companyId", clientCompanyId)
+        )
+        .first();
+
+      if (personCompany) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Query to list all documents with optional filters
+ * Access control: Admins see all documents, clients see only their company's documents
+ */
 export const list = query({
   args: {
     documentTypeId: v.optional(v.id("documentTypes")),
@@ -10,6 +66,9 @@ export const list = query({
     companyId: v.optional(v.id("companies")),
   },
   handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
     let documents = await ctx.db.query("documents").collect();
 
     // Filter by documentTypeId if provided
@@ -25,6 +84,35 @@ export const list = query({
     // Filter by companyId if provided
     if (args.companyId !== undefined) {
       documents = documents.filter((d) => d.companyId === args.companyId);
+    }
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Get all people associated with client's company
+      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
+      const companyPeople = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .collect();
+
+      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
+
+      // Filter documents: keep only those tied to client's company or company's people
+      documents = documents.filter((doc) => {
+        // Document is tied to client's company
+        if (doc.companyId && doc.companyId === userProfile.companyId) {
+          return true;
+        }
+        // Document is tied to a person from client's company
+        if (doc.personId && allowedPersonIds.has(doc.personId)) {
+          return true;
+        }
+        return false;
+      });
     }
 
     // Fetch related data for each document
@@ -56,12 +144,23 @@ export const list = query({
   },
 });
 
-// Get a single document by ID
+/**
+ * Query to get a single document by ID
+ * Access control: Admins can view any document, clients can only view their company's documents
+ */
 export const get = query({
   args: { id: v.id("documents") },
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.id);
     if (!document) return null;
+
+    // Check access permissions
+    const hasAccess = await canAccessDocument(ctx, document);
+    if (!hasAccess) {
+      throw new Error(
+        "Access denied: You do not have permission to view this document"
+      );
+    }
 
     const documentType = await ctx.db.get(document.documentTypeId);
     const person = document.personId ? await ctx.db.get(document.personId) : null;
@@ -85,12 +184,19 @@ export const get = query({
   },
 });
 
-// Generate upload URL for file
+/**
+ * Mutation to generate upload URL for file (admin only)
+ */
 export const generateUploadUrl = mutation(async (ctx) => {
+  // Require admin role
+  await requireAdmin(ctx);
+
   return await ctx.storage.generateUploadUrl();
 });
 
-// Create a new document
+/**
+ * Mutation to create a new document (admin only)
+ */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -107,6 +213,9 @@ export const create = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     const now = Date.now();
 
     // Get file URL if storageId exists
@@ -137,7 +246,9 @@ export const create = mutation({
   },
 });
 
-// Update a document
+/**
+ * Mutation to update a document (admin only)
+ */
 export const update = mutation({
   args: {
     id: v.id("documents"),
@@ -155,6 +266,9 @@ export const update = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     const { id, ...updates } = args;
     const now = Date.now();
 
@@ -185,10 +299,15 @@ export const update = mutation({
   },
 });
 
-// Delete a document
+/**
+ * Mutation to delete a document (admin only)
+ */
 export const remove = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     const document = await ctx.db.get(args.id);
     if (!document) {
       throw new Error("Document not found");
@@ -204,10 +323,15 @@ export const remove = mutation({
   },
 });
 
-// Bulk delete documents
+/**
+ * Mutation to bulk delete documents (admin only)
+ */
 export const bulkRemove = mutation({
   args: { ids: v.array(v.id("documents")) },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     for (const id of args.ids) {
       const document = await ctx.db.get(id);
       if (document) {

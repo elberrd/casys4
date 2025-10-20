@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 /**
  * Query to list all process types with optional isActive filter
@@ -60,7 +61,7 @@ export const getByCode = query({
 });
 
 /**
- * Mutation to create process type
+ * Mutation to create process type (admin only)
  */
 export const create = mutation({
   args: {
@@ -73,6 +74,9 @@ export const create = mutation({
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Check if code already exists
     const existing = await ctx.db
       .query("processTypes")
@@ -107,7 +111,7 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update process type
+ * Mutation to update process type (admin only)
  */
 export const update = mutation({
   args: {
@@ -121,6 +125,9 @@ export const update = mutation({
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, { id, sortOrder, ...args }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Check if another process type with this code exists
     const existing = await ctx.db
       .query("processTypes")
@@ -151,11 +158,14 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete process type
+ * Mutation to delete process type (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("processTypes") },
   handler: async (ctx, { id }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Note: Add cascade checks here if there are related tables
     // For now, we'll just delete the process type
     await ctx.db.delete(id);
@@ -163,7 +173,7 @@ export const remove = mutation({
 });
 
 /**
- * Mutation to reorder process types
+ * Mutation to reorder process types (admin only)
  */
 export const reorder = mutation({
   args: {
@@ -175,6 +185,9 @@ export const reorder = mutation({
     ),
   },
   handler: async (ctx, { updates }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     for (const update of updates) {
       await ctx.db.patch(update.id, { sortOrder: update.sortOrder });
     }

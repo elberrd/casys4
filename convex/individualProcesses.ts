@@ -1,9 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { generateDocumentChecklist } from "./lib/documentChecklist";
+import { logStatusChange } from "./lib/processHistory";
+import { isValidIndividualStatusTransition } from "./lib/statusValidation";
+import { autoGenerateTasksOnStatusChange } from "./tasks";
+import { internal } from "./_generated/api";
 
 /**
  * Query to list all individual processes with optional filters
+ * Access control: Admins see all processes, clients see only their company's processes (via mainProcess.companyId)
  */
 export const list = query({
   args: {
@@ -13,6 +20,9 @@ export const list = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
     let results;
 
     // Apply filters
@@ -55,6 +65,26 @@ export const list = query({
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
+    // Apply role-based access control via mainProcess.companyId
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Filter by mainProcess.companyId - fetch mainProcesses for each result
+      const filteredByCompany = await Promise.all(
+        filteredResults.map(async (process) => {
+          const mainProcess = await ctx.db.get(process.mainProcessId);
+          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+            return process;
+          }
+          return null;
+        })
+      );
+
+      filteredResults = filteredByCompany.filter((p) => p !== null) as typeof filteredResults;
+    }
+
     // Enrich with related data
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
@@ -81,10 +111,14 @@ export const list = query({
 
 /**
  * Query to get individual process by ID with related data
+ * Access control: Admins can view any process, clients can only view their company's processes
  */
 export const get = query({
   args: { id: v.id("individualProcesses") },
   handler: async (ctx, { id }) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
     const process = await ctx.db.get(id);
     if (!process) return null;
 
@@ -92,8 +126,17 @@ export const get = query({
       ctx.db.get(process.personId),
       ctx.db.get(process.mainProcessId),
       ctx.db.get(process.legalFrameworkId),
-      process.cboId ? ctx.db.get(process.cboId) : null,
+      process.cboId ? await ctx.db.get(process.cboId) : null,
     ]);
+
+    // Check access permissions for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || !mainProcess || mainProcess.companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this individual process"
+        );
+      }
+    }
 
     return {
       ...process,
@@ -106,7 +149,7 @@ export const get = query({
 });
 
 /**
- * Mutation to create individual process
+ * Mutation to create individual process (admin only)
  */
 export const create = mutation({
   args: {
@@ -128,6 +171,9 @@ export const create = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
     const now = Date.now();
 
     const processId = await ctx.db.insert("individualProcesses", {
@@ -151,12 +197,57 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Log initial status to history
+    try {
+      await logStatusChange(
+        ctx,
+        processId,
+        undefined,
+        args.status,
+        `Individual process created with status: ${args.status}`
+      );
+    } catch (error) {
+      // Log error but don't fail process creation
+      console.error("Failed to log initial status to history:", error);
+    }
+
+    // Auto-generate document checklist
+    try {
+      await generateDocumentChecklist(ctx, processId);
+    } catch (error) {
+      // Log error but don't fail process creation
+      console.error("Failed to generate document checklist:", error);
+    }
+
+    // Log activity (non-blocking)
+    try {
+      const [person, mainProcess] = await Promise.all([
+        ctx.db.get(args.personId),
+        ctx.db.get(args.mainProcessId),
+      ]);
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "individualProcess",
+        entityId: processId,
+        details: {
+          personName: person?.fullName,
+          mainProcessReference: mainProcess?.referenceNumber,
+          status: args.status,
+          legalFrameworkId: args.legalFrameworkId,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
     return processId;
   },
 });
 
 /**
- * Mutation to update individual process
+ * Mutation to update individual process (admin only)
  */
 export const update = mutation({
   args: {
@@ -177,9 +268,26 @@ export const update = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
     const process = await ctx.db.get(id);
     if (!process) {
       throw new Error("Individual process not found");
+    }
+
+    // Validate status transition if status is being updated
+    if (args.status !== undefined && args.status !== process.status) {
+      const isValid = isValidIndividualStatusTransition(
+        process.status,
+        args.status
+      );
+
+      if (!isValid) {
+        throw new Error(
+          `Invalid status transition from "${process.status}" to "${args.status}". This transition is not allowed.`
+        );
+      }
     }
 
     const updates: any = {
@@ -214,26 +322,216 @@ export const update = mutation({
 
     await ctx.db.patch(id, updates);
 
+    // Log status change to history if status was updated
+    if (args.status !== undefined && args.status !== process.status) {
+      await logStatusChange(
+        ctx,
+        id,
+        process.status,
+        args.status,
+        `Status changed from ${process.status} to ${args.status}`
+      );
+
+      // Auto-generate tasks for the new status
+      try {
+        const identity = await ctx.auth.getUserIdentity();
+        if (identity) {
+          const user = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("email"), identity.email))
+            .first();
+
+          if (user) {
+            await autoGenerateTasksOnStatusChange(ctx, id, args.status, user._id);
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail status update
+        console.error("Failed to auto-generate tasks:", error);
+      }
+
+      // Send notification about status change
+      try {
+        // Get person and main process for notification details
+        const person = await ctx.db.get(process.personId);
+        const mainProcess = await ctx.db.get(process.mainProcessId);
+
+        if (person && mainProcess) {
+          // Notify company contact person (client user)
+          const companyUsers = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_company", (q) => q.eq("companyId", mainProcess.companyId))
+            .collect();
+
+          const personName = person.fullName;
+
+          // Create notifications for all company users
+          for (const companyUser of companyUsers) {
+            await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+              userId: companyUser.userId,
+              type: "status_change",
+              title: "Individual Process Status Updated",
+              message: `Status changed for ${personName}: ${process.status} → ${args.status}`,
+              entityType: "individualProcess",
+              entityId: id,
+            });
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail status update
+        console.error("Failed to create status change notification:", error);
+      }
+    }
+
+    // Log activity with before/after values (non-blocking)
+    try {
+      const changedFields: Record<string, { before: any; after: any }> = {};
+      Object.keys(updates).forEach((key) => {
+        if (key !== "updatedAt" && updates[key] !== process[key as keyof typeof process]) {
+          changedFields[key] = {
+            before: process[key as keyof typeof process],
+            after: updates[key],
+          };
+        }
+      });
+
+      if (Object.keys(changedFields).length > 0) {
+        const [person, mainProcess] = await Promise.all([
+          ctx.db.get(process.personId),
+          ctx.db.get(process.mainProcessId),
+        ]);
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: args.status && args.status !== process.status ? "status_changed" : "updated",
+          entityType: "individualProcess",
+          entityId: id,
+          details: {
+            personName: person?.fullName,
+            mainProcessReference: mainProcess?.referenceNumber,
+            changes: changedFields,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
     return id;
   },
 });
 
 /**
- * Mutation to delete individual process
+ * Mutation to delete individual process (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("individualProcesses") },
   handler: async (ctx, { id }) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const process = await ctx.db.get(id);
+    if (!process) {
+      throw new Error("Individual process not found");
+    }
+
+    // Get person and main process data before deletion
+    const [person, mainProcess] = await Promise.all([
+      ctx.db.get(process.personId),
+      ctx.db.get(process.mainProcessId),
+    ]);
+
     await ctx.db.delete(id);
+
+    // Log activity (non-blocking)
+    try {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "individualProcess",
+        entityId: id,
+        details: {
+          personName: person?.fullName,
+          mainProcessReference: mainProcess?.referenceNumber,
+          status: process.status,
+          legalFrameworkId: process.legalFrameworkId,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return id;
+  },
+});
+
+/**
+ * Mutation to manually regenerate document checklist (admin only)
+ * Deletes existing not_started documents and regenerates from current template
+ * Preserves uploaded/reviewed documents
+ */
+export const regenerateDocumentChecklist = mutation({
+  args: { id: v.id("individualProcesses") },
+  handler: async (ctx, { id }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
+    const individualProcess = await ctx.db.get(id);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Get all existing documents for this process
+    const existingDocuments = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", id),
+      )
+      .collect();
+
+    // Delete only not_started documents
+    for (const doc of existingDocuments) {
+      if (doc.status === "not_started") {
+        await ctx.db.delete(doc._id);
+      }
+    }
+
+    // Regenerate checklist from current template
+    const createdDocumentIds = await generateDocumentChecklist(ctx, id);
+
+    return {
+      deletedCount: existingDocuments.filter((d) => d.status === "not_started")
+        .length,
+      createdCount: createdDocumentIds.length,
+    };
   },
 });
 
 /**
  * Query to get individual processes by main process
+ * Access control: Clients can only list individuals for their company's processes
  */
 export const listByMainProcess = query({
   args: { mainProcessId: v.id("mainProcesses") },
   handler: async (ctx, { mainProcessId }) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Fetch the main process to check access
+    const mainProcess = await ctx.db.get(mainProcessId);
+    if (!mainProcess) {
+      throw new Error("Main process not found");
+    }
+
+    // Check access permissions for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || mainProcess.companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view individual processes for this main process"
+        );
+      }
+    }
+
     const results = await ctx.db
       .query("individualProcesses")
       .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", mainProcessId))

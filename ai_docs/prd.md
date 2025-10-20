@@ -457,61 +457,59 @@ END as passport_status
 
 ### 10.1 User Roles and Permissions
 
-The system implements a comprehensive role-based access control (RBAC) system with four distinct roles:
+The system implements a simplified two-role access control system designed for a single law firm serving multiple client companies:
 
 #### Role Hierarchy
 
-1. **Admin** - Full system access
-   - Manage all organizations and users
-   - Create/modify document templates
-   - Access all processes across organizations
-   - Configure system settings
-   - View admin dashboard with analytics
-   - Manage lookup tables (countries, cities, etc.)
+1. **Admin** - Law Firm Staff (Full System Access)
+   - Full CRUD access to all entities (companies, people, processes, documents)
+   - Create and manage main processes and individual processes
+   - Upload and review documents
+   - Update process statuses and manage workflows
+   - Manage user profiles and assign roles
+   - Configure lookup tables (countries, cities, process types, etc.)
+   - View all data across all client companies
+   - Access admin dashboard with analytics
+   - Manage document templates and requirements
 
-2. **Manager** - Organization-level management
-   - Review and approve process requests
-   - Assign processes to team members
-   - Create main processes from approved requests
-   - Review documents and change process statuses
-   - Access organization-wide reports
-   - Manage document templates for their organization
+2. **Client** - Company Representatives (Read-Only, Company-Scoped Access)
+   - View only their own company's data
+   - Read-only access to:
+     - Their company profile
+     - People associated with their company
+     - Main processes for their company
+     - Individual processes for their company's people
+     - Documents related to their company or people
+     - Passports of their company's people
+     - Employment history for their company
+   - Cannot create, update, or delete any entities
+   - Cannot modify lookup tables
+   - Access limited to their assigned company only
 
-3. **User** - Operational access
-   - Create process requests for new candidates
-   - Upload documents for assigned processes
-   - View processes they're involved with
-   - Track candidate progress
-   - Receive notifications for their tasks
+### 10.2 Process Management Workflow
 
-4. **Viewer** - Read-only access
-   - View process status and progress
-   - Access approved documents
-   - Generate basic reports
-   - No modification capabilities
+The system implements a streamlined process management workflow for the single law firm:
 
-### 10.2 Request Workflow System
+#### Process Creation and Management Flow
 
-The system implements a sophisticated request workflow to manage how users initiate new processes:
+1. **Process Initiation** (Admin Only)
+   - Admin staff create `mainProcesses` directly
+   - Specify company, process type, and urgency
+   - Add multiple candidates to one process
+   - No approval workflow needed (internal law firm operation)
 
-#### Process Request Flow
-
-1. **Request Initiation**
-   - User creates a `processRequest` with justification
-   - Specifies company, process type, and urgency
-   - Can request multiple candidates in one request
-
-2. **Manager Review**
-   - Manager receives notification of new request
-   - Reviews justification and urgency
-   - Can approve, reject, or request more information
-   - Assigns a manager to handle approved requests
-
-3. **Process Creation**
-   - Approved requests generate `mainProcesses`
+2. **Process Tracking**
    - System creates `individualProcesses` for each candidate
    - Document requirements auto-generate from templates
    - Initial tasks created with deadlines
+   - Client users can view progress in real-time
+
+3. **Client Portal Access** (Read-Only)
+   - Client users log in to view their company's processes
+   - See status updates for all their candidates
+   - View required documents and current progress
+   - Receive notifications on status changes
+   - Cannot create, modify, or delete processes
 
 ### 10.3 Document Template Management
 
@@ -550,17 +548,11 @@ documentTemplates -> documentRequirements -> documentsDelivered
 ```mermaid
 erDiagram
     %% Core relationships
-    organizations ||--o{ userProfiles : "has users"
-    organizations ||--o{ companies : "manages"
-    organizations ||--o{ people : "tracks"
-
-    %% User and request flow
-    userProfiles ||--o{ processRequests : "creates"
-    userProfiles ||--o{ mainProcesses : "manages"
-    companies ||--o{ processRequests : "requests for"
+    userProfiles ||--o{ companies : "manages (admin)"
+    userProfiles }o--o| companies : "views (client)"
 
     %% Process hierarchy
-    processRequests ||--o| mainProcesses : "approved as"
+    companies ||--o{ mainProcesses : "requests"
     mainProcesses ||--o{ individualProcesses : "contains"
     people ||--o{ individualProcesses : "processed in"
 
@@ -581,62 +573,46 @@ erDiagram
     cities ||--o{ people : "lives in"
 ```
 
-#### User and Organization Tables
-
-##### organizations
-
-Multi-tenant support for law firms or departments.
-
-```typescript
-{
-  name: string                // Organization name
-  taxId: string              // Unique tax identifier
-  website?: string           // Company website
-  address: string            // Physical address
-  cityId: Id<"cities">       // Location reference
-  phoneNumber: string        // Contact phone
-  email: string              // Contact email
-  logoUrl?: string           // Organization logo
-  isActive: boolean          // Active/inactive status
-  subscriptionPlan: string   // Billing plan (basic/pro/enterprise)
-  createdAt: number          // Timestamp of creation
-  updatedAt: number          // Last update timestamp
-}
-```
+#### User Tables
 
 ##### userProfiles
 
-Enhanced user profiles with role-based permissions.
+User profiles with simplified two-role access control system.
 
 ```typescript
 {
-  userId: Id<"users">        // Link to auth user
+  userId: Id<"users">        // Link to Convex auth user
   email: string              // User email (unique)
   fullName: string           // Display name
-  role: "admin" | "manager" | "user" | "viewer"
-  department?: string        // Department/team
+  role: "admin" | "client"   // Only two roles
+  companyId?: Id<"companies"> // For client users only (null for admins)
   phoneNumber?: string       // Contact phone
   photoUrl?: string          // Profile photo
-  language: string           // Preferred language (pt-BR, en)
-  timezone: string           // User timezone
   isActive: boolean          // Account status
-  lastLoginAt?: number       // Last login timestamp
   createdAt: number          // Account creation
   updatedAt: number          // Last profile update
-  createdBy?: Id<"users">    // Who created this user
-  organizationId?: Id<"organizations">  // Organization membership
 }
 ```
+
+**Access Control Logic**:
+- **Admin users**: `role === "admin"` and `companyId === undefined`
+  - Full CRUD access to all entities across all companies
+  - Can create, update, delete any record
+  - Can manage all lookup tables
+
+- **Client users**: `role === "client"` and `companyId !== undefined`
+  - Read-only access filtered by their `companyId`
+  - Can view only data related to their assigned company
+  - Cannot create, update, or delete any records
 
 #### Client and People Tables
 
 ##### companies
 
-Client companies that request immigration services.
+Client companies that request immigration services from the law firm.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Owning organization
   name: string                         // Company name
   taxId: string                        // CNPJ or tax ID
   website?: string                     // Company website
@@ -649,17 +625,20 @@ Client companies that request immigration services.
   notes?: string                       // Internal notes
   createdAt: number                    // Creation timestamp
   updatedAt: number                    // Last update
-  createdBy: Id<"users">               // Created by user
+  createdBy: Id<"users">               // Created by admin user
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access to all companies
+- Client users: Read-only access to their assigned company only (via `userProfiles.companyId`)
+
 ##### people
 
-Individuals (candidates) being processed.
+Individuals (candidates) being processed for immigration services.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Owning organization
   fullName: string                     // Complete name
   email: string                        // Email address
   cpf?: string                         // Brazilian CPF
@@ -677,43 +656,22 @@ Individuals (candidates) being processed.
   notes?: string                       // Internal notes
   createdAt: number                    // Creation timestamp
   updatedAt: number                    // Last update
-  createdBy: Id<"users">               // Created by user
+  createdBy: Id<"users">               // Created by admin user
 }
 ```
+
+**Access Control**:
+- Admin users: Full CRUD access to all people
+- Client users: Read-only access to people associated with their company (via `peopleCompanies` junction table)
 
 #### Process Management Tables
 
-##### processRequests
-
-User-initiated requests for new processes (requires approval).
-
-```typescript
-{
-  organizationId: Id<"organizations">  // Organization
-  requestedBy: Id<"users">             // Requesting user
-  companyId: Id<"companies">           // Client company
-  processTypeId: Id<"processTypes">    // Type of process
-  urgencyLevel: "normal" | "urgent" | "critical"
-  justification: string                // Why is this needed
-  expectedStartDate?: string           // When to start
-  status: "draft" | "requested" | "in_review" | "approved" | "rejected" | "in_progress" | "completed" | "cancelled"
-  reviewedBy?: Id<"users">             // Manager who reviewed
-  reviewedAt?: number                  // Review timestamp
-  reviewNotes?: string                 // Review comments
-  assignedManagerId?: Id<"users">      // Assigned manager
-  createdAt: number                    // Request timestamp
-  updatedAt: number                    // Last update
-}
-```
-
 ##### mainProcesses
 
-Container for one or more individual immigration processes.
+Container for one or more individual immigration processes. Created directly by admin staff.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Organization
-  processRequestId?: Id<"processRequests">  // Original request
   referenceNumber: string              // Unique reference (e.g., WV-2024-001)
   companyId: Id<"companies">           // Client company
   contactPersonId: Id<"people">        // Company contact
@@ -722,15 +680,19 @@ Container for one or more individual immigration processes.
   consulateId?: Id<"consulates">       // Processing consulate
   isUrgent: boolean                    // Priority flag
   requestDate: string                  // ISO date
-  managerId: Id<"users">               // Responsible manager
+  managerId: Id<"users">               // Responsible admin/manager
   notes?: string                       // Process notes
-  status: "draft" | "requested" | "in_review" | "approved" | "rejected" | "in_progress" | "completed" | "cancelled"
+  status: "draft" | "in_progress" | "completed" | "cancelled"
   completedAt?: number                 // Completion timestamp
   createdAt: number                    // Creation timestamp
   updatedAt: number                    // Last update
-  createdBy: Id<"users">               // Created by user
+  createdBy: Id<"users">               // Created by admin user
 }
 ```
+
+**Access Control**:
+- Admin users: Full CRUD access to all main processes
+- Client users: Read-only access to processes for their company only (filtered by `companyId`)
 
 ##### individualProcesses
 
@@ -760,6 +722,10 @@ Tracks each person's journey within a main process.
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access to all individual processes
+- Client users: Read-only access to individual processes for their company (filtered via `mainProcess.companyId`)
+
 #### Document Management Tables
 
 ##### documentTemplates
@@ -768,7 +734,6 @@ Admin-created templates defining required documents per process type.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Organization
   name: string                         // Template name
   description: string                  // Template description
   processTypeId: Id<"processTypes">    // Process type
@@ -780,6 +745,10 @@ Admin-created templates defining required documents per process type.
   createdBy: Id<"users">               // Created by admin
 }
 ```
+
+**Access Control**:
+- Admin users: Full CRUD access to all templates
+- Client users: Read-only access to view templates (for understanding requirements)
 
 ##### documentRequirements
 
@@ -802,6 +771,10 @@ Specific document requirements within a template.
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access
+- Client users: Read-only access
+
 ##### documentsDelivered
 
 Actual documents uploaded by users.
@@ -811,6 +784,8 @@ Actual documents uploaded by users.
   individualProcessId: Id<"individualProcesses">  // Process
   documentTypeId: Id<"documentTypes">             // Document type
   documentRequirementId?: Id<"documentRequirements">  // Requirement
+  personId?: Id<"people">              // Person document belongs to
+  companyId?: Id<"companies">          // Or company document belongs to
   fileName: string                     // Original filename
   fileUrl: string                      // Storage URL
   fileSize: number                     // Size in bytes
@@ -827,6 +802,10 @@ Actual documents uploaded by users.
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access to all documents
+- Client users: Read-only access to documents for their company (filtered via `companyId` or person's company through `peopleCompanies`)
+
 #### Tracking and History Tables
 
 ##### processHistory
@@ -838,12 +817,16 @@ Complete audit trail of status changes.
   individualProcessId: Id<"individualProcesses">  // Process
   previousStatus?: IndividualProcessStatus         // From status
   newStatus: IndividualProcessStatus               // To status
-  changedBy: Id<"users">               // Who changed
+  changedBy: Id<"users">               // Who changed (admin)
   changedAt: number                    // When changed
   notes?: string                       // Change notes
   metadata?: any                       // Additional data
 }
 ```
+
+**Access Control**:
+- Admin users: Full CRUD access
+- Client users: Read-only access to history for their company's processes
 
 ##### tasks
 
@@ -851,7 +834,6 @@ Task management for processes.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Organization
   individualProcessId?: Id<"individualProcesses">  // Related process
   mainProcessId?: Id<"mainProcesses">  // Related main process
   title: string                        // Task title
@@ -859,14 +841,18 @@ Task management for processes.
   dueDate: string                      // ISO date
   priority: "low" | "medium" | "high" | "urgent"
   status: "todo" | "in_progress" | "completed" | "cancelled"
-  assignedTo: Id<"users">              // Assigned user
-  createdBy: Id<"users">               // Creator
+  assignedTo: Id<"users">              // Assigned admin user
+  createdBy: Id<"users">               // Creator (admin)
   completedAt?: number                 // Completion timestamp
-  completedBy?: Id<"users">            // Who completed
+  completedBy?: Id<"users">            // Who completed (admin)
   createdAt: number                    // Creation timestamp
   updatedAt: number                    // Last update
 }
 ```
+
+**Access Control**:
+- Admin users: Full CRUD access to all tasks
+- Client users: Read-only access to tasks for their company's processes
 
 ##### notifications
 
@@ -886,13 +872,16 @@ User notification system.
 }
 ```
 
+**Access Control**:
+- All users can view their own notifications
+- Admin users can send notifications to client users
+
 ##### activityLogs
 
-System-wide activity logging for audit.
+System-wide activity logging for audit and compliance.
 
 ```typescript
 {
-  organizationId: Id<"organizations">  // Organization
   userId: Id<"users">                  // Acting user
   action: string                       // Action performed
   entityType: string                   // Entity type
@@ -903,6 +892,10 @@ System-wide activity logging for audit.
   createdAt: number                    // Action timestamp
 }
 ```
+
+**Access Control**:
+- Admin users: Full read access to all activity logs
+- Client users: Read access to logs for their own actions only
 
 #### Support Data Tables
 
@@ -924,9 +917,13 @@ Passport information with expiration tracking.
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access to all passports
+- Client users: Read-only access to passports for people associated with their company (via `peopleCompanies`)
+
 ##### peopleCompanies
 
-Many-to-many relationship between people and companies.
+Many-to-many relationship between people and companies (employment/association).
 
 ```typescript
 {
@@ -939,7 +936,17 @@ Many-to-many relationship between people and companies.
 }
 ```
 
+**Access Control**:
+- Admin users: Full CRUD access to all relationships
+- Client users: Read-only access to relationships for their company only
+
 #### Lookup Tables
+
+All lookup tables follow the same access control pattern:
+
+**Access Control**:
+- Admin users: Full CRUD access (can create, update, delete, reorder)
+- Client users: Read-only access (needed for form dropdowns and reference data)
 
 ##### processTypes
 
@@ -1054,19 +1061,27 @@ User-specific dashboard customization.
 }
 ```
 
+**Access Control**:
+- All users can manage their own dashboard widgets
+- Admin users can additionally view all users' widget configurations
+
 ##### systemSettings
 
-Organization-wide configuration.
+System-wide configuration settings (admin only).
 
-````typescript
+```typescript
 {
-  organizationId: Id<"organizations">  // Organization
   key: string                          // Setting key
   value: any                           // Setting value
   description: string                  // Setting description
-  updatedBy: Id<"users">               // Last updater
+  updatedBy: Id<"users">               // Last updater (admin)
   updatedAt: number                    // Update timestamp
 }
+```
+
+**Access Control**:
+- Admin users: Full CRUD access to all system settings
+- Client users: Read-only access to public settings (e.g., company info)
 
 ### 10.5 Key Workflow Implementations
 
@@ -1100,35 +1115,63 @@ Organization-wide configuration.
 - documentsDelivered.status - Document review status
 ```
 
-### 10.6 Security and Multi-tenancy
+### 10.6 Security and Access Control
 
-The schema implements enterprise-grade security:
+The system implements comprehensive security for a single law firm serving multiple client companies:
 
-1. **Organization Isolation**
-   - All major tables include `organizationId`
-   - Queries filtered by user's organization
-   - Cross-organization access only for admins
+1. **Role-Based Access Control (Two Roles)**
+   - **Admin**: Law firm staff with full system access
+     - Complete CRUD operations on all entities
+     - Access to all client companies' data
+     - Can manage lookup tables and system configuration
+   - **Client**: Company representatives with limited access
+     - Read-only access filtered by their assigned `companyId`
+     - Cannot create, update, or delete any records
+     - Can only view data related to their company
 
-2. **Audit Trail**
-   - `activityLogs` track all actions
-   - `processHistory` for status changes
-   - User and timestamp on all modifications
+2. **Company-Scoped Data Filtering**
+   - Client users have `companyId` in their profile
+   - All queries automatically filter by `companyId` for client users
+   - Direct filtering: companies, mainProcesses
+   - Relationship-based filtering: people (via peopleCompanies), individualProcesses (via mainProcess.companyId)
+   - Document access: filtered by document's companyId or person's company
 
-3. **Data Integrity**
-   - Foreign key relationships enforced
-   - Cascade rules for related data
+3. **Audit Trail**
+   - `activityLogs` track all user actions
+   - `processHistory` records all status changes
+   - User ID and timestamp on all modifications
+   - IP address and user agent logged for compliance
+
+4. **Data Integrity**
+   - Foreign key relationships enforced via Convex schema
+   - Cascade rules for related data deletion
    - Version control on documents and templates
+   - Referential integrity checks before deletion
+
+5. **Authentication and Authorization**
+   - Convex Auth for user authentication
+   - Helper functions enforce authorization:
+     - `getCurrentUserProfile()`: Get authenticated user's profile
+     - `requireAdmin()`: Ensure user is admin, throw error otherwise
+     - `canAccessCompany()`: Check if user can access specific company data
+   - All mutations require admin role
+   - All queries filter by user's access level
 
 ## 11. Conclusion
 
-This comprehensive system combines the power of Convex's real-time database with a sophisticated immigration process management workflow. The role-based access control ensures proper data governance, while the request workflow system maintains control over process initiation. The document template system provides consistency across the organization while allowing flexibility for different process types.
+This comprehensive system combines the power of Convex's real-time database with a sophisticated immigration process management workflow designed for a single law firm serving multiple client companies. The simplified two-role access control ensures proper data governance while providing a seamless client portal experience.
 
 Key innovations include:
 
 - **Hierarchical process management** with individual tracking
 - **Smart document templates** with progress visibility
-- **Request workflow** for controlled process initiation
-- **Multi-tenant architecture** for enterprise deployment
+- **Client portal** with read-only, company-scoped access for transparency
+- **Streamlined workflow** optimized for single law firm operations
 - **Real-time updates** leveraging Convex's reactive queries
+- **Role-based access control** with admin/client separation
+- **Company-scoped data filtering** for secure multi-client support
 
-This platform will transform how immigration law firms operate, providing transparency, efficiency, and compliance in one integrated system.
+This platform will transform how the law firm operates, providing:
+- **For law firm staff (admins)**: Complete control over all processes, clients, and data
+- **For client companies**: Real-time visibility into their immigration processes with secure, read-only access
+- **For both**: Improved transparency, efficiency, and compliance in one integrated system

@@ -1,16 +1,32 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { internal } from "./_generated/api";
 
 /**
  * Query to list all companies with optional filtering
+ * Access control: Admin sees all companies, clients see only their company
  */
 export const list = query({
   args: {
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
     let companies = await ctx.db.query("companies").collect();
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      // Clients can only see their own company
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+      companies = companies.filter((c) => c._id === userProfile.companyId);
+    }
+    // Admin users see all companies
 
     // Filter by isActive if specified
     if (args.isActive !== undefined) {
@@ -45,25 +61,53 @@ export const list = query({
 
 /**
  * Query to list only active companies (for dropdown selections)
+ * Access control: Admin sees all active companies, clients see only their company if active
  */
 export const listActive = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    let companies = await ctx.db
       .query("companies")
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      // Clients can only see their own company
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+      companies = companies.filter((c) => c._id === userProfile.companyId);
+    }
+
+    return companies;
   },
 });
 
 /**
  * Query to get a single company by ID
+ * Access control: Admins can view any company, clients can only view their own company
  */
 export const get = query({
   args: { id: v.id("companies") },
   handler: async (ctx, { id }) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
     const company = await ctx.db.get(id);
     if (!company) return null;
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || company._id !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company"
+        );
+      }
+    }
 
     // Fetch related data
     const city = company.cityId ? await ctx.db.get(company.cityId) : null;
@@ -86,7 +130,7 @@ export const get = query({
 });
 
 /**
- * Mutation to create a new company
+ * Mutation to create a new company (admin only)
  */
 export const create = mutation({
   args: {
@@ -102,6 +146,9 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
     const now = Date.now();
 
     const companyId = await ctx.db.insert("companies", {
@@ -110,12 +157,33 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Log activity (non-blocking)
+    try {
+      const city = args.cityId ? await ctx.db.get(args.cityId) : null;
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "company",
+        entityId: companyId,
+        details: {
+          name: args.name,
+          taxId: args.taxId,
+          email: args.email,
+          cityName: city?.name,
+          isActive: args.isActive,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
     return companyId;
   },
 });
 
 /**
- * Mutation to update a company
+ * Mutation to update a company (admin only)
  */
 export const update = mutation({
   args: {
@@ -132,6 +200,14 @@ export const update = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const company = await ctx.db.get(args.id);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
     const { id, ...data } = args;
 
     await ctx.db.patch(id, {
@@ -139,27 +215,101 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
+    // Log activity with before/after values (non-blocking)
+    try {
+      const changedFields: Record<string, { before: any; after: any }> = {};
+
+      // Compare each field
+      if (data.name !== company.name) {
+        changedFields.name = { before: company.name, after: data.name };
+      }
+      if (data.taxId !== company.taxId) {
+        changedFields.taxId = { before: company.taxId, after: data.taxId };
+      }
+      if (data.email !== company.email) {
+        changedFields.email = { before: company.email, after: data.email };
+      }
+      if (data.phoneNumber !== company.phoneNumber) {
+        changedFields.phoneNumber = { before: company.phoneNumber, after: data.phoneNumber };
+      }
+      if (data.address !== company.address) {
+        changedFields.address = { before: company.address, after: data.address };
+      }
+      if (data.cityId !== company.cityId) {
+        const [oldCity, newCity] = await Promise.all([
+          company.cityId ? ctx.db.get(company.cityId) : null,
+          data.cityId ? ctx.db.get(data.cityId) : null,
+        ]);
+        changedFields.city = {
+          before: oldCity?.name ?? null,
+          after: newCity?.name ?? null,
+        };
+      }
+      if (data.isActive !== company.isActive) {
+        changedFields.isActive = { before: company.isActive, after: data.isActive };
+      }
+
+      if (Object.keys(changedFields).length > 0) {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: data.isActive === false && company.isActive === true ? "deactivated" : "updated",
+          entityType: "company",
+          entityId: id,
+          details: {
+            name: company.name,
+            changes: changedFields,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
     return id;
   },
 });
 
 /**
- * Mutation to delete a company
+ * Mutation to delete a company (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("companies") },
   handler: async (ctx, { id }) => {
-    // TODO: Add cascade check when mainProcesses table is implemented
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const company = await ctx.db.get(id);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
     // Check if there are main processes associated with this company
-    // const mainProcesses = await ctx.db
-    //   .query("mainProcesses")
-    //   .withIndex("by_company", (q) => q.eq("companyId", id))
-    //   .first();
-    //
-    // if (mainProcesses) {
-    //   throw new Error("Cannot delete company with associated main processes");
-    // }
+    const mainProcesses = await ctx.db
+      .query("mainProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", id))
+      .first();
+
+    if (mainProcesses) {
+      throw new Error("Cannot delete company with associated main processes");
+    }
 
     await ctx.db.delete(id);
+
+    // Log activity (non-blocking)
+    try {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "company",
+        entityId: id,
+        details: {
+          name: company.name,
+          taxId: company.taxId,
+          email: company.email,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
   },
 });

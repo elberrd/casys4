@@ -215,7 +215,7 @@ export function DataGrid<TData>({
       emptyMessage,
       tableLayout: mergedTableLayout,
       tableClassNames: mergedTableClassNames,
-      searchTerm: (table.getState().globalFilter as string) || "",
+      searchTerm: (table?.getState().globalFilter as string) || "",
     }),
     [
       table,
@@ -227,7 +227,7 @@ export function DataGrid<TData>({
       emptyMessage,
       mergedTableLayout,
       mergedTableClassNames,
-      table.getState().globalFilter,
+      table?.getState().globalFilter,
     ]
   )
 

@@ -9,6 +9,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Link } from "@/i18n/routing"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 
 export interface BreadcrumbItemType {
   label: string
@@ -17,12 +18,13 @@ export interface BreadcrumbItemType {
 
 export interface DashboardPageHeaderProps {
   breadcrumbs: BreadcrumbItemType[]
+  children?: React.ReactNode
 }
 
-export function DashboardPageHeader({ breadcrumbs }: DashboardPageHeaderProps) {
+export function DashboardPageHeader({ breadcrumbs, children }: DashboardPageHeaderProps) {
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-      <div className="flex items-center gap-2 px-4">
+      <div className="flex items-center gap-2 px-4 flex-1">
         <SidebarTrigger className="-ml-1" />
         <Separator
           orientation="vertical"
@@ -52,6 +54,10 @@ export function DashboardPageHeader({ breadcrumbs }: DashboardPageHeaderProps) {
             })}
           </BreadcrumbList>
         </Breadcrumb>
+      </div>
+      <div className="ml-auto px-4 flex items-center gap-2">
+        <NotificationBell />
+        {children}
       </div>
     </header>
   )

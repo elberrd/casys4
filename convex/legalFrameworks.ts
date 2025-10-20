@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 /**
  * Query to list all legal frameworks with optional isActive filter
@@ -57,7 +58,7 @@ export const getByCode = query({
 });
 
 /**
- * Mutation to create legal framework
+ * Mutation to create legal framework (admin only)
  */
 export const create = mutation({
   args: {
@@ -67,6 +68,9 @@ export const create = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Check if code already exists
     const existing = await ctx.db
       .query("legalFrameworks")
@@ -89,7 +93,7 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update legal framework
+ * Mutation to update legal framework (admin only)
  */
 export const update = mutation({
   args: {
@@ -100,6 +104,9 @@ export const update = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, { id, ...args }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Check if another legal framework with this code exists
     const existing = await ctx.db
       .query("legalFrameworks")
@@ -122,11 +129,14 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete legal framework
+ * Mutation to delete legal framework (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("legalFrameworks") },
   handler: async (ctx, { id }) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Note: Add cascade checks here if there are related tables
     // For now, we'll just delete the legal framework
     await ctx.db.delete(id);

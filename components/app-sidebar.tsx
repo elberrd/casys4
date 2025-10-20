@@ -12,6 +12,7 @@ import {
   ListTodo,
   Settings2,
   Users,
+  ScrollText,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -153,7 +154,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t('documentTypes'),
           url: "/document-types",
         },
+        {
+          title: t('documentTemplates'),
+          url: "/document-templates",
+        },
       ],
+    },
+    {
+      title: t('activityLogs'),
+      url: "/activity-logs",
+      icon: ScrollText,
+      items: [],
     },
     {
       title: t('settings'),
@@ -166,7 +177,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const user = {
     name: viewer ?? "User",
     email: viewer ?? "user@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "/avatars/default.svg",
   }
 
   return (

@@ -8,24 +8,43 @@
  * @module
  */
 
+import type * as activityLogs from "../activityLogs.js";
+import type * as appointmentReminders from "../appointmentReminders.js";
 import type * as auth from "../auth.js";
+import type * as bulkOperations from "../bulkOperations.js";
 import type * as cboCodes from "../cboCodes.js";
 import type * as cities from "../cities.js";
 import type * as companies from "../companies.js";
 import type * as consulates from "../consulates.js";
 import type * as countries from "../countries.js";
+import type * as cron from "../cron.js";
+import type * as dashboard from "../dashboard.js";
+import type * as documentRequirements from "../documentRequirements.js";
+import type * as documentTemplates from "../documentTemplates.js";
 import type * as documentTypes from "../documentTypes.js";
 import type * as documents from "../documents.js";
+import type * as documentsDelivered from "../documentsDelivered.js";
+import type * as exports from "../exports.js";
 import type * as http from "../http.js";
 import type * as individualProcesses from "../individualProcesses.js";
 import type * as legalFrameworks from "../legalFrameworks.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as lib_documentChecklist from "../lib/documentChecklist.js";
+import type * as lib_processHistory from "../lib/processHistory.js";
+import type * as lib_statusValidation from "../lib/statusValidation.js";
 import type * as mainProcesses from "../mainProcesses.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as notifications from "../notifications.js";
 import type * as passports from "../passports.js";
 import type * as people from "../people.js";
 import type * as peopleCompanies from "../peopleCompanies.js";
+import type * as processHistory from "../processHistory.js";
+import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
+import type * as seedInitialAdmin from "../seedInitialAdmin.js";
 import type * as states from "../states.js";
+import type * as tasks from "../tasks.js";
+import type * as userProfiles from "../userProfiles.js";
 
 import type {
   ApiFromModules,
@@ -42,24 +61,43 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  activityLogs: typeof activityLogs;
+  appointmentReminders: typeof appointmentReminders;
   auth: typeof auth;
+  bulkOperations: typeof bulkOperations;
   cboCodes: typeof cboCodes;
   cities: typeof cities;
   companies: typeof companies;
   consulates: typeof consulates;
   countries: typeof countries;
+  cron: typeof cron;
+  dashboard: typeof dashboard;
+  documentRequirements: typeof documentRequirements;
+  documentTemplates: typeof documentTemplates;
   documentTypes: typeof documentTypes;
   documents: typeof documents;
+  documentsDelivered: typeof documentsDelivered;
+  exports: typeof exports;
   http: typeof http;
   individualProcesses: typeof individualProcesses;
   legalFrameworks: typeof legalFrameworks;
+  "lib/auth": typeof lib_auth;
+  "lib/documentChecklist": typeof lib_documentChecklist;
+  "lib/processHistory": typeof lib_processHistory;
+  "lib/statusValidation": typeof lib_statusValidation;
   mainProcesses: typeof mainProcesses;
   myFunctions: typeof myFunctions;
+  notifications: typeof notifications;
   passports: typeof passports;
   people: typeof people;
   peopleCompanies: typeof peopleCompanies;
+  processHistory: typeof processHistory;
+  processRequests: typeof processRequests;
   processTypes: typeof processTypes;
+  seedInitialAdmin: typeof seedInitialAdmin;
   states: typeof states;
+  tasks: typeof tasks;
+  userProfiles: typeof userProfiles;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

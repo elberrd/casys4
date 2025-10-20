@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  ColumnDef,
+  RowSelectionState,
+} from "@tanstack/react-table";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,8 +42,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DataGrid } from "@/components/ui/data-grid";
+import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
+import { DataGridTable } from "@/components/ui/data-grid-table";
+import { DataGridPagination } from "@/components/ui/data-grid-pagination";
+import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header";
+import { DataGridFilter } from "@/components/ui/data-grid-filter";
+import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
+import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CboCodeFormDialog } from "./cbo-code-form-dialog";
+import { globalFuzzyFilter } from "@/lib/fuzzy-search";
 
 type CboCode = {
   _id: Id<"cboCodes">;
@@ -49,12 +65,13 @@ export function CboCodesTable() {
   const t = useTranslations("CboCodes");
   const tCommon = useTranslations("Common");
 
-  const cboCodes = useQuery(api.cboCodes.list) ?? [];
+  const cboCodes = useQuery(api.cboCodes.list, {}) ?? [];
   const removeCboCode = useMutation(api.cboCodes.remove);
 
   const [editingCboCode, setEditingCboCode] = useState<Id<"cboCodes"> | undefined>();
   const [deletingCboCode, setDeletingCboCode] = useState<Id<"cboCodes"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const handleDelete = async () => {
     if (!deletingCboCode) return;
@@ -69,108 +86,131 @@ export function CboCodesTable() {
     }
   };
 
-  const columns: ColumnDef<CboCode>[] = [
-    {
-      accessorKey: "code",
-      header: t("code"),
-      cell: ({ row }) => (
-        <span className="font-mono font-medium">{row.original.code}</span>
-      ),
-    },
-    {
-      accessorKey: "title",
-      header: t("cboTitle"),
-    },
-    {
-      accessorKey: "description",
-      header: t("description"),
-      cell: ({ row }) => {
-        const description = row.original.description;
-        const truncated =
-          description.length > 80
-            ? description.substring(0, 80) + "..."
-            : description;
-
-        if (description.length > 80) {
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="cursor-help">{truncated}</span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-md">
-                  <p>{description}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        }
-
-        return <span>{description}</span>;
+  const columns = useMemo<ColumnDef<CboCode>[]>(
+    () => [
+      {
+        accessorKey: "code",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("code")} />
+        ),
+        cell: ({ row }) => (
+          <span className="font-mono font-medium">{row.original.code}</span>
+        ),
       },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const cboCode = row.original;
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">{tCommon("moreActions")}</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingCboCode(cboCode._id);
-                  setIsFormOpen(true);
-                }}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                {tCommon("edit")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setDeletingCboCode(cboCode._id)}
-                className="text-red-600"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {tCommon("delete")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
+      {
+        accessorKey: "title",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("title")} />
+        ),
+        cell: ({ row }) => (
+          <DataGridHighlightedCell text={row.original.title} />
+        ),
       },
+      {
+        accessorKey: "description",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("description")} />
+        ),
+        cell: ({ row }) => (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="max-w-[300px] truncate block cursor-help">
+                  {row.original.description}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm">
+                <p>{row.original.description}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">{tCommon("actions")}</span>,
+        cell: ({ row }) => {
+          const actions = [
+            {
+              label: tCommon("edit"),
+              icon: <Pencil className="h-4 w-4" />,
+              onClick: () => {
+                setEditingCboCode(row.original._id);
+                setIsFormOpen(true);
+              },
+              variant: "default" as const,
+            },
+            {
+              label: tCommon("delete"),
+              icon: <Trash2 className="h-4 w-4" />,
+              onClick: () => setDeletingCboCode(row.original._id),
+              variant: "destructive" as const,
+              separator: true,
+            },
+          ];
+
+          return <DataGridRowActions actions={actions} />;
+        },
+        size: 50,
+        enableSorting: false,
+        enableHiding: false,
+      },
+    ],
+    [t, tCommon]
+  );
+
+  const table = useReactTable({
+    data: cboCodes,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: globalFuzzyFilter,
+    enableRowSelection: false,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      rowSelection,
     },
-  ];
+  });
 
   return (
     <>
       <DataGrid
-        columns={columns}
-        data={cboCodes}
-        searchColumn="title"
-        searchPlaceholder={tCommon("search")}
-        onCreateNew={() => {
-          setEditingCboCode(undefined);
-          setIsFormOpen(true);
-        }}
-        createButtonLabel={t("createTitle")}
-      />
+        table={table}
+        recordCount={cboCodes.length}
+        emptyMessage={t("noResults")}
+      >
+        <div className="w-full space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+            <Button
+              onClick={() => {
+                setEditingCboCode(undefined);
+                setIsFormOpen(true);
+              }}
+            >
+              {t("createTitle")}
+            </Button>
+          </div>
+          <DataGridContainer>
+            <ScrollArea>
+              <DataGridTable />
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </DataGridContainer>
+          <DataGridPagination />
+        </div>
+      </DataGrid>
 
       <CboCodeFormDialog
         open={isFormOpen}
-        onOpenChange={(open) => {
-          setIsFormOpen(open);
-          if (!open) {
-            setEditingCboCode(undefined);
-          }
-        }}
+        onOpenChange={setIsFormOpen}
         cboCodeId={editingCboCode}
+        onSuccess={() => {
+          setIsFormOpen(false);
+          setEditingCboCode(undefined);
+        }}
       />
 
       <AlertDialog
@@ -179,14 +219,14 @@ export function CboCodesTable() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{tCommon("delete")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("deleteConfirm")}
+              {t("deleteConfirmMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleDelete}>
               {tCommon("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>

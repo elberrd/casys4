@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 /**
  * Query to list all countries
@@ -23,13 +24,15 @@ export const get = query({
 });
 
 /**
- * Mutation to create country
+ * Mutation to create country (admin only)
  */
 export const create = mutation({
   args: {
     name: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     const countryId = await ctx.db.insert("countries", {
       name: args.name,
       code: "",
@@ -41,7 +44,7 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update country
+ * Mutation to update country (admin only)
  */
 export const update = mutation({
   args: {
@@ -49,6 +52,8 @@ export const update = mutation({
     name: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     await ctx.db.patch(args.id, {
       name: args.name,
     });
@@ -58,11 +63,13 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete country
+ * Mutation to delete country (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("countries") },
   handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
+
     // Check if there are states associated with this country
     const states = await ctx.db
       .query("states")

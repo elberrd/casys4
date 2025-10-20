@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 
 export const list = query({
   args: {
@@ -49,6 +50,9 @@ export const get = query({
   },
 });
 
+/**
+ * Mutation to create a new document type (admin only)
+ */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -58,6 +62,9 @@ export const create = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // Check for duplicate code
     const existing = await ctx.db
       .query("documentTypes")
@@ -78,6 +85,9 @@ export const create = mutation({
   },
 });
 
+/**
+ * Mutation to update a document type (admin only)
+ */
 export const update = mutation({
   args: {
     id: v.id("documentTypes"),
@@ -88,6 +98,9 @@ export const update = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     const { id, ...updateData } = args;
 
     // Check for duplicate code (excluding current record)
@@ -107,9 +120,15 @@ export const update = mutation({
   },
 });
 
+/**
+ * Mutation to delete a document type (admin only)
+ */
 export const remove = mutation({
   args: { id: v.id("documentTypes") },
   handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
     // TODO: Add cascade check when document requirements table is implemented
     // Check if any document requirements reference this document type
     await ctx.db.delete(args.id);
