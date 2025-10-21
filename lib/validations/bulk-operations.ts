@@ -120,8 +120,8 @@ export const bulkDeleteDocumentsSchema = z.object({
       message: "Invalid document ID",
     })
   ).min(1, "At least one document must be selected"),
-  confirmationText: z.literal("DELETE", {
-    errorMap: () => ({ message: "Please type DELETE to confirm" }),
+  confirmationText: z.string().refine((val) => val === "DELETE", {
+    message: "Please type DELETE to confirm",
   }),
 });
 
@@ -189,7 +189,7 @@ export const exportDataSchema = z.object({
   companyId: z.custom<Id<"companies">>((val) => typeof val === "string", {
     message: "Invalid company ID",
   }).optional(),
-  includeInactive: z.boolean().default(false),
+  includeInactive: z.boolean(),
 });
 
 export type ExportDataInput = z.infer<typeof exportDataSchema>;

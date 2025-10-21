@@ -8,7 +8,7 @@ export const taskSchema = z.object({
   description: z.string().min(1, "Description is required"),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
   priority: z.enum(["low", "medium", "high", "urgent"], {
-    required_error: "Priority is required",
+    message: "Priority is required",
   }),
   status: z.enum(["todo", "in_progress", "completed", "cancelled"]).optional(),
   assignedTo: z.custom<Id<"users">>(),

@@ -140,14 +140,9 @@ function dispatch(action: Action) {
   })
 }
 
-interface Toast {
-  id: string
-  title?: string
-  description?: string
-  action?: ToastActionElement
+export interface ToastState extends Toast {
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  variant?: "default" | "destructive"
 }
 
 function toast(props: ToastProps) {
@@ -169,7 +164,7 @@ function toast(props: ToastProps) {
       onOpenChange: (open: boolean) => {
         if (!open) dismiss()
       },
-    },
+    } as ToastState,
   })
 
   return {

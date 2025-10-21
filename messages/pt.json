@@ -27,6 +27,15 @@
     "all": "Todos",
     "clear": "Limpar",
     "deleteConfirm": "Tem certeza que deseja excluir este item?",
+    "deleteConfirmationTitle": "Confirmar Exclusão",
+    "deleteConfirmationDescription": "Tem certeza de que deseja excluir este(a) {entityName}?",
+    "bulkDeleteConfirmationTitle": "Confirmar Exclusão em Massa",
+    "bulkDeleteConfirmationDescription": "Tem certeza de que deseja excluir {count} itens?",
+    "deleteConfirmationWarning": "Esta ação não pode ser desfeita.",
+    "deleting": "Excluindo...",
+    "deleteSuccess": "Excluído com sucesso",
+    "deleteError": "Falha ao excluir",
+    "bulkDeleteError": "Falha ao excluir alguns itens",
     "pending": "Pendente",
     "inProgress": "Em Andamento",
     "completed": "Concluído",
@@ -35,7 +44,8 @@
     "documentCollection": "Coleta de Documentos",
     "submitted": "Enviado",
     "approved": "Aprovado",
-    "rejected": "Rejeitado"
+    "rejected": "Rejeitado",
+    "columns": "Colunas"
   },
   "Navigation": {
     "dashboard": "Painel",
@@ -591,6 +601,7 @@
   },
   "Documents": {
     "title": "Documentos",
+    "entityName": "documento",
     "createTitle": "Criar Documento",
     "editTitle": "Editar Documento",
     "newDocument": "Novo Documento",
@@ -650,6 +661,7 @@
   },
   "CboCodes": {
     "title": "Códigos CBO",
+    "entityName": "código CBO",
     "createTitle": "Criar Código CBO",
     "editTitle": "Editar Código CBO",
     "deleteConfirm": "Tem certeza de que deseja excluir este código CBO?",
@@ -670,6 +682,7 @@
   },
   "Consulates": {
     "title": "Consulados",
+    "entityName": "consulado",
     "createTitle": "Criar Consulado",
     "editTitle": "Editar Consulado",
     "deleteConfirm": "Tem certeza de que deseja excluir este consulado?",
@@ -1163,8 +1176,10 @@
   "Notifications": {
     "notifications": "Notificações",
     "notification": "Notificação",
+    "entityName": "notificação",
     "loading": "Carregando notificações...",
     "noNotifications": "Nenhuma notificação ainda",
+    "noResults": "Nenhuma notificação encontrada",
     "markAsRead": "Marcar como lida",
     "markAsUnread": "Marcar como não lida",
     "markAllAsRead": "Marcar todas como lidas",

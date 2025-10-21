@@ -26,6 +26,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface Country {
   _id: Id<"countries">
@@ -42,6 +45,24 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
   const t = useTranslations('Countries')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"countries">) => {
+      if (onDelete) await onDelete(id)
+    },
+    entityName: "country",
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: Country) => {
+      if (onDelete) await onDelete(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   const columns = useMemo<ColumnDef<Country>[]>(
     () => [
@@ -70,7 +91,7 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: () => onDelete(row.original._id),
+                onClick: () => deleteConfirmation.confirmDelete(row.original._id),
                 variant: "destructive",
                 separator: true,
               },
@@ -123,13 +144,8 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
             {
               label: tCommon('deleteSelected'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: async (selectedRows) => {
-                if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
-                  for (const row of selectedRows) {
-                    await onDelete(row._id)
-                  }
-                  table.resetRowSelection()
-                }
+              onClick: (selectedRows) => {
+                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
               },
               variant: "destructive",
             },
@@ -143,6 +159,24 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName="country"
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </DataGrid>
   )
 }

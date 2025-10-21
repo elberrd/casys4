@@ -28,6 +28,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">
@@ -71,6 +74,24 @@ export function IndividualProcessesTable({
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"individualProcesses">) => {
+      if (onDelete) await onDelete(id)
+    },
+    entityName: "individual process",
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: IndividualProcess) => {
+      if (onDelete) await onDelete(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   const columns = useMemo<ColumnDef<IndividualProcess>[]>(
     () => [
@@ -174,7 +195,7 @@ export function IndividualProcessesTable({
             actions.push({
               label: tCommon('delete'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => onDelete(row.original._id),
+              onClick: () => deleteConfirmation.confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
             })
@@ -229,7 +250,7 @@ export function IndividualProcessesTable({
               ...(onBulkCreateTask ? [{
                 label: t('createBulkTask'),
                 icon: <ListTodo className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
+                onClick: async (selectedRows: IndividualProcess[]) => {
                   onBulkCreateTask(selectedRows)
                 },
                 variant: "default" as const,
@@ -237,7 +258,7 @@ export function IndividualProcessesTable({
               ...(onBulkStatusUpdate ? [{
                 label: tCommon('updateStatus'),
                 icon: <Edit className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
+                onClick: async (selectedRows: IndividualProcess[]) => {
                   const selected = selectedRows.map(row => ({
                     _id: row._id,
                     personId: row.person?._id || ("" as Id<"people">),
@@ -250,14 +271,9 @@ export function IndividualProcessesTable({
               ...(onDelete ? [{
                 label: tCommon('deleteSelected'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
-                  if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
-                    for (const row of selectedRows) {
-                      await onDelete(row._id)
-                    }
-                    table.resetRowSelection()
-                  }
-                },
+                onClick: (selectedRows: IndividualProcess[]) => {
+                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+              },
                 variant: "destructive" as const,
               }] : []),
             ]}
@@ -271,6 +287,24 @@ export function IndividualProcessesTable({
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName="individual process"
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </DataGrid>
   )
 }

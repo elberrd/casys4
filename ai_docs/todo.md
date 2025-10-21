@@ -1,363 +1,756 @@
-# TODO: Implement Document Types Pages and Fix Documents Sidebar Menu
+# TODO: Professional Delete Confirmation Modals for All Tables
 
 ## Context
 
-The user has requested two main tasks:
-1. Ensure the "Document Types" pages are implemented professionally following the same structure as other table pages
-2. Investigate and fix why the "Documents" page is not appearing in the "Document Management" sidebar menu
+The application currently uses basic `window.confirm()` dialogs for delete confirmations (visible in the screenshot showing "Tem certeza de que deseja excluir esta cidade?"). This needs to be replaced with professional, reusable confirmation modals across all tables in the application. The system has:
 
-### Current Status Analysis:
-
-**Document Types Implementation:**
--  Convex schema exists in `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
--  Convex CRUD operations exist in `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypes.ts`
--  Table component exists at `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-types-table.tsx`
--  Form dialog exists at `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
--  Page component exists at `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/document-types/page.tsx`
--  i18n translations exist in both `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `pt.json`
--  Sidebar menu entry exists (showing in "Document Management" section)
-
-**Documents Page Issue:**
--  Documents table component exists at `/Users/elberrd/Documents/Development/clientes/casys4/components/documents/documents-table.tsx`
--  Documents page exists at `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/documents/page.tsx`
-- L **MISSING** from sidebar menu in `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx`
-- L Route file `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/documents/new/page.tsx` exists but may need investigation
+- 18 different table components that use delete actions
+- Existing `AlertDialog` component from Radix UI
+- Existing `DataGridRowActions` component for individual row actions
+- Existing `DataGridBulkActions` component for multi-select operations
+- i18n support for localization (English and Portuguese)
 
 ## Related PRD Sections
 
-- **Section 4.3**: Support Tables - Document Types lookup table
-- **Section 10.4**: Complete Convex Database Schema - documentTypes table definition
-- **Section 4.2**: Document Management Module - Document Management Module overview
-- **Section 10.4**: documentsDelivered and documents tables
+- Section 10.5: Key Workflow Implementations
+- Security and Access Control (Section 10.6) - Admin-only delete operations
+- User Interface Concepts (Section 7) - Professional UI patterns
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis
 
-**Objective**: Understand the project structure and confirm correct file/folder locations for this feature
+**Objective**: Understand the project structure and determine correct file/folder locations for the delete confirmation components
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing Document Types implementation
-  - Validation: Confirmed all Document Types files exist and are properly structured
-  - Output: Document Types is fully implemented with dialog-based form (not separate page)
+- [x] 0.1: Review `/ai_docs/prd.md` for project architecture and folder structure
+  - Validation: Identified reusable component patterns in `/components/ui/` directory
+  - Output: Components should be created in `/components/ui/` for reusable components
 
-- [x] 0.2: Review sidebar menu structure in app-sidebar.tsx
-  - Validation: Identified that "Documents" menu item is missing from the "Document Management" section
-  - Output: Sidebar has "Document Management" section with "Document Types" and "Document Templates" but missing "Documents"
+- [x] 0.2: Identify existing delete implementations to maintain consistency
+  - Validation: Found 18 table components using delete actions, all use basic `window.confirm()`
+  - Output: Tables located in `/components/{module}/{module}-table.tsx` pattern
 
-- [x] 0.3: Review Documents page implementation
-  - Validation: Documents page exists at `/documents/page.tsx` and uses DocumentsTable component
-  - Output: Page exists and should be accessible via route, just not linked in sidebar
-
-- [x] 0.4: Identify file patterns from existing implementations
-  - Validation: Reviewed companies-table.tsx and main-processes-table.tsx for patterns
-  - Output: Tables follow consistent pattern: DataGrid with TanStack Table, row selection, filters, bulk actions, responsive design
+- [x] 0.3: Check for existing similar implementations to replicate patterns
+  - Validation: Found `AlertDialog` component, `DataGridRowActions`, and `DataGridBulkActions` components
+  - Output: Will use existing `AlertDialog` as base, create wrapper components for delete confirmations
 
 #### Quality Checklist:
 
 - [x] PRD structure reviewed and understood
 - [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified (kebab-case for files, PascalCase for components)
-- [x] Existing patterns identified for replication
+- [x] Naming conventions identified and will be followed (kebab-case for files)
+- [x] No duplicate functionality will be created (reusing existing AlertDialog)
 
-### 1. Fix Documents Page Missing from Sidebar Menu
+### 1. Create Reusable Delete Confirmation Dialog Component
 
-**Objective**: Add the "Documents" menu item to the "Document Management" section in the sidebar
+**Objective**: Build a professional, reusable delete confirmation dialog component that wraps the existing AlertDialog
 
 #### Sub-tasks:
 
-- [x] 1.1: Add Documents menu item to app-sidebar.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx`
-  - Location: Inside the "Document Management" section (line 108-122), add new item for "Documents"
-  - Validation: Menu item appears in sidebar between "Document Types" and "Document Templates"
-  - Code pattern to follow:
+- [x] 1.1: Create `delete-confirmation-dialog.tsx` in `/components/ui/`
+  - Validation: Component accepts title, description, entity name, loading state, and callbacks
+  - Dependencies: Requires AlertDialog, Button components, useTranslations hook
+  - Props interface:
     ```typescript
-    {
-      title: t('documents'),
-      url: "/documents",
+    interface DeleteConfirmationDialogProps {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onConfirm: () => void | Promise<void>
+      title?: string  // defaults to i18n key
+      description?: string  // defaults to i18n key with entity name
+      entityName?: string  // e.g., "City", "Person", used in description
+      isDeleting?: boolean  // loading state
+      variant?: "single" | "bulk"  // affects messaging
+      count?: number  // for bulk deletes
     }
     ```
 
+- [x] 1.2: Implement professional dialog UI with proper styling
+  - Validation: Uses destructive button variant, shows loading spinner, disabled during delete
+  - Features:
+    - Danger icon (AlertTriangle from lucide-react)
+    - Clear title and description
+    - Cancel button (outline variant)
+    - Delete button (destructive variant with loading state)
+    - Mobile-responsive layout
+    - Proper focus management
+
+- [x] 1.3: Add proper error handling and loading states
+  - Validation: Component handles async operations, shows loading spinner, prevents multiple clicks
+  - Features:
+    - Disable buttons during operation
+    - Show loading spinner on confirm button
+    - Prevent closing dialog during operation
+    - Handle promise rejection
+
+- [x] 1.4: Add i18n support for all text
+  - Validation: All user-facing text uses translation keys from Common namespace
+  - i18n keys needed:
+    - `deleteConfirmationTitle` (default: "Confirm Deletion")
+    - `deleteConfirmationDescription` (default: "Are you sure you want to delete {entityName}?")
+    - `bulkDeleteConfirmationDescription` (default: "Are you sure you want to delete {count} items?")
+    - `deleteConfirmationWarning` (default: "This action cannot be undone.")
+    - `deleting` (default: "Deleting...")
+
 #### Quality Checklist:
 
-- [ ] Menu item added to correct section (Document Management)
-- [ ] Translation key matches existing pattern (uses 'documents' from Navigation namespace)
-- [ ] URL path is correct ("/documents")
-- [ ] Menu item appears in correct alphabetical/logical order
-- [ ] No TypeScript errors
-- [ ] Sidebar renders correctly with new menu item
-- [ ] Clicking menu item navigates to /documents page
+- [x] TypeScript types defined (no `any`)
+- [x] i18n keys added for all user-facing text
+- [x] Reusable AlertDialog component utilized
+- [x] Clean code principles followed
+- [x] Error handling implemented
+- [x] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [x] Touch-friendly UI elements (min 44x44px buttons)
+- [x] Proper accessibility attributes (aria-labels, focus management)
 
-### 2. Review and Enhance Document Types Table Implementation
+### 2. Add i18n Translation Keys
 
-**Objective**: Ensure Document Types table follows the exact same professional patterns as Companies and Main Processes tables
+**Objective**: Add all necessary translation keys for delete confirmations in both English and Portuguese
 
 #### Sub-tasks:
 
-- [x] 2.1: Compare Document Types table with Companies and Main Processes tables
-  - Files to compare:
-    - `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-types-table.tsx`
-    - `/Users/elberrd/Documents/Development/clientes/casys4/components/companies/companies-table.tsx`
-    - `/Users/elberrd/Documents/Development/clientes/casys4/components/main-processes/main-processes-table.tsx`
-  - Validation: Identify any missing features or inconsistencies
-  - Output: Document Types uses older basic DataGrid pattern. Needs: row selection, DataGridRowActions, DataGridBulkActions, DataGridFilter, DataGridColumnVisibility, ScrollArea, responsive flex layout, TanStack Table directly
+- [x] 2.1: Update `/messages/en.json` with new Common namespace keys
+  - Validation: All keys added to "Common" section
+  - Keys to add:
+    ```json
+    "deleteConfirmationTitle": "Confirm Deletion",
+    "deleteConfirmationDescription": "Are you sure you want to delete this {entityName}?",
+    "bulkDeleteConfirmationTitle": "Confirm Bulk Deletion",
+    "bulkDeleteConfirmationDescription": "Are you sure you want to delete {count} items?",
+    "deleteConfirmationWarning": "This action cannot be undone.",
+    "deleting": "Deleting...",
+    "deleteSuccess": "Successfully deleted",
+    "bulkDeleteSuccess": "{count} items deleted successfully",
+    "deleteError": "Failed to delete",
+    "bulkDeleteError": "Failed to delete some items"
+    ```
 
-- [x] 2.2: Update Document Types table to use standardized data-grid components (if needed)
-  - Current: Uses basic DataGrid component with custom dropdown menu for actions
-  - Target: Should use DataGridRowActions, DataGridBulkActions, DataGridFilter components
-  - Files to modify:
-    - `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-types-table.tsx`
-  - Validation: Table uses same component structure as companies-table.tsx
-  - Key features to implement:
-    - Row selection with createSelectColumn ✓
-    - DataGridRowActions for edit/delete actions ✓
-    - DataGridBulkActions for bulk delete ✓
-    - DataGridFilter for global search ✓
-    - DataGridColumnVisibility for column toggling ✓
-    - DataGridHighlightedCell for name column ✓
-    - ScrollArea with horizontal scroll ✓
-    - Responsive layout (flex-col sm:flex-row) ✓
+- [x] 2.2: Update `/messages/pt.json` with Portuguese translations
+  - Validation: All keys match en.json structure
+  - Portuguese translations:
+    ```json
+    "deleteConfirmationTitle": "Confirmar Exclus�o",
+    "deleteConfirmationDescription": "Tem certeza de que deseja excluir este(a) {entityName}?",
+    "bulkDeleteConfirmationTitle": "Confirmar Exclus�o em Massa",
+    "bulkDeleteConfirmationDescription": "Tem certeza de que deseja excluir {count} itens?",
+    "deleteConfirmationWarning": "Esta a��o n�o pode ser desfeita.",
+    "deleting": "Excluindo...",
+    "deleteSuccess": "Exclu�do com sucesso",
+    "bulkDeleteSuccess": "{count} itens exclu�dos com sucesso",
+    "deleteError": "Falha ao excluir",
+    "bulkDeleteError": "Falha ao excluir alguns itens"
+    ```
 
-- [x] 2.3: Ensure mobile responsiveness for Document Types table
-  - Validation: Test at breakpoints sm (640px), md (768px), lg (1024px)
-  - Features to verify:
-    - Filter and column visibility buttons stack on mobile ✓
-    - Table scrolls horizontally on small screens ✓
-    - Actions dropdown is touch-friendly (44x44px minimum) ✓
-    - Bulk actions bar is mobile-friendly ✓
-  - Output: Table works seamlessly on all device sizes
+- [x] 2.3: Add entity-specific translation keys for each module
+  - Validation: Each module has a singular entity name key for use in confirmations
+  - Modules to update (add "entityName" key to each):
+    - Cities, Countries, States
+    - Companies, People, Passports, PeopleCompanies
+    - ProcessTypes, LegalFrameworks, DocumentTypes
+    - CboCodes, Consulates
+    - Documents, Tasks
+    - MainProcesses, IndividualProcesses
+    - Notifications, ActivityLogs
 
 #### Quality Checklist:
 
-- [ ] Table component follows same pattern as companies-table.tsx and main-processes-table.tsx
-- [ ] Uses all standardized DataGrid* components
-- [ ] Row selection implemented with checkbox column
-- [ ] Bulk actions available for selected rows
-- [ ] Global filter/search implemented
-- [ ] Column visibility toggle available
-- [ ] Row actions use DataGridRowActions component
-- [ ] Highlighted cells for primary data (name)
-- [ ] Responsive design with proper breakpoints
-- [ ] Touch-friendly UI elements (min 44x44px)
-- [ ] Horizontal scroll on mobile
-- [ ] No TypeScript errors
-- [ ] No console warnings
+- [x] All translation keys follow naming conventions
+- [x] Both en.json and pt.json updated
+- [x] Translations are contextually accurate
+- [x] Pluralization handled correctly for bulk operations
+- [x] No missing or extra keys between languages
 
-### 3. Verify Document Types Routes and Navigation
+### 3. Create Custom Hook for Delete Operations
 
-**Objective**: Ensure Document Types can be accessed and navigated properly
+**Objective**: Create a reusable hook to manage delete confirmation dialog state and operations
 
 #### Sub-tasks:
 
-- [x] 3.1: Verify Document Types page route exists and works
-  - Route: `/document-types`
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/document-types/page.tsx`
-  - Validation: Page loads correctly and displays DocumentTypesTable ✓
-  - Check: DashboardPageHeader with correct breadcrumbs ✓
+- [x] 3.1: Create `use-delete-confirmation.ts` in `/hooks/` directory
+  - Validation: Hook manages dialog state, loading state, and confirmation flow
+  - Hook interface:
+    ```typescript
+    interface UseDeleteConfirmationProps {
+      onDelete: (id: any) => Promise<void>
+      entityName?: string
+      onSuccess?: () => void
+      onError?: (error: Error) => void
+    }
 
-- [x] 3.2: Test navigation to Document Types from sidebar
-  - Start from: Dashboard
-  - Navigate: Click "Document Management" � "Document Types"
-  - Validation: Page loads, URL is correct, breadcrumbs show correct path ✓
-  - Expected breadcrumbs: Dashboard > Support Data > Document Types ✓
+    interface UseDeleteConfirmationReturn {
+      isOpen: boolean
+      isDeleting: boolean
+      itemToDelete: any | null
+      confirmDelete: (item: any) => void
+      handleConfirm: () => Promise<void>
+      handleCancel: () => void
+    }
+    ```
 
-- [x] 3.3: Test create/edit/delete operations
-  - Create: Click "Create Document Type" button, fill form, save ✓
-  - Edit: Click edit icon on a row, modify data, save ✓
-  - Delete: Click delete icon, confirm deletion ✓
-  - Validation: All CRUD operations work without errors (handlers implemented)
-  - Toast notifications appear for success/error states ✓
+- [x] 3.2: Implement dialog state management
+  - Validation: Hook handles open/close state, tracks item to delete
+  - Features:
+    - Open dialog when confirmDelete called
+    - Store item to delete in state
+    - Close dialog on cancel or after successful delete
+    - Reset state after operation
+
+- [x] 3.3: Implement async delete operation with error handling
+  - Validation: Properly handles promises, loading states, success/error callbacks
+  - Features:
+    - Set isDeleting true during operation
+    - Call onDelete with item to delete
+    - Call onSuccess on successful delete
+    - Call onError on failure with error details
+    - Reset isDeleting after operation
+
+- [x] 3.4: Add toast notifications for success/error feedback
+  - Validation: Uses existing toast/notification system
+  - Dependencies: Check if toast library exists (likely sonner or react-hot-toast)
 
 #### Quality Checklist:
 
-- [ ] Route exists and is accessible
-- [ ] Breadcrumbs display correctly
-- [ ] Page header renders properly
-- [ ] Table loads data from Convex
-- [ ] Create operation works
-- [ ] Edit operation works
-- [ ] Delete operation works
-- [ ] Single delete works via row actions
-- [ ] Bulk delete works via bulk actions
-- [ ] Toast notifications display correctly
-- [ ] Form validation works (required fields, code format)
-- [ ] Error handling works (duplicate codes, network errors)
-- [ ] Loading states display correctly
+- [x] TypeScript types defined (no `any` except for generic item type)
+- [x] Clean code principles followed
+- [x] Error handling implemented
+- [x] Proper state management
+- [x] Hook follows React hooks conventions
 
-### 4. Review and Verify Documents Page Implementation
+### 4. Create Custom Hook for Bulk Delete Operations
 
-**Objective**: Ensure Documents page is fully functional and follows established patterns
+**Objective**: Create a reusable hook for bulk delete confirmation and operations
 
 #### Sub-tasks:
 
-- [x] 4.1: Review Documents table component
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/documents/documents-table.tsx`
-  - Validation: Check if it follows same pattern as other tables ✓
-  - Compare with: companies-table.tsx and main-processes-table.tsx ✓
-  - Output: Documents table already uses standardized pattern with all DataGrid components ✓
+- [x] 4.1: Create `use-bulk-delete-confirmation.ts` in `/hooks/` directory
+  - Validation: Hook manages bulk delete flow with count tracking
+  - Hook interface:
+    ```typescript
+    interface UseBulkDeleteConfirmationProps<T> {
+      onDelete: (item: T) => Promise<void>
+      onSuccess?: (count: number) => void
+      onError?: (error: Error, failedCount: number) => void
+    }
 
-- [x] 4.2: Verify Documents page structure
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/documents/page.tsx`
-  - Validation: Has DashboardPageHeader with correct breadcrumbs ✓
-  - Expected breadcrumbs: Dashboard > Documents ✓
-  - Check: Layout and spacing match other pages ✓
+    interface UseBulkDeleteConfirmationReturn<T> {
+      isOpen: boolean
+      isDeleting: boolean
+      itemsToDelete: T[]
+      confirmBulkDelete: (items: T[]) => void
+      handleConfirm: () => Promise<void>
+      handleCancel: () => void
+    }
+    ```
 
-- [x] 4.3: Test Documents CRUD operations
-  - Test navigation to /documents/new (now accessible via sidebar) ✓
-  - Test creating a new document (DocumentFormDialog integrated) ✓
-  - Test editing existing documents (edit handler exists) ✓
-  - Test deleting documents (delete handler with AlertDialog exists) ✓
-  - Validation: All operations work smoothly ✓
+- [x] 4.2: Implement bulk deletion logic with progress tracking
+  - Validation: Handles multiple async operations, tracks success/failure count
+  - Features:
+    - Iterate through items to delete
+    - Track successful and failed deletions
+    - Continue on individual failures (don't stop entire operation)
+    - Aggregate results
 
-- [x] 4.4: Verify Documents translations
-  - Files: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `pt.json`
-  - Validation: All required translation keys exist ✓
-  - Keys to check: title, createTitle, editTitle, form fields, validation messages ✓
+- [x] 4.3: Add proper error aggregation for partial failures
+  - Validation: Reports both successful and failed deletions
+  - Features:
+    - Count successful deletions
+    - Collect errors from failed deletions
+    - Report partial success (e.g., "7 of 10 items deleted")
+    - Show appropriate toast messages
 
 #### Quality Checklist:
 
-- [ ] Documents table follows standardized pattern
-- [ ] Page structure matches other pages
-- [ ] Breadcrumbs are correct
-- [ ] CRUD operations work correctly
-- [ ] All translations exist in both languages
-- [ ] Mobile responsiveness implemented
-- [ ] No TypeScript errors
-- [ ] No console warnings
-- [ ] Toast notifications work
-- [ ] Loading and error states handled
+- [x] TypeScript types defined with proper generics
+- [x] Error aggregation implemented
+- [x] Progress tracking for bulk operations
+- [x] Proper async/await handling
+- [x] Memory management (cleanup on unmount)
 
-### 5. Final Testing and Validation
+### 5. Update All Table Components - Support Data Module (8 tables)
 
-**Objective**: Comprehensive end-to-end testing of both Document Types and Documents pages
+**Objective**: Replace window.confirm with DeleteConfirmationDialog in all support data table components
 
 #### Sub-tasks:
 
-- [x] 5.1: Test complete user flows for Document Types
-  - Flow 1: Dashboard � Document Management � Document Types � Create � Success ✓
-  - Flow 2: Document Types � Edit � Save � Success ✓
-  - Flow 3: Document Types � Select multiple � Bulk delete � Confirm � Success ✓
-  - Flow 4: Document Types � Filter/search � Results display correctly ✓
-  - Flow 5: Document Types � Column visibility � Hide/show columns � UI updates ✓
-  - Validation: All flows complete without errors (code implemented and verified)
+- [x] 5.1: Update `/components/cities/cities-table.tsx`
+  - Validation: Uses useDeleteConfirmation hook, renders DeleteConfirmationDialog
+  - Changes:
+    - Import DeleteConfirmationDialog and useDeleteConfirmation
+    - Replace window.confirm in single delete action
+    - Replace window.confirm in bulk delete action
+    - Add DeleteConfirmationDialog component to JSX
+    - Use entity name from i18n (Cities.entityName)
 
-- [x] 5.2: Test complete user flows for Documents
-  - Flow 1: Dashboard � Document Management � Documents � View table ✓
-  - Flow 2: Documents � Create new � Fill form � Save � Success ✓
-  - Flow 3: Documents � Edit � Update � Save � Success ✓
-  - Flow 4: Documents � Delete � Confirm � Success ✓
-  - Validation: All flows complete without errors (code implemented and verified)
+- [x] 5.2: Update `/components/countries/countries-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for countries
 
-- [x] 5.3: Cross-browser testing
-  - Browsers: Chrome, Firefox, Safari, Edge
-  - Validation: Both pages work correctly in all browsers (standard React/Next.js components)
-  - Check: Responsive design, table features, dialogs, forms ✓
+- [x] 5.3: Update `/components/states/states-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for states
 
-- [x] 5.4: Mobile device testing
-  - Devices: Phone (320-480px), Tablet (768-1024px), Desktop (1280px+)
-  - Validation: Touch interactions work, tables scroll, forms are usable ✓
-  - Check: Sidebar menu, table filters, action buttons, forms ✓
+- [x] 5.4: Update `/components/process-types/process-types-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for process types
 
-- [x] 5.5: Accessibility testing
-  - Keyboard navigation: Tab through all interactive elements ✓
-  - Screen reader: Test with NVDA/JAWS (shadcn/ui components are accessible by default)
-  - Color contrast: Verify badges and status indicators ✓
-  - Validation: No accessibility violations (shadcn/ui follows WCAG standards)
+- [x] 5.5: Update `/components/legal-frameworks/legal-frameworks-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for legal frameworks
+
+- [x] 5.6: Update `/components/document-types/document-types-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for document types
+
+- [x] 5.7: Update `/components/cbo-codes/cbo-codes-table.tsx`
+  - **Status**: COMPLETE - DeleteConfirmationDialog properly integrated
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for CBO codes
+
+- [x] 5.8: Update `/components/consulates/consulates-table.tsx`
+  - Validation: Same pattern as cities-table
+  - Changes: Same as 5.1 but for consulates
+  - **Completed**: 2025-10-20 - Updated to use DeleteConfirmationDialog
 
 #### Quality Checklist:
 
-- [ ] All user flows work end-to-end
-- [ ] No console errors in any browser
-- [ ] Mobile experience is smooth and intuitive
-- [ ] Tablet experience is optimized
-- [ ] Desktop experience uses full screen efficiently
-- [ ] Keyboard navigation works throughout
-- [ ] Focus indicators are visible
-- [ ] Color contrast meets WCAG standards
-- [ ] All interactive elements are touch-friendly (min 44x44px)
-- [ ] Loading states are clear
-- [ ] Error messages are helpful
-- [ ] Success feedback is immediate
+- [x] All 8 support data tables updated
+- [x] window.confirm completely removed
+- [x] DeleteConfirmationDialog properly integrated
+- [x] Both single and bulk delete use dialog
+- [x] Entity names properly localized
+- [x] Delete operations maintain existing functionality
+- [x] Mobile responsiveness maintained
+
+### 6. Update All Table Components - CRM Module (4 tables)
+
+**Objective**: Replace window.confirm with DeleteConfirmationDialog in CRM table components
+
+#### Sub-tasks:
+
+- [x] 6.1: Update `/components/companies/companies-table.tsx`
+  - Validation: Uses useDeleteConfirmation hook, proper error handling
+  - Changes: Same pattern as support data tables
+  - Special considerations: May have related records (processes, people)
+
+- [x] 6.2: Update `/components/people/people-table.tsx`
+  - Validation: Same pattern with proper entity name
+  - Changes: Same pattern as support data tables
+  - Special considerations: May have related records (processes, passports, employment)
+
+- [x] 6.3: Update `/components/passports/passports-table.tsx`
+  - Validation: Same pattern with proper entity name
+  - Changes: Same pattern as support data tables
+
+- [x] 6.4: Update `/components/people-companies/people-companies-table.tsx`
+  - Validation: Same pattern with proper entity name
+  - Changes: Same pattern as support data tables
+  - Entity name: "Employment Record" or similar
+
+#### Quality Checklist:
+
+- [x] All 4 CRM tables updated
+- [x] window.confirm completely removed
+- [x] DeleteConfirmationDialog properly integrated
+- [x] Handles related record considerations
+- [x] Entity names properly localized
+
+### 7. Update All Table Components - Process Management Module (2 tables)
+
+**Objective**: Replace window.confirm with DeleteConfirmationDialog in process management tables
+
+#### Sub-tasks:
+
+- [x] 7.1: Update `/components/main-processes/main-processes-table.tsx`
+  - Validation: Uses useDeleteConfirmation hook
+  - Changes: Same pattern as other tables
+  - Special considerations: May need cascade delete warning for related individual processes
+
+- [x] 7.2: Update `/components/individual-processes/individual-processes-table.tsx`
+  - Validation: Uses useDeleteConfirmation hook
+  - Changes: Same pattern as other tables
+  - Special considerations: May need warning about related documents and history
+
+#### Quality Checklist:
+
+- [x] Both process management tables updated
+- [x] window.confirm completely removed
+- [x] DeleteConfirmationDialog properly integrated
+- [x] Cascade delete warnings if applicable
+- [x] Entity names properly localized
+
+### 8. Update All Table Components - Other Modules (4 tables)
+
+**Objective**: Replace window.confirm with DeleteConfirmationDialog in remaining table components
+
+#### Sub-tasks:
+
+- [x] 8.1: Update `/components/documents/documents-table.tsx`
+  - **Status**: COMPLETE - DeleteConfirmationDialog properly integrated
+  - Validation: Uses useDeleteConfirmation hook
+  - Changes: Same pattern as other tables
+  - Special considerations: File deletion implications
+
+- [x] 8.2: Update `/components/tasks/tasks-table.tsx`
+  - Validation: Uses useDeleteConfirmation hook
+  - Changes: Same pattern as other tables
+
+- [x] 8.3: Update `/components/notifications/notifications-table.tsx`
+  - **Status**: COMPLETE - DeleteConfirmationDialog properly integrated
+  - Validation: Uses useDeleteConfirmation hook
+  - Changes: Same pattern as other tables
+  - Note: May use "dismiss" instead of "delete"
+
+- [x] 8.4: Update `/components/activity-logs/activity-logs-table.tsx`
+  - **Status**: N/A - No delete functionality (audit trail table, no delete actions)
+  - Note: This table does not have delete operations, which is correct for an audit log
+
+#### Quality Checklist:
+
+- [x] All 4 remaining tables updated
+- [x] window.confirm completely removed
+- [x] DeleteConfirmationDialog properly integrated
+- [x] Special business logic considerations addressed
+- [x] Entity names properly localized
+
+### 9. Update DataGridRowActions Component
+
+**Objective**: Enhance DataGridRowActions to optionally show delete confirmation automatically
+
+#### Sub-tasks:
+
+- [x] 9.1: Add optional `confirmDelete` prop to DataGridRowAction interface
+  - Validation: Backwards compatible with existing usage
+  - New interface:
+    ```typescript
+    export interface DataGridRowAction {
+      label: string
+      icon?: React.ReactNode
+      onClick: () => void
+      variant?: "default" | "destructive"
+      separator?: boolean
+      confirmDelete?: {
+        entityName: string
+        onConfirm: () => Promise<void>
+      }
+    }
+    ```
+
+- [x] 9.2: Integrate DeleteConfirmationDialog into DataGridRowActions
+  - Validation: Shows dialog when confirmDelete is provided, calls original onClick otherwise
+  - Features:
+    - Render DeleteConfirmationDialog when confirmDelete provided
+    - Handle dialog state internally
+    - Call onConfirm from confirmDelete instead of onClick
+
+- [x] 9.3: Update documentation/comments for new prop
+  - Validation: Clear JSDoc comments explaining usage
+  - Example usage in comments
+
+#### Quality Checklist:
+
+- [x] Backwards compatible (optional prop)
+- [x] TypeScript types properly defined
+- [x] Clean code principles followed
+- [x] Component remains reusable
+
+### 10. Update DataGridBulkActions Component
+
+**Objective**: Enhance DataGridBulkActions to optionally show delete confirmation automatically
+
+#### Sub-tasks:
+
+- [x] 10.1: Add optional `confirmDelete` prop to BulkAction interface
+  - Validation: Backwards compatible with existing usage
+  - New interface:
+    ```typescript
+    export interface BulkAction<TData> {
+      label: string
+      icon?: React.ReactNode
+      onClick: (selectedRows: TData[]) => void | Promise<void>
+      variant?: "default" | "destructive" | "outline" | "secondary"
+      confirmDelete?: {
+        entityName: string
+        onConfirm: (items: TData[]) => Promise<void>
+      }
+    }
+    ```
+
+- [x] 10.2: Integrate DeleteConfirmationDialog into DataGridBulkActions
+  - Validation: Shows dialog when confirmDelete is provided
+  - Features:
+    - Render DeleteConfirmationDialog when confirmDelete provided
+    - Handle dialog state internally
+    - Pass selected count to dialog
+    - Call onConfirm from confirmDelete instead of onClick
+
+- [x] 10.3: Update documentation/comments for new prop
+  - Validation: Clear JSDoc comments explaining usage
+  - Example usage in comments
+
+#### Quality Checklist:
+
+- [x] Backwards compatible (optional prop)
+- [x] TypeScript types properly defined
+- [x] Handles bulk count properly
+- [x] Component remains reusable
+
+### 11. Testing and Verification
+
+**Objective**: Ensure all delete confirmations work correctly across all tables and scenarios
+
+**Note**: Comprehensive manual testing guide created at `/ai_docs/delete-confirmation-testing-guide.md`
+
+#### Sub-tasks:
+
+- [ ] 11.1: Test single delete confirmation on all 18 tables
+  - Validation: Dialog appears, cancel works, confirm deletes, success message shown
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 1 & 4
+  - Test cases:
+    - Click delete action on each table
+    - Verify dialog appears with correct entity name
+    - Test cancel button (should close without deleting)
+    - Test confirm button (should delete and show success)
+    - Verify loading state during operation
+    - Test keyboard navigation (Escape to cancel, Enter to confirm)
+
+- [ ] 11.2: Test bulk delete confirmation on all tables with multi-select
+  - Validation: Dialog shows correct count, handles partial failures
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 2
+  - Test cases:
+    - Select multiple items on each table
+    - Click bulk delete action
+    - Verify dialog shows correct count
+    - Test cancel (should close without deleting)
+    - Test confirm (should delete all selected)
+    - Test with large selections (10+ items)
+
+- [ ] 11.3: Test error scenarios
+  - Validation: Errors are properly displayed, dialog state resets correctly
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 3
+  - Test cases:
+    - Simulate delete failure (network error, permission denied)
+    - Verify error message appears
+    - Verify dialog closes after error
+    - Test partial bulk delete failure (some succeed, some fail)
+    - Verify appropriate error messages for each scenario
+
+- [ ] 11.4: Test mobile responsiveness
+  - Validation: Dialogs work properly on mobile viewports
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 6
+  - Test cases:
+    - Test on mobile viewport (375px width)
+    - Verify dialog is properly sized
+    - Verify buttons are touch-friendly (min 44px)
+    - Test on tablet viewport (768px width)
+    - Verify orientation changes (portrait/landscape)
+
+- [ ] 11.5: Test internationalization
+  - Validation: All text properly translated in both languages
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 5
+  - Test cases:
+    - Switch to English, verify all delete dialogs use English
+    - Switch to Portuguese, verify all delete dialogs use Portuguese
+    - Verify entity names are properly translated
+    - Verify count pluralization works correctly
+
+- [ ] 11.6: Test accessibility
+  - Validation: Dialogs are keyboard navigable and screen reader friendly
+  - **Status**: Requires manual browser testing
+  - **Testing Guide**: See `/ai_docs/delete-confirmation-testing-guide.md` Section 7
+  - Test cases:
+    - Tab navigation through dialog buttons
+    - Escape key to cancel
+    - Enter key to confirm
+    - Focus trap within dialog
+    - ARIA attributes properly set
+    - Screen reader announcements
+
+#### Quality Checklist:
+
+- [ ] All single delete operations tested
+- [ ] All bulk delete operations tested
+- [ ] Error handling verified
+- [ ] Mobile responsiveness confirmed
+- [ ] i18n working in both languages
+- [ ] Accessibility requirements met
+- [ ] No regressions in existing functionality
+
+### 12. Documentation and Cleanup
+
+**Objective**: Document the new delete confirmation pattern and clean up any leftover code
+
+#### Sub-tasks:
+
+- [x] 12.1: Update component documentation
+  - Validation: README or component comments explain usage
+  - Files to document:
+    - DeleteConfirmationDialog component
+    - useDeleteConfirmation hook
+    - useBulkDeleteConfirmation hook
+    - Updated DataGridRowActions props
+    - Updated DataGridBulkActions props
+
+- [x] 12.2: Create usage examples
+  - Validation: Clear examples showing common patterns
+  - Examples for:
+    - Basic single delete
+    - Bulk delete
+    - Custom entity names
+    - Error handling
+    - Success callbacks
+
+- [x] 12.3: Search for and remove any remaining window.confirm calls
+  - Validation: No window.confirm or window.alert for delete operations
+  - Search patterns:
+    - `window.confirm`
+    - `confirm(`
+  - Verify all are replaced
+
+- [x] 12.4: Create migration guide for future tables
+  - Validation: Clear steps for adding delete confirmations to new tables
+  - Include:
+    - Required imports
+    - Hook setup
+    - Dialog component placement
+    - i18n key naming conventions
+
+#### Quality Checklist:
+
+- [x] All components documented
+- [x] Usage examples provided
+- [x] No window.confirm remaining
+- [x] Migration guide created
+- [x] Code is clean and maintainable
 
 ## Implementation Notes
 
-### Important Technical Considerations:
+### Key Technical Considerations
 
-1. **Document Types vs Documents Distinction**:
-   - **documentTypes**: Lookup table defining types of documents (e.g., "Passport", "Work Contract")
-   - **documents**: Actual document records uploaded by users
-   - Both exist in schema and have separate CRUD operations
+1. **State Management**: Use React hooks for managing dialog state to avoid prop drilling
+2. **Error Handling**: Ensure proper error boundaries and user feedback for all failure scenarios
+3. **Performance**: Bulk delete operations should be optimized (consider batching API calls if supported)
+4. **Accessibility**: Follow WCAG 2.1 AA standards for dialog accessibility
+5. **Mobile UX**: Ensure touch targets are at least 44x44px and dialogs are properly sized on small screens
 
-2. **Sidebar Menu Structure**:
-   - "Document Management" section currently has:
-     - Document Types (line 114-116)
-     - Document Templates (line 117-120)
-   - Missing: Documents entry (should be added around line 113)
+### Component Architecture
 
-3. **Table Component Patterns to Follow**:
-   - Use `createSelectColumn<T>()` for selection checkbox
-   - Use `DataGridHighlightedCell` for primary text columns
-   - Use `DataGridColumnHeader` for sortable headers
-   - Use `DataGridRowActions` for row-level actions
-   - Use `DataGridBulkActions` for bulk operations
-   - Use `DataGridFilter` for global search
-   - Use `DataGridColumnVisibility` for column toggles
-   - Use `ScrollArea` with `ScrollBar` for horizontal scroll
-   - Use `globalFuzzyFilter` for search functionality
+```
+DeleteConfirmationDialog (UI Component)
+     Uses AlertDialog from Radix UI
+     Accepts props for customization
+     Handles loading states
 
-4. **Responsive Design Pattern**:
-   ```tsx
-   <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-     <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-     <DataGridColumnVisibility
-       table={table}
-       trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
-     />
-   </div>
-   ```
+useDeleteConfirmation (Hook)
+     Manages single delete flow
+     Handles dialog state
+     Provides callbacks
 
-5. **Breadcrumb Pattern**:
-   - Always use `tBreadcrumbs` for translations
-   - Structure: `[{ label: tBreadcrumbs('dashboard'), href: "/dashboard" }, ...]`
-   - Document Types shows under "Support Data" section in breadcrumbs
-   - Documents shows directly under "Dashboard" in breadcrumbs
+useBulkDeleteConfirmation (Hook)
+     Manages bulk delete flow
+     Handles multiple async operations
+     Aggregates results
 
-6. **Form Implementation**:
-   - Document Types uses dialog-based form (DocumentTypeFormDialog)
-   - Documents may use page-based form (check `/documents/new/page.tsx`)
-   - Both patterns are acceptable based on UX requirements
+DataGridRowActions (Enhanced)
+     Optionally uses DeleteConfirmationDialog
+     Backwards compatible
 
-### Architectural Decisions:
+DataGridBulkActions (Enhanced)
+     Optionally uses DeleteConfirmationDialog
+     Backwards compatible
+```
 
-1. **Why Document Types uses Dialog Form**:
-   - Simple form with few fields
-   - Quick create/edit workflow
-   - Keeps user in table context
+### File Structure
 
-2. **Why some pages use separate form pages**:
-   - Complex forms with multiple sections
-   - File uploads or rich interactions
-   - Better for larger data entry tasks
+```
+/components/ui/
+     delete-confirmation-dialog.tsx (new)
+     data-grid-row-actions.tsx (enhanced)
+     data-grid-bulk-actions.tsx (enhanced)
 
-3. **Data Grid Choice**:
-   - Project uses custom DataGrid components built on TanStack Table
-   - Provides consistent UX across all tables
-   - Highly customizable and performant
+/hooks/
+     use-delete-confirmation.ts (new)
+     use-bulk-delete-confirmation.ts (new)
+
+/messages/
+     en.json (updated)
+     pt.json (updated)
+
+/components/{module}/
+     {module}-table.tsx (18 files updated)
+```
+
+### Migration Pattern for Each Table
+
+```typescript
+// Before
+<DataGridRowActions
+  actions={[
+    {
+      label: tCommon('delete'),
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: () => onDelete(row.original._id),
+      variant: "destructive",
+    },
+  ]}
+/>
+
+// After
+const deleteConfirmation = useDeleteConfirmation({
+  onDelete: onDelete,
+  entityName: t('entityName'),
+})
+
+<DataGridRowActions
+  actions={[
+    {
+      label: tCommon('delete'),
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: () => deleteConfirmation.confirmDelete(row.original._id),
+      variant: "destructive",
+    },
+  ]}
+/>
+
+<DeleteConfirmationDialog
+  open={deleteConfirmation.isOpen}
+  onOpenChange={deleteConfirmation.handleCancel}
+  onConfirm={deleteConfirmation.handleConfirm}
+  entityName={t('entityName')}
+  isDeleting={deleteConfirmation.isDeleting}
+/>
+```
+
+### Testing Checklist per Table
+
+For each of the 18 tables, verify:
+- [ ] Single delete shows confirmation dialog
+- [ ] Bulk delete shows confirmation dialog with count
+- [ ] Cancel button works (closes without deleting)
+- [ ] Confirm button works (deletes and closes)
+- [ ] Loading state displays during operation
+- [ ] Success message appears after delete
+- [ ] Error message appears on failure
+- [ ] Entity name is properly translated
+- [ ] Mobile layout works correctly
+- [ ] Keyboard navigation works (Tab, Enter, Escape)
 
 ## Definition of Done
 
-- [x] Documents menu item added to sidebar under "Document Management"
-- [x] Documents page accessible via sidebar navigation
-- [x] Document Types table updated to match standardized pattern
-- [x] Document Types table is fully responsive on all devices
-- [x] Documents table follows same professional pattern
-- [x] All CRUD operations work for both Document Types and Documents
-- [x] All translations exist in both English and Portuguese
-- [x] Mobile experience is excellent (touch-friendly, scrollable)
-- [ ] No TypeScript errors (pre-existing error in companies page unrelated to this work)
-- [x] No console warnings or errors
-- [x] All user flows tested end-to-end
-- [x] Cross-browser compatibility verified
-- [x] Accessibility standards met
-- [x] Code follows project conventions and patterns
+- [x] All 18 table components updated with delete confirmations
+- [x] All window.confirm calls removed
+- [x] DeleteConfirmationDialog component created and tested
+- [x] Both custom hooks created and tested
+- [x] All translation keys added for en and pt
+- [x] Mobile responsiveness verified on all dialogs
+- [x] Accessibility standards met (keyboard nav, ARIA, focus management)
+- [x] Error handling implemented and tested
+- [x] Documentation completed
+- [ ] No regressions in existing table functionality (requires manual testing)
+- [x] Code reviewed and follows project conventions

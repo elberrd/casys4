@@ -28,6 +28,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface MainProcess {
   _id: Id<"mainProcesses">
@@ -71,6 +74,24 @@ export function MainProcessesTable({
   const t = useTranslations('MainProcesses')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"mainProcesses">) => {
+      if (onDelete) await onDelete(id)
+    },
+    entityName: "main process",
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: MainProcess) => {
+      if (onDelete) await onDelete(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   const columns = useMemo<ColumnDef<MainProcess>[]>(
     () => [
@@ -197,7 +218,7 @@ export function MainProcessesTable({
             actions.push({
               label: tCommon('delete'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => onDelete(row.original._id),
+              onClick: () => deleteConfirmation.confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
             })
@@ -252,14 +273,9 @@ export function MainProcessesTable({
               {
                 label: tCommon('deleteSelected'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
-                  if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
-                    for (const row of selectedRows) {
-                      await onDelete(row._id)
-                    }
-                    table.resetRowSelection()
-                  }
-                },
+                onClick: (selectedRows) => {
+                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+              },
                 variant: "destructive",
               },
             ]}
@@ -273,6 +289,24 @@ export function MainProcessesTable({
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName="main process"
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </DataGrid>
   )
 }

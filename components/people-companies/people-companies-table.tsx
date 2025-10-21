@@ -27,6 +27,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface PersonCompany {
   _id: Id<"peopleCompanies">
@@ -56,6 +59,24 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
   const t = useTranslations('PeopleCompanies')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"peopleCompanies">) => {
+      if (onDelete) await onDelete(id)
+    },
+    entityName: "employment record",
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: PersonCompany) => {
+      if (onDelete) await onDelete(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   const columns = useMemo<ColumnDef<PersonCompany>[]>(
     () => [
@@ -151,7 +172,7 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: () => onDelete(row.original._id),
+                onClick: () => deleteConfirmation.confirmDelete(row.original._id),
                 variant: "destructive",
                 separator: true,
               },
@@ -204,13 +225,8 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
             {
               label: tCommon('deleteSelected'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: async (selectedRows) => {
-                if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
-                  for (const row of selectedRows) {
-                    await onDelete(row._id)
-                  }
-                  table.resetRowSelection()
-                }
+              onClick: (selectedRows) => {
+                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
               },
               variant: "destructive",
             },
@@ -224,6 +240,24 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName="employment record"
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </DataGrid>
   )
 }

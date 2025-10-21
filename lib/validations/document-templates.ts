@@ -14,7 +14,7 @@ export const documentTemplateSchema = z.object({
     .max(1000, "Description must be less than 1000 characters"),
   processTypeId: z.string().min(1, "Process type is required"),
   legalFrameworkId: z.string().optional(),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 export type DocumentTemplateFormData = z.infer<typeof documentTemplateSchema>;
@@ -24,8 +24,8 @@ export type DocumentTemplateFormData = z.infer<typeof documentTemplateSchema>;
  */
 export const documentRequirementSchema = z.object({
   documentTypeId: z.string().min(1, "Document type is required"),
-  isRequired: z.boolean().default(true),
-  isCritical: z.boolean().default(false),
+  isRequired: z.boolean(),
+  isCritical: z.boolean(),
   description: z
     .string()
     .min(1, "Description is required")
@@ -34,19 +34,17 @@ export const documentRequirementSchema = z.object({
   maxSizeMB: z
     .number()
     .min(0.1, "Max size must be at least 0.1 MB")
-    .max(100, "Max size cannot exceed 100 MB")
-    .default(10),
+    .max(100, "Max size cannot exceed 100 MB"),
   allowedFormats: z
     .array(z.string())
-    .min(1, "At least one format is required")
-    .default(["pdf"]),
+    .min(1, "At least one format is required"),
   validityDays: z
     .number()
     .min(1, "Validity days must be at least 1")
     .max(3650, "Validity days cannot exceed 10 years")
     .optional(),
-  requiresTranslation: z.boolean().default(false),
-  requiresNotarization: z.boolean().default(false),
+  requiresTranslation: z.boolean(),
+  requiresNotarization: z.boolean(),
   sortOrder: z.number().optional(),
 });
 
@@ -59,7 +57,7 @@ export type DocumentRequirementFormData = z.infer<
  */
 export const documentTemplateWithRequirementsSchema = z.object({
   template: documentTemplateSchema,
-  requirements: z.array(documentRequirementSchema).default([]),
+  requirements: z.array(documentRequirementSchema),
 });
 
 export type DocumentTemplateWithRequirementsFormData = z.infer<

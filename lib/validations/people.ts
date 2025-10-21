@@ -20,7 +20,7 @@ export const personSchema = z.object({
     message: "Nationality is required",
   }),
   maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"], {
-    errorMap: () => ({ message: "Please select a marital status" }),
+    message: "Please select a marital status",
   }),
   profession: z.string().min(1, "Profession is required"),
   motherName: z.string().min(1, "Mother's name is required"),

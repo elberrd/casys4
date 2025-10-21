@@ -25,6 +25,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, ptBR } from "date-fns/locale"
 import { useLocale } from "next-intl"
@@ -72,6 +75,24 @@ export function NotificationsTable({
   const tCommon = useTranslations("Common")
   const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"notifications">) => {
+      await onDelete?.(id)
+    },
+    entityName: t("entityName"),
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: Notification) => {
+      await onDelete?.(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   const dateLocale = locale === "pt" ? ptBR : enUS
 
@@ -170,7 +191,7 @@ export function NotificationsTable({
               ? [
                   {
                     label: tCommon("view"),
-                    icon: Eye,
+                    icon: <Eye className="h-4 w-4" />,
                     onClick: () => onView(row.original._id),
                   },
                 ]
@@ -179,7 +200,7 @@ export function NotificationsTable({
               ? [
                   {
                     label: t("markAsUnread"),
-                    icon: Bell,
+                    icon: <Bell className="h-4 w-4" />,
                     onClick: () => onMarkAsUnread(row.original._id),
                   },
                 ]
@@ -188,7 +209,7 @@ export function NotificationsTable({
               ? [
                   {
                     label: t("markAsRead"),
-                    icon: CheckCircle,
+                    icon: <CheckCircle className="h-4 w-4" />,
                     onClick: () => onMarkAsRead(row.original._id),
                   },
                 ]
@@ -197,8 +218,8 @@ export function NotificationsTable({
               ? [
                   {
                     label: tCommon("delete"),
-                    icon: Trash2,
-                    onClick: () => onDelete(row.original._id),
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () => deleteConfirmation.confirmDelete(row.original._id),
                     variant: "destructive" as const,
                   },
                 ]
@@ -245,7 +266,7 @@ export function NotificationsTable({
       ? [
           {
             label: t("markAllAsRead"),
-            icon: CheckCircle,
+            icon: <CheckCircle className="h-4 w-4" />,
             onClick: () => onBulkMarkAsRead(selectedIds),
           },
         ]
@@ -278,40 +299,37 @@ export function NotificationsTable({
   ]
 
   return (
-    <DataGridContainer>
+    <>
       <DataGrid
         table={table}
-        searchPlaceholder={t("searchNotifications")}
-        filters={
-          <>
-            <DataGridFilter
-              column={table.getColumn("type")}
-              title={t("filterByType")}
-              options={typeFilters}
-            />
-            <DataGridFilter
-              column={table.getColumn("isRead")}
-              title={t("filterByStatus")}
-              options={statusFilters}
-            />
-          </>
-        }
-        bulkActions={
-          selectedRows.length > 0 ? (
-            <DataGridBulkActions
-              selectedCount={selectedRows.length}
-              actions={bulkActions}
-              onClearSelection={() => setRowSelection({})}
-            />
-          ) : null
-        }
+        recordCount={notifications.length}
+        emptyMessage={t("noResults")}
       >
-        <ScrollArea className="h-[calc(100vh-280px)]">
-          <DataGridTable table={table} />
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-        <DataGridPagination table={table} />
+        <DataGridContainer>
+          <ScrollArea className="h-[calc(100vh-280px)]">
+            <DataGridTable />
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+          <DataGridPagination />
+        </DataGridContainer>
       </DataGrid>
-    </DataGridContainer>
+
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName={t("entityName")}
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
+    </>
   )
 }

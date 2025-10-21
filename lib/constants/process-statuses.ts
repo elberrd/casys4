@@ -5,10 +5,10 @@
 
 // Main Process Statuses
 export const MAIN_PROCESS_STATUSES = {
-  DRAFT: "draft",
-  IN_PROGRESS: "in_progress",
-  COMPLETED: "completed",
-  CANCELLED: "cancelled",
+  DRAFT: "main_draft",
+  IN_PROGRESS: "main_in_progress",
+  COMPLETED: "main_completed",
+  CANCELLED: "main_cancelled",
 } as const;
 
 export type MainProcessStatus =

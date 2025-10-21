@@ -78,9 +78,7 @@ export function DocumentTemplatesDataGrid({
           <DataGridColumnHeader column={column} title={t("name")} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell className="font-medium">
-            {row.original.name}
-          </DataGridHighlightedCell>
+          <DataGridHighlightedCell text={row.original.name} className="font-medium" />
         ),
         enableSorting: true,
         enableHiding: false,
@@ -157,22 +155,22 @@ export function DocumentTemplatesDataGrid({
           const actions = [
             {
               label: tCommon("view"),
-              icon: Eye,
+              icon: <Eye className="h-4 w-4" />,
               onClick: () => onView?.(row.original._id),
             },
             {
               label: tCommon("edit"),
-              icon: Edit,
+              icon: <Edit className="h-4 w-4" />,
               onClick: () => onEdit?.(row.original._id),
             },
             {
               label: t("clone"),
-              icon: Copy,
+              icon: <Copy className="h-4 w-4" />,
               onClick: () => onClone?.(row.original._id),
             },
             {
               label: tCommon("delete"),
-              icon: Trash2,
+              icon: <Trash2 className="h-4 w-4" />,
               onClick: () => onDelete?.(row.original._id),
               variant: "destructive" as const,
             },
@@ -212,10 +210,10 @@ export function DocumentTemplatesDataGrid({
           <DataGridColumnVisibility table={table} />
         </div>
         <ScrollArea className="h-[calc(100vh-280px)] rounded-md border">
-          <DataGridTable table={table} columns={columns} />
+          <DataGridTable />
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-        <DataGridPagination table={table} />
+        <DataGridPagination />
       </DataGrid>
     </DataGridContainer>
   );

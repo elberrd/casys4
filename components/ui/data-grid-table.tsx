@@ -5,12 +5,25 @@ import { flexRender } from "@tanstack/react-table"
 import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { useDataGrid } from "./data-grid"
+import { calculateMinColumnWidth } from "@/lib/data-grid-utils"
+import { useDataGrid, DataGridColumnMeta } from "./data-grid"
 import { Checkbox } from "./checkbox"
 import { Skeleton } from "./skeleton"
 
 /**
  * DataGridTable - Main table component that renders headers, body, and footer
+ *
+ * Features:
+ * - Automatically calculates minimum column widths based on header text length
+ * - Prevents column header overflow with text-ellipsis and native tooltips
+ * - Adds extra space for sorting icons in sortable columns
+ * - Special width handling for 'select' (40px) and 'actions' (60px) columns
+ * - Works seamlessly with ScrollArea for horizontal scrolling
+ *
+ * @remarks
+ * Column width calculation uses the `calculateMinColumnWidth` utility from data-grid-utils.tsx.
+ * For custom column widths, set the `size` property in column definitions. The calculated
+ * minWidth ensures headers never overflow while allowing columns to grow as needed.
  */
 export function DataGridTable() {
   const {
@@ -55,21 +68,62 @@ export function DataGridTable() {
             >
               {headerGroup.headers.map((header) => {
                 const meta = header.column.columnDef.meta as any
+
+                // Get header text for width calculation
+                const headerContent = header.column.columnDef.header
+                let headerText = ''
+                if (typeof headerContent === 'string') {
+                  headerText = headerContent
+                } else if (typeof headerContent === 'function') {
+                  // Try to extract title from the rendered header element
+                  try {
+                    const rendered = headerContent(header.getContext())
+                    // Check if it's a React element with props.title (DataGridColumnHeader)
+                    if (rendered && typeof rendered === 'object' && 'props' in rendered) {
+                      const props = (rendered as any).props
+                      if (props?.title) {
+                        headerText = props.title
+                      } else {
+                        // Fallback to meta or column id
+                        headerText = meta?.headerText || header.column.id
+                      }
+                    } else {
+                      headerText = meta?.headerText || header.column.id
+                    }
+                  } catch (e) {
+                    // Fallback to meta or column id if extraction fails
+                    headerText = meta?.headerText || header.column.id
+                  }
+                }
+
+                // Calculate dynamic minimum width
+                const hasSorting = header.column.getCanSort()
+                let calculatedMinWidth: number | string
+
+                if (header.column.id === 'select') {
+                  calculatedMinWidth = '40px'
+                } else if (header.column.id === 'actions') {
+                  calculatedMinWidth = '60px'
+                } else {
+                  calculatedMinWidth = `${calculateMinColumnWidth(headerText, false, hasSorting)}px`
+                }
+
                 return (
                   <th
                     key={header.id}
                     colSpan={header.colSpan}
                     style={{
                       width: header.getSize() !== 150 ? header.getSize() : undefined,
-                      minWidth: header.column.id === 'select' ? '40px' : header.column.id === 'actions' ? '60px' : '120px',
+                      minWidth: calculatedMinWidth,
                     }}
                     className={cn(
-                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap",
+                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap overflow-hidden text-ellipsis",
                       tableLayout.dense && "h-8 px-1.5",
                       tableLayout.cellBorder && "border-r last:border-r-0",
                       meta?.headerClassName,
                       tableClassNames.edgeCell
                     )}
+                    title={headerText} // Add tooltip for full text on hover
                   >
                     {header.isPlaceholder
                       ? null
@@ -140,6 +194,50 @@ export function DataGridTable() {
                   >
                     {row.getVisibleCells().map((cell) => {
                       const columnMeta = cell.column.columnDef.meta as any
+
+                      // Get header text for width calculation (same logic as headers)
+                      const headerContent = cell.column.columnDef.header
+                      let headerText = ''
+                      if (typeof headerContent === 'string') {
+                        headerText = headerContent
+                      } else if (typeof headerContent === 'function') {
+                        // Try to extract title from the rendered header element
+                        try {
+                          const rendered = headerContent({
+                            column: cell.column,
+                            header: cell.column as any,
+                            table: cell.getContext().table,
+                          } as any)
+                          // Check if it's a React element with props.title (DataGridColumnHeader)
+                          if (rendered && typeof rendered === 'object' && 'props' in rendered) {
+                            const props = (rendered as any).props
+                            if (props?.title) {
+                              headerText = props.title
+                            } else {
+                              // Fallback to meta or column id
+                              headerText = columnMeta?.headerText || cell.column.id
+                            }
+                          } else {
+                            headerText = columnMeta?.headerText || cell.column.id
+                          }
+                        } catch (e) {
+                          // Fallback to meta or column id if extraction fails
+                          headerText = columnMeta?.headerText || cell.column.id
+                        }
+                      }
+
+                      // Calculate dynamic minimum width
+                      const hasSorting = cell.column.getCanSort()
+                      let calculatedMinWidth: number | string
+
+                      if (cell.column.id === 'select') {
+                        calculatedMinWidth = '40px'
+                      } else if (cell.column.id === 'actions') {
+                        calculatedMinWidth = '60px'
+                      } else {
+                        calculatedMinWidth = `${calculateMinColumnWidth(headerText, false, hasSorting)}px`
+                      }
+
                       return (
                         <td
                           key={cell.id}
@@ -148,7 +246,7 @@ export function DataGridTable() {
                               cell.column.getSize() !== 150
                                 ? cell.column.getSize()
                                 : undefined,
-                            minWidth: cell.column.id === 'select' ? '40px' : cell.column.id === 'actions' ? '60px' : '120px',
+                            minWidth: calculatedMinWidth,
                           }}
                           className={cn(
                             "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
@@ -178,10 +276,16 @@ export function DataGridTable() {
                         {row
                           .getAllCells()
                           .find((cell) => {
-                            const meta = cell.column.columnDef.meta as any
+                            const meta = cell.column.columnDef.meta as DataGridColumnMeta
                             return meta?.expandedContent
                           })
-                          ?.column.columnDef.meta?.expandedContent?.(row.original)}
+                          ?.column.columnDef.meta &&
+                          (row
+                            .getAllCells()
+                            .find((cell) => {
+                              const meta = cell.column.columnDef.meta as DataGridColumnMeta
+                              return meta?.expandedContent
+                            })?.column.columnDef.meta as DataGridColumnMeta)?.expandedContent?.(row.original)}
                       </td>
                     </tr>
                   )}

@@ -46,9 +46,9 @@ export function DocumentFormPage({
     api.documents.get,
     documentId ? { id: documentId } : "skip"
   )
-  const documentTypes = useQuery(api.documentTypes.list) ?? []
-  const people = useQuery(api.people.list) ?? []
-  const companies = useQuery(api.companies.list) ?? []
+  const documentTypes = useQuery(api.documentTypes.list, {}) ?? []
+  const people = useQuery(api.people.list, {}) ?? []
+  const companies = useQuery(api.companies.list, {}) ?? []
 
   const createDocument = useMutation(api.documents.create)
   const updateDocument = useMutation(api.documents.update)

@@ -62,10 +62,10 @@ export function IndividualProcessFormDialog({
     individualProcessId ? { id: individualProcessId } : "skip"
   )
 
-  const mainProcesses = useQuery(api.mainProcesses.list) ?? []
+  const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
-  const legalFrameworks = useQuery(api.legalFrameworks.list) ?? []
-  const cboCodes = useQuery(api.cboCodes.list) ?? []
+  const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
+  const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
   const updateIndividualProcess = useMutation(api.individualProcesses.update)

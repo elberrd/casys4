@@ -71,7 +71,7 @@ export function PassportFormPage({
     passportId ? { id: passportId } : "skip"
   )
   const people = useQuery(api.people.list, {}) ?? []
-  const countries = useQuery(api.countries.list) ?? []
+  const countries = useQuery(api.countries.list, {}) ?? []
 
   const createPassport = useMutation(api.passports.create)
   const updatePassport = useMutation(api.passports.update)

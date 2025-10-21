@@ -27,16 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -52,7 +42,10 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CboCodeFormDialog } from "./cbo-code-form-dialog";
-import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 
 type CboCode = {
   _id: Id<"cboCodes">;
@@ -70,22 +63,38 @@ export function CboCodesTable() {
   const removeCboCode = useMutation(api.cboCodes.remove);
 
   const [editingCboCode, setEditingCboCode] = useState<Id<"cboCodes"> | undefined>();
-  const [deletingCboCode, setDeletingCboCode] = useState<Id<"cboCodes"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
-  const handleDelete = async () => {
-    if (!deletingCboCode) return;
-
-    try {
-      await removeCboCode({ id: deletingCboCode });
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"cboCodes">) => {
+      await removeCboCode({ id })
+    },
+    entityName: t("entityName"),
+    onSuccess: () => {
       toast.success(t("deletedSuccess"));
-      setDeletingCboCode(undefined);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Error deleting CBO code:", error);
       toast.error(t("errorDelete"));
-    }
-  };
+    },
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: CboCode) => {
+      await removeCboCode({ id: item._id })
+    },
+    onSuccess: (count) => {
+      toast.success(tCommon("bulkDeleteSuccess", { count }));
+      table.resetRowSelection()
+    },
+    onError: (error, failedCount) => {
+      console.error("Error in bulk delete:", error);
+      toast.error(tCommon("bulkDeleteError"));
+    },
+  });
 
   const columns = useMemo<ColumnDef<CboCode>[]>(
     () => [
@@ -144,7 +153,7 @@ export function CboCodesTable() {
             {
               label: tCommon("delete"),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => setDeletingCboCode(row.original._id),
+              onClick: () => deleteConfirmation.confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
             },
@@ -224,25 +233,27 @@ export function CboCodesTable() {
         }}
       />
 
-      <AlertDialog
-        open={!!deletingCboCode}
-        onOpenChange={(open) => !open && setDeletingCboCode(undefined)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("deleteConfirmMessage")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              {tCommon("delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={(open) => {
+          if (!open) deleteConfirmation.handleCancel();
+        }}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName={t("entityName")}
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={(open) => {
+          if (!open) bulkDeleteConfirmation.handleCancel();
+        }}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        entityName={t("entityName")}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+      />
     </>
   );
 }

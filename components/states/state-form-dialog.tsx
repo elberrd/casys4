@@ -51,7 +51,7 @@ export function StateFormDialog({
     stateId ? { id: stateId } : "skip"
   )
 
-  const countries = useQuery(api.countries.list) ?? []
+  const countries = useQuery(api.countries.list, {}) ?? []
   const createState = useMutation(api.states.create)
   const updateState = useMutation(api.states.update)
 

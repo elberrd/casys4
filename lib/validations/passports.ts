@@ -7,7 +7,7 @@ export const passportSchema = z.object({
   issueDate: z.string().min(1, "Issue date is required"),
   expiryDate: z.string().min(1, "Expiry date is required"),
   fileUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 }).refine(
   (data) => {
     const issueDate = new Date(data.issueDate);

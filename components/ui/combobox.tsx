@@ -55,7 +55,7 @@ export interface ComboboxProps<T = string> {
  * Multiple combobox component props
  */
 export interface ComboboxMultipleProps<T = string>
-  extends Omit<ComboboxProps<T>, "value" | "onValueChange" | "multiple"> {
+  extends Omit<ComboboxProps<T>, "value" | "onValueChange" | "multiple" | "defaultValue"> {
   value?: T[];
   defaultValue?: T[];
   onValueChange?: (value: T[]) => void;

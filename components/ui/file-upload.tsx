@@ -7,7 +7,7 @@ import {
   useFileUpload,
   type FileWithPreview,
 } from '@/hooks/use-file-upload';
-import { Alert, AlertContent, AlertDescription, AlertIcon, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -343,7 +343,7 @@ export function FileUpload({
                         <p className="flex items-center gap-1 truncate text-sm font-medium">
                           {fileItem.file.name}
                           {fileItem.status === 'error' && (
-                            <Badge variant="destructive" size="sm" appearance="light">
+                            <Badge variant="destructive">
                               Error
                             </Badge>
                           )}
@@ -398,20 +398,16 @@ export function FileUpload({
 
       {/* Error Messages */}
       {errors.length > 0 && (
-        <Alert variant="destructive" appearance="light" className="mt-5">
-          <AlertIcon>
-            <TriangleAlert />
-          </AlertIcon>
-          <AlertContent>
-            <AlertTitle>{tDocs('fileUploadError') || 'File upload error(s)'}</AlertTitle>
-            <AlertDescription>
-              {errors.map((error, index) => (
-                <p key={index} className="last:mb-0">
-                  {error}
-                </p>
-              ))}
-            </AlertDescription>
-          </AlertContent>
+        <Alert variant="destructive" className="mt-5">
+          <TriangleAlert />
+          <AlertTitle>{tDocs('fileUploadError') || 'File upload error(s)'}</AlertTitle>
+          <AlertDescription>
+            {errors.map((error, index) => (
+              <p key={index} className="last:mb-0">
+                {error}
+              </p>
+            ))}
+          </AlertDescription>
         </Alert>
       )}
     </div>

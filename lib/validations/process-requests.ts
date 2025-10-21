@@ -17,7 +17,7 @@ export const processRequestSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  isUrgent: z.boolean().default(false),
+  isUrgent: z.boolean(),
   requestDate: z.string().min(1, "Request date is required"),
   notes: z.string().optional().or(z.literal("")),
 });

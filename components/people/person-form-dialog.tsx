@@ -60,8 +60,8 @@ export function PersonFormDialog({
     personId ? { id: personId } : "skip"
   )
 
-  const cities = useQuery(api.cities.list) ?? []
-  const countries = useQuery(api.countries.list) ?? []
+  const cities = useQuery(api.cities.listWithRelations, {}) ?? []
+  const countries = useQuery(api.countries.list, {}) ?? []
   const createPerson = useMutation(api.people.create)
   const updatePerson = useMutation(api.people.update)
 

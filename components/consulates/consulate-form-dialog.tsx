@@ -51,7 +51,7 @@ export function ConsulateFormDialog({
     api.consulates.get,
     consulateId ? { id: consulateId } : "skip"
   );
-  const cities = useQuery(api.cities.list) ?? [];
+  const cities = useQuery(api.cities.listWithRelations) ?? [];
 
   const createConsulate = useMutation(api.consulates.create);
   const updateConsulate = useMutation(api.consulates.update);

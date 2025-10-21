@@ -20,7 +20,7 @@ export function DataGridFilter<TData>({
 }: DataGridFilterProps<TData>) {
   const tCommon = useTranslations("Common")
   const [value, setValue] = useState<string>("")
-  const debounceRef = useRef<NodeJS.Timeout>()
+  const debounceRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const isInitialMount = useRef(true)
 
   // Debounced filter update to avoid excessive re-renders

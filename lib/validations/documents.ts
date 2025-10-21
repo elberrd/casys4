@@ -12,7 +12,7 @@ export const documentSchema = z.object({
   notes: z.string().optional(),
   issueDate: z.string().optional(),
   expiryDate: z.string().optional(),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 export type DocumentFormData = z.infer<typeof documentSchema>;

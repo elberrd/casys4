@@ -27,6 +27,9 @@ import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface Task {
   _id: Id<"tasks">
@@ -85,6 +88,24 @@ export function TasksTable({
   const t = useTranslations('Tasks')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"tasks">) => {
+      if (onDelete) await onDelete(id)
+    },
+    entityName: "task",
+  })
+
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: Task) => {
+      if (onDelete) await onDelete(item._id)
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  })
 
   // Helper to check if task is overdue
   const isOverdue = (dueDate: string, status: string) => {
@@ -277,7 +298,7 @@ export function TasksTable({
             actions.push({
               label: tCommon('delete'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => onDelete(row.original._id),
+              onClick: () => deleteConfirmation.confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
             })
@@ -332,7 +353,7 @@ export function TasksTable({
               ...(onBulkReassign ? [{
                 label: t('reassignSelected'),
                 icon: <UserPlus className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
+                onClick: async (selectedRows: Task[]) => {
                   onBulkReassign(selectedRows)
                 },
                 variant: "default" as const,
@@ -340,7 +361,7 @@ export function TasksTable({
               ...(onBulkUpdateStatus ? [{
                 label: t('updateStatusSelected'),
                 icon: <RefreshCw className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
+                onClick: async (selectedRows: Task[]) => {
                   onBulkUpdateStatus(selectedRows)
                 },
                 variant: "default" as const,
@@ -348,14 +369,9 @@ export function TasksTable({
               ...(onDelete ? [{
                 label: tCommon('deleteSelected'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
-                  if (window.confirm(tCommon('bulkDeleteConfirm', { count: selectedRows.length }))) {
-                    for (const row of selectedRows) {
-                      await onDelete(row._id)
-                    }
-                    table.resetRowSelection()
-                  }
-                },
+                onClick: (selectedRows: Task[]) => {
+                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+              },
                 variant: "destructive" as const,
               }] : []),
             ]}
@@ -369,6 +385,24 @@ export function TasksTable({
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName="task"
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </DataGrid>
   )
 }

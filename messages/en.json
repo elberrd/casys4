@@ -27,6 +27,15 @@
     "all": "All",
     "clear": "Clear",
     "deleteConfirm": "Are you sure you want to delete this item?",
+    "deleteConfirmationTitle": "Confirm Deletion",
+    "deleteConfirmationDescription": "Are you sure you want to delete this {entityName}?",
+    "bulkDeleteConfirmationTitle": "Confirm Bulk Deletion",
+    "bulkDeleteConfirmationDescription": "Are you sure you want to delete {count} items?",
+    "deleteConfirmationWarning": "This action cannot be undone.",
+    "deleting": "Deleting...",
+    "deleteSuccess": "Successfully deleted",
+    "deleteError": "Failed to delete",
+    "bulkDeleteError": "Failed to delete some items",
     "pending": "Pending",
     "inProgress": "In Progress",
     "completed": "Completed",
@@ -35,7 +44,8 @@
     "documentCollection": "Document Collection",
     "submitted": "Submitted",
     "approved": "Approved",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "columns": "Columns"
   },
   "Navigation": {
     "dashboard": "Dashboard",
@@ -591,6 +601,7 @@
   },
   "Documents": {
     "title": "Documents",
+    "entityName": "document",
     "createTitle": "Create Document",
     "editTitle": "Edit Document",
     "newDocument": "New Document",
@@ -650,6 +661,7 @@
   },
   "CboCodes": {
     "title": "CBO Codes",
+    "entityName": "CBO code",
     "createTitle": "Create CBO Code",
     "editTitle": "Edit CBO Code",
     "deleteConfirm": "Are you sure you want to delete this CBO code?",
@@ -670,6 +682,7 @@
   },
   "Consulates": {
     "title": "Consulates",
+    "entityName": "consulate",
     "createTitle": "Create Consulate",
     "editTitle": "Edit Consulate",
     "deleteConfirm": "Are you sure you want to delete this consulate?",
@@ -1163,8 +1176,10 @@
   "Notifications": {
     "notifications": "Notifications",
     "notification": "Notification",
+    "entityName": "notification",
     "loading": "Loading notifications...",
     "noNotifications": "No notifications yet",
+    "noResults": "No notifications found",
     "markAsRead": "Mark as read",
     "markAsUnread": "Mark as unread",
     "markAllAsRead": "Mark all as read",
@@ -1307,17 +1322,28 @@
       "removed": "Removed"
     },
     "entityTypes": {
+      "mainProcess": "Main Process",
       "mainProcesses": "Main Process",
+      "individualProcess": "Individual Process",
       "individualProcesses": "Individual Process",
+      "task": "Task",
       "tasks": "Task",
+      "document": "Document",
       "documents": "Document",
       "documentsDelivered": "Delivered Document",
+      "user": "User",
       "users": "User",
+      "userProfile": "User Profile",
       "userProfiles": "User Profile",
+      "company": "Company",
       "companies": "Company",
+      "person": "Person",
       "people": "Person",
+      "passport": "Passport",
       "passports": "Passport",
+      "processRequest": "Process Request",
       "processRequests": "Process Request",
+      "documentTemplate": "Document Template",
       "documentTemplates": "Document Template"
     }
   },

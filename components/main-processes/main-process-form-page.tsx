@@ -46,11 +46,11 @@ export function MainProcessFormPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Query data for form fields
-  const companies = useQuery(api.companies.list);
+  const companies = useQuery(api.companies.list, {});
   const people = useQuery(api.people.list, {});
   const processTypes = useQuery(api.processTypes.list, { isActive: true });
-  const cities = useQuery(api.cities.list);
-  const consulates = useQuery(api.consulates.list);
+  const cities = useQuery(api.cities.list, {});
+  const consulates = useQuery(api.consulates.list, {});
 
   // Get existing process data if editing
   const existingProcess = useQuery(
@@ -211,7 +211,7 @@ export function MainProcessFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={companies.map((company) => ({
                     value: company._id,
                     label: company.name,
@@ -236,7 +236,7 @@ export function MainProcessFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={people.map((person) => ({
                     value: person._id,
                     label: person.fullName,
@@ -262,7 +262,7 @@ export function MainProcessFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={processTypes.map((type) => ({
                     value: type._id,
                     label: type.name,
@@ -287,7 +287,7 @@ export function MainProcessFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={cities.map((city) => ({
                     value: city._id,
                     label: city.name,
@@ -315,7 +315,7 @@ export function MainProcessFormPage({
               <FormControl>
                 <Combobox
                   value={field.value || ""}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={consulates.map((consulate) => ({
                     value: consulate._id,
                     label: consulate.name,

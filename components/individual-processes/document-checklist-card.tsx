@@ -204,7 +204,13 @@ export function DocumentChecklistCard({
           </div>
           {selectedDocuments.length > 0 && (
             <BulkDocumentActionsMenu
-              selectedDocuments={selectedDocuments}
+              selectedDocuments={selectedDocuments.map(doc => ({
+                _id: doc._id,
+                fileName: doc.fileName,
+                fileUrl: doc.fileUrl,
+                status: doc.status,
+                documentType: doc.documentType ? { name: doc.documentType.name } : undefined,
+              }))}
               onSuccess={handleBulkActionSuccess}
               userRole={userRole}
             />

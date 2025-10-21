@@ -6,7 +6,7 @@ export const personCompanySchema = z.object({
   role: z.string().min(2, "Role must be at least 2 characters"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional().or(z.literal("")),
-  isCurrent: z.boolean().default(false),
+  isCurrent: z.boolean(),
 }).refine(
   (data) => {
     // If isCurrent is true, endDate must be empty

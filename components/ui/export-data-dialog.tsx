@@ -118,7 +118,7 @@ export function ExportDataDialog({
         }
         case "people": {
           data = await convex.query(api.exports.exportPeople, {
-            companyId: companyFilter,
+            companyId: companyFilter && companyFilter !== "all" ? (companyFilter as Id<"companies">) : undefined,
           })
           filename = generateExportFilename("people")
           break

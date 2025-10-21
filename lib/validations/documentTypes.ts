@@ -18,10 +18,10 @@ export const documentTypeSchema = z.object({
     .regex(/^[A-Z0-9_]+$/, "Code must contain only uppercase letters, numbers, and underscores")
     .transform((val) => val.toUpperCase().replace(/\s+/g, "")),
   category: z.enum(documentCategories, {
-    errorMap: () => ({ message: "Please select a valid category" }),
+    message: "Please select a valid category",
   }),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 export type DocumentTypeFormData = z.infer<typeof documentTypeSchema>;

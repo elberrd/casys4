@@ -21,16 +21,6 @@ import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
 import { DataGridTable } from "@/components/ui/data-grid-table";
 import { DataGridPagination } from "@/components/ui/data-grid-pagination";
@@ -42,7 +32,10 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { createSelectColumn } from "@/lib/data-grid-utils";
-import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 import { formatBytes } from "@/hooks/use-file-upload";
 import { DocumentFormDialog } from "./document-form-dialog";
 
@@ -79,27 +72,30 @@ export function DocumentsTable() {
   const tCommon = useTranslations("Common");
   const router = useRouter();
 
-  const documents = useQuery(api.documents.list) ?? [];
+  const documents = useQuery(api.documents.list, {}) ?? [];
   const removeDocument = useMutation(api.documents.remove);
-  const bulkRemoveDocuments = useMutation(api.documents.bulkRemove);
 
   const [editingDocument, setEditingDocument] = useState<Id<"documents"> | undefined>();
-  const [deletingDocument, setDeletingDocument] = useState<Id<"documents"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
-  const handleDelete = async () => {
-    if (!deletingDocument) return;
+  // Delete confirmation for single item
+  const deleteConfirmation = useDeleteConfirmation({
+    onDelete: async (id: Id<"documents">) => {
+      await removeDocument({ id })
+    },
+    entityName: t("entityName"),
+  })
 
-    try {
-      await removeDocument({ id: deletingDocument });
-      toast.success(t("deletedSuccess"));
-      setDeletingDocument(undefined);
-    } catch (error) {
-      console.error("Error deleting document:", error);
-      toast.error(t("errorDelete"));
-    }
-  };
+  // Bulk delete confirmation for multiple items
+  const bulkDeleteConfirmation = useBulkDeleteConfirmation({
+    onDelete: async (item: Document) => {
+      await removeDocument({ id: item._id })
+    },
+    onSuccess: () => {
+      table.resetRowSelection()
+    },
+  });
 
   const columns = useMemo<ColumnDef<Document>[]>(
     () => [
@@ -242,7 +238,7 @@ export function DocumentsTable() {
             {
               label: tCommon("delete"),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => setDeletingDocument(document._id),
+              onClick: () => deleteConfirmation.confirmDelete(document._id),
               variant: "destructive" as const,
               separator: true,
             },
@@ -305,13 +301,8 @@ export function DocumentsTable() {
               {
                 label: tCommon("deleteSelected"),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: async (selectedRows) => {
-                  if (window.confirm(tCommon("bulkDeleteConfirm", { count: selectedRows.length }))) {
-                    const ids = selectedRows.map((row) => row._id);
-                    await bulkRemoveDocuments({ ids });
-                    toast.success(tCommon("bulkDeleteSuccess", { count: selectedRows.length }));
-                    table.resetRowSelection();
-                  }
+                onClick: (selectedRows) => {
+                  bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
                 },
                 variant: "destructive",
               },
@@ -338,25 +329,22 @@ export function DocumentsTable() {
         documentId={editingDocument}
       />
 
-      <AlertDialog
-        open={!!deletingDocument}
-        onOpenChange={(open) => !open && setDeletingDocument(undefined)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tCommon("delete")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("deleteConfirm")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              {tCommon("delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmationDialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={deleteConfirmation.handleCancel}
+        onConfirm={deleteConfirmation.handleConfirm}
+        entityName={t("entityName")}
+        isDeleting={deleteConfirmation.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        open={bulkDeleteConfirmation.isOpen}
+        onOpenChange={bulkDeleteConfirmation.handleCancel}
+        onConfirm={bulkDeleteConfirmation.handleConfirm}
+        variant="bulk"
+        count={bulkDeleteConfirmation.itemsToDelete.length}
+        isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
     </>
   );
 }

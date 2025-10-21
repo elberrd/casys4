@@ -168,6 +168,13 @@ const defaultTableClassNames: Required<DataGridTableClassNames> = {
 /**
  * DataGrid component - Main wrapper that provides context for the entire data grid
  *
+ * Features:
+ * - Dynamic column width calculation based on header text length
+ * - Automatic horizontal scroll when table content exceeds container width
+ * - Column headers never overflow - text is automatically truncated with ellipsis and tooltip
+ * - Responsive design with mobile-friendly touch scrolling
+ * - Minimum column width of 100px, maximum of 400px (configurable in data-grid-utils.tsx)
+ *
  * @example
  * ```tsx
  * <DataGrid table={table} recordCount={data.length}>
@@ -180,6 +187,11 @@ const defaultTableClassNames: Required<DataGridTableClassNames> = {
  *   <DataGridPagination />
  * </DataGrid>
  * ```
+ *
+ * @remarks
+ * The DataGridTable component automatically calculates minimum column widths based on header text.
+ * For sortable columns, extra space is added for the sort icon. Use ScrollArea with horizontal
+ * ScrollBar for proper scrolling behavior when table width exceeds container.
  */
 export function DataGrid<TData>({
   table,
@@ -251,7 +263,7 @@ export function DataGridContainer({
   return (
     <div
       className={cn(
-        "rounded-md border bg-background w-full overflow-hidden",
+        "rounded-md border bg-background w-full max-w-full overflow-hidden",
         className
       )}
     >

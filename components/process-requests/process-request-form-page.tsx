@@ -46,13 +46,10 @@ export function ProcessRequestFormPage({
   const currentUser = useQuery(api.userProfiles.getCurrentUser);
 
   // Query data for form fields
-  const people = useQuery(
-    api.people.list,
-    currentUser?.companyId ? { companyId: currentUser.companyId } : "skip"
-  );
+  const people = useQuery(api.people.list, {});
   const processTypes = useQuery(api.processTypes.list, { isActive: true });
-  const cities = useQuery(api.cities.list);
-  const consulates = useQuery(api.consulates.list);
+  const cities = useQuery(api.cities.list, {});
+  const consulates = useQuery(api.consulates.list, {});
 
   // Mutations
   const createRequest = useMutation(api.processRequests.create);
@@ -153,7 +150,7 @@ export function ProcessRequestFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={people.map((person) => ({
                     value: person._id,
                     label: person.fullName,
@@ -179,7 +176,7 @@ export function ProcessRequestFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={processTypes.map((type) => ({
                     value: type._id,
                     label: type.name,
@@ -205,7 +202,7 @@ export function ProcessRequestFormPage({
               <FormControl>
                 <Combobox
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={cities.map((city) => ({
                     value: city._id,
                     label: city.name,
@@ -231,7 +228,7 @@ export function ProcessRequestFormPage({
               <FormControl>
                 <Combobox
                   value={field.value || ""}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   options={consulates.map((consulate) => ({
                     value: consulate._id,
                     label: consulate.name,
