@@ -171,6 +171,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: Settings2,
       items: [
         {
+          title: t('caseStatuses'),
+          url: "/case-statuses",
+        },
+        {
           title: t('settings'),
           url: "/settings",
         },
