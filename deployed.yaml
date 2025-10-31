@@ -1,0 +1,47 @@
+# Deployment Tracking Configuration
+# This file tracks the deployment status and configuration for the application
+
+deployment:
+  status: "not_deployed"  # Status: not_deployed, deploying, deployed, failed
+  last_deployment_date: null
+  git_commit_hash: null
+  deployed_by: null
+
+vercel:
+  project_exists: false
+  project_name: null
+  production_url: null
+  project_id: null
+  org_id: null
+
+convex:
+  production_deployment_url: null
+  deploy_key_configured: false
+  environment_variables:
+    JWKS:
+      status: "not_set"  # Status: not_set, set, synced_from_dev
+      last_updated: null
+    JWT_PRIVATE_KEY:
+      status: "not_set"
+      last_updated: null
+    SITE_URL:
+      status: "not_set"
+      last_updated: null
+      value: null
+
+github:
+  repository: null
+  branch: "main"
+  connected: false
+
+deployment_history:
+  # Array of past deployments
+  # - date: "YYYY-MM-DD HH:MM:SS"
+  #   commit: "abc123..."
+  #   status: "success"
+  #   vercel_url: "https://..."
+  #   notes: "Initial deployment"
+
+notes: |
+  This file is automatically updated by the /deploy command.
+  Manual modifications should be done carefully.
