@@ -41,9 +41,49 @@ This command deploys the application to production using Vercel and Convex.
 - The CONVEX_DEPLOY_KEY must be set for "All Environments" to be available during the build process
 - After adding/updating environment variables, you MUST trigger a redeploy for changes to take effect
 
+## Optional: Import Development Data to Production
+
+If you want to transfer your development data to production (useful for initial setup):
+
+### Method 1: One-Line Command (Recommended)
+```bash
+npx convex export --path ./backup.zip && npx convex import --prod --replace ./backup.zip
+```
+
+This will:
+1. Export all data from your development deployment to `backup.zip`
+2. Import that data into production, replacing any existing data
+
+### Method 2: Two-Step Process
+```bash
+# Step 1: Export from development
+npx convex export --path ./backup.zip
+
+# Step 2: Import to production (with confirmation)
+npx convex import --prod --replace ./backup.zip
+```
+
+### Options
+- `--replace`: Replaces existing data in matching tables
+- `--append`: Appends to existing data instead of replacing
+- `--include-file-storage`: Also exports/imports uploaded files
+
+### Important Notes
+⚠️ **WARNING**: Using `--replace` will overwrite ALL data in production tables that exist in the export!
+
+- Data import preserves `_id` and `_creationTime` fields, so relationships between tables are maintained
+- The import is atomic - queries won't see partial import states
+- Only tables in the export file are affected; other tables remain unchanged
+- After import, you may need to reset any streaming export integrations (Fivetran, Airbyte)
+
+### Use Cases
+- **Initial production setup**: Seed production with real-looking data from development
+- **Testing**: Import sample data for testing production deployment
+- **Backup restore**: Restore from a previous backup if needed
+
 ## Deployment Process
 
-After the manual step above is complete, deployments are automatic:
+After the manual steps above are complete, deployments are automatic:
 
 ### Automatic Deployments (via GitHub):
 - Push to `main` branch triggers production deployment

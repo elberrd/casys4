@@ -5,9 +5,10 @@
 deployment:
   status: "deployed"  # Status: not_deployed, configured, deploying, deployed, failed
   last_deployment_date: "2025-10-31 18:36:00"
+  last_data_import_date: "2025-10-31 18:50:00"
   git_commit_hash: "343a1fb"
   deployed_by: "Claude & User"
-  notes: "✅ DEPLOYMENT SUCCESSFUL! Production deployment with full Convex integration working."
+  notes: "✅ DEPLOYMENT SUCCESSFUL! Production deployment with full Convex integration working. Development data imported to production."
 
 vercel:
   project_exists: true
@@ -25,6 +26,18 @@ convex:
   production_deployment_name: "pleasant-mosquito-546"
   deploy_key_configured: true
   dashboard_url: "https://dashboard.convex.dev/d/pleasant-mosquito-546"
+  data_imported: true
+  data_import_date: "2025-10-31 18:50:00"
+  data_import_summary:
+    total_documents: 371
+    tables_imported: 35
+    key_tables:
+      - "cboCodes: 51 documents"
+      - "caseStatuses: 18 documents"
+      - "legalFrameworks: 16 documents"
+      - "activityLogs: 7 documents"
+      - "processTypes: 6 documents"
+      - "passports: 5 documents"
   environment_variables:
     JWKS:
       status: "synced_from_dev"
