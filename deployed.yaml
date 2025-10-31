@@ -1,47 +1,76 @@
 # Deployment Tracking Configuration
 # This file tracks the deployment status and configuration for the application
+# Last updated: 2025-10-31 17:45:00 UTC
 
 deployment:
-  status: "not_deployed"  # Status: not_deployed, deploying, deployed, failed
-  last_deployment_date: null
-  git_commit_hash: null
-  deployed_by: null
+  status: "configured"  # Status: not_deployed, configured, deploying, deployed, failed
+  last_deployment_date: "2025-10-31"
+  git_commit_hash: "86d963e"
+  deployed_by: "Claude"
+  notes: "Initial deployment configuration complete. Manual build command setup required in Vercel dashboard."
 
 vercel:
-  project_exists: false
-  project_name: null
-  production_url: null
-  project_id: null
-  org_id: null
-
+  project_exists: true
+  project_name: "casys4"
+  production_url: "https://casys4.vercel.app"
+  project_id: "prj_exdnEZlMb03FizRJqTUK01Cz95s0"
+  org_id: "team_0SZb9tRbglBfWofq25Pj6iUr"
+  team: "elberrds-projects"
+  dashboard_url: "https://vercel.com/elberrds-projects/casys4"
+  
 convex:
-  production_deployment_url: null
-  deploy_key_configured: false
+  production_deployment_url: "https://pleasant-mosquito-546.convex.cloud"
+  production_deployment_name: "pleasant-mosquito-546"
+  deploy_key_configured: true
+  dashboard_url: "https://dashboard.convex.dev/d/pleasant-mosquito-546"
   environment_variables:
     JWKS:
-      status: "not_set"  # Status: not_set, set, synced_from_dev
-      last_updated: null
+      status: "synced_from_dev"
+      last_updated: "2025-10-31"
     JWT_PRIVATE_KEY:
-      status: "not_set"
-      last_updated: null
+      status: "synced_from_dev"
+      last_updated: "2025-10-31"
     SITE_URL:
-      status: "not_set"
-      last_updated: null
-      value: null
+      status: "set"
+      last_updated: "2025-10-31"
+      value: "https://casys4.vercel.app"
 
 github:
-  repository: null
+  repository: "elberrd/casys4"
   branch: "main"
-  connected: false
+  connected: true
+  url: "https://github.com/elberrd/casys4"
+
+manual_steps_required:
+  - step: "Configure Vercel Build Command"
+    completed: false
+    instructions: "Go to https://vercel.com/elberrds-projects/casys4/settings/general and set Build Command to: npx convex deploy --cmd 'pnpm run build'"
+    priority: "high"
 
 deployment_history:
-  # Array of past deployments
-  # - date: "YYYY-MM-DD HH:MM:SS"
-  #   commit: "abc123..."
-  #   status: "success"
-  #   vercel_url: "https://..."
-  #   notes: "Initial deployment"
+  - date: "2025-10-31 17:25:00"
+    commit: "2df8106"
+    status: "initial_setup"
+    vercel_url: "https://casys4-nt1ew37h7-elberrds-projects.vercel.app"
+    notes: "First deployment - no Convex integration"
+  - date: "2025-10-31 17:45:00"
+    commit: "86d963e"
+    status: "configured"
+    notes: "Added deployment configuration, Convex integration setup, environment variables configured"
 
 notes: |
   This file is automatically updated by the /deploy command.
-  Manual modifications should be done carefully.
+  
+  DEPLOYMENT CONFIGURATION COMPLETE:
+  ✅ Vercel project created and linked to GitHub
+  ✅ Convex production deployment URL: https://pleasant-mosquito-546.convex.cloud
+  ✅ Environment variables copied to production
+  ✅ CONVEX_DEPLOY_KEY added to Vercel
+  
+  MANUAL STEP REQUIRED:
+  ⚠️  Set Build Command in Vercel dashboard to enable automatic Convex deployment
+  
+  After completing the manual step, pushing to main branch will automatically:
+  1. Deploy Convex functions
+  2. Build Next.js application
+  3. Deploy to production

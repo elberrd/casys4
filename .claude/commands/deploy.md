@@ -2,67 +2,70 @@
 
 This command deploys the application to production using Vercel and Convex.
 
-## Prerequisites
-- Vercel CLI installed
-- Convex CLI configured
-- GitHub CLI installed (gh)
+## Current Deployment Status
 
-## Steps
+- **Vercel Project**: casys4 (elberrds-projects)
+- **Production URL**: https://casys4.vercel.app
+- **Convex Production**: https://pleasant-mosquito-546.convex.cloud
+- **GitHub**: elberrd/casys4 (main branch)
 
-### 1. Pre-deployment checks
-- Run linting to ensure code quality
-- Check for TypeScript errors
-- Verify build passes locally
+## One-Time Setup (Already Completed)
 
-### 2. Setup Vercel project (if not exists)
-- Check if Vercel project exists in deployed.yaml
-- If not, create new Vercel project linked to GitHub repository
-- Get production URL from Vercel
+✅ Vercel project created and linked to GitHub
+✅ Convex production deploy key added to Vercel
+✅ Environment variables copied from dev to production
 
-### 3. Configure Convex Production Deployment
-- Generate production deploy key if not already set in Vercel
-- Copy environment variables from development to production:
-  - JWKS
-  - JWT_PRIVATE_KEY
-  - SITE_URL (updated with Vercel production URL)
+## Manual Step Required
 
-### 4. Deploy to Vercel
-- Use Vercel CLI to deploy to production
-- Build command includes Convex deployment: `npx convex deploy --cmd 'pnpm run build'`
-- Vercel will automatically trigger build and deployment
+**IMPORTANT**: You need to configure the build command in Vercel dashboard ONE TIME:
 
-### 5. Post-deployment
-- Update deployed.yaml with deployment information:
-  - Deployment date/time
-  - Vercel URL
-  - Convex production deployment URL
-  - Environment variables status
-  - Git commit hash
-- Verify deployment is successful
-- Display deployment URLs
+1. Go to: https://vercel.com/elberrds-projects/casys4/settings/general
+2. Scroll to "Build & Development Settings"
+3. Override "Build Command" with: `npx convex deploy --cmd 'pnpm run build'`
+4. Click "Save"
 
-## Environment Variables Required
+This tells Vercel to deploy Convex functions before building the frontend.
 
-### In Vercel (set via dashboard or CLI):
-- `CONVEX_DEPLOY_KEY` - Production deploy key from Convex dashboard
+## Deployment Process
 
-### In Convex Production:
-- `JWKS` - JSON Web Key Set for authentication
-- `JWT_PRIVATE_KEY` - Private key for JWT signing
-- `SITE_URL` - Production URL of the deployed application
+After the manual step above is complete, deployments are automatic:
 
-## Automated Deployment
+### Automatic Deployments (via GitHub):
+- Push to `main` branch triggers production deployment
+- Vercel automatically:
+  1. Runs `npx convex deploy` (deploys Convex functions)
+  2. Runs `pnpm run build` (builds Next.js app)
+  3. Deploys to https://casys4.vercel.app
 
-Run this command to execute all steps automatically:
-
+### Manual Deployment (via CLI):
 ```bash
-/deploy
+# Deploy production build locally
+CONVEX_DEPLOY_KEY='your-key-here' npx convex deploy --cmd 'pnpm run build'
+
+# Then deploy to Vercel
+vercel --prod
 ```
 
-The command will:
-1. Check code quality (lint + type check)
-2. Setup or verify Vercel project
-3. Configure Convex production environment
-4. Deploy to both Convex and Vercel
-5. Update deployment tracking file
-6. Display deployment information
+## Environment Variables
+
+### Vercel (Production):
+- ✅ `CONVEX_DEPLOY_KEY` - Set (enables automatic Convex deployment)
+
+### Convex Production:
+- ✅ `JWKS` - JSON Web Key Set for authentication
+- ✅ `JWT_PRIVATE_KEY` - Private key for JWT signing
+- ✅ `SITE_URL` - https://casys4.vercel.app
+
+## Deployment URLs
+
+- **Production**: https://casys4.vercel.app
+- **Vercel Dashboard**: https://vercel.com/elberrds-projects/casys4
+- **Convex Dashboard**: https://dashboard.convex.dev/d/pleasant-mosquito-546
+
+## Troubleshooting
+
+If deployment fails:
+1. Check Vercel build logs: https://vercel.com/elberrds-projects/casys4
+2. Verify CONVEX_DEPLOY_KEY is set in Vercel environment variables
+3. Ensure build command is set correctly in Project Settings
+4. Check Convex functions deployed: https://dashboard.convex.dev/d/pleasant-mosquito-546
