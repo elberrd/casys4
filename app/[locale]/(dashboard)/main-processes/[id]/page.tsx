@@ -29,7 +29,7 @@ export default function MainProcessDetailPage() {
 
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false)
   const [bulkCreateDialogOpen, setBulkCreateDialogOpen] = useState(false)
-  const [selectedProcesses, setSelectedProcesses] = useState<Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status: string }>>([])
+  const [selectedProcesses, setSelectedProcesses] = useState<Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>>([])
 
   const mainProcess = useQuery(api.mainProcesses.get, {
     id: mainProcessId,
@@ -58,7 +58,7 @@ export default function MainProcessDetailPage() {
     setBulkCreateDialogOpen(true)
   }
 
-  const handleBulkStatusUpdate = (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status: string }>) => {
+  const handleBulkStatusUpdate = (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => {
     setSelectedProcesses(selected)
     setBulkStatusDialogOpen(true)
   }
@@ -100,7 +100,8 @@ export default function MainProcessDetailPage() {
   // Calculate aggregate status summary
   const individualProcesses = mainProcess.individualProcesses || []
   const statusCounts = individualProcesses.reduce((acc, ip) => {
-    acc[ip.status] = (acc[ip.status] || 0) + 1
+    const status = ip.status || "unknown"
+    acc[status] = (acc[status] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 

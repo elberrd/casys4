@@ -17,6 +17,7 @@ import { ProcessTimeline } from "@/components/main-processes/process-timeline"
 import { StatusUpdateDialog } from "@/components/main-processes/status-update-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusHistoryTimeline } from "@/components/individual-processes/status-history-timeline"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -122,7 +123,9 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
               <div className="grid grid-cols-2 gap-2">
                 <div className="text-sm font-medium">{t('status')}</div>
                 <div>
-                  <Badge variant={statusVariant}>{individualProcess.status}</Badge>
+                  <Badge variant={statusVariant}>
+                    {individualProcess.activeStatus?.statusName || individualProcess.status}
+                  </Badge>
                 </div>
 
                 <div className="text-sm font-medium">{t('legalFramework')}</div>
@@ -196,7 +199,10 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
           </Card>
         </div>
 
-        {/* Process History Timeline */}
+        {/* Status History Timeline - New System */}
+        <StatusHistoryTimeline individualProcessId={processId} />
+
+        {/* Process History Timeline - Legacy */}
         <Card>
           <CardHeader>
             <CardTitle>{t('processHistory')}</CardTitle>
@@ -229,7 +235,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
         open={isStatusDialogOpen}
         onOpenChange={setIsStatusDialogOpen}
         individualProcessId={processId}
-        currentStatus={individualProcess.status}
+        currentStatus={individualProcess.activeStatus?.statusName || individualProcess.status || ""}
         onSuccess={() => {
           // Dialog will close automatically, data will refresh via Convex
         }}

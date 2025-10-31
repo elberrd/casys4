@@ -20,7 +20,7 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -39,9 +39,10 @@ interface CountriesTableProps {
   countries: Country[]
   onEdit: (id: Id<"countries">) => void
   onDelete: (id: Id<"countries">) => void
+  onView?: (id: Id<"countries">) => void
 }
 
-export function CountriesTable({ countries, onEdit, onDelete }: CountriesTableProps) {
+export function CountriesTable({ countries, onEdit, onDelete, onView }: CountriesTableProps) {
   const t = useTranslations('Countries')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -60,7 +61,7 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -82,17 +83,27 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -103,7 +114,7 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onEdit, onDelete, onView]
   )
 
   const table = useReactTable({
@@ -116,6 +127,11 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -126,6 +142,7 @@ export function CountriesTable({ countries, onEdit, onDelete }: CountriesTablePr
       table={table}
       recordCount={countries.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

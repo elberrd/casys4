@@ -7,8 +7,10 @@ import { getStatusColor } from "@/lib/utils/status-validation";
 
 export interface StatusBadgeProps
   extends React.HTMLAttributes<HTMLDivElement> {
-  status: string;
+  status?: string;
   type: "main_process" | "individual_process";
+  color?: string; // Optional: Case status color
+  category?: string; // Optional: Case status category
   className?: string;
 }
 
@@ -20,19 +22,42 @@ export interface StatusBadgeProps
 export function StatusBadge({
   status,
   type,
+  color,
+  category,
   className,
   ...props
 }: StatusBadgeProps) {
   const t = useTranslations("ProcessStatuses");
 
-  // Get color classes from status validation utility
-  const colorClasses = getStatusColor(status);
+  // Handle undefined status
+  if (!status) {
+    return null;
+  }
 
-  // Get translation key based on process type
-  const translationKey = `${type}.${status}` as any;
+  // Get color classes - use provided color/category if available, otherwise fallback to utility
+  let colorClasses = "";
 
-  // Get translated label, fallback to formatted status if translation missing
-  const label = t(translationKey);
+  if (color && category) {
+    // Use case status color and category for styling
+    const colorMap: Record<string, string> = {
+      blue: "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+      yellow: "border-yellow-500 bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
+      orange: "border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+      green: "border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
+      emerald: "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+      red: "border-red-500 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+      gray: "border-gray-500 bg-gray-50 text-gray-700 dark:bg-gray-950 dark:text-gray-300",
+    }
+
+    colorClasses = colorMap[color] || colorMap.blue
+  } else {
+    // Fallback to old status validation utility
+    colorClasses = getStatusColor(status);
+  }
+
+  // For case statuses, display the status name directly (already translated from backend)
+  // For old statuses, use translation key
+  const label = color ? status : t(`${type}.${status}` as any);
 
   return (
     <div

@@ -2,11 +2,13 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
   args: {
     category: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let documentTypes = await ctx.db.query("documentTypes").collect();
@@ -17,6 +19,22 @@ export const list = query({
 
     if (args.isActive !== undefined) {
       documentTypes = documentTypes.filter((dt) => dt.isActive === args.isActive);
+    }
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      documentTypes = documentTypes.filter((item) => {
+        const name = normalizeString(item.name);
+        const description = item.description ? normalizeString(item.description) : "";
+        const category = item.category ? normalizeString(item.category) : "";
+
+        return (
+          name.includes(searchNormalized) ||
+          description.includes(searchNormalized) ||
+          category.includes(searchNormalized)
+        );
+      });
     }
 
     return documentTypes;
@@ -56,31 +74,33 @@ export const get = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    code: v.string(),
-    category: v.string(),
-    description: v.string(),
-    isActive: v.boolean(),
+    code: v.optional(v.string()),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     await requireAdmin(ctx);
 
-    // Check for duplicate code
-    const existing = await ctx.db
-      .query("documentTypes")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
+    // Check for duplicate code if provided
+    if (args.code) {
+      const existing = await ctx.db
+        .query("documentTypes")
+        .withIndex("by_code", (q) => q.eq("code", args.code!))
+        .first();
 
-    if (existing) {
-      throw new Error("A document type with this code already exists");
+      if (existing) {
+        throw new Error("A document type with this code already exists");
+      }
     }
 
     return await ctx.db.insert("documentTypes", {
       name: args.name,
-      code: args.code.toUpperCase().replace(/\s+/g, ""),
-      category: args.category,
-      description: args.description,
-      isActive: args.isActive,
+      code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
+      category: args.category ?? "",
+      description: args.description ?? "",
+      isActive: args.isActive ?? true,
     });
   },
 });
@@ -92,10 +112,10 @@ export const update = mutation({
   args: {
     id: v.id("documentTypes"),
     name: v.string(),
-    code: v.string(),
-    category: v.string(),
-    description: v.string(),
-    isActive: v.boolean(),
+    code: v.optional(v.string()),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -103,19 +123,26 @@ export const update = mutation({
 
     const { id, ...updateData } = args;
 
-    // Check for duplicate code (excluding current record)
-    const existing = await ctx.db
-      .query("documentTypes")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
+    // Check for duplicate code (excluding current record) if provided
+    if (args.code) {
+      const existing = await ctx.db
+        .query("documentTypes")
+        .withIndex("by_code", (q) => q.eq("code", args.code!))
+        .first();
 
-    if (existing && existing._id !== id) {
-      throw new Error("A document type with this code already exists");
+      if (existing && existing._id !== id) {
+        throw new Error("A document type with this code already exists");
+      }
     }
 
     await ctx.db.patch(id, {
-      ...updateData,
-      code: updateData.code.toUpperCase().replace(/\s+/g, ""),
+      name: updateData.name,
+      ...(updateData.code !== undefined && {
+        code: updateData.code.toUpperCase().replace(/\s+/g, "")
+      }),
+      ...(updateData.category !== undefined && { category: updateData.category }),
+      ...(updateData.description !== undefined && { description: updateData.description }),
+      ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
     });
   },
 });

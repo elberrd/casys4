@@ -562,6 +562,7 @@ erDiagram
     documentRequirements ||--o{ documentsDelivered : "fulfilled by"
 
     %% Tracking
+    individualProcesses ||--o{ individualProcessStatuses : "status history"
     individualProcesses ||--o{ processHistory : "tracked in"
     individualProcesses ||--o{ tasks : "generates"
     userProfiles ||--o{ notifications : "receives"
@@ -725,6 +726,48 @@ Tracks each person's journey within a main process.
 **Access Control**:
 - Admin users: Full CRUD access to all individual processes
 - Client users: Read-only access to individual processes for their company (filtered via `mainProcess.companyId`)
+
+##### individualProcessStatuses
+
+Tracks the complete status history for each individual process with a many-to-many relationship. Only one status can be active at a time per process.
+
+```typescript
+{
+  individualProcessId: Id<"individualProcesses">  // Process being tracked
+  statusName: string                    // Status value (e.g., "pending_documents", "completed")
+  isActive: boolean                     // Only ONE can be true per process
+  notes?: string                        // Optional notes about status change
+  changedBy: Id<"users">               // User who changed status
+  changedAt: number                     // When status was changed
+  createdAt: number                     // Record creation timestamp
+}
+```
+
+**Indexes**:
+- `by_individualProcess`: For querying all statuses of a process
+- `by_individualProcess_active`: For quickly finding the active status
+- `by_changedAt`: For chronological sorting
+
+**Single Active Status Constraint**:
+The system enforces that only one status record can have `isActive: true` for each `individualProcessId` at any time. This is enforced at the application level through atomic mutations that:
+1. Deactivate all existing active statuses for the process
+2. Create/activate the new status record
+
+**Status History Workflow**:
+1. When a process is created, an initial status record is automatically created with `isActive: true`
+2. When status changes, a new record is inserted with `isActive: true` and all previous records are set to `isActive: false`
+3. The complete history is preserved for audit purposes
+4. Queries join with this table to get the current active status
+
+**Migration Notes**:
+- The legacy `status` field in `individualProcesses` is kept for backward compatibility
+- Both systems operate in parallel during the transition period
+- Migration scripts convert existing status strings to status records
+- See `/convex/migrations/migrateIndividualProcessStatuses.ts` for migration details
+
+**Access Control**:
+- Admin users: Full CRUD access to status records (create, update, delete)
+- Client users: Read-only access to status history for their company's processes
 
 #### Document Management Tables
 

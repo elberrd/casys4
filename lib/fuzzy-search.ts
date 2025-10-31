@@ -1,10 +1,14 @@
+import { normalizeString } from "./utils"
+
 export interface FuzzyMatch {
   score: number
   matches: number[]
 }
 
 /**
- * Performs fuzzy search matching on a string
+ * Performs fuzzy search matching on a string with accent-insensitive comparison.
+ * Supports searching for "João" using "joao" and vice versa.
+ *
  * @param text The text to search in
  * @param searchTerm The search term to find
  * @returns FuzzyMatch object with score and character positions, or null if no match
@@ -14,16 +18,17 @@ export function fuzzyMatch(text: string, searchTerm: string): FuzzyMatch | null 
     return null
   }
 
-  const textLower = text.toLowerCase()
-  const searchLower = searchTerm.toLowerCase()
+  // Normalize both text and search term for accent-insensitive comparison
+  const textNormalized = normalizeString(text)
+  const searchNormalized = normalizeString(searchTerm)
 
   let searchIndex = 0
   let textIndex = 0
   const matches: number[] = []
   let score = 0
 
-  while (textIndex < textLower.length && searchIndex < searchLower.length) {
-    if (textLower[textIndex] === searchLower[searchIndex]) {
+  while (textIndex < textNormalized.length && searchIndex < searchNormalized.length) {
+    if (textNormalized[textIndex] === searchNormalized[searchIndex]) {
       matches.push(textIndex)
       score += (1 / (textIndex + 1)) * 100 // Earlier matches score higher
       searchIndex++
@@ -32,7 +37,7 @@ export function fuzzyMatch(text: string, searchTerm: string): FuzzyMatch | null 
   }
 
   // If we didn't match all characters, return null
-  if (searchIndex < searchLower.length) {
+  if (searchIndex < searchNormalized.length) {
     return null
   }
 
@@ -40,10 +45,10 @@ export function fuzzyMatch(text: string, searchTerm: string): FuzzyMatch | null 
 }
 
 /**
- * Filters data using fuzzy search
+ * Filters data using accent-insensitive fuzzy search
  * @param rows The rows to filter
  * @param columnId The column ID to search in
- * @param filterValue The search term
+ * @param filterValue The search term (accent-insensitive)
  * @returns Boolean indicating if the row matches
  */
 export function fuzzyFilter<TData>(
@@ -57,8 +62,9 @@ export function fuzzyFilter<TData>(
 }
 
 /**
- * Global fuzzy filter function for TanStack Table
- * Searches across all string columns in a row
+ * Global fuzzy filter function for TanStack Table with accent-insensitive search.
+ * Searches across all string columns in a row.
+ * Supports searching "joao" to find "João" and vice versa.
  */
 export function globalFuzzyFilter<TData>(
   row: { getValue: (columnId: string) => unknown; getAllCells: () => Array<{ column: { id: string }; getValue: () => unknown }> },

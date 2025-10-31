@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 // Helper function to calculate passport status
 function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
@@ -27,6 +28,7 @@ export const list = query({
   args: {
     personId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -65,8 +67,8 @@ export const list = query({
 
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
-        const person = await ctx.db.get(passport.personId);
-        const country = await ctx.db.get(passport.issuingCountryId);
+        const person = passport.personId ? await ctx.db.get(passport.personId) : null;
+        const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
 
         return {
           ...passport,
@@ -82,10 +84,24 @@ export const list = query({
                 name: country.name,
               }
             : null,
-          status: calculateStatus(passport.expiryDate),
+          status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
         };
       })
     );
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return passportsWithRelations.filter((passport) => {
+        const passportNumber = passport.passportNumber ? normalizeString(passport.passportNumber) : "";
+        const personName = passport.person?.fullName ? normalizeString(passport.person.fullName) : "";
+
+        return (
+          passportNumber.includes(searchNormalized) ||
+          personName.includes(searchNormalized)
+        );
+      });
+    }
 
     return passportsWithRelations;
   },
@@ -130,7 +146,7 @@ export const listByPerson = query({
 
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
-        const country = await ctx.db.get(passport.issuingCountryId);
+        const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
 
         return {
           ...passport,
@@ -140,12 +156,110 @@ export const listByPerson = query({
                 name: country.name,
               }
             : null,
-          status: calculateStatus(passport.expiryDate),
+          status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
         };
       })
     );
 
     return passportsWithRelations;
+  },
+});
+
+/**
+ * Query to get the active passport for a person
+ * Access control: Admins can view any person's active passport, clients can only view their company's people
+ */
+export const getActivePassportByPerson = query({
+  args: { personId: v.id("people") },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Check if person is associated with client's company
+      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
+      const personCompany = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_person_company", (q) =>
+          q.eq("personId", args.personId).eq("companyId", clientCompanyId)
+        )
+        .first();
+
+      if (!personCompany) {
+        throw new Error(
+          "Access denied: You do not have permission to view this person's passports"
+        );
+      }
+    }
+
+    const activePassport = await ctx.db
+      .query("passports")
+      .withIndex("by_person", (q) => q.eq("personId", args.personId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+
+    if (!activePassport) return null;
+
+    const country = activePassport.issuingCountryId
+      ? await ctx.db.get(activePassport.issuingCountryId)
+      : null;
+
+    return {
+      ...activePassport,
+      issuingCountry: country
+        ? {
+            _id: country._id,
+            name: country.name,
+          }
+        : null,
+      status: activePassport.expiryDate ? calculateStatus(activePassport.expiryDate) : "Expired",
+    };
+  },
+});
+
+/**
+ * Query to count passports for a person
+ * Access control: Admins can count any person's passports, clients can only count their company's people
+ */
+export const countByPerson = query({
+  args: { personId: v.id("people") },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Check if person is associated with client's company
+      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
+      const personCompany = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_person_company", (q) =>
+          q.eq("personId", args.personId).eq("companyId", clientCompanyId)
+        )
+        .first();
+
+      if (!personCompany) {
+        throw new Error(
+          "Access denied: You do not have permission to view this person's passports"
+        );
+      }
+    }
+
+    const passports = await ctx.db
+      .query("passports")
+      .withIndex("by_person", (q) => q.eq("personId", args.personId))
+      .collect();
+
+    return passports.length;
   },
 });
 
@@ -184,8 +298,8 @@ export const get = query({
       }
     }
 
-    const person = await ctx.db.get(passport.personId);
-    const country = await ctx.db.get(passport.issuingCountryId);
+    const person = passport.personId ? await ctx.db.get(passport.personId) : null;
+    const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
 
     return {
       ...passport,
@@ -201,13 +315,14 @@ export const get = query({
             name: country.name,
           }
         : null,
-      status: calculateStatus(passport.expiryDate),
+      status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
     };
   },
 });
 
 /**
  * Mutation to create a new passport (admin only)
+ * Enforces single active passport rule: if isActive is true, deactivates all other passports for the person
  */
 export const create = mutation({
   args: {
@@ -217,13 +332,33 @@ export const create = mutation({
     issueDate: v.string(),
     expiryDate: v.string(),
     fileUrl: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     await requireAdmin(ctx);
 
     const now = Date.now();
+    const isActive = args.isActive ?? true;
+
+    // If creating an active passport, deactivate all other passports for this person
+    if (isActive) {
+      const existingPassports = await ctx.db
+        .query("passports")
+        .withIndex("by_person", (q) => q.eq("personId", args.personId))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      // Deactivate all existing active passports
+      await Promise.all(
+        existingPassports.map((passport) =>
+          ctx.db.patch(passport._id, {
+            isActive: false,
+            updatedAt: now,
+          })
+        )
+      );
+    }
 
     return await ctx.db.insert("passports", {
       personId: args.personId,
@@ -232,7 +367,7 @@ export const create = mutation({
       issueDate: args.issueDate,
       expiryDate: args.expiryDate,
       fileUrl: args.fileUrl,
-      isActive: args.isActive,
+      isActive,
       createdAt: now,
       updatedAt: now,
     });
@@ -241,6 +376,7 @@ export const create = mutation({
 
 /**
  * Mutation to update a passport (admin only)
+ * Enforces single active passport rule: if isActive is set to true, deactivates all other passports for the person
  */
 export const update = mutation({
   args: {
@@ -251,17 +387,41 @@ export const update = mutation({
     issueDate: v.string(),
     expiryDate: v.string(),
     fileUrl: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
+    const now = Date.now();
+    const isActive = updateData.isActive ?? true;
+
+    // If setting this passport as active, deactivate all other passports for this person
+    if (isActive) {
+      const existingPassports = await ctx.db
+        .query("passports")
+        .withIndex("by_person", (q) => q.eq("personId", args.personId))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      // Deactivate all existing active passports except the one being updated
+      await Promise.all(
+        existingPassports
+          .filter((passport) => passport._id !== id)
+          .map((passport) =>
+            ctx.db.patch(passport._id, {
+              isActive: false,
+              updatedAt: now,
+            })
+          )
+      );
+    }
 
     await ctx.db.patch(id, {
       ...updateData,
-      updatedAt: Date.now(),
+      isActive,
+      updatedAt: now,
     });
   },
 });

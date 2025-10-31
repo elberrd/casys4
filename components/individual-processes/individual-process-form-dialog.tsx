@@ -24,21 +24,15 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import {
   individualProcessSchema,
   IndividualProcessFormData,
 } from "@/lib/validations/individualProcesses"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 interface IndividualProcessFormDialogProps {
   open: boolean
@@ -55,6 +49,7 @@ export function IndividualProcessFormDialog({
 }: IndividualProcessFormDialogProps) {
   const t = useTranslations("IndividualProcesses")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
   const { toast } = useToast()
 
   const individualProcess = useQuery(
@@ -66,6 +61,7 @@ export function IndividualProcessFormDialog({
   const people = useQuery(api.people.search, { query: "" }) ?? []
   const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
+  const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
   const updateIndividualProcess = useMutation(api.individualProcesses.update)
@@ -75,7 +71,9 @@ export function IndividualProcessFormDialog({
     defaultValues: {
       mainProcessId: "" as Id<"mainProcesses">,
       personId: "" as Id<"people">,
-      status: "",
+      passportId: "",
+      caseStatusId: "" as Id<"caseStatuses">,
+      status: "", // DEPRECATED: Kept for backward compatibility
       legalFrameworkId: "" as Id<"legalFrameworks">,
       cboId: "",
       mreOfficeNumber: "",
@@ -98,7 +96,9 @@ export function IndividualProcessFormDialog({
       form.reset({
         mainProcessId: individualProcess.mainProcessId,
         personId: individualProcess.personId,
-        status: individualProcess.status,
+        passportId: individualProcess.passportId ?? "",
+        caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
+        status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         legalFrameworkId: individualProcess.legalFrameworkId,
         cboId: individualProcess.cboId ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
@@ -117,7 +117,9 @@ export function IndividualProcessFormDialog({
       form.reset({
         mainProcessId: "" as Id<"mainProcesses">,
         personId: "" as Id<"people">,
-        status: "",
+        passportId: "",
+        caseStatusId: "" as Id<"caseStatuses">,
+        status: "", // DEPRECATED: Kept for backward compatibility
         legalFrameworkId: "" as Id<"legalFrameworks">,
         cboId: "",
         mreOfficeNumber: "",
@@ -137,9 +139,13 @@ export function IndividualProcessFormDialog({
 
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        passportId: data.passportId || undefined,
+        caseStatusId: data.caseStatusId,
+        status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
+        legalFrameworkId: data.legalFrameworkId || undefined,
         cboId: data.cboId || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
         douNumber: data.douNumber || undefined,
@@ -195,18 +201,13 @@ export function IndividualProcessFormDialog({
     label: `${cbo.code} - ${cbo.title}`,
   }))
 
-  const statusOptions = [
-    { value: "pending_documents", label: t("statusPendingDocuments") },
-    { value: "documents_submitted", label: t("statusDocumentsSubmitted") },
-    { value: "documents_approved", label: t("statusDocumentsApproved") },
-    { value: "preparing_submission", label: t("statusPreparingSubmission") },
-    { value: "submitted_to_government", label: t("statusSubmittedToGovernment") },
-    { value: "under_government_review", label: t("statusUnderGovernmentReview") },
-    { value: "government_approved", label: t("statusGovernmentApproved") },
-    { value: "government_rejected", label: t("statusGovernmentRejected") },
-    { value: "completed", label: t("statusCompleted") },
-    { value: "cancelled", label: t("statusCancelled") },
-  ]
+  // Build case status options from active case statuses
+  const caseStatusOptions = caseStatuses.map((status) => ({
+    value: status._id,
+    label: locale === "en" && status.nameEn ? status.nameEn : status.name,
+    color: status.color,
+    category: status.category,
+  }))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,28 +270,18 @@ export function IndividualProcessFormDialog({
 
               <FormField
                 control={form.control}
-                name="status"
+                name="caseStatusId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("status")}</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("selectStatus")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {statusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t("caseStatus")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={caseStatusOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectCaseStatus")}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

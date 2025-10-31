@@ -231,20 +231,20 @@ export function ActivityLogsTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
-    state: {
-      rowSelection,
-    },
     initialState: {
       pagination: {
         pageSize: 50,
       },
+    },
+    state: {
+      rowSelection,
     },
     globalFilterFn: globalFuzzyFilter,
   })
 
   return (
     <DataGridContainer>
-      <DataGrid table={table} recordCount={logs.length}>
+      <DataGrid table={table} recordCount={logs.length} onRowClick={onViewDetails ? (row) => onViewDetails(row) : undefined}>
         <DataGridFilter
           table={table}
           placeholder={t('searchPlaceholder')}

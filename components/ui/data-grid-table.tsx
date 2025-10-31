@@ -190,7 +190,27 @@ export function DataGridTable() {
                       "hover:bg-muted/50 data-[state=selected]:bg-muted",
                       tableClassNames.bodyRow
                     )}
-                    onClick={() => onRowClick?.(row.original)}
+                    onClick={(e) => {
+                      // Prevent row click if clicking on interactive elements (but not the row itself)
+                      const target = e.target as HTMLElement
+                      const currentRow = e.currentTarget as HTMLElement
+
+                      // Check if we clicked on an interactive element that's not the row itself
+                      const interactiveElement = target.closest('button, a, input, select, textarea, [role="checkbox"]')
+                      const isInteractiveChild = interactiveElement && interactiveElement !== currentRow
+
+                      if (!isInteractiveChild && onRowClick) {
+                        onRowClick(row.original)
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        onRowClick(row.original)
+                      }
+                    }}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    role={onRowClick ? "button" : undefined}
                   >
                     {row.getVisibleCells().map((cell) => {
                       const columnMeta = cell.column.columnDef.meta as any

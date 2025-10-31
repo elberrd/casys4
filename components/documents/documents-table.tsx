@@ -15,7 +15,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { FileIcon, Download, Edit, Trash2 } from "lucide-react";
+import { FileIcon, Download, Edit, Trash2, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
@@ -38,6 +38,7 @@ import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 import { formatBytes } from "@/hooks/use-file-upload";
 import { DocumentFormDialog } from "./document-form-dialog";
+import { DocumentViewModal } from "./document-view-modal";
 
 type Document = {
   _id: Id<"documents">;
@@ -46,7 +47,7 @@ type Document = {
   documentType: {
     _id: Id<"documentTypes">;
     name: string;
-    category: string;
+    category?: string;
   } | null;
   person: {
     _id: Id<"people">;
@@ -64,7 +65,7 @@ type Document = {
   notes?: string;
   issueDate?: string;
   expiryDate?: string;
-  isActive: boolean;
+  isActive?: boolean;
 };
 
 export function DocumentsTable() {
@@ -75,6 +76,7 @@ export function DocumentsTable() {
   const documents = useQuery(api.documents.list, {}) ?? [];
   const removeDocument = useMutation(api.documents.remove);
 
+  const [viewingDocument, setViewingDocument] = useState<Id<"documents"> | undefined>();
   const [editingDocument, setEditingDocument] = useState<Id<"documents"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -93,7 +95,7 @@ export function DocumentsTable() {
       await removeDocument({ id: item._id })
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   });
 
@@ -215,6 +217,11 @@ export function DocumentsTable() {
         cell: ({ row }) => {
           const document = row.original;
           const actions = [
+            {
+              label: tCommon('view'),
+              icon: <Eye className="h-4 w-4" />,
+              onClick: () => setViewingDocument(document._id),
+            },
             ...(document.fileUrl ? [{
               label: t("download") || "Download",
               icon: <Download className="h-4 w-4" />,
@@ -264,6 +271,11 @@ export function DocumentsTable() {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -275,6 +287,7 @@ export function DocumentsTable() {
         table={table}
         recordCount={documents.length}
         emptyMessage={t("noResults")}
+        onRowClick={(row) => setViewingDocument(row._id)}
         tableLayout={{
           columnsVisibility: true,
         }}
@@ -317,6 +330,19 @@ export function DocumentsTable() {
           <DataGridPagination />
         </div>
       </DataGrid>
+
+      {viewingDocument && (
+        <DocumentViewModal
+          documentId={viewingDocument}
+          open={true}
+          onOpenChange={(open) => !open && setViewingDocument(undefined)}
+          onEdit={() => {
+            setEditingDocument(viewingDocument)
+            setViewingDocument(undefined)
+            setIsFormOpen(true)
+          }}
+        />
+      )}
 
       <DocumentFormDialog
         open={isFormOpen}

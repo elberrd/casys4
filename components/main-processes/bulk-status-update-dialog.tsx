@@ -39,7 +39,7 @@ interface BulkStatusUpdateDialogProps {
   selectedProcesses: Array<{
     _id: Id<"individualProcesses">;
     personId: Id<"people">;
-    status: string;
+    status?: string;
   }>;
   onSuccess?: () => void;
 }
@@ -94,13 +94,13 @@ export function BulkStatusUpdateDialog({
 
     // Get allowed statuses for first process
     let commonStatuses = getNextAllowedIndividualStatuses(
-      selectedProcesses[0].status
+      selectedProcesses[0].status || "pending"
     );
 
     // Intersect with allowed statuses for remaining processes
     for (let i = 1; i < selectedProcesses.length; i++) {
       const allowed = getNextAllowedIndividualStatuses(
-        selectedProcesses[i].status
+        selectedProcesses[i].status || "pending"
       );
       commonStatuses = commonStatuses.filter((status) =>
         allowed.includes(status)
@@ -117,14 +117,15 @@ export function BulkStatusUpdateDialog({
     if (!newStatus) return [];
 
     return selectedProcesses.filter((proc) => {
-      const allowed = getNextAllowedIndividualStatuses(proc.status);
+      const allowed = getNextAllowedIndividualStatuses(proc.status || "pending");
       return !allowed.includes(newStatus);
     });
   }, [selectedProcesses, newStatus]);
 
   // Count processes by current status
   const statusCounts = selectedProcesses.reduce((acc, proc) => {
-    acc[proc.status] = (acc[proc.status] || 0) + 1;
+    const status = proc.status || "pending";
+    acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -233,7 +234,7 @@ export function BulkStatusUpdateDialog({
                 <span className="text-sm font-medium truncate">
                   {proc.personName}
                 </span>
-                <StatusBadge status={proc.status} type="individual_process" />
+                <StatusBadge status={proc.status || "pending"} type="individual_process" />
               </div>
             ))}
           </div>
@@ -290,7 +291,7 @@ export function BulkStatusUpdateDialog({
               <ul className="text-sm mt-2 space-y-1">
                 {processesWithInvalidTransition.slice(0, 3).map((proc) => (
                   <li key={proc._id}>
-                    • {personMap.get(proc.personId) || "Unknown"} ({tStatuses(proc.status)})
+                    • {personMap.get(proc.personId) || "Unknown"} ({tStatuses(proc.status || "pending")})
                   </li>
                 ))}
                 {processesWithInvalidTransition.length > 3 && (

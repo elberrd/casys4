@@ -33,8 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: {
-      template: '%s | CASYS4',
-      default: 'CASYS4 - Immigration Process Management'
+      template: '%s | CASys',
+      default: 'CASys - Immigration Process Management'
     },
     description: t('description'),
     icons: {

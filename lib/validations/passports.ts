@@ -1,13 +1,18 @@
 import { z } from "zod";
+import { Id } from "@/convex/_generated/dataModel";
 
 export const passportSchema = z.object({
-  personId: z.string().min(1, "Person is required"),
+  personId: z.custom<Id<"people">>((val) => typeof val === "string" && val.length > 0, {
+    message: "Person ID is required",
+  }),
   passportNumber: z.string().min(3, "Passport number must be at least 3 characters"),
-  issuingCountryId: z.string().min(1, "Issuing country is required"),
+  issuingCountryId: z.custom<Id<"countries">>((val) => typeof val === "string" && val.length > 0, {
+    message: "Issuing country is required",
+  }),
   issueDate: z.string().min(1, "Issue date is required"),
   expiryDate: z.string().min(1, "Expiry date is required"),
   fileUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
-  isActive: z.boolean(),
+  isActive: z.boolean().optional(),
 }).refine(
   (data) => {
     const issueDate = new Date(data.issueDate);

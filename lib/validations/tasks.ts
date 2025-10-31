@@ -10,15 +10,9 @@ export const taskSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"], {
     message: "Priority is required",
   }),
-  status: z.enum(["todo", "in_progress", "completed", "cancelled"]).optional(),
+  status: z.enum(["todo", "in_progress", "completed", "cancelled"]),
   assignedTo: z.custom<Id<"users">>(),
-}).refine(
-  (data) => data.individualProcessId || data.mainProcessId,
-  {
-    message: "Either Individual Process or Main Process must be selected",
-    path: ["individualProcessId"],
-  }
-)
+})
 
 export type TaskFormData = z.infer<typeof taskSchema>
 

@@ -21,27 +21,28 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { formatCNPJ } from "@/lib/utils/document-masks"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface Company {
   _id: Id<"companies">
   name: string
-  taxId: string
+  taxId?: string
   website?: string
-  address: string
+  address?: string
   cityId?: Id<"cities">
-  phoneNumber: string
-  email: string
+  phoneNumber?: string
+  email?: string
   contactPersonId?: Id<"people">
-  isActive: boolean
+  isActive?: boolean
   notes?: string
   createdAt: number
   updatedAt: number
@@ -49,7 +50,7 @@ interface Company {
     name: string
     state?: {
       name: string
-      code: string
+      code?: string
     }
   } | null
   contactPerson: {
@@ -61,9 +62,10 @@ interface CompaniesTableProps {
   companies: Company[]
   onEdit: (id: Id<"companies">) => void
   onDelete: (id: Id<"companies">) => void
+  onView?: (id: Id<"companies">) => void
 }
 
-export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTableProps) {
+export function CompaniesTable({ companies, onEdit, onDelete, onView }: CompaniesTableProps) {
   const t = useTranslations('Companies')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -82,7 +84,7 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -104,7 +106,9 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
           <DataGridColumnHeader column={column} title={t('taxId')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.taxId}</span>
+          <span className="text-muted-foreground">
+            {row.original.taxId ? formatCNPJ(row.original.taxId) : '-'}
+          </span>
         ),
       },
       {
@@ -157,17 +161,27 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -178,7 +192,7 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onEdit, onDelete, onView]
   )
 
   const table = useReactTable({
@@ -191,6 +205,11 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -201,6 +220,7 @@ export function CompaniesTable({ companies, onEdit, onDelete }: CompaniesTablePr
       table={table}
       recordCount={companies.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

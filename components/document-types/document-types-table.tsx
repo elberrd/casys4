@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Plus } from "lucide-react"
+import { Edit, Trash2, Plus, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -35,14 +35,15 @@ interface DocumentType {
   _id: Id<"documentTypes">
   _creationTime: number
   name: string
-  code: string
-  category: string
-  description: string
-  isActive: boolean
+  code?: string
+  category?: string
+  description?: string
+  isActive?: boolean
 }
 
 interface DocumentTypesTableProps {
   documentTypes: DocumentType[]
+  onView?: (id: Id<"documentTypes">) => void
   onEdit: (id: Id<"documentTypes">) => void
   onDelete: (id: Id<"documentTypes">) => void
   onCreateNew: () => void
@@ -62,6 +63,7 @@ const getCategoryColor = (category: string) => {
 
 export function DocumentTypesTable({
   documentTypes,
+  onView,
   onEdit,
   onDelete,
   onCreateNew
@@ -84,7 +86,7 @@ export function DocumentTypesTable({
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -106,7 +108,7 @@ export function DocumentTypesTable({
           <DataGridColumnHeader column={column} title={t('code')} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-muted-foreground">{row.original.code}</span>
+          <span className="font-mono text-muted-foreground">{row.original.code || '-'}</span>
         ),
       },
       {
@@ -116,6 +118,7 @@ export function DocumentTypesTable({
         ),
         cell: ({ row }) => {
           const category = row.original.category
+          if (!category) return <span className="text-muted-foreground">-</span>
           return (
             <Badge className={getCategoryColor(category)} variant="outline">
               {t(`category${category}` as any)}
@@ -130,6 +133,7 @@ export function DocumentTypesTable({
         ),
         cell: ({ row }) => {
           const description = row.original.description
+          if (!description) return <span className="text-sm text-muted-foreground">-</span>
           const truncated =
             description.length > 60
               ? description.substring(0, 60) + "..."
@@ -157,11 +161,20 @@ export function DocumentTypesTable({
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
@@ -178,7 +191,7 @@ export function DocumentTypesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete]
   )
 
   const table = useReactTable({
@@ -191,6 +204,11 @@ export function DocumentTypesTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -201,6 +219,7 @@ export function DocumentTypesTable({
       table={table}
       recordCount={documentTypes.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

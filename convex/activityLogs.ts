@@ -34,6 +34,48 @@ export const logActivity = internalMutation({
 });
 
 /**
+ * Query to get a single activity log by ID
+ */
+export const get = query({
+  args: {
+    id: v.id("activityLogs"),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const activityLog = await ctx.db.get(args.id);
+
+    if (!activityLog) {
+      return null;
+    }
+
+    // Non-admin users can only see their own activity
+    if (userProfile.role !== "admin" && activityLog.userId !== userProfile.userId) {
+      return null;
+    }
+
+    // Enrich with user details
+    const user = await ctx.db.get(activityLog.userId);
+    const userProfileData = user
+      ? await ctx.db
+          .query("userProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .first()
+      : null;
+
+    return {
+      ...activityLog,
+      user: userProfileData
+        ? {
+            _id: userProfileData._id,
+            fullName: userProfileData.fullName,
+            email: userProfileData.email,
+          }
+        : null,
+    };
+  },
+});
+
+/**
  * Query to get activity logs with filters
  * Admin sees all logs, client users see only their own actions
  */

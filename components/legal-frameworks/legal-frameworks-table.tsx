@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -34,18 +34,20 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface LegalFramework {
   _id: Id<"legalFrameworks">
   name: string
-  code: string
-  description: string
-  isActive: boolean
+  processTypeId?: Id<"processTypes">
+  processTypeName?: string
+  description?: string
+  isActive?: boolean
 }
 
 interface LegalFrameworksTableProps {
   legalFrameworks: LegalFramework[]
+  onView?: (id: Id<"legalFrameworks">) => void
   onEdit: (id: Id<"legalFrameworks">) => void
   onDelete: (id: Id<"legalFrameworks">) => void
 }
 
-export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: LegalFrameworksTableProps) {
+export function LegalFrameworksTable({ legalFrameworks, onView, onEdit, onDelete }: LegalFrameworksTableProps) {
   const t = useTranslations('LegalFrameworks')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -64,7 +66,7 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -81,12 +83,12 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
         ),
       },
       {
-        accessorKey: "code",
+        accessorKey: "processTypeName",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('code')} />
+          <DataGridColumnHeader column={column} title={t('processType')} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.code} />
+          <DataGridHighlightedCell text={row.original.processTypeName || "N/A"} />
         ),
       },
       {
@@ -96,6 +98,7 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
         ),
         cell: ({ row }) => {
           const desc = row.original.description
+          if (!desc) return <DataGridHighlightedCell text="-" />
           const displayText = desc.length > 50 ? `${desc.substring(0, 50)}...` : desc
           return <DataGridHighlightedCell text={displayText} />
         },
@@ -117,17 +120,27 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -138,7 +151,7 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete]
   )
 
   const table = useReactTable({
@@ -151,6 +164,11 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -161,6 +179,7 @@ export function LegalFrameworksTable({ legalFrameworks, onEdit, onDelete }: Lega
       table={table}
       recordCount={legalFrameworks.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

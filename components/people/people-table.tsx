@@ -28,23 +28,24 @@ import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { formatCPF } from "@/lib/utils/document-masks"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface Person {
   _id: Id<"people">
   fullName: string
-  email: string
+  email?: string
   cpf?: string
-  birthDate: string
-  birthCityId: Id<"cities">
-  nationalityId: Id<"countries">
-  maritalStatus: string
-  profession: string
-  motherName: string
-  fatherName: string
-  phoneNumber: string
-  address: string
-  currentCityId: Id<"cities">
+  birthDate?: string
+  birthCityId?: Id<"cities">
+  nationalityId?: Id<"countries">
+  maritalStatus?: string
+  profession?: string
+  motherName?: string
+  fatherName?: string
+  phoneNumber?: string
+  address?: string
+  currentCityId?: Id<"cities">
   photoUrl?: string
   notes?: string
   createdAt: number
@@ -58,9 +59,10 @@ interface PeopleTableProps {
   people: Person[]
   onEdit: (id: Id<"people">) => void
   onDelete: (id: Id<"people">) => void
+  onView?: (id: Id<"people">) => void
 }
 
-export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
+export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTableProps) {
   const t = useTranslations('People')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -79,7 +81,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -101,7 +103,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
           <DataGridColumnHeader column={column} title={t('email')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.email}</span>
+          <span className="text-muted-foreground">{row.original.email || '-'}</span>
         ),
       },
       {
@@ -110,7 +112,9 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
           <DataGridColumnHeader column={column} title={t('cpf')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.cpf || '-'}</span>
+          <span className="text-muted-foreground">
+            {row.original.cpf ? formatCPF(row.original.cpf) : '-'}
+          </span>
         ),
       },
       {
@@ -131,7 +135,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
           <DataGridColumnHeader column={column} title={t('profession')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.profession}</span>
+          <span className="text-muted-foreground">{row.original.profession || '-'}</span>
         ),
       },
       {
@@ -140,7 +144,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
           <DataGridColumnHeader column={column} title={t('phoneNumber')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.phoneNumber}</span>
+          <span className="text-muted-foreground">{row.original.phoneNumber || '-'}</span>
         ),
       },
       {
@@ -170,7 +174,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onEdit, onDelete, deleteConfirmation]
   )
 
   const table = useReactTable({
@@ -183,6 +187,11 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -193,6 +202,7 @@ export function PeopleTable({ people, onEdit, onDelete }: PeopleTableProps) {
       table={table}
       recordCount={people.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

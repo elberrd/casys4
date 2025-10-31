@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list all cities with optional state filter
@@ -30,10 +31,10 @@ export const get = query({
     const city = await ctx.db.get(id);
     if (!city) return null;
 
-    const state = await ctx.db.get(city.stateId);
+    const state = city.stateId ? await ctx.db.get(city.stateId) : null;
     if (!state) return { ...city, state: null, country: null };
 
-    const country = await ctx.db.get(state.countryId);
+    const country = state.countryId ? await ctx.db.get(state.countryId) : null;
     return {
       ...city,
       state,
@@ -44,18 +45,21 @@ export const get = query({
 
 /**
  * Query to get all cities with state and country information
+ * Supports accent-insensitive search across city, state, and country names
  */
 export const listWithRelations = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const cities = await ctx.db.query("cities").collect();
 
     const citiesWithRelations = await Promise.all(
       cities.map(async (city) => {
-        const state = await ctx.db.get(city.stateId);
+        const state = city.stateId ? await ctx.db.get(city.stateId) : null;
         if (!state) return { ...city, state: null, country: null };
 
-        const country = await ctx.db.get(state.countryId);
+        const country = state.countryId ? await ctx.db.get(state.countryId) : null;
         return {
           ...city,
           state,
@@ -63,6 +67,17 @@ export const listWithRelations = query({
         };
       })
     );
+
+    // Filter by search query if provided (accent-insensitive)
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return citiesWithRelations.filter(
+        (city) =>
+          normalizeString(city.name).includes(searchNormalized) ||
+          (city.state && normalizeString(city.state.name).includes(searchNormalized)) ||
+          (city.country && normalizeString(city.country.name).includes(searchNormalized))
+      );
+    }
 
     return citiesWithRelations;
   },
@@ -98,22 +113,24 @@ export const getWithFederalPolice = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    stateId: v.id("states"),
-    hasFederalPolice: v.boolean(),
+    stateId: v.optional(v.id("states")),
+    hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
-    // Check if state exists
-    const state = await ctx.db.get(args.stateId);
-    if (!state) {
-      throw new Error("State not found");
+    // Check if state exists (when provided)
+    if (args.stateId) {
+      const state = await ctx.db.get(args.stateId);
+      if (!state) {
+        throw new Error("State not found");
+      }
     }
 
     const cityId = await ctx.db.insert("cities", {
       name: args.name,
       stateId: args.stateId,
-      hasFederalPolice: args.hasFederalPolice,
+      hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
     return cityId;
@@ -127,22 +144,24 @@ export const update = mutation({
   args: {
     id: v.id("cities"),
     name: v.string(),
-    stateId: v.id("states"),
-    hasFederalPolice: v.boolean(),
+    stateId: v.optional(v.id("states")),
+    hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
     await requireAdmin(ctx);
 
-    // Check if state exists
-    const state = await ctx.db.get(args.stateId);
-    if (!state) {
-      throw new Error("State not found");
+    // Check if state exists (when provided)
+    if (args.stateId) {
+      const state = await ctx.db.get(args.stateId);
+      if (!state) {
+        throw new Error("State not found");
+      }
     }
 
     await ctx.db.patch(id, {
       name: args.name,
       stateId: args.stateId,
-      hasFederalPolice: args.hasFederalPolice,
+      hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
     return id;

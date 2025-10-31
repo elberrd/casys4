@@ -48,9 +48,9 @@ function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expir
 function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
   switch (status) {
     case "Valid":
-      return "default"
+      return "success"
     case "Expiring Soon":
-      return "secondary"
+      return "warning"
     case "Expired":
       return "destructive"
   }

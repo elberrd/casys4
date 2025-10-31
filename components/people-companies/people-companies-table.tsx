@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -33,12 +33,12 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface PersonCompany {
   _id: Id<"peopleCompanies">
-  personId: Id<"people">
-  companyId: Id<"companies">
+  personId?: Id<"people">
+  companyId?: Id<"companies">
   role: string
-  startDate: string
+  startDate?: string
   endDate?: string
-  isCurrent: boolean
+  isCurrent?: boolean
   person: {
     _id: Id<"people">
     fullName: string
@@ -51,11 +51,12 @@ interface PersonCompany {
 
 interface PeopleCompaniesTableProps {
   relationships: PersonCompany[]
+  onView?: (id: Id<"peopleCompanies">) => void
   onEdit: (id: Id<"peopleCompanies">) => void
   onDelete: (id: Id<"peopleCompanies">) => void
 }
 
-export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: PeopleCompaniesTableProps) {
+export function PeopleCompaniesTable({ relationships, onView, onEdit, onDelete }: PeopleCompaniesTableProps) {
   const t = useTranslations('PeopleCompanies')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -74,7 +75,7 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -119,7 +120,7 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Date(row.original.startDate).toLocaleDateString()}
+            {row.original.startDate ? new Date(row.original.startDate).toLocaleDateString() : "-"}
           </span>
         ),
       },
@@ -163,6 +164,15 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
@@ -184,7 +194,7 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete]
   )
 
   const table = useReactTable({
@@ -197,6 +207,11 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -207,6 +222,7 @@ export function PeopleCompaniesTable({ relationships, onEdit, onDelete }: People
       table={table}
       recordCount={relationships.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

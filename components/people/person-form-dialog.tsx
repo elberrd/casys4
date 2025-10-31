@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { CPFInput } from "@/components/ui/cpf-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
@@ -129,10 +130,20 @@ export function PersonFormDialog({
 
   const onSubmit = async (data: PersonFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        email: data.email || undefined,
         cpf: data.cpf || undefined,
+        birthDate: data.birthDate || undefined,
+        birthCityId: data.birthCityId === "" ? undefined : data.birthCityId,
+        nationalityId: data.nationalityId === "" ? undefined : data.nationalityId,
+        profession: data.profession || undefined,
+        motherName: data.motherName || undefined,
+        fatherName: data.fatherName || undefined,
+        phoneNumber: data.phoneNumber || undefined,
+        address: data.address || undefined,
+        currentCityId: data.currentCityId === "" ? undefined : data.currentCityId,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
       }
@@ -226,7 +237,7 @@ export function PersonFormDialog({
                     <FormItem>
                       <FormLabel>{t('cpf')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="000.000.000-00" {...field} />
+                        <CPFInput {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -22,8 +22,14 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Edit, Trash2, Eye, AlertCircle } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -35,9 +41,9 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface MainProcess {
   _id: Id<"mainProcesses">
   referenceNumber: string
-  status: string
-  isUrgent: boolean
-  requestDate: string
+  status: string // DEPRECATED: Kept for backward compatibility
+  isUrgent?: boolean
+  requestDate?: string
   company?: {
     _id: Id<"companies">
     name: string
@@ -56,6 +62,21 @@ interface MainProcess {
   } | null
   individualProcessesCount?: number
   createdAt: number
+  // NEW: Calculated status from individual processes
+  calculatedStatus?: {
+    displayText: string
+    displayTextEn: string
+    breakdown: Array<{
+      caseStatusId: string
+      caseStatusName: string
+      caseStatusNameEn?: string
+      count: number
+      color?: string
+      category?: string
+    }>
+    totalProcesses: number
+    hasMultipleStatuses: boolean
+  }
 }
 
 interface MainProcessesTableProps {
@@ -73,6 +94,7 @@ export function MainProcessesTable({
 }: MainProcessesTableProps) {
   const t = useTranslations('MainProcesses')
   const tCommon = useTranslations('Common')
+  const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -89,7 +111,7 @@ export function MainProcessesTable({
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -130,12 +152,121 @@ export function MainProcessesTable({
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('status')} />
         ),
-        cell: ({ row }) => (
-          <StatusBadge
-            status={row.original.status}
-            type="main_process"
-          />
-        ),
+        cell: ({ row }) => {
+          const mainProcess = row.original
+
+          // Display calculated status if available
+          if (mainProcess.calculatedStatus) {
+            const status = mainProcess.calculatedStatus
+            const displayText = locale === 'en'
+              ? status.displayTextEn
+              : status.displayText
+
+            // If only one status, show simple badge
+            if (!status.hasMultipleStatuses) {
+              const statusItem = status.breakdown[0]
+              return (
+                <Badge
+                  variant="secondary"
+                  style={statusItem?.color ? {
+                    backgroundColor: `${statusItem.color}20`,
+                    color: statusItem.color,
+                    borderColor: statusItem.color
+                  } : undefined}
+                >
+                  {displayText}
+                </Badge>
+              )
+            }
+
+            // Multiple statuses: show summary with tooltip
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <Badge variant="secondary" className="truncate max-w-[200px]">
+                        {displayText}
+                      </Badge>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <div className="space-y-2">
+                      <p className="font-semibold text-xs">
+                        {t('statusBreakdown')}:
+                      </p>
+                      <div className="space-y-1">
+                        {status.breakdown.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2 text-xs">
+                            <span>
+                              {locale === 'en' && item.caseStatusNameEn
+                                ? item.caseStatusNameEn
+                                : item.caseStatusName}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={item.color ? {
+                                backgroundColor: `${item.color}20`,
+                                color: item.color,
+                                borderColor: item.color
+                              } : undefined}
+                            >
+                              {item.count}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground pt-1 border-t">
+                        {t('total')}: {status.totalProcesses}
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+
+          // Fallback to old status for backward compatibility
+          return (
+            <StatusBadge
+              status={mainProcess.status}
+              type="main_process"
+            />
+          )
+        },
+        sortingFn: (rowA, rowB) => {
+          // Custom sorting by status category priority
+          const statusA = rowA.original.calculatedStatus
+          const statusB = rowB.original.calculatedStatus
+
+          if (!statusA && !statusB) return 0
+          if (!statusA) return 1
+          if (!statusB) return -1
+
+          // Sort by category priority if available
+          const categoryPriority: Record<string, number> = {
+            'urgent': 0,
+            'preparation': 1,
+            'in_progress': 2,
+            'review': 3,
+            'approved': 4,
+            'cancelled': 5,
+          }
+
+          const catA = statusA.breakdown[0]?.category || 'in_progress'
+          const catB = statusB.breakdown[0]?.category || 'in_progress'
+
+          const priorityA = categoryPriority[catA] ?? 99
+          const priorityB = categoryPriority[catB] ?? 99
+
+          if (priorityA !== priorityB) {
+            return priorityA - priorityB
+          }
+
+          // If same category, sort alphabetically by display text
+          return (statusA.displayText || '').localeCompare(statusB.displayText || '')
+        },
       },
       {
         accessorKey: "individualProcessesCount",
@@ -244,6 +375,11 @@ export function MainProcessesTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -254,6 +390,7 @@ export function MainProcessesTable({
       table={table}
       recordCount={mainProcesses.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

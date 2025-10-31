@@ -20,8 +20,8 @@ export function DataGridHighlightedCell({
 }: DataGridHighlightedCellProps) {
   // Always call the hook unconditionally (required by React rules)
   const context = useDataGrid()
-  // Use explicit search term if provided, otherwise get from context
-  const searchTerm = explicitSearchTerm ?? context?.searchTerm ?? ""
+  // Use explicit search term if provided, otherwise get from table state directly
+  const searchTerm = explicitSearchTerm ?? (context?.table?.getState()?.globalFilter as string) ?? ""
   // If no search term or no match, render plain text
   if (!searchTerm || searchTerm.length === 0) {
     return <span className={className}>{text}</span>

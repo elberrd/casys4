@@ -60,9 +60,7 @@ export function ProcessTypeFormDialog({
     resolver: zodResolver(processTypeSchema),
     defaultValues: {
       name: "",
-      code: "",
       description: "",
-      category: "",
       estimatedDays: 30,
       isActive: true,
     },
@@ -73,18 +71,14 @@ export function ProcessTypeFormDialog({
     if (processType) {
       form.reset({
         name: processType.name,
-        code: processType.code,
         description: processType.description,
-        category: processType.category,
         estimatedDays: processType.estimatedDays,
         isActive: processType.isActive,
       })
     } else if (!processTypeId) {
       form.reset({
         name: "",
-        code: "",
         description: "",
-        category: "",
         estimatedDays: 30,
         isActive: true,
       })
@@ -132,74 +126,41 @@ export function ProcessTypeFormDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('name')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Temporary Visa" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('name')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Temporary Visa" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('code')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="VTEM"
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('category')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Visa" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="estimatedDays"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('estimatedDays')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="estimatedDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('estimatedDays')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                        field.onChange(isNaN(value) ? 0 : value)
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

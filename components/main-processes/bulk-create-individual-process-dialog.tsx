@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 
 import { bulkCreateIndividualProcessesSchema } from "@/lib/validations/bulk-operations";
 
@@ -73,6 +74,7 @@ export function BulkCreateIndividualProcessDialog({
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? [];
   const countries = useQuery(api.countries.list, {}) ?? [];
   const cities = useQuery(api.cities.list, {}) ?? [];
+  const caseStatuses = useQuery(api.caseStatuses.list, {}) ?? [];
 
   // State
   const [step, setStep] = useState<ProcessStep>("select");
@@ -84,7 +86,7 @@ export function BulkCreateIndividualProcessDialog({
   // Form state
   const [legalFrameworkId, setLegalFrameworkId] = useState<Id<"legalFrameworks"> | undefined>();
   const [cboId, setCboId] = useState<Id<"cboCodes"> | undefined>();
-  const [status, setStatus] = useState<string>("documentation_pending");
+  const [caseStatusId, setCaseStatusId] = useState<Id<"caseStatuses"> | undefined>();
 
   // Result state
   const [creationResult, setCreationResult] = useState<CreationResult | null>(null);
@@ -112,7 +114,7 @@ export function BulkCreateIndividualProcessDialog({
       const matchesSearch =
         !searchTerm ||
         person.fullName.toLowerCase().includes(searchLower) ||
-        person.email.toLowerCase().includes(searchLower) ||
+        person.email?.toLowerCase().includes(searchLower) ||
         person.cpf?.toLowerCase().includes(searchLower);
 
       // Nationality filter
@@ -129,7 +131,9 @@ export function BulkCreateIndividualProcessDialog({
 
   // Get unique nationalities and cities for filters
   const uniqueNationalities = useMemo(() => {
-    const nationalityIds = new Set(people.map((p) => p.nationalityId));
+    const nationalityIds = new Set(
+      people.map((p) => p.nationalityId).filter((id): id is Id<"countries"> => id !== undefined)
+    );
     return Array.from(nationalityIds)
       .map((id) => ({ id, name: countryMap.get(id) || "Unknown" }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -182,7 +186,7 @@ export function BulkCreateIndividualProcessDialog({
       personIds: Array.from(selectedPeople),
       legalFrameworkId,
       cboId,
-      status,
+      caseStatusId,
     });
 
     if (!validation.success) {
@@ -235,7 +239,7 @@ export function BulkCreateIndividualProcessDialog({
     setCityFilter("all");
     setLegalFrameworkId(undefined);
     setCboId(undefined);
-    setStatus("documentation_pending");
+    setCaseStatusId(undefined);
     setCreationResult(null);
     onOpenChange(false);
   };
@@ -354,9 +358,11 @@ export function BulkCreateIndividualProcessDialog({
                         {person.cpf}
                       </Badge>
                     )}
-                    <Badge variant="outline" className="text-xs">
-                      {countryMap.get(person.nationalityId) || "Unknown"}
-                    </Badge>
+                    {person.nationalityId && (
+                      <Badge variant="outline" className="text-xs">
+                        {countryMap.get(person.nationalityId) || "Unknown"}
+                      </Badge>
+                    )}
                     {person.currentCityId && (
                       <Badge variant="outline" className="text-xs">
                         {cityMap.get(person.currentCityId) || "Unknown"}
@@ -372,101 +378,111 @@ export function BulkCreateIndividualProcessDialog({
     </div>
   );
 
-  const renderConfigureStep = () => (
-    <div className="space-y-4">
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          {t("configureInstructions", { count: selectedPeople.size })}
-        </AlertDescription>
-      </Alert>
+  const renderConfigureStep = () => {
+    // Sort legal frameworks alphabetically
+    const sortedLegalFrameworks = [...legalFrameworks].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
 
+    // Sort CBO codes alphabetically by code
+    const sortedCboCodes = [...cboCodes].sort((a, b) =>
+      (a.code || "").localeCompare(b.code || "")
+    );
+
+    return (
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="legal-framework">
-            {t("legalFramework")} <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={legalFrameworkId}
-            onValueChange={(value) => setLegalFrameworkId(value as Id<"legalFrameworks">)}
-          >
-            <SelectTrigger id="legal-framework">
-              <SelectValue placeholder={t("selectLegalFramework")} />
-            </SelectTrigger>
-            <SelectContent>
-              {legalFrameworks.map((framework) => (
-                <SelectItem key={framework._id} value={framework._id}>
-                  {framework.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {t("configureInstructions", { count: selectedPeople.size })}
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="legal-framework">
+              {t("legalFramework")} <span className="text-destructive">*</span>
+            </Label>
+            <Combobox
+              options={sortedLegalFrameworks.map((framework) => ({
+                value: framework._id,
+                label: framework.name,
+              }))}
+              value={legalFrameworkId}
+              onValueChange={(value) => setLegalFrameworkId(value as Id<"legalFrameworks">)}
+              placeholder={t("selectLegalFramework")}
+              searchPlaceholder="Search legal framework..."
+              emptyText="No legal framework found"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cbo-code">{t("cboCode")}</Label>
+            <Combobox
+              options={[
+                { value: "none", label: t("noCboCode") },
+                ...sortedCboCodes.map((cbo) => ({
+                  value: cbo._id,
+                  label: `${cbo.code} - ${cbo.title}`,
+                })),
+              ]}
+              value={cboId || "none"}
+              onValueChange={(value) => setCboId(value === "none" ? undefined : value as Id<"cboCodes">)}
+              placeholder={t("selectCboCode")}
+              searchPlaceholder="Search CBO code..."
+              emptyText="No CBO code found"
+            />
+          </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cbo-code">{t("cboCode")}</Label>
-          <Select value={cboId} onValueChange={(value) => setCboId(value as Id<"cboCodes">)}>
-            <SelectTrigger id="cbo-code">
-              <SelectValue placeholder={t("selectCboCode")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("noCboCode")}</SelectItem>
-              {cboCodes.map((cbo) => (
-                <SelectItem key={cbo._id} value={cbo._id}>
-                  {cbo.code} - {cbo.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="status">
+          <Label htmlFor="caseStatus">
             {t("initialStatus")} <span className="text-destructive">*</span>
           </Label>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger id="status">
-              <SelectValue />
+          <Select value={caseStatusId} onValueChange={(value) => setCaseStatusId(value as Id<"caseStatuses">)}>
+            <SelectTrigger id="caseStatus">
+              <SelectValue placeholder={t("selectStatus")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="documentation_pending">{t("documentationPending")}</SelectItem>
-              <SelectItem value="documentation_received">{t("documentationReceived")}</SelectItem>
-              <SelectItem value="under_review">{t("underReview")}</SelectItem>
-              <SelectItem value="approved">{t("approved")}</SelectItem>
+              {caseStatuses.map((status) => (
+                <SelectItem key={status._id} value={status._id}>
+                  {status.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <div className="rounded-lg border bg-muted/50 p-4">
-        <p className="text-sm font-medium mb-2">{t("summary")}</p>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>
-            • {t("peopleCount")}: <strong>{selectedPeople.size}</strong>
-          </li>
-          <li>
-            • {t("legalFramework")}:{" "}
-            <strong>
-              {legalFrameworkId
-                ? legalFrameworks.find((f) => f._id === legalFrameworkId)?.name
-                : t("notSelected")}
-            </strong>
-          </li>
-          <li>
-            • {t("cboCode")}:{" "}
-            <strong>
-              {cboId && cboId !== "none"
-                ? cboCodes.find((c) => c._id === cboId)?.code
-                : t("none")}
-            </strong>
-          </li>
-          <li>
-            • {t("initialStatus")}: <strong>{status}</strong>
-          </li>
-        </ul>
+        <div className="rounded-lg border bg-muted/50 p-4">
+          <p className="text-sm font-medium mb-2">{t("summary")}</p>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>
+              • {t("peopleCount")}: <strong>{selectedPeople.size}</strong>
+            </li>
+            <li>
+              • {t("legalFramework")}:{" "}
+              <strong>
+                {legalFrameworkId
+                  ? sortedLegalFrameworks.find((f) => f._id === legalFrameworkId)?.name
+                  : t("notSelected")}
+              </strong>
+            </li>
+            <li>
+              • {t("cboCode")}:{" "}
+              <strong>
+                {cboId && cboId !== "none"
+                  ? sortedCboCodes.find((c) => c._id === cboId)?.code
+                  : t("none")}
+              </strong>
+            </li>
+            <li>
+              • {t("initialStatus")}: <strong>{status}</strong>
+            </li>
+          </ul>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderCreatingStep = () => (
     <div className="flex flex-col items-center justify-center py-12 space-y-4">

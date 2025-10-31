@@ -2,14 +2,27 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
- * Query to list all countries
+ * Query to list all countries with optional accent-insensitive search
  */
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db.query("countries").collect();
+  args: {
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let countries = await ctx.db.query("countries").collect();
+
+    // Filter by search query if provided (accent-insensitive)
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      countries = countries.filter((country) =>
+        normalizeString(country.name).includes(searchNormalized)
+      );
+    }
+
+    return countries;
   },
 });
 

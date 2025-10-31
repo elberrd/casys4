@@ -24,10 +24,16 @@ export async function generateDocumentChecklist(
 
   // Find matching document template
   // Match by processType and legalFramework (if specified)
+  if (!mainProcess.processTypeId) {
+    // Cannot generate checklist without processTypeId
+    return [];
+  }
+
+  const processTypeId = mainProcess.processTypeId;
   const templates = await ctx.db
     .query("documentTemplates")
     .withIndex("by_processType", (q) =>
-      q.eq("processTypeId", mainProcess.processTypeId),
+      q.eq("processTypeId", processTypeId),
     )
     .collect();
 

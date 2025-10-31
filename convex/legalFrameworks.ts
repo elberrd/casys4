@@ -2,22 +2,51 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
- * Query to list all legal frameworks with optional isActive filter
+ * Query to list all legal frameworks with optional filters
  */
 export const list = query({
   args: {
     isActive: v.optional(v.boolean()),
+    processTypeId: v.optional(v.id("processTypes")),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { isActive }) => {
-    if (isActive !== undefined) {
-      return await ctx.db
+  handler: async (ctx, args) => {
+    let results;
+
+    // Filter by processTypeId if provided
+    if (args.processTypeId !== undefined) {
+      results = await ctx.db
         .query("legalFrameworks")
-        .withIndex("by_active", (q) => q.eq("isActive", isActive))
+        .withIndex("by_processType", (q) => q.eq("processTypeId", args.processTypeId))
         .collect();
+    } else if (args.isActive !== undefined) {
+      // Filter by isActive if provided
+      results = await ctx.db
+        .query("legalFrameworks")
+        .withIndex("by_active", (q) => q.eq("isActive", args.isActive))
+        .collect();
+    } else {
+      results = await ctx.db.query("legalFrameworks").collect();
     }
-    return await ctx.db.query("legalFrameworks").collect();
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      results = results.filter((item) => {
+        const name = normalizeString(item.name);
+        const description = item.description ? normalizeString(item.description) : "";
+
+        return (
+          name.includes(searchNormalized) ||
+          description.includes(searchNormalized)
+        );
+      });
+    }
+
+    return results;
   },
 });
 
@@ -45,15 +74,15 @@ export const get = query({
 });
 
 /**
- * Query to get legal framework by code
+ * Query to get legal frameworks by Process Type
  */
-export const getByCode = query({
-  args: { code: v.string() },
-  handler: async (ctx, { code }) => {
+export const listByProcessType = query({
+  args: { processTypeId: v.id("processTypes") },
+  handler: async (ctx, { processTypeId }) => {
     return await ctx.db
       .query("legalFrameworks")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .first();
+      .withIndex("by_processType", (q) => q.eq("processTypeId", processTypeId))
+      .collect();
   },
 });
 
@@ -63,28 +92,26 @@ export const getByCode = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
+    processTypeId: v.optional(v.id("processTypes")),
+    description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     await requireAdmin(ctx);
 
-    // Check if code already exists
-    const existing = await ctx.db
-      .query("legalFrameworks")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
-
-    if (existing) {
-      throw new Error(`Legal framework with code ${args.code} already exists`);
+    // Verify that the process type exists if provided
+    if (args.processTypeId) {
+      const processType = await ctx.db.get(args.processTypeId);
+      if (!processType) {
+        throw new Error("Process Type not found");
+      }
     }
 
     const legalFrameworkId = await ctx.db.insert("legalFrameworks", {
       name: args.name,
-      code: args.code.toUpperCase(),
-      description: args.description,
+      processTypeId: args.processTypeId,
+      description: args.description ?? "",
       isActive: args.isActive ?? true,
     });
 
@@ -99,30 +126,31 @@ export const update = mutation({
   args: {
     id: v.id("legalFrameworks"),
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
-    isActive: v.boolean(),
+    processTypeId: v.optional(v.id("processTypes")),
+    description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
     await requireAdmin(ctx);
 
-    // Check if another legal framework with this code exists
-    const existing = await ctx.db
-      .query("legalFrameworks")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
-
-    if (existing && existing._id !== id) {
-      throw new Error(`Legal framework with code ${args.code} already exists`);
+    // Verify that the process type exists if provided
+    if (args.processTypeId) {
+      const processType = await ctx.db.get(args.processTypeId);
+      if (!processType) {
+        throw new Error("Process Type not found");
+      }
     }
 
-    await ctx.db.patch(id, {
+    const updates: any = {
       name: args.name,
-      code: args.code.toUpperCase(),
-      description: args.description,
-      isActive: args.isActive,
-    });
+    };
+
+    if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.isActive !== undefined) updates.isActive = args.isActive;
+
+    await ctx.db.patch(id, updates);
 
     return id;
   },

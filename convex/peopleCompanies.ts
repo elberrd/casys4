@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list people-company relationships with optional filters
@@ -12,6 +13,7 @@ export const list = query({
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
     isCurrent: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -45,8 +47,8 @@ export const list = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const person = await ctx.db.get(relationship.personId);
-        const company = await ctx.db.get(relationship.companyId);
+        const person = relationship.personId ? await ctx.db.get(relationship.personId) : null;
+        const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
 
         return {
           ...relationship,
@@ -65,6 +67,22 @@ export const list = query({
         };
       })
     );
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return relationshipsWithData.filter((relationship) => {
+        const role = normalizeString(relationship.role);
+        const personName = relationship.person?.fullName ? normalizeString(relationship.person.fullName) : "";
+        const companyName = relationship.company?.name ? normalizeString(relationship.company.name) : "";
+
+        return (
+          role.includes(searchNormalized) ||
+          personName.includes(searchNormalized) ||
+          companyName.includes(searchNormalized)
+        );
+      });
+    }
 
     return relationshipsWithData;
   },
@@ -109,7 +127,7 @@ export const listByPerson = query({
 
       const relationshipsWithData = await Promise.all(
         filteredRelationships.map(async (relationship) => {
-          const company = await ctx.db.get(relationship.companyId);
+          const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
 
           return {
             ...relationship,
@@ -128,7 +146,7 @@ export const listByPerson = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const company = await ctx.db.get(relationship.companyId);
+        const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
 
         return {
           ...relationship,
@@ -176,7 +194,7 @@ export const listByCompany = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const person = await ctx.db.get(relationship.personId);
+        const person = relationship.personId ? await ctx.db.get(relationship.personId) : null;
 
         return {
           ...relationship,
@@ -220,8 +238,8 @@ export const get = query({
       }
     }
 
-    const person = await ctx.db.get(relationship.personId);
-    const company = await ctx.db.get(relationship.companyId);
+    const person = relationship.personId ? await ctx.db.get(relationship.personId) : null;
+    const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
 
     return {
       ...relationship,
@@ -251,14 +269,16 @@ export const create = mutation({
     role: v.string(),
     startDate: v.string(),
     endDate: v.optional(v.string()),
-    isCurrent: v.boolean(),
+    isCurrent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     await requireAdmin(ctx);
 
+    const isCurrent = args.isCurrent ?? true;
+
     // Validate: Only one current employment per person
-    if (args.isCurrent) {
+    if (isCurrent) {
       const currentEmployments = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person", (q) => q.eq("personId", args.personId))
@@ -286,7 +306,7 @@ export const create = mutation({
     }
 
     // Validate: isCurrent should not have endDate
-    if (args.isCurrent && args.endDate) {
+    if (isCurrent && args.endDate) {
       throw new Error("Current employment cannot have an end date");
     }
 
@@ -296,7 +316,7 @@ export const create = mutation({
       role: args.role,
       startDate: args.startDate,
       endDate: args.endDate,
-      isCurrent: args.isCurrent,
+      isCurrent,
     });
   },
 });
@@ -312,7 +332,7 @@ export const update = mutation({
     role: v.string(),
     startDate: v.string(),
     endDate: v.optional(v.string()),
-    isCurrent: v.boolean(),
+    isCurrent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -325,8 +345,10 @@ export const update = mutation({
       throw new Error("Employment relationship not found");
     }
 
+    const isCurrent = updateData.isCurrent ?? true;
+
     // Validate: Only one current employment per person
-    if (args.isCurrent) {
+    if (isCurrent) {
       const currentEmployments = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person", (q) => q.eq("personId", args.personId))
@@ -354,11 +376,14 @@ export const update = mutation({
     }
 
     // Validate: isCurrent should not have endDate
-    if (args.isCurrent && args.endDate) {
+    if (isCurrent && args.endDate) {
       throw new Error("Current employment cannot have an end date");
     }
 
-    await ctx.db.patch(id, updateData);
+    await ctx.db.patch(id, {
+      ...updateData,
+      isCurrent,
+    });
   },
 });
 

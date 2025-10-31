@@ -174,18 +174,13 @@ export function DataGridBulkActions<TData>({
   const tCommon = useTranslations("Common")
   const selectedRows = table.getSelectedRowModel().rows
   const selectedCount = selectedRows.length
+  const selectedData = selectedRows.map((row) => row.original)
 
   // State for delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
   const [activeDeleteAction, setActiveDeleteAction] = React.useState<BulkDeleteConfirmation<TData> | null>(null)
   const [itemsToDelete, setItemsToDelete] = React.useState<TData[]>([])
-
-  if (selectedCount === 0) {
-    return null
-  }
-
-  const selectedData = selectedRows.map((row) => row.original)
 
   // Handle action click - either show confirmation or execute directly
   const handleActionClick = React.useCallback((action: BulkAction<TData>) => {
@@ -226,6 +221,10 @@ export function DataGridBulkActions<TData>({
       setItemsToDelete([])
     }
   }, [isDeleting])
+
+  if (selectedCount === 0) {
+    return null
+  }
 
   return (
     <>

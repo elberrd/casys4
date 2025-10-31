@@ -120,13 +120,27 @@ export function MainProcessFormPage({
       setIsSubmitting(true);
 
       if (mode === "create") {
+        // Validate required fields
+        if (!data.companyId || data.companyId === "") {
+          throw new Error("Company is required");
+        }
+        if (!data.contactPersonId || data.contactPersonId === "") {
+          throw new Error("Contact person is required");
+        }
+        if (!data.processTypeId || data.processTypeId === "") {
+          throw new Error("Process type is required");
+        }
+        if (!data.workplaceCityId || data.workplaceCityId === "") {
+          throw new Error("Workplace city is required");
+        }
+
         const newProcessId = await createProcess({
           referenceNumber: data.referenceNumber,
           companyId: data.companyId,
           contactPersonId: data.contactPersonId,
           processTypeId: data.processTypeId,
           workplaceCityId: data.workplaceCityId,
-          consulateId: data.consulateId || undefined,
+          consulateId: data.consulateId === "" ? undefined : data.consulateId,
           isUrgent: data.isUrgent,
           requestDate: data.requestDate,
           notes: data.notes || undefined,
@@ -143,11 +157,11 @@ export function MainProcessFormPage({
         await updateProcess({
           id: processId,
           referenceNumber: data.referenceNumber,
-          companyId: data.companyId,
-          contactPersonId: data.contactPersonId,
-          processTypeId: data.processTypeId,
-          workplaceCityId: data.workplaceCityId,
-          consulateId: data.consulateId || undefined,
+          companyId: data.companyId === "" ? undefined : data.companyId,
+          contactPersonId: data.contactPersonId === "" ? undefined : data.contactPersonId,
+          processTypeId: data.processTypeId === "" ? undefined : data.processTypeId,
+          workplaceCityId: data.workplaceCityId === "" ? undefined : data.workplaceCityId,
+          consulateId: data.consulateId === "" ? undefined : data.consulateId,
           isUrgent: data.isUrgent,
           requestDate: data.requestDate,
           notes: data.notes || undefined,

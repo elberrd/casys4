@@ -35,7 +35,9 @@ export const getProcessStats = query({
 
     // Count by status
     const statusCounts = processes.reduce((acc: Record<string, number>, process) => {
-      acc[process.status] = (acc[process.status] || 0) + 1;
+      if (process.status) {
+        acc[process.status] = (acc[process.status] || 0) + 1;
+      }
       return acc;
     }, {});
 
@@ -120,7 +122,7 @@ export const getOverdueTasks = query({
       (task) =>
         task.status !== "completed" &&
         task.status !== "cancelled" &&
-        task.dueDate < today
+        task.dueDate && task.dueDate < today
     );
 
     // Filter by user for non-admin users
@@ -132,7 +134,7 @@ export const getOverdueTasks = query({
     const enrichedTasks = await Promise.all(
       tasks.map(async (task) => {
         const [assignedToUser, mainProcess, individualProcess] = await Promise.all([
-          ctx.db.get(task.assignedTo),
+          task.assignedTo ? ctx.db.get(task.assignedTo) : null,
           task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
         ]);
@@ -202,7 +204,7 @@ export const getUpcomingDeadlines = query({
         p.deadlineDate &&
         p.deadlineDate >= todayStr &&
         p.deadlineDate <= thirtyDaysStr &&
-        p.status !== "completed"
+        p.status && p.status !== "completed"
     );
 
     // Filter by company for client users
@@ -233,7 +235,7 @@ export const getUpcomingDeadlines = query({
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
         ]);
 
-        const processTypeData = mainProcess
+        const processTypeData = mainProcess && mainProcess.processTypeId
           ? await ctx.db.get(mainProcess.processTypeId)
           : null;
 

@@ -138,7 +138,7 @@ export default function TaskDetailPage() {
         open={extendDeadlineDialogOpen}
         onOpenChange={setExtendDeadlineDialogOpen}
         taskId={taskId}
-        currentDueDate={task.dueDate}
+        currentDueDate={task.dueDate || ""}
         onSuccess={() => {
           setExtendDeadlineDialogOpen(false)
         }}

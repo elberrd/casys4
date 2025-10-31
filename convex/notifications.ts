@@ -2,6 +2,31 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
+
+/**
+ * Query to get a single notification by ID
+ */
+export const get = query({
+  args: {
+    id: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const notification = await ctx.db.get(args.id);
+
+    if (!notification) {
+      return null;
+    }
+
+    // Users can only see their own notifications
+    if (notification.userId !== userProfile.userId) {
+      return null;
+    }
+
+    return notification;
+  },
+});
 
 /**
  * Query to get notifications for the current user
@@ -11,6 +36,7 @@ export const getUserNotifications = query({
   args: {
     limit: v.optional(v.number()),
     unreadOnly: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -26,6 +52,20 @@ export const getUserNotifications = query({
     // Filter for unread only if requested
     if (args.unreadOnly) {
       results = results.filter((n) => !n.isRead);
+    }
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      results = results.filter((notification) => {
+        const title = normalizeString(notification.title);
+        const message = normalizeString(notification.message);
+
+        return (
+          title.includes(searchNormalized) ||
+          message.includes(searchNormalized)
+        );
+      });
     }
 
     return results;

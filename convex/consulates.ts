@@ -2,10 +2,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
   args: {
     cityId: v.optional(v.id("cities")),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let consulates = await ctx.db.query("consulates").collect();
@@ -16,13 +18,13 @@ export const list = query({
 
     const consulatesWithLocation = await Promise.all(
       consulates.map(async (consulate) => {
-        const city = await ctx.db.get(consulate.cityId);
+        const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
         let state = null;
         let country = null;
 
-        if (city) {
+        if (city && city.stateId) {
           state = await ctx.db.get(city.stateId);
-          if (state) {
+          if (state && state.countryId) {
             country = await ctx.db.get(state.countryId);
           }
         }
@@ -51,6 +53,22 @@ export const list = query({
       })
     );
 
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return consulatesWithLocation.filter((consulate) => {
+        const name = normalizeString(consulate.name);
+        const address = consulate.address ? normalizeString(consulate.address) : "";
+        const email = consulate.email ? normalizeString(consulate.email) : "";
+
+        return (
+          name.includes(searchNormalized) ||
+          address.includes(searchNormalized) ||
+          email.includes(searchNormalized)
+        );
+      });
+    }
+
     return consulatesWithLocation;
   },
 });
@@ -61,13 +79,13 @@ export const get = query({
     const consulate = await ctx.db.get(args.id);
     if (!consulate) return null;
 
-    const city = await ctx.db.get(consulate.cityId);
+    const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
     let state = null;
     let country = null;
 
-    if (city) {
+    if (city && city.stateId) {
       state = await ctx.db.get(city.stateId);
-      if (state) {
+      if (state && state.countryId) {
         country = await ctx.db.get(state.countryId);
       }
     }
@@ -102,10 +120,10 @@ export const get = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    cityId: v.id("cities"),
-    address: v.string(),
-    phoneNumber: v.string(),
-    email: v.string(),
+    cityId: v.optional(v.id("cities")),
+    address: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -129,10 +147,10 @@ export const update = mutation({
   args: {
     id: v.id("consulates"),
     name: v.string(),
-    cityId: v.id("cities"),
-    address: v.string(),
-    phoneNumber: v.string(),
-    email: v.string(),
+    cityId: v.optional(v.id("cities")),
+    address: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

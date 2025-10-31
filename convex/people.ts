@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list all people with optional search
@@ -36,14 +37,14 @@ export const list = query({
       people = people.filter((person) => allowedPersonIds.has(person._id));
     }
 
-    // Filter by search query if provided
+    // Filter by search query if provided (accent-insensitive)
     if (args.search) {
-      const searchLower = args.search.toLowerCase();
+      const searchNormalized = normalizeString(args.search);
       people = people.filter(
         (person) =>
-          person.fullName.toLowerCase().includes(searchLower) ||
-          person.email.toLowerCase().includes(searchLower) ||
-          (person.cpf && person.cpf.includes(searchLower))
+          normalizeString(person.fullName).includes(searchNormalized) ||
+          (person.email && normalizeString(person.email).includes(searchNormalized)) ||
+          (person.cpf && person.cpf.includes(searchNormalized))
       );
     }
 
@@ -113,12 +114,14 @@ export const search = query({
       people = people.filter((person) => allowedPersonIds.has(person._id));
     }
 
+    // Accent-insensitive search
+    const queryNormalized = normalizeString(args.query);
     return people
       .filter(
         (person) =>
-          person.fullName.toLowerCase().includes(queryLower) ||
-          person.email.toLowerCase().includes(queryLower) ||
-          (person.cpf && person.cpf.includes(queryLower))
+          normalizeString(person.fullName).includes(queryNormalized) ||
+          (person.email && normalizeString(person.email).includes(queryNormalized)) ||
+          (person.cpf && person.cpf.includes(queryNormalized))
       )
       .slice(0, 10); // Limit to 10 results for performance
   },
@@ -193,18 +196,18 @@ export const get = query({
 export const create = mutation({
   args: {
     fullName: v.string(),
-    email: v.string(),
+    email: v.optional(v.string()),
     cpf: v.optional(v.string()),
-    birthDate: v.string(),
-    birthCityId: v.id("cities"),
-    nationalityId: v.id("countries"),
-    maritalStatus: v.string(),
-    profession: v.string(),
-    motherName: v.string(),
-    fatherName: v.string(),
-    phoneNumber: v.string(),
-    address: v.string(),
-    currentCityId: v.id("cities"),
+    birthDate: v.optional(v.string()),
+    birthCityId: v.optional(v.id("cities")),
+    nationalityId: v.optional(v.id("countries")),
+    maritalStatus: v.optional(v.string()),
+    profession: v.optional(v.string()),
+    motherName: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    address: v.optional(v.string()),
+    currentCityId: v.optional(v.id("cities")),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -231,18 +234,18 @@ export const update = mutation({
   args: {
     id: v.id("people"),
     fullName: v.string(),
-    email: v.string(),
+    email: v.optional(v.string()),
     cpf: v.optional(v.string()),
-    birthDate: v.string(),
-    birthCityId: v.id("cities"),
-    nationalityId: v.id("countries"),
-    maritalStatus: v.string(),
-    profession: v.string(),
-    motherName: v.string(),
-    fatherName: v.string(),
-    phoneNumber: v.string(),
-    address: v.string(),
-    currentCityId: v.id("cities"),
+    birthDate: v.optional(v.string()),
+    birthCityId: v.optional(v.id("cities")),
+    nationalityId: v.optional(v.id("countries")),
+    maritalStatus: v.optional(v.string()),
+    profession: v.optional(v.string()),
+    motherName: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    address: v.optional(v.string()),
+    currentCityId: v.optional(v.id("cities")),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
   },

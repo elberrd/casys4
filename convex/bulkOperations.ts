@@ -268,7 +268,8 @@ export const bulkCreateIndividualProcesses = mutation({
     personIds: v.array(v.id("people")),
     legalFrameworkId: v.id("legalFrameworks"),
     cboId: v.optional(v.id("cboCodes")),
-    status: v.string(),
+    caseStatusId: v.id("caseStatuses"), // NEW: Use case status ID
+    status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     deadlineDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -286,6 +287,15 @@ export const bulkCreateIndividualProcesses = mutation({
     if (!legalFramework) {
       throw new Error("Legal framework not found");
     }
+
+    // Verify case status exists
+    const caseStatus = await ctx.db.get(args.caseStatusId);
+    if (!caseStatus) {
+      throw new Error("Case status not found");
+    }
+
+    // For backward compatibility, derive status string from case status if not provided
+    const statusString = args.status || caseStatus.code;
 
     const results = {
       successful: [] as Id<"individualProcesses">[],
@@ -325,7 +335,8 @@ export const bulkCreateIndividualProcesses = mutation({
         const individualProcessId = await ctx.db.insert("individualProcesses", {
           mainProcessId: args.mainProcessId,
           personId: personId,
-          status: args.status,
+          caseStatusId: args.caseStatusId, // NEW: Store case status ID
+          status: statusString, // DEPRECATED: Keep for backward compatibility
           legalFrameworkId: args.legalFrameworkId,
           cboId: args.cboId,
           deadlineDate: args.deadlineDate,
@@ -337,15 +348,17 @@ export const bulkCreateIndividualProcesses = mutation({
         // Generate document checklist for this individual process
         await generateDocumentChecklist(ctx, individualProcessId);
 
-        // Log status history
-        await logStatusChange(
-          ctx,
+        // Create initial status record with case status ID
+        await ctx.db.insert("individualProcessStatuses", {
           individualProcessId,
-          undefined,
-          args.status,
-          admin.userId,
-          "Initial status on bulk creation"
-        );
+          caseStatusId: args.caseStatusId, // NEW: Store case status ID
+          statusName: caseStatus.name, // Store case status name
+          isActive: true,
+          createdAt: Date.now(),
+          changedAt: Date.now(),
+          changedBy: admin.userId,
+          notes: "Initial status on bulk creation",
+        });
 
         results.successful.push(individualProcessId);
 
@@ -359,7 +372,9 @@ export const bulkCreateIndividualProcesses = mutation({
             personId,
             personName: person.fullName,
             mainProcessId: args.mainProcessId,
-            status: args.status,
+            caseStatusId: args.caseStatusId,
+            caseStatusName: caseStatus.name,
+            status: statusString, // DEPRECATED: Keep for backward compatibility
           },
         });
       } catch (error) {
@@ -394,12 +409,22 @@ export const bulkCreateIndividualProcesses = mutation({
 export const bulkUpdateIndividualProcessStatus = mutation({
   args: {
     individualProcessIds: v.array(v.id("individualProcesses")),
-    newStatus: v.string(),
+    newCaseStatusId: v.optional(v.id("caseStatuses")), // NEW: Use case status ID
+    newStatus: v.string(), // DEPRECATED: Kept for backward compatibility but still required for validation
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Verify admin access
     const admin = await requireAdmin(ctx);
+
+    // Get case status if provided
+    let newCaseStatus = null;
+    if (args.newCaseStatusId) {
+      newCaseStatus = await ctx.db.get(args.newCaseStatusId);
+      if (!newCaseStatus) {
+        throw new Error("Case status not found");
+      }
+    }
 
     const results = {
       successful: [] as Id<"individualProcesses">[],
@@ -421,39 +446,69 @@ export const bulkUpdateIndividualProcessStatus = mutation({
         }
 
         // Validate status transition
-        const isValidTransition = isValidIndividualStatusTransition(
-          process.status,
-          args.newStatus
-        );
+        if (process.status) {
+          const isValidTransition = isValidIndividualStatusTransition(
+            process.status,
+            args.newStatus
+          );
 
-        if (!isValidTransition) {
-          results.failed.push({
-            processId,
-            reason: `Invalid status transition from ${process.status} to ${args.newStatus}`,
-          });
-          continue;
+          if (!isValidTransition) {
+            results.failed.push({
+              processId,
+              reason: `Invalid status transition from ${process.status} to ${args.newStatus}`,
+            });
+            continue;
+          }
+        }
+
+        // Determine what to update
+        const updateData: any = {
+          status: args.newStatus, // DEPRECATED: Keep for backward compatibility
+          updatedAt: Date.now(),
+        };
+
+        if (args.newCaseStatusId) {
+          updateData.caseStatusId = args.newCaseStatusId; // NEW: Update case status ID
         }
 
         // Update status
-        await ctx.db.patch(processId, {
-          status: args.newStatus,
-          updatedAt: Date.now(),
-        });
+        await ctx.db.patch(processId, updateData);
 
-        // Log status change
-        await logStatusChange(
-          ctx,
-          processId,
-          process.status,
-          args.newStatus,
-          admin.userId,
-          args.reason || "Bulk status update"
-        );
+        // Deactivate old status records
+        const oldStatuses = await ctx.db
+          .query("individualProcessStatuses")
+          .withIndex("by_individualProcess_active", (q) =>
+            q.eq("individualProcessId", processId).eq("isActive", true)
+          )
+          .collect();
+
+        for (const oldStatus of oldStatuses) {
+          await ctx.db.patch(oldStatus._id, { isActive: false });
+        }
+
+        // Create new status record with case status ID
+        if (newCaseStatus) {
+          await ctx.db.insert("individualProcessStatuses", {
+            individualProcessId: processId,
+            caseStatusId: args.newCaseStatusId!,
+            statusName: newCaseStatus.name,
+            isActive: true,
+            createdAt: Date.now(),
+            changedAt: Date.now(),
+            changedBy: admin.userId,
+            notes: args.reason || "Bulk status update",
+          });
+        }
 
         results.successful.push(processId);
 
         // Get person for logging
         const person = await ctx.db.get(process.personId);
+
+        // Get old case status for logging
+        const oldCaseStatus = process.caseStatusId
+          ? await ctx.db.get(process.caseStatusId)
+          : null;
 
         // Log activity
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
@@ -463,8 +518,12 @@ export const bulkUpdateIndividualProcessStatus = mutation({
           entityId: processId,
           details: {
             personName: person?.fullName,
-            previousStatus: process.status,
-            newStatus: args.newStatus,
+            previousCaseStatusId: process.caseStatusId,
+            previousCaseStatusName: oldCaseStatus?.name,
+            previousStatus: process.status, // DEPRECATED: Keep for backward compatibility
+            newCaseStatusId: args.newCaseStatusId,
+            newCaseStatusName: newCaseStatus?.name,
+            newStatus: args.newStatus, // DEPRECATED: Keep for backward compatibility
             reason: args.reason,
           },
         });

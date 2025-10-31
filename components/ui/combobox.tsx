@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, normalizeString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -64,7 +64,16 @@ export interface ComboboxMultipleProps<T = string>
 }
 
 /**
- * Single selection combobox component with built-in search/filter functionality
+ * Single selection combobox component with built-in search/filter functionality.
+ *
+ * Filtering uses case-insensitive substring matching on option labels.
+ * Users can type any part of the visible label to filter results.
+ *
+ * Example: For a CBO code option with label "3912-05 - Inspetor de qualidade",
+ * users can search by typing "3912", "inspetor", "qualidade", etc.
+ *
+ * Note: Uses custom filter function for exact substring matching instead of
+ * cmdk's default fuzzy matching to prevent false positives.
  */
 function ComboboxSingle<T extends string = string>({
   options,
@@ -153,7 +162,19 @@ function ComboboxSingle<T extends string = string>({
         className={cn("p-0", contentClassName)}
         style={{ width: "var(--radix-popover-trigger-width)" }}
       >
-        <Command>
+        <Command
+          filter={(value, search) => {
+            // Custom filter: accent-insensitive and case-insensitive substring match on label
+            const option = options.find((opt) => String(opt.value) === value);
+            if (!option) return 0;
+
+            const searchNormalized = normalizeString(search);
+            const labelNormalized = normalizeString(option.label);
+
+            // Return 1 if label contains search string, 0 otherwise
+            return labelNormalized.includes(searchNormalized) ? 1 : 0;
+          }}
+        >
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
@@ -219,7 +240,16 @@ function ComboboxSingle<T extends string = string>({
 }
 
 /**
- * Multiple selection combobox component with built-in search/filter functionality
+ * Multiple selection combobox component with built-in search/filter functionality.
+ *
+ * Filtering uses case-insensitive substring matching on option labels.
+ * Users can type any part of the visible label to filter results.
+ *
+ * Example: For a CBO code option with label "3912-05 - Inspetor de qualidade",
+ * users can search by typing "3912", "inspetor", "qualidade", etc.
+ *
+ * Note: Uses custom filter function for exact substring matching instead of
+ * cmdk's default fuzzy matching to prevent false positives.
  */
 function ComboboxMultiple<T extends string = string>({
   options,
@@ -317,16 +347,15 @@ function ComboboxMultiple<T extends string = string>({
                       <span className="h-3 w-3">{option.icon}</span>
                     )}
                     {option.label}
-                    <button
-                      type="button"
+                    <span
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemove(option.value);
                       }}
-                      className="hover:bg-secondary-foreground/20 rounded-sm"
+                      className="hover:bg-secondary-foreground/20 rounded-sm cursor-pointer"
                     >
                       <X className="h-3 w-3" />
-                    </button>
+                    </span>
                   </span>
                 ))}
           </div>
@@ -338,7 +367,19 @@ function ComboboxMultiple<T extends string = string>({
         className={cn("p-0", contentClassName)}
         style={{ width: "var(--radix-popover-trigger-width)" }}
       >
-        <Command>
+        <Command
+          filter={(value, search) => {
+            // Custom filter: accent-insensitive and case-insensitive substring match on label
+            const option = options.find((opt) => String(opt.value) === value);
+            if (!option) return 0;
+
+            const searchNormalized = normalizeString(search);
+            const labelNormalized = normalizeString(option.label);
+
+            // Return 1 if label contains search string, 0 otherwise
+            return labelNormalized.includes(searchNormalized) ? 1 : 0;
+          }}
+        >
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>

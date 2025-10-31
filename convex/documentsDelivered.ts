@@ -29,9 +29,11 @@ export const list = query({
 
     // Check access control
     const userProfile = await getCurrentUserProfile(ctx);
-    const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
-    if (!hasAccess) {
-      throw new Error("Access denied: You do not have permission to view these documents");
+    if (mainProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to view these documents");
+      }
     }
 
     // Query documents by individual process
@@ -104,9 +106,11 @@ export const get = query({
       throw new Error("Main process not found");
     }
 
-    const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
-    if (!hasAccess) {
-      throw new Error("Access denied: You do not have permission to view this document");
+    if (mainProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to view this document");
+      }
     }
 
     // Enrich with related data
@@ -159,9 +163,11 @@ export const upload = mutation({
     }
 
     // Check access control
-    const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
-    if (!hasAccess) {
-      throw new Error("Access denied: You do not have permission to upload documents for this process");
+    if (mainProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to upload documents for this process");
+      }
     }
 
     // Get file URL from storage
@@ -412,9 +418,11 @@ export const getVersionHistory = query({
       throw new Error("Main process not found");
     }
 
-    const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
-    if (!hasAccess) {
-      throw new Error("Access denied: You do not have permission to view this document history");
+    if (mainProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to view this document history");
+      }
     }
 
     // Get all versions

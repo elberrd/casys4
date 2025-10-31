@@ -4,8 +4,9 @@
 
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { cleanDocumentNumber, isValidCPF } from "@/lib/utils/document-masks";
 
-// CPF validation regex (XXX.XXX.XXX-XX or XXXXXXXXXXX format)
+// CPF validation regex (accepts both formatted XXX.XXX.XXX-XX and unformatted XXXXXXXXXXX)
 const cpfRegex = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
 
 /**
@@ -17,7 +18,11 @@ export const bulkImportPersonSchema = z.object({
   email: z.string().email("Invalid email format").min(1, "Email is required"),
   cpf: z
     .string()
-    .regex(cpfRegex, "Invalid CPF format (use XXX.XXX.XXX-XX or XXXXXXXXXXX)"),
+    .regex(cpfRegex, "Invalid CPF format")
+    .refine((val) => isValidCPF(val), {
+      message: "Invalid CPF check digits",
+    })
+    .transform((val) => cleanDocumentNumber(val)),
   birthDate: z.string().min(1, "Birth date is required"),
   nationality: z.string().min(1, "Nationality is required"),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
@@ -62,7 +67,10 @@ export const bulkCreateIndividualProcessesSchema = z.object({
       message: "Invalid CBO code",
     })
     .optional(),
-  status: z.string().min(1, "Initial status is required"),
+  caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
+    message: "Initial case status is required",
+  }),
+  status: z.string().optional(), // DEPRECATED: Kept for backward compatibility
   deadlineDate: z.string().optional(),
 });
 

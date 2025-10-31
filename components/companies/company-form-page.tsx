@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { CNPJInput } from "@/components/ui/cnpj-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Combobox } from "@/components/ui/combobox"
@@ -43,7 +44,7 @@ export function CompanyFormPage({
     companyId ? { id: companyId } : "skip"
   )
 
-  const cities = useQuery(api.cities.listWithRelations) ?? []
+  const cities = useQuery(api.cities.listWithRelations, {}) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
   const createCompany = useMutation(api.companies.create)
   const updateCompany = useMutation(api.companies.update)
@@ -84,12 +85,12 @@ export function CompanyFormPage({
 
   const onSubmit = async (data: CompanyFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields and convert empty strings to undefined
       const submitData = {
         ...data,
         website: data.website || undefined,
-        cityId: data.cityId || undefined,
-        contactPersonId: data.contactPersonId || undefined,
+        cityId: data.cityId === "" ? undefined : data.cityId,
+        contactPersonId: data.contactPersonId === "" ? undefined : data.contactPersonId,
         notes: data.notes || undefined,
       }
 
@@ -171,7 +172,7 @@ export function CompanyFormPage({
                 <FormItem>
                   <FormLabel>{t('taxId')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="00.000.000/0000-00" {...field} />
+                    <CNPJInput {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

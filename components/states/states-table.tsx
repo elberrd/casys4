@@ -20,7 +20,7 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -33,7 +33,8 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface State {
   _id: Id<"states">
   name: string
-  countryId: Id<"countries">
+  code?: string
+  countryId?: Id<"countries">
   country: {
     name: string
   } | null
@@ -41,11 +42,12 @@ interface State {
 
 interface StatesTableProps {
   states: State[]
+  onView?: (id: Id<"states">) => void
   onEdit: (id: Id<"states">) => void
   onDelete: (id: Id<"states">) => void
 }
 
-export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
+export function StatesTable({ states, onView, onEdit, onDelete }: StatesTableProps) {
   const t = useTranslations('States')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -64,7 +66,7 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -96,17 +98,27 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -117,7 +129,7 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete]
   )
 
   const table = useReactTable({
@@ -130,6 +142,11 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -140,6 +157,7 @@ export function StatesTable({ states, onEdit, onDelete }: StatesTableProps) {
       table={table}
       recordCount={states.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

@@ -20,7 +20,7 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -30,6 +30,7 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 import { ConsulateFormDialog } from "./consulate-form-dialog";
+import { ConsulateViewModal } from "./consulate-view-modal";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
@@ -38,10 +39,10 @@ type Consulate = {
   _id: Id<"consulates">;
   _creationTime: number;
   name: string;
-  cityId: Id<"cities">;
-  address: string;
-  phoneNumber: string;
-  email: string;
+  cityId?: Id<"cities">;
+  address?: string;
+  phoneNumber?: string;
+  email?: string;
   website?: string;
   city: { _id: Id<"cities">; name: string } | null;
   state: { _id: Id<"states">; name: string } | null;
@@ -55,9 +56,14 @@ export function ConsulatesTable() {
   const consulates = useQuery(api.consulates.list, {}) ?? [];
   const removeConsulate = useMutation(api.consulates.remove);
 
+  const [viewingConsulate, setViewingConsulate] = useState<Id<"consulates"> | undefined>();
   const [editingConsulate, setEditingConsulate] = useState<Id<"consulates"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const onView = (id: Id<"consulates">) => {
+    setViewingConsulate(id);
+  };
 
   const onEdit = (id: Id<"consulates">) => {
     setEditingConsulate(id);
@@ -84,7 +90,7 @@ export function ConsulatesTable() {
     },
     onSuccess: () => {
       toast.success(t("deletedSuccess"));
-      table.resetRowSelection();
+      setRowSelection({});
     },
     onError: (error) => {
       console.error("Error deleting consulates:", error);
@@ -151,10 +157,16 @@ export function ConsulatesTable() {
           <DataGridRowActions
             actions={[
               {
+                label: tCommon("view"),
+                icon: <Eye className="h-4 w-4" />,
+                onClick: () => onView(row.original._id),
+                variant: "default" as const,
+              },
+              {
                 label: tCommon("edit"),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon("delete"),
@@ -167,7 +179,7 @@ export function ConsulatesTable() {
         ),
       },
     ],
-    [t, tCommon, deleteConfirmation]
+    [t, tCommon, deleteConfirmation, onEdit]
   );
 
   const table = useReactTable({
@@ -180,6 +192,11 @@ export function ConsulatesTable() {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -190,6 +207,7 @@ export function ConsulatesTable() {
       table={table}
       recordCount={consulates.length}
       emptyMessage={t("noResults")}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}
@@ -239,6 +257,19 @@ export function ConsulatesTable() {
         </DataGridContainer>
         <DataGridPagination />
       </div>
+
+      {viewingConsulate && (
+        <ConsulateViewModal
+          consulateId={viewingConsulate}
+          open={true}
+          onOpenChange={(open) => !open && setViewingConsulate(undefined)}
+          onEdit={() => {
+            setEditingConsulate(viewingConsulate);
+            setViewingConsulate(undefined);
+            setIsFormOpen(true);
+          }}
+        />
+      )}
 
       <ConsulateFormDialog
         open={isFormOpen}

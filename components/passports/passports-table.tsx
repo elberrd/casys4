@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -33,13 +33,13 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface Passport {
   _id: Id<"passports">
-  personId: Id<"people">
+  personId?: Id<"people">
   passportNumber: string
-  issuingCountryId: Id<"countries">
-  issueDate: string
-  expiryDate: string
+  issuingCountryId?: Id<"countries">
+  issueDate?: string
+  expiryDate?: string
   fileUrl?: string
-  isActive: boolean
+  isActive?: boolean
   createdAt: number
   updatedAt: number
   person: {
@@ -50,27 +50,28 @@ interface Passport {
     _id: Id<"countries">
     name: string
   } | null
-  status: "Valid" | "Expiring Soon" | "Expired"
+  status?: "Valid" | "Expiring Soon" | "Expired"
 }
 
 interface PassportsTableProps {
   passports: Passport[]
   onEdit: (id: Id<"passports">) => void
   onDelete: (id: Id<"passports">) => void
+  onView?: (id: Id<"passports">) => void
 }
 
 function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
   switch (status) {
     case "Valid":
-      return "default"
+      return "success"
     case "Expiring Soon":
-      return "secondary"
+      return "warning"
     case "Expired":
       return "destructive"
   }
 }
 
-export function PassportsTable({ passports, onEdit, onDelete }: PassportsTableProps) {
+export function PassportsTable({ passports, onEdit, onDelete, onView }: PassportsTableProps) {
   const t = useTranslations('Passports')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -89,7 +90,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -134,7 +135,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Date(row.original.issueDate).toLocaleDateString()}
+            {row.original.issueDate ? new Date(row.original.issueDate).toLocaleDateString() : '-'}
           </span>
         ),
       },
@@ -145,7 +146,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Date(row.original.expiryDate).toLocaleDateString()}
+            {row.original.expiryDate ? new Date(row.original.expiryDate).toLocaleDateString() : '-'}
           </span>
         ),
       },
@@ -156,6 +157,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
         ),
         cell: ({ row }) => {
           const status = row.original.status
+          if (!status) return <span className="text-muted-foreground">-</span>
           return (
             <Badge variant={getStatusVariant(status)}>
               {t(`status${status.replace(" ", "")}`)}
@@ -172,7 +174,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
           <DataGridColumnHeader column={column} title={t('isActive')} />
         ),
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "default" : "secondary"}>
+          <Badge variant={row.original.isActive ? "info" : "secondary"}>
             {row.original.isActive ? tCommon('active') : tCommon('inactive')}
           </Badge>
         ),
@@ -183,17 +185,27 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -204,7 +216,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onEdit, onDelete, onView]
   )
 
   const table = useReactTable({
@@ -217,6 +229,11 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -227,6 +244,7 @@ export function PassportsTable({ passports, onEdit, onDelete }: PassportsTablePr
       table={table}
       recordCount={passports.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

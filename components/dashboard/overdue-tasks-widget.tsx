@@ -32,7 +32,8 @@ export function OverdueTasksWidget() {
     )
   }
 
-  const calculateDaysOverdue = (dueDate: string) => {
+  const calculateDaysOverdue = (dueDate?: string) => {
+    if (!dueDate) return 0;
     const today = new Date()
     const due = new Date(dueDate)
     const diffTime = today.getTime() - due.getTime()

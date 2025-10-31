@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list all process types with optional isActive filter
@@ -9,17 +10,34 @@ import { requireAdmin } from "./lib/auth";
 export const list = query({
   args: {
     isActive: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { isActive }) => {
-    if (isActive !== undefined) {
-      const results = await ctx.db
+  handler: async (ctx, args) => {
+    let results;
+    if (args.isActive !== undefined) {
+      results = await ctx.db
         .query("processTypes")
-        .withIndex("by_active", (q) => q.eq("isActive", isActive))
+        .withIndex("by_active", (q) => q.eq("isActive", args.isActive))
         .collect();
-      return results.sort((a, b) => a.sortOrder - b.sortOrder);
+    } else {
+      results = await ctx.db.query("processTypes").collect();
     }
-    const results = await ctx.db.query("processTypes").collect();
-    return results.sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      results = results.filter((item) => {
+        const name = normalizeString(item.name);
+        const description = item.description ? normalizeString(item.description) : "";
+
+        return (
+          name.includes(searchNormalized) ||
+          description.includes(searchNormalized)
+        );
+      });
+    }
+
+    return results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   },
 });
 
@@ -33,7 +51,7 @@ export const listActive = query({
       .query("processTypes")
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
-    return results.sort((a, b) => a.sortOrder - b.sortOrder);
+    return results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   },
 });
 
@@ -47,18 +65,6 @@ export const get = query({
   },
 });
 
-/**
- * Query to get process type by code
- */
-export const getByCode = query({
-  args: { code: v.string() },
-  handler: async (ctx, { code }) => {
-    return await ctx.db
-      .query("processTypes")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .first();
-  },
-});
 
 /**
  * Mutation to create process type (admin only)
@@ -66,10 +72,8 @@ export const getByCode = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
-    category: v.string(),
-    estimatedDays: v.number(),
+    description: v.optional(v.string()),
+    estimatedDays: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
@@ -77,31 +81,19 @@ export const create = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
-    // Check if code already exists
-    const existing = await ctx.db
-      .query("processTypes")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
-
-    if (existing) {
-      throw new Error(`Process type with code ${args.code} already exists`);
-    }
-
     // Auto-increment sortOrder if not provided
     let sortOrder = args.sortOrder;
     if (sortOrder === undefined) {
       const allTypes = await ctx.db.query("processTypes").collect();
       sortOrder = allTypes.length > 0
-        ? Math.max(...allTypes.map((t) => t.sortOrder)) + 1
+        ? Math.max(...allTypes.map((t) => t.sortOrder ?? 0)) + 1
         : 0;
     }
 
     const processTypeId = await ctx.db.insert("processTypes", {
       name: args.name,
-      code: args.code.toUpperCase(),
-      description: args.description,
-      category: args.category,
-      estimatedDays: args.estimatedDays,
+      description: args.description ?? "",
+      estimatedDays: args.estimatedDays ?? 0,
       isActive: args.isActive ?? true,
       sortOrder,
     });
@@ -117,41 +109,30 @@ export const update = mutation({
   args: {
     id: v.id("processTypes"),
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
-    category: v.string(),
-    estimatedDays: v.number(),
-    isActive: v.boolean(),
+    description: v.optional(v.string()),
+    estimatedDays: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, { id, sortOrder, ...args }) => {
     // Require admin role
     await requireAdmin(ctx);
 
-    // Check if another process type with this code exists
-    const existing = await ctx.db
-      .query("processTypes")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .first();
-
-    if (existing && existing._id !== id) {
-      throw new Error(`Process type with code ${args.code} already exists`);
-    }
-
     const current = await ctx.db.get(id);
     if (!current) {
       throw new Error("Process type not found");
     }
 
-    await ctx.db.patch(id, {
+    const updates: any = {
       name: args.name,
-      code: args.code.toUpperCase(),
-      description: args.description,
-      category: args.category,
-      estimatedDays: args.estimatedDays,
-      isActive: args.isActive,
       sortOrder: sortOrder ?? current.sortOrder,
-    });
+    };
+
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.estimatedDays !== undefined) updates.estimatedDays = args.estimatedDays;
+    if (args.isActive !== undefined) updates.isActive = args.isActive;
+
+    await ctx.db.patch(id, updates);
 
     return id;
   },

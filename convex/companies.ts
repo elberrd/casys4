@@ -3,14 +3,17 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list all companies with optional filtering
  * Access control: Admin sees all companies, clients see only their company
+ * Supports accent-insensitive search across company names, addresses, and emails
  */
 export const list = query({
   args: {
     isActive: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -31,6 +34,17 @@ export const list = query({
     // Filter by isActive if specified
     if (args.isActive !== undefined) {
       companies = companies.filter((c) => c.isActive === args.isActive);
+    }
+
+    // Filter by search query if provided (accent-insensitive)
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      companies = companies.filter(
+        (company) =>
+          normalizeString(company.name).includes(searchNormalized) ||
+          (company.address && normalizeString(company.address).includes(searchNormalized)) ||
+          (company.email && normalizeString(company.email).includes(searchNormalized))
+      );
     }
 
     // Fetch related data for each company
@@ -135,14 +149,14 @@ export const get = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    taxId: v.string(),
+    taxId: v.optional(v.string()),
     website: v.optional(v.string()),
-    address: v.string(),
+    address: v.optional(v.string()),
     cityId: v.optional(v.id("cities")),
-    phoneNumber: v.string(),
-    email: v.string(),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     contactPersonId: v.optional(v.id("people")),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -152,7 +166,16 @@ export const create = mutation({
     const now = Date.now();
 
     const companyId = await ctx.db.insert("companies", {
-      ...args,
+      name: args.name,
+      taxId: args.taxId,
+      website: args.website,
+      address: args.address,
+      cityId: args.cityId,
+      phoneNumber: args.phoneNumber,
+      email: args.email,
+      contactPersonId: args.contactPersonId,
+      isActive: args.isActive ?? true,
+      notes: args.notes,
       createdAt: now,
       updatedAt: now,
     });
@@ -171,7 +194,7 @@ export const create = mutation({
           taxId: args.taxId,
           email: args.email,
           cityName: city?.name,
-          isActive: args.isActive,
+          isActive: args.isActive ?? true,
         },
       });
     } catch (error) {
@@ -189,14 +212,14 @@ export const update = mutation({
   args: {
     id: v.id("companies"),
     name: v.string(),
-    taxId: v.string(),
+    taxId: v.optional(v.string()),
     website: v.optional(v.string()),
-    address: v.string(),
+    address: v.optional(v.string()),
     cityId: v.optional(v.id("cities")),
-    phoneNumber: v.string(),
-    email: v.string(),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     contactPersonId: v.optional(v.id("people")),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -211,7 +234,16 @@ export const update = mutation({
     const { id, ...data } = args;
 
     await ctx.db.patch(id, {
-      ...data,
+      name: data.name,
+      taxId: data.taxId,
+      website: data.website,
+      address: data.address,
+      cityId: data.cityId,
+      phoneNumber: data.phoneNumber,
+      email: data.email,
+      contactPersonId: data.contactPersonId,
+      isActive: data.isActive ?? true,
+      notes: data.notes,
       updatedAt: Date.now(),
     });
 

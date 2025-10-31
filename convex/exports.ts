@@ -41,10 +41,10 @@ export const exportMainProcesses = query({
 
     // Apply date range filter
     if (args.dateFrom) {
-      processes = processes.filter((p) => p.requestDate >= args.dateFrom!);
+      processes = processes.filter((p) => p.requestDate && p.requestDate >= args.dateFrom!);
     }
     if (args.dateTo) {
-      processes = processes.filter((p) => p.requestDate <= args.dateTo!);
+      processes = processes.filter((p) => p.requestDate && p.requestDate <= args.dateTo!);
     }
 
     // Apply status filter
@@ -57,10 +57,10 @@ export const exportMainProcesses = query({
       processes.map(async (process) => {
         const [company, contactPerson, processType, workplaceCity, consulate] =
           await Promise.all([
-            ctx.db.get(process.companyId),
-            ctx.db.get(process.contactPersonId),
-            ctx.db.get(process.processTypeId),
-            ctx.db.get(process.workplaceCityId),
+            process.companyId ? ctx.db.get(process.companyId) : null,
+            process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
+            process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+            process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
             process.consulateId ? ctx.db.get(process.consulateId) : null,
           ]);
 
@@ -83,7 +83,6 @@ export const exportMainProcesses = query({
           contactPersonName: contactPerson?.fullName || "",
           contactPersonEmail: contactPerson?.email || "",
           processType: processType?.name || "",
-          processTypeCode: processType?.code || "",
           workplaceCity: workplaceCity?.name || "",
           workplaceState: workplaceState?.name || "",
           consulateName: consulate?.name || "",
@@ -175,22 +174,27 @@ export const exportIndividualProcesses = query({
         const [person, mainProcess, legalFramework, cbo] = await Promise.all([
           ctx.db.get(process.personId),
           ctx.db.get(process.mainProcessId),
-          ctx.db.get(process.legalFrameworkId),
+          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
         ]);
 
         // Get person nationality and city
         const [nationality, currentCity, birthCity] = person
           ? await Promise.all([
-              ctx.db.get(person.nationalityId),
-              ctx.db.get(person.currentCityId),
-              ctx.db.get(person.birthCityId),
+              person.nationalityId ? ctx.db.get(person.nationalityId) : null,
+              person.currentCityId ? ctx.db.get(person.currentCityId) : null,
+              person.birthCityId ? ctx.db.get(person.birthCityId) : null,
             ])
           : [null, null, null];
 
         // Get company
-        const company = mainProcess
+        const company = mainProcess && mainProcess.companyId
           ? await ctx.db.get(mainProcess.companyId)
+          : null;
+
+        // Get process type from legal framework
+        const legalFrameworkProcessType = legalFramework && legalFramework.processTypeId
+          ? await ctx.db.get(legalFramework.processTypeId)
           : null;
 
         return {
@@ -206,7 +210,7 @@ export const exportIndividualProcesses = query({
           personBirthCity: birthCity?.name || "",
           status: process.status,
           legalFramework: legalFramework?.name || "",
-          legalFrameworkCode: legalFramework?.code || "",
+          legalFrameworkProcessType: legalFrameworkProcessType?.name || "",
           cboCode: cbo?.code || "",
           cboTitle: cbo?.title || "",
           mreOfficeNumber: process.mreOfficeNumber || "",
@@ -283,9 +287,9 @@ export const exportPeople = query({
     const enrichedPeople = await Promise.all(
       people.map(async (person) => {
         const [birthCity, currentCity, nationality] = await Promise.all([
-          ctx.db.get(person.birthCityId),
-          ctx.db.get(person.currentCityId),
-          ctx.db.get(person.nationalityId),
+          person.birthCityId ? ctx.db.get(person.birthCityId) : null,
+          person.currentCityId ? ctx.db.get(person.currentCityId) : null,
+          person.nationalityId ? ctx.db.get(person.nationalityId) : null,
         ]);
 
         // Get states
@@ -505,10 +509,10 @@ export const exportTasks = query({
 
     // Apply date range filter (by due date)
     if (args.dateFrom) {
-      tasks = tasks.filter((t) => t.dueDate >= args.dateFrom!);
+      tasks = tasks.filter((t) => t.dueDate && t.dueDate >= args.dateFrom!);
     }
     if (args.dateTo) {
-      tasks = tasks.filter((t) => t.dueDate <= args.dateTo!);
+      tasks = tasks.filter((t) => t.dueDate && t.dueDate <= args.dateTo!);
     }
 
     // Enrich with related data
@@ -522,15 +526,16 @@ export const exportTasks = query({
         // Get person and company
         const [person, company] = await Promise.all([
           individualProcess ? ctx.db.get(individualProcess.personId) : null,
-          mainProcess ? ctx.db.get(mainProcess.companyId) : null,
+          mainProcess && mainProcess.companyId ? ctx.db.get(mainProcess.companyId) : null,
         ]);
 
         // Get assignee and creator profiles
+        const assignedToId = task.assignedTo;
         const [assigneeProfile, creatorProfile, completerProfile] = await Promise.all([
-          ctx.db
+          assignedToId ? ctx.db
             .query("userProfiles")
-            .withIndex("by_userId", (q) => q.eq("userId", task.assignedTo))
-            .first(),
+            .withIndex("by_userId", (q) => q.eq("userId", assignedToId))
+            .first() : null,
           ctx.db
             .query("userProfiles")
             .withIndex("by_userId", (q) => q.eq("userId", task.createdBy))

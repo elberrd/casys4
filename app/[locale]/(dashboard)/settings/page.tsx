@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import type { Metadata } from 'next';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import {
@@ -9,6 +10,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+
+type Props = {
+  params: Promise<{ locale: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'Settings' })
+
+  return {
+    title: t('title'),
+    description: t('description'),
+  }
+}
 
 export default async function SettingsPage() {
   const t = await getTranslations('Settings');
@@ -25,9 +40,9 @@ export default async function SettingsPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-            <p className="text-muted-foreground mt-2">
-              {t('languageDescription')}
+            <h1 className="text-2xl font-bold">{t('title')}</h1>
+            <p className="text-sm text-muted-foreground">
+              {t('description')}
             </p>
           </div>
         </div>

@@ -90,7 +90,7 @@ export function NotificationsTable({
       await onDelete?.(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -241,10 +241,6 @@ export function NotificationsTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
-    state: {
-      rowSelection,
-    },
-    globalFilterFn: globalFuzzyFilter,
     initialState: {
       pagination: {
         pageSize: 20,
@@ -256,6 +252,10 @@ export function NotificationsTable({
         },
       ],
     },
+    state: {
+      rowSelection,
+    },
+    globalFilterFn: globalFuzzyFilter,
   })
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
@@ -304,6 +304,7 @@ export function NotificationsTable({
         table={table}
         recordCount={notifications.length}
         emptyMessage={t("noResults")}
+        onRowClick={onView ? (row) => onView(row._id) : undefined}
       >
         <DataGridContainer>
           <ScrollArea className="h-[calc(100vh-280px)]">

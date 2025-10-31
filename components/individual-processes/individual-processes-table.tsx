@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import { Edit, Trash2, Eye, ListTodo } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -34,12 +34,28 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">
-  status: string
-  isActive: boolean
+  status?: string
+  caseStatusId?: Id<"caseStatuses">
+  isActive?: boolean
+  activeStatus?: {
+    _id: Id<"individualProcessStatuses">
+    statusName: string
+    isActive: boolean
+    changedAt: number
+  } | null
+  caseStatus?: {
+    _id: Id<"caseStatuses">
+    name: string
+    nameEn?: string
+    code: string
+    color?: string
+    category?: string
+    sortOrder: number
+  } | null
   person?: {
     _id: Id<"people">
     fullName: string
-    email: string
+    email?: string
   } | null
   mainProcess?: {
     _id: Id<"mainProcesses">
@@ -59,8 +75,9 @@ interface IndividualProcessesTableProps {
   onView?: (id: Id<"individualProcesses">) => void
   onEdit?: (id: Id<"individualProcesses">) => void
   onDelete?: (id: Id<"individualProcesses">) => void
-  onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status: string }>) => void
+  onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => void
   onBulkCreateTask?: (selected: IndividualProcess[]) => void
+  onRowClick?: (id: Id<"individualProcesses">) => void
 }
 
 export function IndividualProcessesTable({
@@ -69,10 +86,12 @@ export function IndividualProcessesTable({
   onEdit,
   onDelete,
   onBulkStatusUpdate,
-  onBulkCreateTask
+  onBulkCreateTask,
+  onRowClick
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
+  const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -89,7 +108,7 @@ export function IndividualProcessesTable({
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -115,13 +134,28 @@ export function IndividualProcessesTable({
         ),
       },
       {
-        accessorKey: "status",
+        accessorKey: "caseStatus.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('status')} />
+          <DataGridColumnHeader column={column} title={t('caseStatus')} />
         ),
-        cell: ({ row }) => (
-          <StatusBadge status={row.original.status} type="individual_process" />
-        ),
+        cell: ({ row }) => {
+          const caseStatus = row.original.caseStatus
+          if (!caseStatus) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+
+          // Use nameEn for English locale, otherwise use name (Portuguese)
+          const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
+
+          return (
+            <StatusBadge
+              status={statusName}
+              type="individual_process"
+              color={caseStatus.color}
+              category={caseStatus.category}
+            />
+          )
+        },
       },
       {
         accessorKey: "legalFramework.name",
@@ -208,7 +242,7 @@ export function IndividualProcessesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, onView, onEdit, onDelete]
+    [t, tCommon, locale, onView, onEdit, onDelete, deleteConfirmation.confirmDelete]
   )
 
   const table = useReactTable({
@@ -221,6 +255,11 @@ export function IndividualProcessesTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -234,6 +273,7 @@ export function IndividualProcessesTable({
       tableLayout={{
         columnsVisibility: true,
       }}
+      onRowClick={onRowClick ? (row) => onRowClick(row._id) : undefined}
     >
       <div className="w-full space-y-2.5">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -262,7 +302,7 @@ export function IndividualProcessesTable({
                   const selected = selectedRows.map(row => ({
                     _id: row._id,
                     personId: row.person?._id || ("" as Id<"people">),
-                    status: row.status
+                    status: row.activeStatus?.statusName || row.status
                   }))
                   onBulkStatusUpdate(selected)
                 },

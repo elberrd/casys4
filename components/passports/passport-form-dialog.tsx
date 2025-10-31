@@ -34,7 +34,7 @@ interface PassportFormDialogProps {
   onOpenChange: (open: boolean) => void
   passportId?: Id<"passports">
   personId?: Id<"people">
-  onSuccess?: () => void
+  onSuccess?: (passportId?: Id<"passports">) => void
 }
 
 function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
@@ -55,9 +55,9 @@ function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expir
 function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
   switch (status) {
     case "Valid":
-      return "default"
+      return "success"
     case "Expiring Soon":
-      return "secondary"
+      return "warning"
     case "Expired":
       return "destructive"
   }
@@ -129,8 +129,9 @@ export function PassportFormDialog({
           isActive: data.isActive,
         })
         toast.success(t("updatedSuccess"))
+        onSuccess?.(passportId)
       } else {
-        await createPassport({
+        const newPassportId = await createPassport({
           personId: data.personId as Id<"people">,
           passportNumber: data.passportNumber,
           issuingCountryId: data.issuingCountryId as Id<"countries">,
@@ -139,9 +140,12 @@ export function PassportFormDialog({
           fileUrl: data.fileUrl || undefined,
           isActive: data.isActive,
         })
+        console.log('[PassportFormDialog] Created passport with ID:', newPassportId)
+        console.log('[PassportFormDialog] Calling onSuccess callback')
         toast.success(t("createdSuccess"))
+        onSuccess?.(newPassportId)
+        console.log('[PassportFormDialog] onSuccess callback called with:', newPassportId)
       }
-      onSuccess?.()
     } catch (error) {
       toast.error(passportId ? t("errorUpdate") : t("errorCreate"))
     }
@@ -168,7 +172,7 @@ export function PassportFormDialog({
                     <FormControl>
                       <Combobox
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => field.onChange(value || "")}
                         options={people.map((person) => ({
                           value: person._id,
                           label: person.fullName,
@@ -206,7 +210,7 @@ export function PassportFormDialog({
                     <FormControl>
                       <Combobox
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => field.onChange(value || "")}
                         options={countries.map((country) => ({
                           value: country._id,
                           label: country.name,

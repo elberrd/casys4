@@ -3,6 +3,8 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
+import { normalizeString } from "./lib/stringUtils";
+import { calculateMainProcessStatus } from "./lib/statusCalculation";
 
 /**
  * Query to list all main processes with optional filters
@@ -13,6 +15,7 @@ export const list = query({
     companyId: v.optional(v.id("companies")),
     processTypeId: v.optional(v.id("processTypes")),
     status: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -68,25 +71,41 @@ export const list = query({
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
-    // Enrich with related data
-    const enrichedResults = await Promise.all(
+    // Enrich with related data first, then apply search filter
+    const enrichedBeforeSearch = await Promise.all(
       filteredResults.map(async (process) => {
         const [company, contactPerson, processType, workplaceCity, consulate] =
           await Promise.all([
-            ctx.db.get(process.companyId),
-            ctx.db.get(process.contactPersonId),
-            ctx.db.get(process.processTypeId),
-            ctx.db.get(process.workplaceCityId),
+            process.companyId ? ctx.db.get(process.companyId) : null,
+            process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
+            process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+            process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
             process.consulateId ? ctx.db.get(process.consulateId) : null,
           ]);
 
-        // Count individual processes
-        const individualProcesses = await ctx.db
+        // Get individual processes with case statuses
+        const individualProcessesRaw = await ctx.db
           .query("individualProcesses")
           .withIndex("by_mainProcess", (q) =>
             q.eq("mainProcessId", process._id),
           )
           .collect();
+
+        // Enrich individual processes with case status details
+        const individualProcesses = await Promise.all(
+          individualProcessesRaw.map(async (ip) => {
+            const caseStatus = ip.caseStatusId
+              ? await ctx.db.get(ip.caseStatusId)
+              : null;
+            return {
+              ...ip,
+              caseStatus,
+            };
+          })
+        );
+
+        // Calculate main process status
+        const calculatedStatus = calculateMainProcessStatus(individualProcesses, "pt");
 
         return {
           ...process,
@@ -96,9 +115,23 @@ export const list = query({
           workplaceCity,
           consulate,
           individualProcessesCount: individualProcesses.length,
+          calculatedStatus,
         };
       }),
     );
+
+    // Apply accent-insensitive search filter after enrichment
+    let enrichedResults = enrichedBeforeSearch;
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      enrichedResults = enrichedBeforeSearch.filter(
+        (process) =>
+          normalizeString(process.referenceNumber).includes(searchNormalized) ||
+          (process.notes && normalizeString(process.notes).includes(searchNormalized)) ||
+          (process.company && normalizeString(process.company.name).includes(searchNormalized)) ||
+          (process.contactPerson && normalizeString(process.contactPerson.fullName).includes(searchNormalized))
+      );
+    }
 
     return enrichedResults.sort((a, b) => b.createdAt - a.createdAt);
   },
@@ -128,18 +161,34 @@ export const get = query({
 
     const [company, contactPerson, processType, workplaceCity, consulate] =
       await Promise.all([
-        ctx.db.get(process.companyId),
-        ctx.db.get(process.contactPersonId),
-        ctx.db.get(process.processTypeId),
-        ctx.db.get(process.workplaceCityId),
+        process.companyId ? ctx.db.get(process.companyId) : null,
+        process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
+        process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+        process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
         process.consulateId ? ctx.db.get(process.consulateId) : null,
       ]);
 
-    // Get individual processes
-    const individualProcesses = await ctx.db
+    // Get individual processes with their case statuses
+    const individualProcessesRaw = await ctx.db
       .query("individualProcesses")
       .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", process._id))
       .collect();
+
+    // Enrich individual processes with case status details
+    const individualProcesses = await Promise.all(
+      individualProcessesRaw.map(async (ip) => {
+        const caseStatus = ip.caseStatusId
+          ? await ctx.db.get(ip.caseStatusId)
+          : null;
+        return {
+          ...ip,
+          caseStatus,
+        };
+      })
+    );
+
+    // Calculate main process status from individual processes
+    const calculatedStatus = calculateMainProcessStatus(individualProcesses, "pt");
 
     // Check if this main process was created from a process request
     let originRequest = null;
@@ -184,12 +233,14 @@ export const get = query({
       consulate,
       individualProcesses,
       originRequest,
+      calculatedStatus,
     };
   },
 });
 
 /**
  * Mutation to create main process (admin only)
+ * NOTE: Status is now calculated from individual processes, but kept for backward compatibility
  */
 export const create = mutation({
   args: {
@@ -199,9 +250,10 @@ export const create = mutation({
     processTypeId: v.id("processTypes"),
     workplaceCityId: v.id("cities"),
     consulateId: v.optional(v.id("consulates")),
-    isUrgent: v.boolean(),
+    isUrgent: v.optional(v.boolean()),
     requestDate: v.string(),
     notes: v.optional(v.string()),
+    // DEPRECATED: Status is calculated, kept for backward compatibility during migration
     status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -231,9 +283,10 @@ export const create = mutation({
       processTypeId: args.processTypeId,
       workplaceCityId: args.workplaceCityId,
       consulateId: args.consulateId,
-      isUrgent: args.isUrgent,
+      isUrgent: args.isUrgent ?? false,
       requestDate: args.requestDate,
       notes: args.notes,
+      // DEPRECATED: Kept for backward compatibility, status is now calculated
       status: args.status ?? "draft",
       createdAt: now,
       updatedAt: now,
@@ -248,7 +301,6 @@ export const create = mutation({
         entityId: processId,
         details: {
           referenceNumber: args.referenceNumber,
-          status: args.status ?? "draft",
           companyId: args.companyId,
         },
       });
@@ -262,6 +314,7 @@ export const create = mutation({
 
 /**
  * Mutation to update main process (admin only)
+ * NOTE: Status is now calculated from individual processes, but kept for backward compatibility
  */
 export const update = mutation({
   args: {
@@ -275,6 +328,7 @@ export const update = mutation({
     isUrgent: v.optional(v.boolean()),
     requestDate: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // DEPRECATED: Status is calculated, kept for backward compatibility during migration
     status: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -321,9 +375,10 @@ export const update = mutation({
     if (args.isUrgent !== undefined) updates.isUrgent = args.isUrgent;
     if (args.requestDate !== undefined) updates.requestDate = args.requestDate;
     if (args.notes !== undefined) updates.notes = args.notes;
+    // DEPRECATED: Status kept for backward compatibility
     if (args.status !== undefined) updates.status = args.status;
 
-    // Mark as completed if status is completed
+    // DEPRECATED: completedAt kept for backward compatibility
     if (args.status === "completed" && !process.completedAt) {
       updates.completedAt = Date.now();
     }
@@ -457,228 +512,8 @@ export const getByReferenceNumber = query({
   },
 });
 
-/**
- * Mutation to complete a main process (admin only)
- * Validates that all individual processes are in completed or cancelled status
- */
-export const complete = mutation({
-  args: {
-    id: v.id("mainProcesses"),
-  },
-  handler: async (ctx, { id }) => {
-    // Require admin role
-    const userProfile = await requireAdmin(ctx);
-
-    const process = await ctx.db.get(id);
-    if (!process) {
-      throw new Error("Main process not found");
-    }
-
-    // Check if already completed
-    if (process.status === "completed") {
-      throw new Error("Main process is already completed");
-    }
-
-    // Get all individual processes
-    const individualProcesses = await ctx.db
-      .query("individualProcesses")
-      .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", id))
-      .collect();
-
-    // Validate that all individuals are completed or cancelled
-    const incompleteProcesses = individualProcesses.filter(
-      (ip) => ip.status !== "completed" && ip.status !== "cancelled"
-    );
-
-    if (incompleteProcesses.length > 0) {
-      throw new Error(
-        `Cannot complete main process: ${incompleteProcesses.length} individual process(es) are not yet completed or cancelled`
-      );
-    }
-
-    // Update main process to completed
-    await ctx.db.patch(id, {
-      status: "completed",
-      completedAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    // Send notification to company users
-    try {
-      // Get company users to notify
-      const companyUsers = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_company", (q) => q.eq("companyId", process.companyId))
-        .collect();
-
-      // Create notifications for all company users
-      for (const companyUser of companyUsers) {
-        await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
-          userId: companyUser.userId,
-          type: "process_milestone",
-          title: "Process Completed",
-          message: `Main process ${process.referenceNumber} has been completed`,
-          entityType: "mainProcess",
-          entityId: id,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to create process completion notification:", error);
-    }
-
-    // Log activity (non-blocking)
-    try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "completed",
-        entityType: "mainProcess",
-        entityId: id,
-        details: {
-          referenceNumber: process.referenceNumber,
-          previousStatus: process.status,
-          newStatus: "completed",
-          individualProcessesCount: individualProcesses.length,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to log activity:", error);
-    }
-
-    return id;
-  },
-});
-
-/**
- * Mutation to cancel a main process (admin only)
- * Optionally cascades cancellation to all individual processes
- */
-export const cancel = mutation({
-  args: {
-    id: v.id("mainProcesses"),
-    notes: v.string(),
-    cancelIndividuals: v.optional(v.boolean()),
-  },
-  handler: async (ctx, { id, notes, cancelIndividuals }) => {
-    // Require admin role
-    const userProfile = await requireAdmin(ctx);
-
-    const process = await ctx.db.get(id);
-    if (!process) {
-      throw new Error("Main process not found");
-    }
-
-    // Check if already cancelled
-    if (process.status === "cancelled") {
-      throw new Error("Main process is already cancelled");
-    }
-
-    // If cascading cancellation to individuals
-    let cancelledCount = 0;
-    if (cancelIndividuals) {
-      const individualProcesses = await ctx.db
-        .query("individualProcesses")
-        .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", id))
-        .collect();
-
-      // Cancel all non-completed individual processes
-      for (const ip of individualProcesses) {
-        if (ip.status !== "completed" && ip.status !== "cancelled") {
-          await ctx.db.patch(ip._id, {
-            status: "cancelled",
-            updatedAt: Date.now(),
-          });
-          cancelledCount++;
-
-          // Log status change (import logStatusChange if available)
-          // await logStatusChange(ctx, ip._id, ip.status, "cancelled", notes);
-        }
-      }
-    }
-
-    // Update main process to cancelled
-    await ctx.db.patch(id, {
-      status: "cancelled",
-      notes: notes,
-      updatedAt: Date.now(),
-    });
-
-    // Log activity (non-blocking)
-    try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "cancelled",
-        entityType: "mainProcess",
-        entityId: id,
-        details: {
-          referenceNumber: process.referenceNumber,
-          previousStatus: process.status,
-          newStatus: "cancelled",
-          notes,
-          cascadedCancellation: cancelIndividuals ?? false,
-          cancelledIndividualProcesses: cancelledCount,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to log activity:", error);
-    }
-
-    return id;
-  },
-});
-
-/**
- * Mutation to reopen a completed or cancelled main process (admin only)
- */
-export const reopen = mutation({
-  args: {
-    id: v.id("mainProcesses"),
-  },
-  handler: async (ctx, { id }) => {
-    // Require admin role
-    const userProfile = await requireAdmin(ctx);
-
-    const process = await ctx.db.get(id);
-    if (!process) {
-      throw new Error("Main process not found");
-    }
-
-    // Can only reopen completed or cancelled processes
-    if (process.status !== "completed" && process.status !== "cancelled") {
-      throw new Error(
-        `Cannot reopen main process: current status is "${process.status}". Only completed or cancelled processes can be reopened.`
-      );
-    }
-
-    // Update main process to in_progress
-    const updates: any = {
-      status: "in_progress",
-      updatedAt: Date.now(),
-    };
-
-    // Clear completedAt if it was completed
-    if (process.completedAt) {
-      updates.completedAt = undefined;
-    }
-
-    await ctx.db.patch(id, updates);
-
-    // Log activity (non-blocking)
-    try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "reopened",
-        entityType: "mainProcess",
-        entityId: id,
-        details: {
-          referenceNumber: process.referenceNumber,
-          previousStatus: process.status,
-          newStatus: "in_progress",
-        },
-      });
-    } catch (error) {
-      console.error("Failed to log activity:", error);
-    }
-
-    return id;
-  },
-});
+// REMOVED: complete(), cancel(), and reopen() mutations
+// These mutations are no longer needed because:
+// - Main process status is now calculated from individual process statuses
+// - Individual processes should be updated directly to change the main process status
+// - This provides more accurate and automatic status tracking

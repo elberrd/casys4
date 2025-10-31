@@ -60,13 +60,13 @@ export interface DataGridPaginationProps {
  * @example
  * ```tsx
  * <DataGridPagination
- *   sizes={[5, 10, 25, 50, 100]}
+ *   sizes={[50, 100, 200, 300]}
  *   rowsPerPageLabel="Rows per page"
  * />
  * ```
  */
 export function DataGridPagination({
-  sizes = [5, 10, 25, 50, 100],
+  sizes = [50, 100, 200, 300],
   sizesLabel = "Show",
   sizesDescription = "per page",
   sizesInfo,

@@ -1,24 +1,21 @@
-"use client"
+import { getTranslations } from 'next-intl/server'
+import type { Metadata } from 'next'
+import { DocumentsClient } from './documents-client'
 
-import { DashboardPageHeader } from "@/components/dashboard-page-header"
-import { DocumentsTable } from "@/components/documents/documents-table"
-import { useTranslations } from "next-intl"
+type Props = {
+  params: Promise<{ locale: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'Documents' })
+
+  return {
+    title: t('title'),
+    description: t('description'),
+  }
+}
 
 export default function DocumentsPage() {
-  const t = useTranslations('Documents')
-  const tBreadcrumbs = useTranslations('Breadcrumbs')
-
-  const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
-    { label: tBreadcrumbs('documents') }
-  ]
-
-  return (
-    <>
-      <DashboardPageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <DocumentsTable />
-      </div>
-    </>
-  )
+  return <DocumentsClient />
 }

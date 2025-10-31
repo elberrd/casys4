@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/ui/combobox"
 import { useTranslations } from "next-intl"
 import { legalFrameworkSchema, LegalFrameworkFormData } from "@/lib/validations/legalFrameworks"
 import { Id } from "@/convex/_generated/dataModel"
@@ -53,6 +54,8 @@ export function LegalFrameworkFormDialog({
     legalFrameworkId ? { id: legalFrameworkId } : "skip"
   )
 
+  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
+
   const createLegalFramework = useMutation(api.legalFrameworks.create)
   const updateLegalFramework = useMutation(api.legalFrameworks.update)
 
@@ -60,7 +63,7 @@ export function LegalFrameworkFormDialog({
     resolver: zodResolver(legalFrameworkSchema),
     defaultValues: {
       name: "",
-      code: "",
+      processTypeId: "" as Id<"processTypes">,
       description: "",
       isActive: true,
     },
@@ -71,14 +74,14 @@ export function LegalFrameworkFormDialog({
     if (legalFramework) {
       form.reset({
         name: legalFramework.name,
-        code: legalFramework.code,
+        processTypeId: legalFramework.processTypeId,
         description: legalFramework.description,
         isActive: legalFramework.isActive,
       })
     } else if (!legalFrameworkId) {
       form.reset({
         name: "",
-        code: "",
+        processTypeId: "" as Id<"processTypes">,
         description: "",
         isActive: true,
       })
@@ -87,13 +90,20 @@ export function LegalFrameworkFormDialog({
 
   const onSubmit = async (data: LegalFrameworkFormData) => {
     try {
+      // Clean optional fields
+      const submitData = {
+        ...data,
+        processTypeId: data.processTypeId || undefined,
+        description: data.description || undefined,
+      }
+
       if (legalFrameworkId) {
-        await updateLegalFramework({ id: legalFrameworkId, ...data })
+        await updateLegalFramework({ id: legalFrameworkId, ...submitData })
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        await createLegalFramework(data)
+        await createLegalFramework(submitData)
         toast({
           title: t('createdSuccess'),
         })
@@ -126,39 +136,43 @@ export function LegalFrameworkFormDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('name')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Law 13.445/2017" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('name')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Law 13.445/2017" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('code')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="L13445"
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="processTypeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('processType')}</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      options={processTypes.map((pt) => ({
+                        label: pt.name,
+                        value: pt._id,
+                      }))}
+                      placeholder={t('selectProcessType')}
+                      emptyText={tCommon('noResults')}
+                      searchPlaceholder={tCommon('search')}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

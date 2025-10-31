@@ -36,55 +36,55 @@ export default defineSchema({
 
   states: defineTable({
     name: v.string(),
-    code: v.string(),
-    countryId: v.id("countries"),
+    code: v.optional(v.string()),
+    countryId: v.optional(v.id("countries")),
   })
     .index("by_country", ["countryId"])
     .index("by_code", ["code"]),
 
   cities: defineTable({
     name: v.string(),
-    stateId: v.id("states"),
-    hasFederalPolice: v.boolean(),
+    stateId: v.optional(v.id("states")),
+    hasFederalPolice: v.optional(v.boolean()),
   }).index("by_state", ["stateId"]),
 
   // Process configuration lookup tables
   processTypes: defineTable({
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
-    category: v.string(),
-    estimatedDays: v.number(),
-    isActive: v.boolean(),
-    sortOrder: v.number(),
+    description: v.optional(v.string()),
+    estimatedDays: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
+    sortOrder: v.optional(v.number()),
   })
-    .index("by_code", ["code"])
     .index("by_active", ["isActive"]),
 
+  // Legal Frameworks - Linked to Process Types
+  // BREAKING CHANGE: Removed 'code' field, added 'processTypeId' foreign key
+  // Migration: Existing records will need processTypeId assigned manually
   legalFrameworks: defineTable({
     name: v.string(),
-    code: v.string(),
-    description: v.string(),
-    isActive: v.boolean(),
+    processTypeId: v.optional(v.id("processTypes")),
+    description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   })
-    .index("by_code", ["code"])
+    .index("by_processType", ["processTypeId"])
     .index("by_active", ["isActive"]),
 
   // Client and people management tables
   people: defineTable({
     fullName: v.string(),
-    email: v.string(),
+    email: v.optional(v.string()),
     cpf: v.optional(v.string()),
-    birthDate: v.string(),
-    birthCityId: v.id("cities"),
-    nationalityId: v.id("countries"),
-    maritalStatus: v.string(),
-    profession: v.string(),
-    motherName: v.string(),
-    fatherName: v.string(),
-    phoneNumber: v.string(),
-    address: v.string(),
-    currentCityId: v.id("cities"),
+    birthDate: v.optional(v.string()),
+    birthCityId: v.optional(v.id("cities")),
+    nationalityId: v.optional(v.id("countries")),
+    maritalStatus: v.optional(v.string()),
+    profession: v.optional(v.string()),
+    motherName: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    address: v.optional(v.string()),
+    currentCityId: v.optional(v.id("cities")),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
     createdAt: v.number(),
@@ -97,14 +97,14 @@ export default defineSchema({
 
   companies: defineTable({
     name: v.string(),
-    taxId: v.string(),
+    taxId: v.optional(v.string()),
     website: v.optional(v.string()),
-    address: v.string(),
+    address: v.optional(v.string()),
     cityId: v.optional(v.id("cities")),
-    phoneNumber: v.string(),
-    email: v.string(),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     contactPersonId: v.optional(v.id("people")),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -114,13 +114,13 @@ export default defineSchema({
     .index("by_active", ["isActive"]),
 
   passports: defineTable({
-    personId: v.id("people"),
+    personId: v.optional(v.id("people")),
     passportNumber: v.string(),
-    issuingCountryId: v.id("countries"),
-    issueDate: v.string(),
-    expiryDate: v.string(),
+    issuingCountryId: v.optional(v.id("countries")),
+    issueDate: v.optional(v.string()),
+    expiryDate: v.optional(v.string()),
     fileUrl: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -130,12 +130,12 @@ export default defineSchema({
     .index("by_active", ["isActive"]),
 
   peopleCompanies: defineTable({
-    personId: v.id("people"),
-    companyId: v.id("companies"),
+    personId: v.optional(v.id("people")),
+    companyId: v.optional(v.id("companies")),
     role: v.string(),
-    startDate: v.string(),
+    startDate: v.optional(v.string()),
     endDate: v.optional(v.string()),
-    isCurrent: v.boolean(),
+    isCurrent: v.optional(v.boolean()),
   })
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
@@ -144,29 +144,47 @@ export default defineSchema({
 
   consulates: defineTable({
     name: v.string(),
-    cityId: v.id("cities"),
-    address: v.string(),
-    phoneNumber: v.string(),
-    email: v.string(),
+    cityId: v.optional(v.id("cities")),
+    address: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     website: v.optional(v.string()),
   })
     .index("by_city", ["cityId"])
     .index("by_name", ["name"]),
 
   cboCodes: defineTable({
-    code: v.string(),
+    code: v.optional(v.string()),
     title: v.string(),
-    description: v.string(),
+    description: v.optional(v.string()),
   })
     .index("by_code", ["code"])
     .index("by_title", ["title"]),
 
+  // Case Status lookup table - replaces hardcoded status strings
+  caseStatuses: defineTable({
+    name: v.string(), // Portuguese name
+    nameEn: v.optional(v.string()), // English translation
+    code: v.string(), // Unique code (em_preparacao, em_tramite, etc.)
+    description: v.optional(v.string()),
+    category: v.optional(v.string()), // Group similar statuses
+    color: v.optional(v.string()), // For UI badges
+    sortOrder: v.number(), // Display order
+    isActive: v.boolean(), // Can be used
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_sortOrder", ["sortOrder"])
+    .index("by_active", ["isActive"])
+    .index("by_category", ["category"]),
+
   documentTypes: defineTable({
     name: v.string(),
-    code: v.string(),
-    category: v.string(),
-    description: v.string(),
-    isActive: v.boolean(),
+    code: v.optional(v.string()),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   })
     .index("by_code", ["code"])
     .index("by_category", ["category"])
@@ -175,15 +193,17 @@ export default defineSchema({
   // Process management tables
   mainProcesses: defineTable({
     referenceNumber: v.string(),
-    companyId: v.id("companies"),
-    contactPersonId: v.id("people"),
-    processTypeId: v.id("processTypes"),
-    workplaceCityId: v.id("cities"),
+    companyId: v.optional(v.id("companies")),
+    contactPersonId: v.optional(v.id("people")),
+    processTypeId: v.optional(v.id("processTypes")),
+    workplaceCityId: v.optional(v.id("cities")),
     consulateId: v.optional(v.id("consulates")),
-    isUrgent: v.boolean(),
-    requestDate: v.string(),
+    isUrgent: v.optional(v.boolean()),
+    requestDate: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // DEPRECATED: Status is now calculated from individual processes, will be removed after migration
     status: v.string(),
+    // DEPRECATED: Completion is now tracked via individual processes, will be removed after migration
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -196,8 +216,10 @@ export default defineSchema({
   individualProcesses: defineTable({
     mainProcessId: v.id("mainProcesses"),
     personId: v.id("people"),
-    status: v.string(),
-    legalFrameworkId: v.id("legalFrameworks"),
+    passportId: v.optional(v.id("passports")), // Reference to the person's passport used for this process
+    status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
+    caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
+    legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
@@ -209,21 +231,39 @@ export default defineSchema({
     rnmDeadline: v.optional(v.string()),
     appointmentDateTime: v.optional(v.string()),
     deadlineDate: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_mainProcess", ["mainProcessId"])
     .index("by_person", ["personId"])
+    .index("by_passport", ["passportId"]) // Index for passport lookups
     .index("by_status", ["status"])
+    .index("by_caseStatus", ["caseStatusId"]) // New index
     .index("by_legalFramework", ["legalFrameworkId"])
     .index("by_active", ["isActive"]),
+
+  // Status history tracking for individual processes (many-to-many)
+  individualProcessStatuses: defineTable({
+    individualProcessId: v.id("individualProcesses"),
+    statusName: v.string(), // DEPRECATED: Kept for backward compatibility during migration
+    caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
+    isActive: v.boolean(), // Only ONE can be true at a time per process
+    notes: v.optional(v.string()),
+    changedBy: v.id("users"),
+    changedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_individualProcess", ["individualProcessId"])
+    .index("by_individualProcess_active", ["individualProcessId", "isActive"])
+    .index("by_caseStatus", ["caseStatusId"]) // New index
+    .index("by_changedAt", ["changedAt"]),
 
   // Documents management
   documents: defineTable({
     name: v.string(),
-    documentTypeId: v.id("documentTypes"),
+    documentTypeId: v.optional(v.id("documentTypes")),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
     storageId: v.optional(v.id("_storage")),
@@ -234,7 +274,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -338,11 +378,11 @@ export default defineSchema({
     individualProcessId: v.optional(v.id("individualProcesses")),
     mainProcessId: v.optional(v.id("mainProcesses")),
     title: v.string(),
-    description: v.string(),
-    dueDate: v.string(),
+    description: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
     priority: v.string(), // "low", "medium", "high", "urgent"
     status: v.string(), // "todo", "in_progress", "completed", "cancelled"
-    assignedTo: v.id("users"),
+    assignedTo: v.optional(v.id("users")),
     createdBy: v.id("users"),
     completedAt: v.optional(v.number()),
     completedBy: v.optional(v.id("users")),
@@ -362,8 +402,10 @@ export default defineSchema({
   // Process history and audit trail
   processHistory: defineTable({
     individualProcessId: v.id("individualProcesses"),
-    previousStatus: v.optional(v.string()),
-    newStatus: v.string(),
+    previousStatus: v.optional(v.string()), // Kept for backward compatibility
+    newStatus: v.string(), // Kept for backward compatibility
+    previousStatusId: v.optional(v.id("individualProcessStatuses")), // New: reference to status record
+    newStatusId: v.optional(v.id("individualProcessStatuses")), // New: reference to status record
     changedBy: v.id("users"),
     changedAt: v.number(),
     notes: v.optional(v.string()),

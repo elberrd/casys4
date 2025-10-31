@@ -7,6 +7,9 @@ import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
 import { internal } from "./_generated/api";
+import { normalizeString } from "./lib/stringUtils";
+import { ensureSingleActiveStatus } from "./lib/statusManagement";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
  * Query to list all individual processes with optional filters
@@ -18,6 +21,7 @@ export const list = query({
     personId: v.optional(v.id("people")),
     status: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -85,15 +89,38 @@ export const list = query({
       filteredResults = filteredByCompany.filter((p) => p !== null) as typeof filteredResults;
     }
 
-    // Enrich with related data
+    // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [person, mainProcess, legalFramework, cbo] = await Promise.all([
+        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
           ctx.db.get(process.personId),
           ctx.db.get(process.mainProcessId),
-          ctx.db.get(process.legalFrameworkId),
+          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
+          // Get active status from new status system
+          ctx.db
+            .query("individualProcessStatuses")
+            .withIndex("by_individualProcess_active", (q) =>
+              q.eq("individualProcessId", process._id).eq("isActive", true)
+            )
+            .first(),
+          // Get case status details
+          process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
+          // Get passport details if passportId exists
+          process.passportId ? ctx.db.get(process.passportId) : null,
         ]);
+
+        // If passport exists, enrich it with issuing country
+        let enrichedPassport = null;
+        if (passport) {
+          const issuingCountry = passport.issuingCountryId
+            ? await ctx.db.get(passport.issuingCountryId)
+            : null;
+          enrichedPassport = {
+            ...passport,
+            issuingCountry,
+          };
+        }
 
         return {
           ...process,
@@ -101,11 +128,33 @@ export const list = query({
           mainProcess,
           legalFramework,
           cbo,
+          activeStatus,
+          caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
+          passport: enrichedPassport,
         };
       }),
     );
 
-    return enrichedResults.sort((a, b) => b.createdAt - a.createdAt);
+    // Apply search filter
+    let searchFilteredResults = enrichedResults;
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      searchFilteredResults = enrichedResults.filter((item) => {
+        const personName = item.person?.fullName ? normalizeString(item.person.fullName) : "";
+        const protocolNumber = item.protocolNumber ? normalizeString(item.protocolNumber) : "";
+        const mreOfficeNumber = item.mreOfficeNumber ? normalizeString(item.mreOfficeNumber) : "";
+        const rnmNumber = item.rnmNumber ? normalizeString(item.rnmNumber) : "";
+
+        return (
+          personName.includes(searchNormalized) ||
+          protocolNumber.includes(searchNormalized) ||
+          mreOfficeNumber.includes(searchNormalized) ||
+          rnmNumber.includes(searchNormalized)
+        );
+      });
+    }
+
+    return searchFilteredResults.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -122,11 +171,22 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, mainProcess, legalFramework, cbo] = await Promise.all([
+    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
       ctx.db.get(process.personId),
       ctx.db.get(process.mainProcessId),
-      ctx.db.get(process.legalFrameworkId),
-      process.cboId ? await ctx.db.get(process.cboId) : null,
+      process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
+      process.cboId ? ctx.db.get(process.cboId) : null,
+      // Get active status from new status system
+      ctx.db
+        .query("individualProcessStatuses")
+        .withIndex("by_individualProcess_active", (q) =>
+          q.eq("individualProcessId", id).eq("isActive", true)
+        )
+        .first(),
+      // Get case status details
+      process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
+      // Get passport details if passportId exists
+      process.passportId ? ctx.db.get(process.passportId) : null,
     ]);
 
     // Check access permissions for client users
@@ -138,25 +198,43 @@ export const get = query({
       }
     }
 
+    // If passport exists, enrich it with issuing country
+    let enrichedPassport = null;
+    if (passport) {
+      const issuingCountry = passport.issuingCountryId
+        ? await ctx.db.get(passport.issuingCountryId)
+        : null;
+      enrichedPassport = {
+        ...passport,
+        issuingCountry,
+      };
+    }
+
     return {
       ...process,
       person,
       mainProcess,
       legalFramework,
       cbo,
+      activeStatus,
+      caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
+      passport: enrichedPassport,
     };
   },
 });
 
 /**
  * Mutation to create individual process (admin only)
+ * Updated to use caseStatusId instead of status string
  */
 export const create = mutation({
   args: {
     mainProcessId: v.id("mainProcesses"),
     personId: v.id("people"),
-    status: v.string(),
-    legalFrameworkId: v.id("legalFrameworks"),
+    passportId: v.optional(v.id("passports")), // Reference to the person's passport
+    caseStatusId: v.id("caseStatuses"), // NEW: Use case status ID
+    status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
+    legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
@@ -176,10 +254,27 @@ export const create = mutation({
 
     const now = Date.now();
 
+    // Get current user ID for status tracking
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Not authenticated");
+    }
+
+    // Validate that case status exists
+    const caseStatus = await ctx.db.get(args.caseStatusId);
+    if (!caseStatus) {
+      throw new Error("Case status not found");
+    }
+
+    // For backward compatibility, derive status string from case status if not provided
+    const statusString = args.status || caseStatus.code;
+
     const processId = await ctx.db.insert("individualProcesses", {
       mainProcessId: args.mainProcessId,
       personId: args.personId,
-      status: args.status,
+      passportId: args.passportId, // Store passport reference
+      caseStatusId: args.caseStatusId, // NEW: Store case status ID
+      status: statusString, // DEPRECATED: Keep for backward compatibility
       legalFrameworkId: args.legalFrameworkId,
       cboId: args.cboId,
       mreOfficeNumber: args.mreOfficeNumber,
@@ -197,14 +292,31 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Create initial status record in the new status system
+    try {
+      await ctx.db.insert("individualProcessStatuses", {
+        individualProcessId: processId,
+        caseStatusId: args.caseStatusId, // NEW: Store case status ID
+        statusName: caseStatus.name, // Store case status name
+        isActive: true,
+        notes: `Initial status: ${caseStatus.name}`,
+        changedBy: userId,
+        changedAt: now,
+        createdAt: now,
+      });
+    } catch (error) {
+      // Log error but don't fail process creation
+      console.error("Failed to create initial status record:", error);
+    }
+
     // Log initial status to history
     try {
       await logStatusChange(
         ctx,
         processId,
         undefined,
-        args.status,
-        `Individual process created with status: ${args.status}`
+        caseStatus.name,
+        `Individual process created with status: ${caseStatus.name}`
       );
     } catch (error) {
       // Log error but don't fail process creation
@@ -234,7 +346,8 @@ export const create = mutation({
         details: {
           personName: person?.fullName,
           mainProcessReference: mainProcess?.referenceNumber,
-          status: args.status,
+          caseStatusName: caseStatus.name, // NEW: Log case status name
+          caseStatusId: args.caseStatusId, // NEW: Log case status ID
           legalFrameworkId: args.legalFrameworkId,
         },
       });
@@ -248,11 +361,14 @@ export const create = mutation({
 
 /**
  * Mutation to update individual process (admin only)
+ * Updated to use caseStatusId instead of status string
  */
 export const update = mutation({
   args: {
     id: v.id("individualProcesses"),
-    status: v.optional(v.string()),
+    passportId: v.optional(v.id("passports")), // Reference to the person's passport
+    caseStatusId: v.optional(v.id("caseStatuses")), // NEW: Use case status ID
+    status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
@@ -276,16 +392,27 @@ export const update = mutation({
       throw new Error("Individual process not found");
     }
 
+    // Validate that new case status exists if provided
+    let newCaseStatus = null;
+    if (args.caseStatusId !== undefined) {
+      newCaseStatus = await ctx.db.get(args.caseStatusId);
+      if (!newCaseStatus) {
+        throw new Error("Case status not found");
+      }
+    }
+
     // Validate status transition if status is being updated
-    if (args.status !== undefined && args.status !== process.status) {
+    const isStatusChanging = args.caseStatusId !== undefined && args.caseStatusId !== process.caseStatusId;
+
+    if (isStatusChanging && process.status && newCaseStatus) {
       const isValid = isValidIndividualStatusTransition(
         process.status,
-        args.status
+        newCaseStatus.code
       );
 
       if (!isValid) {
         throw new Error(
-          `Invalid status transition from "${process.status}" to "${args.status}". This transition is not allowed.`
+          `Invalid status transition from "${process.status}" to "${newCaseStatus.code}". This transition is not allowed.`
         );
       }
     }
@@ -295,7 +422,16 @@ export const update = mutation({
     };
 
     // Only update provided fields
-    if (args.status !== undefined) updates.status = args.status;
+    if (args.caseStatusId !== undefined) {
+      updates.caseStatusId = args.caseStatusId; // NEW: Update case status ID
+      // DEPRECATED: Keep status string in sync for backward compatibility
+      if (newCaseStatus) {
+        updates.status = newCaseStatus.code;
+      }
+    } else if (args.status !== undefined) {
+      // DEPRECATED: Support old status string parameter for backward compatibility
+      updates.status = args.status;
+    }
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;
     if (args.cboId !== undefined) updates.cboId = args.cboId;
@@ -315,36 +451,60 @@ export const update = mutation({
       updates.deadlineDate = args.deadlineDate;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
-    // Mark as completed if status is completed
-    if (args.status === "completed" && !process.completedAt) {
+    // Mark as completed if status is completed (backward compatibility)
+    if ((args.status === "completed" || (newCaseStatus && newCaseStatus.code === "deferido")) && !process.completedAt) {
       updates.completedAt = Date.now();
     }
 
     await ctx.db.patch(id, updates);
 
-    // Log status change to history if status was updated
-    if (args.status !== undefined && args.status !== process.status) {
+    // Log status change to history and create new status record if status was updated
+    if (isStatusChanging && newCaseStatus) {
+      // Get current user ID for status tracking
+      const userId = await getAuthUserId(ctx);
+      if (userId === null) {
+        throw new Error("Not authenticated");
+      }
+
+      // Get old case status name for logging
+      let oldCaseStatusName = process.status;
+      if (process.caseStatusId) {
+        const oldCaseStatus = await ctx.db.get(process.caseStatusId);
+        if (oldCaseStatus) {
+          oldCaseStatusName = oldCaseStatus.name;
+        }
+      }
+
+      // Create new status record with case status ID
+      try {
+        const newStatusId = await ctx.db.insert("individualProcessStatuses", {
+          individualProcessId: id,
+          caseStatusId: args.caseStatusId, // NEW: Store case status ID
+          statusName: newCaseStatus.name, // Store case status name
+          isActive: true,
+          notes: `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`,
+          changedBy: userId,
+          changedAt: Date.now(),
+          createdAt: Date.now(),
+        });
+
+        // Ensure only one status is active
+        await ensureSingleActiveStatus(ctx, id, newStatusId);
+      } catch (error) {
+        console.error("Failed to create new status record:", error);
+      }
+
       await logStatusChange(
         ctx,
         id,
-        process.status,
-        args.status,
-        `Status changed from ${process.status} to ${args.status}`
+        oldCaseStatusName,
+        newCaseStatus.name,
+        `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`
       );
 
       // Auto-generate tasks for the new status
       try {
-        const identity = await ctx.auth.getUserIdentity();
-        if (identity) {
-          const user = await ctx.db
-            .query("users")
-            .filter((q) => q.eq(q.field("email"), identity.email))
-            .first();
-
-          if (user) {
-            await autoGenerateTasksOnStatusChange(ctx, id, args.status, user._id);
-          }
-        }
+        await autoGenerateTasksOnStatusChange(ctx, id, newCaseStatus.code, userId);
       } catch (error) {
         // Log error but don't fail status update
         console.error("Failed to auto-generate tasks:", error);
@@ -371,7 +531,7 @@ export const update = mutation({
               userId: companyUser.userId,
               type: "status_change",
               title: "Individual Process Status Updated",
-              message: `Status changed for ${personName}: ${process.status} → ${args.status}`,
+              message: `Status changed for ${personName}: ${oldCaseStatusName} → ${newCaseStatus.name}`,
               entityType: "individualProcess",
               entityId: id,
             });
@@ -441,6 +601,48 @@ export const remove = mutation({
       ctx.db.get(process.mainProcessId),
     ]);
 
+    // CASCADE DELETE: Delete all related data
+    // 1. Delete related documents delivered
+    const documentsDelivered = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
+      .collect();
+
+    for (const doc of documentsDelivered) {
+      await ctx.db.delete(doc._id);
+    }
+
+    // 2. Delete related individual process statuses
+    const statuses = await ctx.db
+      .query("individualProcessStatuses")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
+      .collect();
+
+    for (const status of statuses) {
+      await ctx.db.delete(status._id);
+    }
+
+    // 3. Delete related process history
+    const history = await ctx.db
+      .query("processHistory")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
+      .collect();
+
+    for (const historyEntry of history) {
+      await ctx.db.delete(historyEntry._id);
+    }
+
+    // 4. Delete related tasks (optional relationship)
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
+      .collect();
+
+    for (const task of tasks) {
+      await ctx.db.delete(task._id);
+    }
+
+    // Finally, delete the individual process itself
     await ctx.db.delete(id);
 
     // Log activity (non-blocking)
@@ -455,6 +657,12 @@ export const remove = mutation({
           mainProcessReference: mainProcess?.referenceNumber,
           status: process.status,
           legalFrameworkId: process.legalFrameworkId,
+          relatedDataDeleted: {
+            documentsDelivered: documentsDelivered.length,
+            statuses: statuses.length,
+            history: history.length,
+            tasks: tasks.length,
+          },
         },
       });
     } catch (error) {
@@ -542,7 +750,7 @@ export const listByMainProcess = query({
       results.map(async (process) => {
         const [person, legalFramework, cbo] = await Promise.all([
           ctx.db.get(process.personId),
-          ctx.db.get(process.legalFrameworkId),
+          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
         ]);
 

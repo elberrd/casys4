@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -34,13 +34,13 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface City {
   _id: Id<"cities">
   name: string
-  stateId: Id<"states">
-  hasFederalPolice: boolean
+  stateId?: Id<"states">
+  hasFederalPolice?: boolean
   state: {
     _id: Id<"states">
     name: string
-    code: string
-    countryId: Id<"countries">
+    code?: string
+    countryId?: Id<"countries">
   } | null
   country: {
     _id: Id<"countries">
@@ -52,11 +52,12 @@ interface City {
 
 interface CitiesTableProps {
   cities: City[]
+  onView?: (id: Id<"cities">) => void
   onEdit: (id: Id<"cities">) => void
   onDelete: (id: Id<"cities">) => void
 }
 
-export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
+export function CitiesTable({ cities, onView, onEdit, onDelete }: CitiesTableProps) {
   const t = useTranslations('Cities')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -75,7 +76,7 @@ export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
       await onDelete(city._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -124,17 +125,27 @@ export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -145,7 +156,7 @@ export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete, deleteConfirmation]
   )
 
   const table = useReactTable({
@@ -158,6 +169,11 @@ export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -168,6 +184,7 @@ export function CitiesTable({ cities, onEdit, onDelete }: CitiesTableProps) {
       table={table}
       recordCount={cities.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

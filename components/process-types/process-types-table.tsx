@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -34,21 +34,20 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface ProcessType {
   _id: Id<"processTypes">
   name: string
-  code: string
-  description: string
-  category: string
-  estimatedDays: number
-  isActive: boolean
-  sortOrder: number
+  description?: string
+  estimatedDays?: number
+  isActive?: boolean
+  sortOrder?: number
 }
 
 interface ProcessTypesTableProps {
   processTypes: ProcessType[]
+  onView?: (id: Id<"processTypes">) => void
   onEdit: (id: Id<"processTypes">) => void
   onDelete: (id: Id<"processTypes">) => void
 }
 
-export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTypesTableProps) {
+export function ProcessTypesTable({ processTypes, onView, onEdit, onDelete }: ProcessTypesTableProps) {
   const t = useTranslations('ProcessTypes')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -67,7 +66,7 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
@@ -81,24 +80,6 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
         ),
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.name} />
-        ),
-      },
-      {
-        accessorKey: "code",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('code')} />
-        ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.code} />
-        ),
-      },
-      {
-        accessorKey: "category",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('category')} />
-        ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.category} />
         ),
       },
       {
@@ -125,17 +106,26 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
+              ...(onView
+                ? [
+                    {
+                      label: tCommon('view'),
+                      icon: <Eye className="h-4 w-4" />,
+                      onClick: () => onView(row.original._id),
+                    },
+                  ]
+                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
-                variant: "default",
+                variant: "default" as const,
               },
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
+                variant: "destructive" as const,
                 separator: true,
               },
             ]}
@@ -146,7 +136,7 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete]
   )
 
   const table = useReactTable({
@@ -159,6 +149,11 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -169,6 +164,7 @@ export function ProcessTypesTable({ processTypes, onEdit, onDelete }: ProcessTyp
       table={table}
       recordCount={processTypes.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

@@ -89,7 +89,7 @@ export function CaseStatusFormDialog({
         nameEn: caseStatus.nameEn || "",
         code: caseStatus.code,
         description: caseStatus.description || "",
-        category: caseStatus.category || "",
+        category: (caseStatus.category || "") as "" | "preparation" | "in_progress" | "review" | "approved" | "completed" | "cancelled",
         color: caseStatus.color || "#3B82F6",
         sortOrder: caseStatus.sortOrder,
       })

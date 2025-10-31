@@ -2,8 +2,6 @@
 
 import * as React from "react"
 import {
-  AudioWaveform,
-  Command,
   FileText,
   FolderKanban,
   GalleryVerticalEnd,
@@ -12,7 +10,6 @@ import {
   ListTodo,
   Settings2,
   Users,
-  ScrollText,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -29,28 +26,14 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useTranslations } from 'next-intl'
 
-const staticData = {
-  teams: [
-    {
-      name: "Acme Inc",
-      logo: GalleryVerticalEnd,
-      plan: "Enterprise",
-    },
-    {
-      name: "Acme Corp.",
-      logo: AudioWaveform,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: Command,
-      plan: "Free",
-    },
-  ],
+const brandingData = {
+  name: "CASys",
+  logo: GalleryVerticalEnd,
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const viewer = useQuery(api.myFunctions.viewer)
+  const userProfile = useQuery(api.userProfiles.getCurrentUser)
   const t = useTranslations('Navigation')
 
   // Build navigation data with translations
@@ -187,15 +170,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ]
 
   const user = {
-    name: viewer ?? "User",
-    email: viewer ?? "user@example.com",
-    avatar: "/avatars/default.svg",
+    name: userProfile?.fullName ?? "User",
+    email: userProfile?.email ?? viewer ?? "user@example.com",
+    avatar: userProfile?.photoUrl ?? "/avatars/default.svg",
   }
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={staticData.teams} />
+        <TeamSwitcher branding={brandingData} />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMain} />

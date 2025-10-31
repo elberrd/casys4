@@ -14,16 +14,16 @@ interface TaskDetailViewProps {
   task: {
     _id: Id<"tasks">
     title: string
-    description: string
+    description?: string
     status: string
     priority: string
-    dueDate: string
+    dueDate?: string
     createdAt: number
     updatedAt: number
     completedAt?: number
     individualProcess?: {
       _id: Id<"individualProcesses">
-      status: string
+      status?: string
       person?: {
         _id: Id<"people">
         fullName: string
@@ -104,7 +104,7 @@ export function TaskDetailView({
   }
 
   // Check if task is overdue
-  const isOverdue = task.status !== "completed" && task.status !== "cancelled" && task.dueDate < new Date().toISOString().split("T")[0]
+  const isOverdue = task.status !== "completed" && task.status !== "cancelled" && task.dueDate && task.dueDate < new Date().toISOString().split("T")[0]
 
   const canComplete = task.status !== "completed" && task.status !== "cancelled"
   const canEdit = task.status !== "completed"

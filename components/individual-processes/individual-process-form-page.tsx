@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -16,16 +16,12 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
-import { useTranslations } from "next-intl"
+import { PersonSelectorWithDetail } from "@/components/individual-processes/person-selector-with-detail"
+import { PassportSelector } from "@/components/individual-processes/passport-selector"
+import { QuickPersonFormDialog } from "@/components/individual-processes/quick-person-form-dialog"
+import { useTranslations, useLocale } from "next-intl"
 import {
   individualProcessSchema,
   IndividualProcessFormData,
@@ -33,6 +29,7 @@ import {
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
 
 interface IndividualProcessFormPageProps {
   individualProcessId?: Id<"individualProcesses">
@@ -45,8 +42,11 @@ export function IndividualProcessFormPage({
 }: IndividualProcessFormPageProps) {
   const t = useTranslations("IndividualProcesses")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
   const { toast } = useToast()
   const router = useRouter()
+
+  const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
 
   const individualProcess = useQuery(
     api.individualProcesses.get,
@@ -54,9 +54,9 @@ export function IndividualProcessFormPage({
   )
 
   const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
-  const people = useQuery(api.people.search, { query: "" }) ?? []
   const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
+  const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
   const updateIndividualProcess = useMutation(api.individualProcesses.update)
@@ -66,7 +66,9 @@ export function IndividualProcessFormPage({
     defaultValues: {
       mainProcessId: "" as Id<"mainProcesses">,
       personId: "" as Id<"people">,
-      status: "",
+      passportId: "",
+      caseStatusId: "" as Id<"caseStatuses">,
+      status: "", // DEPRECATED: Kept for backward compatibility
       legalFrameworkId: "" as Id<"legalFrameworks">,
       cboId: "",
       mreOfficeNumber: "",
@@ -83,13 +85,22 @@ export function IndividualProcessFormPage({
     },
   })
 
+  // Get passports for the selected person
+  const selectedPersonId = form.watch("personId")
+  const personPassports = useQuery(
+    api.passports.listByPerson,
+    selectedPersonId ? { personId: selectedPersonId as Id<"people"> } : "skip"
+  ) ?? []
+
   // Reset form when individual process data loads
   useEffect(() => {
     if (individualProcess) {
       form.reset({
         mainProcessId: individualProcess.mainProcessId,
         personId: individualProcess.personId,
-        status: individualProcess.status,
+        passportId: individualProcess.passportId ?? "",
+        caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
+        status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         legalFrameworkId: individualProcess.legalFrameworkId,
         cboId: individualProcess.cboId ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
@@ -108,7 +119,9 @@ export function IndividualProcessFormPage({
       form.reset({
         mainProcessId: "" as Id<"mainProcesses">,
         personId: "" as Id<"people">,
-        status: "",
+        passportId: "",
+        caseStatusId: "" as Id<"caseStatuses">,
+        status: "", // DEPRECATED: Kept for backward compatibility
         legalFrameworkId: "" as Id<"legalFrameworks">,
         cboId: "",
         mreOfficeNumber: "",
@@ -126,11 +139,46 @@ export function IndividualProcessFormPage({
     }
   }, [individualProcess, individualProcessId, form])
 
+  // Automatically select valid and active passport when person changes
+  useEffect(() => {
+    // Skip if we're editing an existing process (don't override existing passport selection)
+    if (individualProcessId && individualProcess) {
+      return
+    }
+
+    // If person changed, clear the passport field first
+    if (selectedPersonId) {
+      const currentPassportId = form.getValues("passportId")
+      if (currentPassportId) {
+        form.setValue("passportId", "")
+      }
+    }
+
+    // Only proceed if we have a person selected and passports loaded
+    if (!selectedPersonId || personPassports.length === 0) {
+      return
+    }
+
+    // Find a valid and active passport
+    const validActivePassport = personPassports.find(
+      (passport) => passport.isActive && passport.status === "Valid"
+    )
+
+    // If found, automatically select it
+    if (validActivePassport) {
+      form.setValue("passportId", validActivePassport._id)
+    }
+  }, [selectedPersonId, personPassports, individualProcessId, individualProcess, form])
+
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        passportId: data.passportId || undefined,
+        caseStatusId: data.caseStatusId,
+        status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
+        legalFrameworkId: data.legalFrameworkId || undefined,
         cboId: data.cboId || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
         douNumber: data.douNumber || undefined,
@@ -177,14 +225,14 @@ export function IndividualProcessFormPage({
     router.push('/individual-processes')
   }
 
+  const handleQuickPersonSuccess = (personId: Id<"people">) => {
+    form.setValue("personId", personId)
+    setQuickPersonDialogOpen(false)
+  }
+
   const mainProcessOptions = mainProcesses.map((process) => ({
     value: process._id,
     label: process.referenceNumber,
-  }))
-
-  const peopleOptions = people.map((person) => ({
-    value: person._id,
-    label: person.fullName,
   }))
 
   const legalFrameworkOptions = legalFrameworks.map((framework) => ({
@@ -197,18 +245,13 @@ export function IndividualProcessFormPage({
     label: `${cbo.code} - ${cbo.title}`,
   }))
 
-  const statusOptions = [
-    { value: "pending_documents", label: t("statusPendingDocuments") },
-    { value: "documents_submitted", label: t("statusDocumentsSubmitted") },
-    { value: "documents_approved", label: t("statusDocumentsApproved") },
-    { value: "preparing_submission", label: t("statusPreparingSubmission") },
-    { value: "submitted_to_government", label: t("statusSubmittedToGovernment") },
-    { value: "under_government_review", label: t("statusUnderGovernmentReview") },
-    { value: "government_approved", label: t("statusGovernmentApproved") },
-    { value: "government_rejected", label: t("statusGovernmentRejected") },
-    { value: "completed", label: t("statusCompleted") },
-    { value: "cancelled", label: t("statusCancelled") },
-  ]
+  // Build case status options from active case statuses
+  const caseStatusOptions = caseStatuses.map((status) => ({
+    value: status._id,
+    label: locale === "en" && status.nameEn ? status.nameEn : status.name,
+    color: status.color,
+    category: status.category,
+  }))
 
   return (
     <div className="max-w-3xl">
@@ -253,13 +296,23 @@ export function IndividualProcessFormPage({
                 name="personId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("person")}</FormLabel>
+                    <div className="flex items-start justify-between">
+                      <FormLabel>{t("person")}</FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuickPersonDialogOpen(true)}
+                        className="h-7"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("quickAddPerson")}
+                      </Button>
+                    </div>
                     <FormControl>
-                      <Combobox
-                        options={peopleOptions}
+                      <PersonSelectorWithDetail
                         value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectPerson")}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />
@@ -269,28 +322,36 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
-                name="status"
+                name="passportId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("status")}</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("selectStatus")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {statusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t("passport")}</FormLabel>
+                    <FormControl>
+                      <PassportSelector
+                        personId={form.watch("personId")}
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="caseStatusId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("caseStatus")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={caseStatusOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectCaseStatus")}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -537,6 +598,12 @@ export function IndividualProcessFormPage({
             </div>
           </form>
         </Form>
+
+        <QuickPersonFormDialog
+          open={quickPersonDialogOpen}
+          onOpenChange={setQuickPersonDialogOpen}
+          onSuccess={handleQuickPersonSuccess}
+        />
       </div>
     </div>
   )

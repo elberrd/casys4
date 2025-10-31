@@ -12,6 +12,8 @@ import { Id } from "../_generated/dataModel";
  * @param newStatus - The new status being set
  * @param notes - Optional notes explaining the change
  * @param metadata - Optional metadata (JSON object) for additional context
+ * @param previousStatusId - Optional: ID of the previous status record
+ * @param newStatusId - Optional: ID of the new status record
  * @returns The ID of the created history record
  */
 export async function logStatusChange(
@@ -21,6 +23,8 @@ export async function logStatusChange(
   newStatus: string,
   notes?: string,
   metadata?: any,
+  previousStatusId?: Id<"individualProcessStatuses">,
+  newStatusId?: Id<"individualProcessStatuses">,
 ): Promise<Id<"processHistory">> {
   // Get current user ID from auth session
   const userId = await getAuthUserId(ctx);
@@ -29,11 +33,13 @@ export async function logStatusChange(
     throw new Error("Not authenticated");
   }
 
-  // Create history record
+  // Create history record with both old and new system references
   const historyId = await ctx.db.insert("processHistory", {
     individualProcessId,
-    previousStatus,
-    newStatus,
+    previousStatus, // Backward compatibility
+    newStatus, // Backward compatibility
+    previousStatusId, // New system
+    newStatusId, // New system
     changedBy: userId,
     changedAt: Date.now(),
     notes,

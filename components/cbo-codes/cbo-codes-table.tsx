@@ -15,7 +15,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CboCodeFormDialog } from "./cbo-code-form-dialog";
+import { CBOCodeViewModal } from "./cbo-code-view-modal";
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
@@ -50,9 +51,9 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 type CboCode = {
   _id: Id<"cboCodes">;
   _creationTime: number;
-  code: string;
+  code?: string;
   title: string;
-  description: string;
+  description?: string;
 };
 
 export function CboCodesTable() {
@@ -62,6 +63,7 @@ export function CboCodesTable() {
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? [];
   const removeCboCode = useMutation(api.cboCodes.remove);
 
+  const [viewingCboCode, setViewingCboCode] = useState<Id<"cboCodes"> | undefined>();
   const [editingCboCode, setEditingCboCode] = useState<Id<"cboCodes"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -88,7 +90,7 @@ export function CboCodesTable() {
     },
     onSuccess: (count) => {
       toast.success(tCommon("bulkDeleteSuccess", { count }));
-      table.resetRowSelection()
+      setRowSelection({})
     },
     onError: (error, failedCount) => {
       console.error("Error in bulk delete:", error);
@@ -142,6 +144,14 @@ export function CboCodesTable() {
         cell: ({ row }) => {
           const actions = [
             {
+              label: tCommon("view"),
+              icon: <Eye className="h-4 w-4" />,
+              onClick: () => {
+                setViewingCboCode(row.original._id);
+              },
+              variant: "default" as const,
+            },
+            {
               label: tCommon("edit"),
               icon: <Pencil className="h-4 w-4" />,
               onClick: () => {
@@ -179,6 +189,11 @@ export function CboCodesTable() {
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: false,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -190,6 +205,7 @@ export function CboCodesTable() {
         table={table}
         recordCount={cboCodes.length}
         emptyMessage={t("noResults")}
+        onRowClick={(row) => setViewingCboCode(row._id)}
         tableLayout={{
           columnsVisibility: true,
         }}
@@ -222,6 +238,19 @@ export function CboCodesTable() {
           <DataGridPagination />
         </div>
       </DataGrid>
+
+      {viewingCboCode && (
+        <CBOCodeViewModal
+          cboCodeId={viewingCboCode}
+          open={true}
+          onOpenChange={(open) => !open && setViewingCboCode(undefined)}
+          onEdit={() => {
+            setEditingCboCode(viewingCboCode);
+            setViewingCboCode(undefined);
+            setIsFormOpen(true);
+          }}
+        />
+      )}
 
       <CboCodeFormDialog
         open={isFormOpen}

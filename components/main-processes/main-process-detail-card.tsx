@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { useRouter } from "next/navigation"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -30,9 +30,9 @@ interface MainProcessDetailCardProps {
   mainProcess: {
     _id: Id<"mainProcesses">
     referenceNumber: string
-    status: string
-    isUrgent: boolean
-    requestDate: string
+    status: string // DEPRECATED: Kept for backward compatibility
+    isUrgent?: boolean
+    requestDate?: string
     notes?: string
     createdAt: number
     updatedAt: number
@@ -66,8 +66,21 @@ interface MainProcessDetailCardProps {
     } | null
     individualProcesses?: Array<{
       _id: Id<"individualProcesses">
-      status: string
+      status?: string
     }>
+    // NEW: Calculated status from individual processes
+    calculatedStatus?: {
+      displayText: string
+      displayTextEn: string
+      breakdown: Array<{
+        caseStatusId: string
+        caseStatusName: string
+        caseStatusNameEn?: string
+        count: number
+      }>
+      totalProcesses: number
+      hasMultipleStatuses: boolean
+    }
   }
 }
 
@@ -76,6 +89,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   const tCommon = useTranslations('Common')
   const router = useRouter()
   const { toast } = useToast()
+  const locale = useLocale()
 
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -84,9 +98,10 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   const [cancelIndividuals, setCancelIndividuals] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  const completeProcess = useMutation(api.mainProcesses.complete)
-  const cancelProcess = useMutation(api.mainProcesses.cancel)
-  const reopenProcess = useMutation(api.mainProcesses.reopen)
+  // TODO: Remove these - status is now calculated from individual processes
+  // const completeProcess = useMutation(api.mainProcesses.complete)
+  // const cancelProcess = useMutation(api.mainProcesses.cancel)
+  // const reopenProcess = useMutation(api.mainProcesses.reopen)
 
   const handleEdit = () => {
     router.push(`/main-processes/${mainProcess._id}/edit`)
@@ -99,85 +114,86 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   // Check if all individuals are completed or cancelled
   const allIndividualsComplete = (mainProcess.individualProcesses || []).every(
     (ip) => ip.status === "completed" || ip.status === "cancelled"
-  )
+  ) && (mainProcess.individualProcesses?.length ?? 0) > 0
 
-  const handleComplete = async () => {
-    setIsLoading(true)
-    try {
-      await completeProcess({ id: mainProcess._id })
-      toast({
-        title: t('completeSuccess'),
-        description: t('completeSuccessDescription'),
-      })
-      setCompleteDialogOpen(false)
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: t('completeError'),
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // TODO: Remove these handlers - status is now calculated automatically
+  // const handleComplete = async () => {
+  //   setIsLoading(true)
+  //   try {
+  //     await completeProcess({ id: mainProcess._id })
+  //     toast({
+  //       title: t('completeSuccess'),
+  //       description: t('completeSuccessDescription'),
+  //     })
+  //     setCompleteDialogOpen(false)
+  //     router.refresh()
+  //   } catch (error: any) {
+  //     toast({
+  //       title: t('completeError'),
+  //       description: error.message,
+  //       variant: "destructive",
+  //     })
+  //   } finally {
+  //     setIsLoading(false)
+  //   }
+  // }
 
-  const handleCancel = async () => {
-    if (!cancelNotes.trim()) {
-      toast({
-        title: t('cancelError'),
-        description: t('cancelNotesRequired'),
-        variant: "destructive",
-      })
-      return
-    }
+  // const handleCancel = async () => {
+  //   if (!cancelNotes.trim()) {
+  //     toast({
+  //       title: t('cancelError'),
+  //       description: t('cancelNotesRequired'),
+  //       variant: "destructive",
+  //     })
+  //     return
+  //   }
 
-    setIsLoading(true)
-    try {
-      await cancelProcess({
-        id: mainProcess._id,
-        notes: cancelNotes,
-        cancelIndividuals,
-      })
-      toast({
-        title: t('cancelSuccess'),
-        description: t('cancelSuccessDescription'),
-      })
-      setCancelDialogOpen(false)
-      setCancelNotes("")
-      setCancelIndividuals(false)
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: t('cancelError'),
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  //   setIsLoading(true)
+  //   try {
+  //     await cancelProcess({
+  //       id: mainProcess._id,
+  //       notes: cancelNotes,
+  //       cancelIndividuals,
+  //     })
+  //     toast({
+  //       title: t('cancelSuccess'),
+  //       description: t('cancelSuccessDescription'),
+  //     })
+  //     setCancelDialogOpen(false)
+  //     setCancelNotes("")
+  //     setCancelIndividuals(false)
+  //     router.refresh()
+  //   } catch (error: any) {
+  //     toast({
+  //       title: t('cancelError'),
+  //       description: error.message,
+  //       variant: "destructive",
+  //     })
+  //   } finally {
+  //     setIsLoading(false)
+  //   }
+  // }
 
-  const handleReopen = async () => {
-    setIsLoading(true)
-    try {
-      await reopenProcess({ id: mainProcess._id })
-      toast({
-        title: t('reopenSuccess'),
-        description: t('reopenSuccessDescription'),
-      })
-      setReopenDialogOpen(false)
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: t('reopenError'),
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // const handleReopen = async () => {
+  //   setIsLoading(true)
+  //   try {
+  //     await reopenProcess({ id: mainProcess._id })
+  //     toast({
+  //       title: t('reopenSuccess'),
+  //       description: t('reopenSuccessDescription'),
+  //     })
+  //     setReopenDialogOpen(false)
+  //     router.refresh()
+  //   } catch (error: any) {
+  //     toast({
+  //       title: t('reopenError'),
+  //       description: error.message,
+  //       variant: "destructive",
+  //     })
+  //   } finally {
+  //     setIsLoading(false)
+  //   }
+  // }
 
   return (
     <Card>
@@ -195,8 +211,35 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={mainProcess.status} type="main_process" />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {/* Display calculated status if available */}
+              {mainProcess.calculatedStatus ? (
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {t('status')}:
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {locale === 'en'
+                        ? mainProcess.calculatedStatus.displayTextEn
+                        : mainProcess.calculatedStatus.displayText}
+                    </span>
+                  </div>
+                  {/* Show breakdown if multiple statuses */}
+                  {mainProcess.calculatedStatus.hasMultipleStatuses && (
+                    <div className="flex flex-wrap gap-1">
+                      {mainProcess.calculatedStatus.breakdown.map((item, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {item.count} {locale === 'en' && item.caseStatusNameEn ? item.caseStatusNameEn : item.caseStatusName}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Fallback to old status for backward compatibility
+                <StatusBadge status={mainProcess.status} type="main_process" />
+              )}
               {mainProcess.processType && (
                 <Badge variant="outline">{mainProcess.processType.name}</Badge>
               )}
@@ -208,29 +251,30 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
               {tCommon('edit')}
             </Button>
 
-            {/* Mark Complete Button - visible when in_progress and all individuals are done */}
-            {mainProcess.status === "in_progress" && allIndividualsComplete && (
+            {/* TODO: Status action buttons deprecated - main process status is now calculated automatically */}
+            {/* Mark Complete Button - DEPRECATED - status now calculated from individual processes */}
+            {/* {mainProcess.status === "in_progress" && allIndividualsComplete && (
               <Button onClick={() => setCompleteDialogOpen(true)} variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 {t('markComplete')}
               </Button>
-            )}
+            )} */}
 
-            {/* Cancel Button - visible when not cancelled */}
-            {mainProcess.status !== "cancelled" && mainProcess.status !== "completed" && (
+            {/* Cancel Button - DEPRECATED - status now calculated from individual processes */}
+            {/* {mainProcess.status !== "cancelled" && mainProcess.status !== "completed" && (
               <Button onClick={() => setCancelDialogOpen(true)} variant="destructive">
                 <XCircle className="mr-2 h-4 w-4" />
                 {t('cancelProcess')}
               </Button>
-            )}
+            )} */}
 
-            {/* Reopen Button - visible when completed or cancelled */}
-            {(mainProcess.status === "completed" || mainProcess.status === "cancelled") && (
+            {/* Reopen Button - DEPRECATED - status now calculated from individual processes */}
+            {/* {(mainProcess.status === "completed" || mainProcess.status === "cancelled") && (
               <Button onClick={() => setReopenDialogOpen(true)} variant="outline">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 {t('reopenProcess')}
               </Button>
-            )}
+            )} */}
           </div>
         </div>
       </CardHeader>
@@ -341,8 +385,9 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
         </div>
       </CardContent>
 
-      {/* Complete Dialog */}
-      <AlertDialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
+      {/* TODO: These dialogs are deprecated - main process status is now calculated from individual processes */}
+      {/* Complete Dialog - DEPRECATED */}
+      {/* <AlertDialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('completeDialogTitle')}</AlertDialogTitle>
@@ -359,10 +404,10 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
 
-      {/* Cancel Dialog */}
-      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+      {/* Cancel Dialog - DEPRECATED */}
+      {/* <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('cancelDialogTitle')}</AlertDialogTitle>
@@ -406,10 +451,10 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
 
-      {/* Reopen Dialog */}
-      <AlertDialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
+      {/* Reopen Dialog - DEPRECATED */}
+      {/* <AlertDialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('reopenDialogTitle')}</AlertDialogTitle>
@@ -426,7 +471,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
     </Card>
   )
 }

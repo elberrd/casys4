@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Helper function to determine if the current user can access a specific document
@@ -64,6 +65,7 @@ export const list = query({
     documentTypeId: v.optional(v.id("documentTypes")),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
@@ -118,7 +120,7 @@ export const list = query({
     // Fetch related data for each document
     const documentsWithRelations = await Promise.all(
       documents.map(async (doc) => {
-        const documentType = await ctx.db.get(doc.documentTypeId);
+        const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
         const person = doc.personId ? await ctx.db.get(doc.personId) : null;
         const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
 
@@ -139,6 +141,20 @@ export const list = query({
         };
       })
     );
+
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return documentsWithRelations.filter((doc) => {
+        const fileName = doc.fileName ? normalizeString(doc.fileName) : "";
+        const documentTypeName = doc.documentType?.name ? normalizeString(doc.documentType.name) : "";
+
+        return (
+          fileName.includes(searchNormalized) ||
+          documentTypeName.includes(searchNormalized)
+        );
+      });
+    }
 
     return documentsWithRelations;
   },
@@ -162,7 +178,7 @@ export const get = query({
       );
     }
 
-    const documentType = await ctx.db.get(document.documentTypeId);
+    const documentType = document.documentTypeId ? await ctx.db.get(document.documentTypeId) : null;
     const person = document.personId ? await ctx.db.get(document.personId) : null;
     const company = document.companyId ? await ctx.db.get(document.companyId) : null;
 
@@ -210,7 +226,7 @@ export const create = mutation({
     notes: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -237,7 +253,7 @@ export const create = mutation({
       notes: args.notes,
       issueDate: args.issueDate,
       expiryDate: args.expiryDate,
-      isActive: args.isActive,
+      isActive: args.isActive ?? true,
       createdAt: now,
       updatedAt: now,
     });
@@ -263,7 +279,7 @@ export const update = mutation({
     notes: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
-    isActive: v.boolean(),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -291,6 +307,7 @@ export const update = mutation({
 
     await ctx.db.patch(id, {
       ...updates,
+      isActive: updates.isActive ?? true,
       fileUrl,
       updatedAt: now,
     });

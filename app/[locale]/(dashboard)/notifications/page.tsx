@@ -1,153 +1,21 @@
-"use client"
+import { getTranslations } from 'next-intl/server'
+import type { Metadata } from 'next'
+import { NotificationsClient } from './notifications-client'
 
-import { useTranslations } from "next-intl"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { DashboardPageHeader } from "@/components/dashboard-page-header"
-import { NotificationsTable } from "@/components/notifications/notifications-table"
-import { Id } from "@/convex/_generated/dataModel"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "@/i18n/routing"
+type Props = {
+  params: Promise<{ locale: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'Notifications' })
+
+  return {
+    title: t('notifications'),
+    description: t('description'),
+  }
+}
 
 export default function NotificationsPage() {
-  const t = useTranslations("Notifications")
-  const tCommon = useTranslations("Common")
-  const { toast } = useToast()
-  const router = useRouter()
-
-  const notifications = useQuery(api.notifications.getUserNotifications, {
-    limit: 100,
-  })
-  const markAsRead = useMutation(api.notifications.markAsRead)
-  const markAllAsRead = useMutation(api.notifications.markAllAsRead)
-  const deleteNotification = useMutation(api.notifications.deleteNotification)
-
-  const handleView = async (id: Id<"notifications">) => {
-    const notification = notifications?.find((n) => n._id === id)
-    if (!notification) return
-
-    // Mark as read
-    if (!notification.isRead) {
-      try {
-        await markAsRead({ notificationId: id })
-      } catch (error) {
-        console.error("Failed to mark notification as read:", error)
-      }
-    }
-
-    // Navigate to entity if available
-    if (notification.entityType && notification.entityId) {
-      const entityRoutes: Record<string, string> = {
-        mainProcess: `/main-processes/${notification.entityId}`,
-        individualProcess: `/individual-processes/${notification.entityId}`,
-        task: `/tasks/${notification.entityId}`,
-        document: `/individual-processes/${notification.entityId}`,
-      }
-
-      const route = entityRoutes[notification.entityType]
-      if (route) {
-        router.push(route)
-      }
-    }
-  }
-
-  const handleDelete = async (id: Id<"notifications">) => {
-    try {
-      await deleteNotification({ notificationId: id })
-      toast({
-        title: tCommon("success"),
-        description: t("notificationDeleted"),
-      })
-    } catch (error) {
-      toast({
-        title: tCommon("error"),
-        description: tCommon("somethingWentWrong"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleMarkAsRead = async (id: Id<"notifications">) => {
-    try {
-      await markAsRead({ notificationId: id })
-      toast({
-        title: tCommon("success"),
-        description: t("markedAsRead"),
-      })
-    } catch (error) {
-      toast({
-        title: tCommon("error"),
-        description: tCommon("somethingWentWrong"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleBulkDelete = async (ids: Id<"notifications">[]) => {
-    try {
-      await Promise.all(ids.map((id) => deleteNotification({ notificationId: id })))
-      toast({
-        title: tCommon("success"),
-        description: t("notificationsDeleted", { count: ids.length }),
-      })
-    } catch (error) {
-      toast({
-        title: tCommon("error"),
-        description: tCommon("somethingWentWrong"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleBulkMarkAsRead = async (ids: Id<"notifications">[]) => {
-    try {
-      await Promise.all(
-        ids.map((id) => {
-          const notification = notifications?.find((n) => n._id === id)
-          if (notification && !notification.isRead) {
-            return markAsRead({ notificationId: id })
-          }
-          return Promise.resolve()
-        })
-      )
-      toast({
-        title: tCommon("success"),
-        description: t("notificationsMarkedAsRead", { count: ids.length }),
-      })
-    } catch (error) {
-      toast({
-        title: tCommon("error"),
-        description: tCommon("somethingWentWrong"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  const breadcrumbs = [
-    { label: t("notifications"), href: "/notifications" },
-  ]
-
-  return (
-    <>
-      <DashboardPageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="rounded-lg border bg-card p-4">
-          {!notifications ? (
-            <div className="flex items-center justify-center p-8">
-              <p className="text-sm text-muted-foreground">{tCommon("loading")}</p>
-            </div>
-          ) : (
-            <NotificationsTable
-              notifications={notifications}
-              onView={handleView}
-              onDelete={handleDelete}
-              onMarkAsRead={handleMarkAsRead}
-              onBulkDelete={handleBulkDelete}
-              onBulkMarkAsRead={handleBulkMarkAsRead}
-            />
-          )}
-        </div>
-      </div>
-    </>
-  )
+  return <NotificationsClient />
 }

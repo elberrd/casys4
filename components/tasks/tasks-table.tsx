@@ -34,14 +34,14 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface Task {
   _id: Id<"tasks">
   title: string
-  description: string
+  description?: string
   status: string
   priority: string
-  dueDate: string
+  dueDate?: string
   createdAt: number
   individualProcess?: {
     _id: Id<"individualProcesses">
-    status: string
+    status?: string
     person?: {
       _id: Id<"people">
       fullName: string
@@ -103,13 +103,13 @@ export function TasksTable({
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
-      table.resetRowSelection()
+      setRowSelection({})
     },
   })
 
   // Helper to check if task is overdue
-  const isOverdue = (dueDate: string, status: string) => {
-    if (status === "completed" || status === "cancelled") return false
+  const isOverdue = (dueDate: string | undefined, status: string) => {
+    if (!dueDate || status === "completed" || status === "cancelled") return false
     const today = new Date().toISOString().split("T")[0]
     return dueDate < today
   }
@@ -186,11 +186,13 @@ export function TasksTable({
           <DataGridColumnHeader column={column} title={t('dueDate')} />
         ),
         cell: ({ row }) => {
-          const overdue = isOverdue(row.original.dueDate, row.original.status)
+          const dueDate = row.original.dueDate
+          if (!dueDate) return <span className="text-sm text-muted-foreground">-</span>
+          const overdue = isOverdue(dueDate, row.original.status)
           return (
             <div className="flex items-center gap-2">
               <span className={overdue ? "text-destructive font-medium" : "text-sm"}>
-                {row.original.dueDate}
+                {dueDate}
               </span>
               {overdue && (
                 <Badge variant="destructive" className="text-xs">
@@ -324,6 +326,11 @@ export function TasksTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     state: {
       rowSelection,
     },
@@ -334,6 +341,7 @@ export function TasksTable({
       table={table}
       recordCount={tasks.length}
       emptyMessage={t('noResults')}
+      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

@@ -1,81 +1,21 @@
-"use client"
+import { getTranslations } from 'next-intl/server'
+import type { Metadata } from 'next'
+import { CitiesClient } from './cities-client'
 
-import { useState } from "react"
-import { DashboardPageHeader } from "@/components/dashboard-page-header"
-import { useTranslations } from "next-intl"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
-import { CityFormDialog } from "@/components/cities/city-form-dialog"
-import { CitiesTable } from "@/components/cities/cities-table"
-import { Id } from "@/convex/_generated/dataModel"
+type Props = {
+  params: Promise<{ locale: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'Cities' })
+
+  return {
+    title: t('title'),
+    description: t('description'),
+  }
+}
 
 export default function CitiesPage() {
-  const t = useTranslations('Cities')
-  const tBreadcrumbs = useTranslations('Breadcrumbs')
-  const tCommon = useTranslations('Common')
-
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingId, setEditingId] = useState<Id<"cities"> | null>(null)
-
-  const cities = useQuery(api.cities.listWithRelations) ?? []
-  const deleteCity = useMutation(api.cities.remove)
-
-  const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
-    { label: tBreadcrumbs('supportData') },
-    { label: tBreadcrumbs('cities') }
-  ]
-
-  const handleEdit = (id: Id<"cities">) => {
-    setEditingId(id)
-  }
-
-  const handleDelete = async (id: Id<"cities">) => {
-    if (confirm(t('deleteConfirm'))) {
-      try {
-        await deleteCity({ id })
-      } catch (error) {
-        console.error("Error deleting city:", error)
-        alert(t('errorDelete'))
-      }
-    }
-  }
-
-  return (
-    <>
-      <DashboardPageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {tCommon('create')}
-          </Button>
-        </div>
-
-        <CitiesTable
-          cities={cities}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-
-        <CityFormDialog
-          open={isCreateOpen}
-          onOpenChange={setIsCreateOpen}
-          onSuccess={() => setIsCreateOpen(false)}
-        />
-
-        {editingId && (
-          <CityFormDialog
-            open={true}
-            onOpenChange={(open) => !open && setEditingId(null)}
-            cityId={editingId}
-            onSuccess={() => setEditingId(null)}
-          />
-        )}
-      </div>
-    </>
-  )
+  return <CitiesClient />
 }

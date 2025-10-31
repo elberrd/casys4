@@ -83,13 +83,20 @@ export function StateFormDialog({
 
   const onSubmit = async (data: StateFormData) => {
     try {
+      // Clean optional fields - convert empty strings to undefined
+      const submitData = {
+        ...data,
+        code: data.code || undefined,
+        countryId: data.countryId === "" ? undefined : data.countryId,
+      }
+
       if (stateId) {
-        await updateState({ id: stateId, ...data })
+        await updateState({ id: stateId, ...submitData })
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        await createState(data)
+        await createState(submitData)
         toast({
           title: t('createdSuccess'),
         })

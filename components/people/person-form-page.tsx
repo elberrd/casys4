@@ -22,9 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { CPFInput } from "@/components/ui/cpf-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
+import { PassportsSubtable } from "@/components/people/passports-subtable"
 import { useTranslations } from "next-intl"
 import { personSchema, PersonFormData, maritalStatusOptions } from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
@@ -101,10 +103,21 @@ export function PersonFormPage({
 
   const onSubmit = async (data: PersonFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        email: data.email || undefined,
         cpf: data.cpf || undefined,
+        birthDate: data.birthDate || undefined,
+        birthCityId: data.birthCityId || undefined,
+        nationalityId: data.nationalityId || undefined,
+        maritalStatus: data.maritalStatus || undefined,
+        profession: data.profession || undefined,
+        motherName: data.motherName || undefined,
+        fatherName: data.fatherName || undefined,
+        phoneNumber: data.phoneNumber || undefined,
+        address: data.address || undefined,
+        currentCityId: data.currentCityId || undefined,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
       }
@@ -206,7 +219,7 @@ export function PersonFormPage({
                     <FormItem>
                       <FormLabel>{t('cpf')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="000.000.000-00" {...field} />
+                        <CPFInput {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -453,6 +466,14 @@ export function PersonFormPage({
             </div>
           </form>
         </Form>
+
+        {/* Passports Section - Only show when editing existing person */}
+        {personId && (
+          <div className="mt-8">
+            <Separator className="mb-6" />
+            <PassportsSubtable personId={personId} />
+          </div>
+        )}
       </div>
     </div>
   )

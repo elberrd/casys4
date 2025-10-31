@@ -215,6 +215,7 @@ export function DataGridRowActions({
             size="icon-sm"
             className={className}
             aria-label={tCommon("moreActions")}
+            onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -223,7 +224,10 @@ export function DataGridRowActions({
           {actions.map((action, index) => (
             <div key={index}>
               <DropdownMenuItem
-                onClick={() => handleActionClick(action)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleActionClick(action)
+                }}
                 className={
                   action.variant === "destructive"
                     ? "text-destructive focus:text-destructive"

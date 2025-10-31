@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
+import { normalizeString } from "./lib/stringUtils";
 
 /**
  * Query to list all tasks with optional filters
@@ -17,6 +18,7 @@ export const list = query({
     priority: v.optional(v.string()),
     dueDate: v.optional(v.string()),
     overdue: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -88,7 +90,7 @@ export const list = query({
         (task) =>
           task.status !== "completed" &&
           task.status !== "cancelled" &&
-          task.dueDate < today
+          task.dueDate && task.dueDate < today
       );
     }
 
@@ -134,7 +136,7 @@ export const list = query({
           await Promise.all([
             task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
             task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
-            ctx.db.get(task.assignedTo),
+            task.assignedTo ? ctx.db.get(task.assignedTo) : null,
             ctx.db.get(task.createdBy),
             task.completedBy ? ctx.db.get(task.completedBy) : null,
           ]);
@@ -218,6 +220,20 @@ export const list = query({
       })
     );
 
+    // Apply search filter
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      return enrichedResults.filter((task) => {
+        const title = normalizeString(task.title);
+        const description = task.description ? normalizeString(task.description) : "";
+
+        return (
+          title.includes(searchNormalized) ||
+          description.includes(searchNormalized)
+        );
+      });
+    }
+
     return enrichedResults;
   },
 });
@@ -266,7 +282,7 @@ export const get = query({
       await Promise.all([
         task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
         task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
-        ctx.db.get(task.assignedTo),
+        task.assignedTo ? ctx.db.get(task.assignedTo) : null,
         ctx.db.get(task.createdBy),
         task.completedBy ? ctx.db.get(task.completedBy) : null,
       ]);
@@ -377,7 +393,7 @@ export const getMyTasks = query({
         (task) =>
           task.status !== "completed" &&
           task.status !== "cancelled" &&
-          task.dueDate < today
+          task.dueDate && task.dueDate < today
       );
     }
 
@@ -458,7 +474,7 @@ export const getOverdueTasks = query({
       (task) =>
         task.status !== "completed" &&
         task.status !== "cancelled" &&
-        task.dueDate < today
+        task.dueDate && task.dueDate < today
     );
 
     // Enrich with related data
@@ -467,7 +483,7 @@ export const getOverdueTasks = query({
         const [individualProcess, mainProcess, assignedToUser] = await Promise.all([
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
           task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
-          ctx.db.get(task.assignedTo),
+          task.assignedTo ? ctx.db.get(task.assignedTo) : null,
         ]);
 
         const assignedToProfile = assignedToUser
@@ -780,7 +796,7 @@ export const reassign = mutation({
 
     // Get previous and new assignee details
     const [previousAssignee, newAssignee] = await Promise.all([
-      ctx.db.get(task.assignedTo),
+      task.assignedTo ? ctx.db.get(task.assignedTo) : null,
       assignedToUser,
     ]);
 
@@ -1272,7 +1288,7 @@ export const bulkUpdateTaskStatus = mutation({
         }
 
         // Send notification to assignee about status change (non-blocking)
-        if (task.assignedTo !== adminProfile.userId && args.newStatus === "completed") {
+        if (task.assignedTo && task.assignedTo !== adminProfile.userId && args.newStatus === "completed") {
           try {
             await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
               userId: task.assignedTo,

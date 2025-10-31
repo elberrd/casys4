@@ -8,9 +8,24 @@ export const individualProcessSchema = z.object({
   personId: z.custom<Id<"people">>((val) => typeof val === "string", {
     message: "Person is required",
   }),
-  status: z.string().min(1, "Status is required"),
+  passportId: z
+    .custom<Id<"passports">>((val) => typeof val === "string", {
+      message: "Invalid passport ID",
+    })
+    .optional()
+    .or(z.literal("")),
+  caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
+    message: "Case status is required",
+  }),
+  status: z.string().optional().or(z.literal("")), // DEPRECATED: Kept for backward compatibility
+  activeStatusId: z
+    .custom<Id<"individualProcessStatuses">>((val) => typeof val === "string", {
+      message: "Invalid status ID",
+    })
+    .optional()
+    .or(z.literal("")),
   legalFrameworkId: z.custom<Id<"legalFrameworks">>((val) => typeof val === "string", {
-    message: "Legal framework is required",
+    message: "Legal framework ID must be valid",
   }),
   cboId: z
     .custom<Id<"cboCodes">>((val) => typeof val === "string", {
@@ -28,7 +43,7 @@ export const individualProcessSchema = z.object({
   rnmDeadline: z.string().optional().or(z.literal("")),
   appointmentDateTime: z.string().optional().or(z.literal("")),
   deadlineDate: z.string().optional().or(z.literal("")),
-  isActive: z.boolean(),
+  isActive: z.boolean().optional(),
 });
 
 export type IndividualProcessFormData = z.infer<typeof individualProcessSchema>;

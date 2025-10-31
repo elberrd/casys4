@@ -85,13 +85,19 @@ export function CityFormDialog({
 
   const onSubmit = async (data: CityFormData) => {
     try {
+      // Convert empty string to undefined for stateId
+      const submitData = {
+        ...data,
+        stateId: data.stateId === "" ? undefined : data.stateId,
+      }
+
       if (cityId) {
-        await updateCity({ id: cityId, ...data })
+        await updateCity({ id: cityId, ...submitData })
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        await createCity(data)
+        await createCity(submitData)
         toast({
           title: t('createdSuccess'),
         })
