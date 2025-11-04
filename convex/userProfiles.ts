@@ -3,6 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import { getCurrentUserProfile } from "./lib/auth";
 
 /**
  * Query to get the current authenticated user's profile
@@ -392,6 +393,69 @@ export const update = mutation({
 });
 
 /**
+ * Mutation to update only the isActive status of a user (admin only)
+ */
+export const updateActiveStatus = mutation({
+  args: {
+    id: v.id("userProfiles"),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Authentication required");
+    }
+
+    // Get current user's profile
+    const currentUser = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Access denied: Admin role required");
+    }
+
+    // Get target user profile
+    const targetUser = await ctx.db.get(args.id);
+    if (!targetUser) {
+      throw new Error("Target user profile not found");
+    }
+
+    // Prevent deactivating own account
+    if (currentUser._id === args.id && !args.isActive) {
+      throw new Error("Cannot deactivate your own account");
+    }
+
+    await ctx.db.patch(args.id, {
+      isActive: args.isActive,
+      updatedAt: Date.now(),
+    });
+
+    // Log activity (non-blocking)
+    try {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userId,
+        action: args.isActive ? "activated" : "deactivated",
+        entityType: "userProfile",
+        entityId: args.id,
+        details: {
+          email: targetUser.email,
+          fullName: targetUser.fullName,
+          changes: {
+            isActive: { before: targetUser.isActive, after: args.isActive },
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return args.id;
+  },
+});
+
+/**
  * Mutation to delete a user profile (admin only)
  */
 export const remove = mutation({
@@ -445,6 +509,230 @@ export const remove = mutation({
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
+  },
+});
+
+/**
+ * Mutation to pre-register a user (admin only)
+ * Creates a user profile without an associated auth account
+ * The user can later activate their account by signing up with the pre-registered email
+ */
+export const preRegisterUser = mutation({
+  args: {
+    email: v.string(),
+    fullName: v.string(),
+    role: v.union(v.literal("admin"), v.literal("client")),
+    companyId: v.optional(v.id("companies")),
+    phoneNumber: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    const currentUser = await getCurrentUserProfile(ctx);
+    if (currentUser.role !== "admin") {
+      throw new Error("Access denied: Admin role required");
+    }
+
+    // Validate email uniqueness
+    const existingUser = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (existingUser) {
+      throw new Error("Email already exists");
+    }
+
+    // Validate role/company relationship
+    if (args.role === "client" && !args.companyId) {
+      throw new Error("Client users must have a company");
+    }
+
+    if (args.role === "admin" && args.companyId) {
+      throw new Error("Admin users cannot be assigned to a company");
+    }
+
+    const now = Date.now();
+
+    // Insert user profile without userId (will be linked during sign up)
+    const userProfileId = await ctx.db.insert("userProfiles", {
+      userId: undefined as any, // Will be set when user activates account
+      email: args.email,
+      fullName: args.fullName,
+      role: args.role,
+      companyId: args.companyId,
+      phoneNumber: args.phoneNumber,
+      photoUrl: undefined,
+      isActive: false, // Inactive until user activates account
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Log activity
+    try {
+      const company = args.companyId ? await ctx.db.get(args.companyId) : null;
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: currentUser.userId,
+        action: "pre_registered",
+        entityType: "userProfile",
+        entityId: userProfileId,
+        details: {
+          email: args.email,
+          fullName: args.fullName,
+          role: args.role,
+          companyName: company?.name,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return userProfileId;
+  },
+});
+
+/**
+ * Query to check if an email is pre-registered
+ * Returns true if email exists in userProfiles but has no userId
+ * Public query (no authentication required) - needed for sign-up flow
+ */
+export const checkPreRegisteredEmail = query({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, { email }) => {
+    const userProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!userProfile) {
+      return {
+        isPreRegistered: false,
+        userProfile: null,
+      };
+    }
+
+    // Check if profile has no userId (pre-registered but not activated)
+    const isPreRegistered = !userProfile.userId;
+
+    if (isPreRegistered) {
+      // Fetch company name if user is a client
+      let companyName: string | null = null;
+      if (userProfile.companyId) {
+        const company = await ctx.db.get(userProfile.companyId);
+        companyName = company?.name ?? null;
+      }
+
+      return {
+        isPreRegistered: true,
+        userProfile: {
+          role: userProfile.role,
+          companyId: userProfile.companyId,
+          companyName,
+          fullName: userProfile.fullName,
+        },
+      };
+    }
+
+    return {
+      isPreRegistered: false,
+      userProfile: null,
+    };
+  },
+});
+
+/**
+ * Mutation to reset a user's password (admin only)
+ * Allows admin to set a new password for any user account
+ *
+ * TODO: Complete implementation after resolving lucia import issue
+ */
+export const resetUserPassword = mutation({
+  args: {
+    userProfileId: v.id("userProfiles"),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    const currentUser = await getCurrentUserProfile(ctx);
+    if (currentUser.role !== "admin") {
+      throw new Error("Access denied: Admin role required");
+    }
+
+    // Get target user profile
+    const targetUser = await ctx.db.get(args.userProfileId);
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
+
+    // Prevent admin from resetting their own password (use normal password change flow)
+    if (currentUser._id === args.userProfileId) {
+      throw new Error("Cannot reset your own password. Please use the password change flow.");
+    }
+
+    // Check if user has an auth account (userId exists)
+    if (!targetUser.userId) {
+      throw new Error("User has not activated their account yet");
+    }
+
+    // Validate password strength (minimum 8 characters)
+    if (args.newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+
+    // TODO: Implement password hashing and reset
+    // Blocked by lucia import issue - need to find alternative approach
+    throw new Error("Password reset feature is not yet fully implemented");
+
+    // // Hash the new password using Scrypt (same as @convex-dev/auth default)
+    // const hashedPassword = await new Scrypt().hash(args.newPassword);
+
+    // // Find the password auth account for this user
+    // const authAccount = await ctx.db
+    //   .query("authAccounts")
+    //   .withIndex("userIdAndProvider", (q) =>
+    //     q.eq("userId", targetUser.userId).eq("provider", "password")
+    //   )
+    //   .first();
+
+    // if (!authAccount) {
+    //   throw new Error("No password account found for this user");
+    // }
+
+    // // Update the password in authAccounts table
+    // await ctx.db.patch(authAccount._id, {
+    //   secret: hashedPassword,
+    // });
+
+    // // Invalidate all existing sessions for security
+    // const sessions = await ctx.db
+    //   .query("authSessions")
+    //   .withIndex("userId", (q) => q.eq("userId", targetUser.userId))
+    //   .collect();
+
+    // for (const session of sessions) {
+    //   await ctx.db.delete(session._id);
+    // }
+
+    // // Log activity
+    // try {
+    //   await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+    //     userId: currentUser.userId,
+    //     action: "password_reset",
+    //     entityType: "userProfile",
+    //     entityId: args.userProfileId,
+    //     details: {
+    //       targetUserEmail: targetUser.email,
+    //       targetUserName: targetUser.fullName,
+    //       sessionsInvalidated: sessions.length,
+    //     },
+    //   });
+    // } catch (error) {
+    //   console.error("Failed to log activity:", error);
+    // }
+
+    // return { success: true };
   },
 });
 

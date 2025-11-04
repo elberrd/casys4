@@ -41,6 +41,7 @@ interface EntityViewModalProps<T> {
   loadingText?: string
   editButtonText?: string
   children?: ReactNode
+  customHeader?: ReactNode
 }
 
 const sizeClasses: Record<EntityViewModalSize, string> = {
@@ -63,6 +64,7 @@ export function EntityViewModal<T>({
   loadingText,
   editButtonText,
   children,
+  customHeader,
 }: EntityViewModalProps<T>) {
   const tCommon = useTranslations("Common")
 
@@ -95,6 +97,7 @@ export function EntityViewModal<T>({
           </div>
         ) : (
           <ScrollArea className="max-h-[calc(90vh-100px)] px-6 pb-6">
+            {customHeader && <div className="mb-4">{customHeader}</div>}
             <div className="space-y-6 pt-2">
               {sections.map((section, sectionIndex) => (
                 <Card key={sectionIndex}>

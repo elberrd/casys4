@@ -98,6 +98,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      lucia:
+        specifier: ^3.2.2
+        version: 3.2.2
       lucide-react:
         specifier: ^0.546.0
         version: 0.546.0(react@19.2.0)

@@ -138,7 +138,7 @@ export function createRelationshipField(
 export function createBadgeField(
   label: string,
   value: string | null | undefined,
-  variant: "default" | "secondary" | "destructive" | "outline" = "default",
+  variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" = "default",
   options?: {
     icon?: ReactNode
     className?: string

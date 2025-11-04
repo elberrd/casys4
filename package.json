@@ -42,6 +42,7 @@
     "convex": "^1.27.0",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",
+    "lucia": "^3.2.2",
     "lucide-react": "^0.546.0",
     "negotiator": "^1.0.0",
     "next": "15.5.4",
