@@ -581,7 +581,7 @@ export const create = mutation({
       priority: args.priority,
       status: "todo",
       assignedTo: args.assignedTo,
-      createdBy: userProfile.userId,
+      createdBy: userProfile.userId!,
       createdAt: now,
       updatedAt: now,
     });
@@ -615,6 +615,7 @@ export const create = mutation({
             .first()
         : null;
 
+    if (!userProfile.userId) throw new Error("User must be activated");
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: userProfile.userId,
         action: "created",
@@ -708,6 +709,7 @@ export const update = mutation({
         }
       });
 
+    if (!userProfile.userId) throw new Error("User must be activated");
       if (Object.keys(changedFields).length > 0) {
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
           userId: userProfile.userId,
@@ -749,6 +751,7 @@ export const complete = mutation({
       updatedAt: Date.now(),
     });
 
+    if (!userProfile.userId) throw new Error("User must be activated");
     // Log activity (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
@@ -831,6 +834,7 @@ export const reassign = mutation({
     } catch (error) {
       console.error("Failed to create task reassignment notification:", error);
     }
+    if (!userProfile.userId) throw new Error("User must be activated");
 
     // Log activity (non-blocking)
     try {
@@ -894,6 +898,7 @@ export const remove = mutation({
       throw new Error("Task not found");
     }
 
+    if (!userProfile.userId) throw new Error("User must be activated");
     await ctx.db.delete(id);
 
     // Log activity (non-blocking)
@@ -994,7 +999,7 @@ export const bulkCreateTasks = mutation({
           priority: args.priority,
           status: "todo",
           assignedTo: assignedToId,
-          createdBy: adminProfile.userId,
+          createdBy: adminProfile.userId!,
           createdAt: now,
           updatedAt: now,
         });
@@ -1007,7 +1012,7 @@ export const bulkCreateTasks = mutation({
         // Log activity (non-blocking)
         try {
           await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
+            userId: adminProfile.userId!,
             action: "bulk_create_task",
             entityType: "task",
             entityId: taskId,
@@ -1026,7 +1031,7 @@ export const bulkCreateTasks = mutation({
         if (assignedToId !== adminProfile.userId) {
           try {
             await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
-              userId: assignedToId,
+              userId: assignedToId!,
               type: "task_assigned",
               title: "New Task Assigned",
               message: `You have been assigned a new task: "${args.title}"`,
@@ -1048,7 +1053,7 @@ export const bulkCreateTasks = mutation({
     // Log bulk operation summary (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
+        userId: adminProfile.userId!,
         action: "bulk_create_tasks_completed",
         entityType: "task",
         entityId: "bulk",
@@ -1138,7 +1143,7 @@ export const bulkReassignTasks = mutation({
         // Log activity (non-blocking)
         try {
           await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
+            userId: adminProfile.userId!,
             action: "bulk_reassign_task",
             entityType: "task",
             entityId: taskId,
@@ -1179,7 +1184,7 @@ export const bulkReassignTasks = mutation({
     // Log bulk operation summary (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
+        userId: adminProfile.userId!,
         action: "bulk_reassign_tasks_completed",
         entityType: "task",
         entityId: "bulk",
@@ -1273,7 +1278,7 @@ export const bulkUpdateTaskStatus = mutation({
         // Log activity (non-blocking)
         try {
           await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
+            userId: adminProfile.userId!,
             action: "bulk_update_task_status",
             entityType: "task",
             entityId: taskId,
@@ -1313,7 +1318,7 @@ export const bulkUpdateTaskStatus = mutation({
     // Log bulk operation summary (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
+        userId: adminProfile.userId!,
         action: "bulk_update_task_status_completed",
         entityType: "task",
         entityId: "bulk",

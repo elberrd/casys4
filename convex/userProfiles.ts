@@ -6,6 +6,34 @@ import { internal } from "./_generated/api";
 import { getCurrentUserProfile } from "./lib/auth";
 
 /**
+ * USER LIFECYCLE DOCUMENTATION
+ *
+ * This system supports two user creation workflows:
+ *
+ * 1. PRE-REGISTRATION FLOW (Admin creates user before they sign up):
+ *    Step 1: Admin calls `preRegisterUser` mutation
+ *            → Creates userProfile with userId=undefined, isActive=false
+ *            → User receives invitation email
+ *    Step 2: User signs up via Convex Auth
+ *            → Convex Auth creates record in "users" table
+ *    Step 3: User activation (currently manual, can be automated)
+ *            → System finds userProfile matching the user's email
+ *            → Updates userProfile with userId from auth, sets isActive=true
+ *            → User can now access the system
+ *
+ * 2. DIRECT SIGNUP FLOW (User signs up first):
+ *    Step 1: User signs up via Convex Auth
+ *            → Creates record in "users" table
+ *    Step 2: Profile creation (currently manual via `create` mutation)
+ *            → Admin creates userProfile with userId, isActive=true
+ *            → User can immediately access the system
+ *
+ * NOTE: The afterUserCreatedOrUpdated callback in auth.ts is currently disabled
+ * due to type issues. When re-enabled, it could automate Step 3 of the
+ * pre-registration flow by automatically linking profiles when users sign up.
+ */
+
+/**
  * Query to get the current authenticated user's profile
  * Returns null if not authenticated or profile not found
  */
@@ -184,7 +212,7 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
     email: v.string(),
     fullName: v.string(),
     role: v.union(v.literal("admin"), v.literal("client")),
@@ -555,7 +583,7 @@ export const preRegisterUser = mutation({
 
     // Insert user profile without userId (will be linked during sign up)
     const userProfileId = await ctx.db.insert("userProfiles", {
-      userId: undefined as any, // Will be set when user activates account
+      userId: undefined, // Will be set when user activates account
       email: args.email,
       fullName: args.fullName,
       role: args.role,
@@ -572,7 +600,7 @@ export const preRegisterUser = mutation({
       const company = args.companyId ? await ctx.db.get(args.companyId) : null;
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: currentUser.userId,
+        userId: currentUser.userId!,
         action: "pre_registered",
         entityType: "userProfile",
         entityId: userProfileId,

@@ -295,7 +295,7 @@ export const create = mutation({
     // Log activity (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId: userProfile.userId!,
         action: "created",
         entityType: "mainProcess",
         entityId: processId,
@@ -399,7 +399,7 @@ export const update = mutation({
 
       if (Object.keys(changedFields).length > 0) {
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-          userId: userProfile.userId,
+          userId: userProfile.userId!,
           action: args.status && args.status !== process.status ? "status_changed" : "updated",
           entityType: "mainProcess",
           entityId: id,
@@ -462,7 +462,7 @@ export const remove = mutation({
     // Log activity (non-blocking)
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId: userProfile.userId!,
         action: "deleted",
         entityType: "mainProcess",
         entityId: id,

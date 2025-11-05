@@ -221,18 +221,20 @@ export const bulkImportPeople = mutation({
 
         results.successful.push(personId);
 
-        // Log activity
-        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-          userId: admin.userId,
-          action: "bulk_import_person",
-          entityType: "people",
-          entityId: personId,
-          details: {
-            fullName: personData.fullName,
-            email: personData.email,
-            importIndex: i + 1,
-          },
-        });
+        // Log activity (only if user has userId)
+        if (admin.userId) {
+          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+            userId: admin.userId,
+            action: "bulk_import_person",
+            entityType: "people",
+            entityId: personId,
+            details: {
+              fullName: personData.fullName,
+              email: personData.email,
+              importIndex: i + 1,
+            },
+          });
+        }
       } catch (error) {
         results.failed.push({
           index: i + 1,
@@ -242,18 +244,20 @@ export const bulkImportPeople = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: admin.userId,
-      action: "bulk_import_people_completed",
-      entityType: "people",
-      entityId: "bulk",
-      details: {
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-      },
-    });
+    // Log bulk operation summary (only if user has userId)
+    if (admin.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: admin.userId,
+        action: "bulk_import_people_completed",
+        entityType: "people",
+        entityId: "bulk",
+        details: {
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
 
     return results;
   },
@@ -348,35 +352,37 @@ export const bulkCreateIndividualProcesses = mutation({
         // Generate document checklist for this individual process
         await generateDocumentChecklist(ctx, individualProcessId);
 
-        // Create initial status record with case status ID
-        await ctx.db.insert("individualProcessStatuses", {
-          individualProcessId,
-          caseStatusId: args.caseStatusId, // NEW: Store case status ID
-          statusName: caseStatus.name, // Store case status name
-          isActive: true,
-          createdAt: Date.now(),
-          changedAt: Date.now(),
-          changedBy: admin.userId,
-          notes: "Initial status on bulk creation",
-        });
+        // Create initial status record with case status ID (only if admin has userId)
+        if (admin.userId) {
+          await ctx.db.insert("individualProcessStatuses", {
+            individualProcessId,
+            caseStatusId: args.caseStatusId, // NEW: Store case status ID
+            statusName: caseStatus.name, // Store case status name
+            isActive: true,
+            createdAt: Date.now(),
+            changedAt: Date.now(),
+            changedBy: admin.userId,
+            notes: "Initial status on bulk creation",
+          });
+
+          // Log activity
+          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+            userId: admin.userId,
+            action: "bulk_create_individual_process",
+            entityType: "individualProcesses",
+            entityId: individualProcessId,
+            details: {
+              personId,
+              personName: person.fullName,
+              mainProcessId: args.mainProcessId,
+              caseStatusId: args.caseStatusId,
+              caseStatusName: caseStatus.name,
+              status: statusString, // DEPRECATED: Keep for backward compatibility
+            },
+          });
+        }
 
         results.successful.push(individualProcessId);
-
-        // Log activity
-        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-          userId: admin.userId,
-          action: "bulk_create_individual_process",
-          entityType: "individualProcesses",
-          entityId: individualProcessId,
-          details: {
-            personId,
-            personName: person.fullName,
-            mainProcessId: args.mainProcessId,
-            caseStatusId: args.caseStatusId,
-            caseStatusName: caseStatus.name,
-            status: statusString, // DEPRECATED: Keep for backward compatibility
-          },
-        });
       } catch (error) {
         results.failed.push({
           personId,
@@ -385,19 +391,21 @@ export const bulkCreateIndividualProcesses = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: admin.userId,
-      action: "bulk_create_individual_processes_completed",
-      entityType: "individualProcesses",
-      entityId: "bulk",
-      details: {
-        mainProcessId: args.mainProcessId,
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-      },
-    });
+    // Log bulk operation summary (only if admin has userId)
+    if (admin.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: admin.userId,
+        action: "bulk_create_individual_processes_completed",
+        entityType: "individualProcesses",
+        entityId: "bulk",
+        details: {
+          mainProcessId: args.mainProcessId,
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
 
     return results;
   },
@@ -486,8 +494,8 @@ export const bulkUpdateIndividualProcessStatus = mutation({
           await ctx.db.patch(oldStatus._id, { isActive: false });
         }
 
-        // Create new status record with case status ID
-        if (newCaseStatus) {
+        // Create new status record with case status ID (only if admin has userId)
+        if (newCaseStatus && admin.userId) {
           await ctx.db.insert("individualProcessStatuses", {
             individualProcessId: processId,
             caseStatusId: args.newCaseStatusId!,
@@ -498,35 +506,35 @@ export const bulkUpdateIndividualProcessStatus = mutation({
             changedBy: admin.userId,
             notes: args.reason || "Bulk status update",
           });
+
+          // Get person for logging
+          const person = await ctx.db.get(process.personId);
+
+          // Get old case status for logging
+          const oldCaseStatus = process.caseStatusId
+            ? await ctx.db.get(process.caseStatusId)
+            : null;
+
+          // Log activity
+          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+            userId: admin.userId,
+            action: "bulk_update_status",
+            entityType: "individualProcesses",
+            entityId: processId,
+            details: {
+              personName: person?.fullName,
+              previousCaseStatusId: process.caseStatusId,
+              previousCaseStatusName: oldCaseStatus?.name,
+              previousStatus: process.status, // DEPRECATED: Keep for backward compatibility
+              newCaseStatusId: args.newCaseStatusId,
+              newCaseStatusName: newCaseStatus?.name,
+              newStatus: args.newStatus, // DEPRECATED: Keep for backward compatibility
+              reason: args.reason,
+            },
+          });
         }
 
         results.successful.push(processId);
-
-        // Get person for logging
-        const person = await ctx.db.get(process.personId);
-
-        // Get old case status for logging
-        const oldCaseStatus = process.caseStatusId
-          ? await ctx.db.get(process.caseStatusId)
-          : null;
-
-        // Log activity
-        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-          userId: admin.userId,
-          action: "bulk_update_status",
-          entityType: "individualProcesses",
-          entityId: processId,
-          details: {
-            personName: person?.fullName,
-            previousCaseStatusId: process.caseStatusId,
-            previousCaseStatusName: oldCaseStatus?.name,
-            previousStatus: process.status, // DEPRECATED: Keep for backward compatibility
-            newCaseStatusId: args.newCaseStatusId,
-            newCaseStatusName: newCaseStatus?.name,
-            newStatus: args.newStatus, // DEPRECATED: Keep for backward compatibility
-            reason: args.reason,
-          },
-        });
       } catch (error) {
         results.failed.push({
           processId,
@@ -535,19 +543,21 @@ export const bulkUpdateIndividualProcessStatus = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: admin.userId,
-      action: "bulk_update_status_completed",
-      entityType: "individualProcesses",
-      entityId: "bulk",
-      details: {
-        newStatus: args.newStatus,
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-      },
-    });
+    // Log bulk operation summary (only if admin has userId)
+    if (admin.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: admin.userId,
+        action: "bulk_update_status_completed",
+        entityType: "individualProcesses",
+        entityId: "bulk",
+        details: {
+          newStatus: args.newStatus,
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
 
     return results;
   },

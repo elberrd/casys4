@@ -54,7 +54,7 @@ interface Task {
   } | null
   assignedToUser?: {
     _id: string
-    userId: Id<"users">
+    userId: Id<"users"> | undefined
     fullName: string
     email: string
   } | null

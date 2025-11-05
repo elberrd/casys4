@@ -153,8 +153,8 @@ export function BulkReassignTasksDialog({
                       <SelectValue placeholder={t("selectNewAssignee")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {adminUsers.map((user) => (
-                        <SelectItem key={user.userId} value={user.userId}>
+                      {adminUsers.filter(user => user.userId).map((user) => (
+                        <SelectItem key={user.userId} value={user.userId!}>
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4" />
                             {user.fullName || user.email}

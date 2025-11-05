@@ -180,23 +180,25 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Log activity (non-blocking)
+    // Log activity (non-blocking, only if user has userId)
     try {
-      const city = args.cityId ? await ctx.db.get(args.cityId) : null;
+      if (userProfile.userId) {
+        const city = args.cityId ? await ctx.db.get(args.cityId) : null;
 
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "created",
-        entityType: "company",
-        entityId: companyId,
-        details: {
-          name: args.name,
-          taxId: args.taxId,
-          email: args.email,
-          cityName: city?.name,
-          isActive: args.isActive ?? true,
-        },
-      });
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "created",
+          entityType: "company",
+          entityId: companyId,
+          details: {
+            name: args.name,
+            taxId: args.taxId,
+            email: args.email,
+            cityName: city?.name,
+            isActive: args.isActive ?? true,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -281,7 +283,7 @@ export const update = mutation({
         changedFields.isActive = { before: company.isActive, after: data.isActive };
       }
 
-      if (Object.keys(changedFields).length > 0) {
+      if (Object.keys(changedFields).length > 0 && userProfile.userId) {
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
           userId: userProfile.userId,
           action: data.isActive === false && company.isActive === true ? "deactivated" : "updated",
@@ -327,19 +329,21 @@ export const remove = mutation({
 
     await ctx.db.delete(id);
 
-    // Log activity (non-blocking)
+    // Log activity (non-blocking, only if user has userId)
     try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "deleted",
-        entityType: "company",
-        entityId: id,
-        details: {
-          name: company.name,
-          taxId: company.taxId,
-          email: company.email,
-        },
-      });
+      if (userProfile.userId) {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "deleted",
+          entityType: "company",
+          entityId: id,
+          details: {
+            name: company.name,
+            taxId: company.taxId,
+            email: company.email,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }

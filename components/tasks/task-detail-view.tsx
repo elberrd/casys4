@@ -36,19 +36,19 @@ interface TaskDetailViewProps {
     } | null
     assignedToUser?: {
       _id: string
-      userId: Id<"users">
+      userId: Id<"users"> | undefined
       fullName: string
       email: string
     } | null
     createdByUser?: {
       _id: string
-      userId: Id<"users">
+      userId: Id<"users"> | undefined
       fullName: string
       email: string
     } | null
     completedByUser?: {
       _id: string
-      userId: Id<"users">
+      userId: Id<"users"> | undefined
       fullName: string
       email: string
     } | null

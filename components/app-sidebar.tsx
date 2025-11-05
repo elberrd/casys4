@@ -88,16 +88,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         },
       ],
     },
-    ...(userProfile?.role === "admin"
-      ? [
-          {
-            title: t('users'),
-            url: "/users",
-            icon: Users,
-            items: [],
-          },
-        ]
-      : []),
     {
       title: t('documentsManagement'),
       url: "#",
@@ -167,6 +157,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "#",
       icon: Settings2,
       items: [
+        ...(userProfile?.role === "admin"
+          ? [
+              {
+                title: t('users'),
+                url: "/users",
+              },
+            ]
+          : []),
         {
           title: t('settings'),
           url: "/settings",

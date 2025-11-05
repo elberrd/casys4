@@ -188,7 +188,7 @@ export const create = mutation({
       requestDate: args.requestDate,
       notes: args.notes,
       status: "pending",
-      createdBy: profile.userId,
+      createdBy: profile.userId!,
       createdAt: now,
       updatedAt: now,
     });

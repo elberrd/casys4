@@ -37,7 +37,7 @@ export const migrateToStatusRelationship = internalMutation({
 
       let systemUserId: Id<"users">;
       if (adminProfile) {
-        systemUserId = adminProfile.userId;
+        systemUserId = adminProfile.userId!;
       } else {
         // Fallback to first user if no admin found
         const users = await ctx.db.query("users").first();

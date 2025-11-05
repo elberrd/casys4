@@ -339,7 +339,7 @@ export const create = mutation({
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId: userProfile.userId!,
         action: "created",
         entityType: "individualProcess",
         entityId: processId,
@@ -525,16 +525,18 @@ export const update = mutation({
 
           const personName = person.fullName;
 
-          // Create notifications for all company users
+          // Create notifications for all company users (only those with userId)
           for (const companyUser of companyUsers) {
-            await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
-              userId: companyUser.userId,
-              type: "status_change",
-              title: "Individual Process Status Updated",
-              message: `Status changed for ${personName}: ${oldCaseStatusName} → ${newCaseStatus.name}`,
-              entityType: "individualProcess",
-              entityId: id,
-            });
+            if (companyUser.userId) {
+              await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+                userId: companyUser.userId,
+                type: "status_change",
+                title: "Individual Process Status Updated",
+                message: `Status changed for ${personName}: ${oldCaseStatusName} → ${newCaseStatus.name}`,
+                entityType: "individualProcess",
+                entityId: id,
+              });
+            }
           }
         }
       } catch (error) {
@@ -561,6 +563,7 @@ export const update = mutation({
           ctx.db.get(process.mainProcessId),
         ]);
 
+    if (!userProfile.userId) throw new Error("User must be activated");
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
           userId: userProfile.userId,
           action: args.status && args.status !== process.status ? "status_changed" : "updated",
@@ -646,6 +649,7 @@ export const remove = mutation({
     await ctx.db.delete(id);
 
     // Log activity (non-blocking)
+    if (!userProfile.userId) throw new Error("User must be activated");
     try {
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: userProfile.userId,

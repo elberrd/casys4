@@ -172,6 +172,11 @@ export const create = mutation({
     // Require admin role
     const userProfile = await requireAdmin(ctx);
 
+    // Ensure user has userId (pre-registered users cannot create templates)
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before creating templates");
+    }
+
     const now = Date.now();
 
     // Get the highest version number for templates with the same processType
@@ -203,7 +208,7 @@ export const create = mutation({
       version: maxVersion + 1,
       createdAt: now,
       updatedAt: now,
-      createdBy: userProfile.userId,
+      createdBy: userProfile.userId!, // Safe: checked above
     });
 
     return templateId;
@@ -299,6 +304,11 @@ export const clone = mutation({
     // Require admin role
     const userProfile = await requireAdmin(ctx);
 
+    // Ensure user has userId (pre-registered users cannot clone templates)
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before cloning templates");
+    }
+
     const template = await ctx.db.get(id);
     if (!template) {
       throw new Error("Document template not found");
@@ -335,7 +345,7 @@ export const clone = mutation({
       version: maxVersion + 1,
       createdAt: now,
       updatedAt: now,
-      createdBy: userProfile.userId,
+      createdBy: userProfile.userId!, // Safe: checked above
     });
 
     // Get all requirements from the original template

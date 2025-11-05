@@ -1,669 +1,306 @@
-# TODO: User Management System Implementation
+# TODO: Fix User Creation Error & Move Users to Settings
 
 ## Context
 
-Implement a comprehensive user management system that allows admin users to pre-register users, manage their accounts, reset passwords, and control access. The system integrates with Convex Auth and @convex-dev/auth for authentication, extending the existing userProfiles table functionality.
+Two issues need to be addressed:
+
+1. **User Creation Error**: The `preRegisterUser` function in `convex/userProfiles.ts` is failing because it attempts to insert a userProfile with `userId: undefined`, but the schema requires `userId: v.id("users")`. The system is designed to pre-register users before they sign up, but there's a mismatch between the pre-registration flow and the schema requirements.
+
+2. **Sidebar Navigation**: The "Users" menu item should be moved inside the Settings section instead of being a standalone menu item at the root level.
 
 ## Related PRD Sections
 
-- Section 10.1: User Roles and Permissions (Admin and Client roles)
-- Section 10.2: Process Management Workflow
-- Section 10.6: Security and Access Control
+- Section 10.1: User Roles and Permissions
+- Section 10.4: Complete Convex Database Schema - userProfiles table (lines 578-596)
+- The PRD describes a two-role system (admin/client) with pre-registration workflow
+
+## Problem Analysis
+
+### Issue 1: Schema Mismatch
+- **Current Schema** (`convex/schema.ts`, line 13): `userId: v.id("users")` - REQUIRED field
+- **Current Code** (`convex/userProfiles.ts`, line 558): Tries to insert `userId: undefined as any`
+- **Root Cause**: The schema requires userId to be a valid ID, but pre-registration happens before the user record in the "users" table exists
+- **Disabled Callback**: The `afterUserCreatedOrUpdated` callback in `convex/auth.ts` is commented out (lines 6-47), which was meant to link pre-registered profiles to actual users
+
+### Issue 2: Navigation Structure
+- **Current Location**: Users menu is a standalone item at lines 91-100 in `components/app-sidebar.tsx`
+- **Desired Location**: Should be nested under the Settings section (lines 165-179)
 
 ## Task Sequence
 
-### 0. Project Structure Analysis (ALWAYS FIRST)
+### 0. Project Structure Analysis
 
-**Objective**: Understand the project structure and determine correct file/folder locations for user management features
+**Objective**: Understand the authentication flow and file locations for both fixes
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing project structure for user-related files
-  - Validation: Identify folder structure: `/convex/userProfiles.ts`, `/convex/auth.ts`, `/app/[locale]/(dashboard)/*/page.tsx`, `/components/*/`
-  - Output: Document the relevant folder structure for this feature
-  - Files to review:
-    - `/convex/userProfiles.ts` - existing user profile mutations/queries
-    - `/convex/auth.ts` - authentication configuration
-    - `/app/[locale]/(dashboard)/companies/page.tsx` - pattern for page structure
-    - `/components/companies/` - pattern for component organization
-    - `/components/app-sidebar.tsx` - navigation configuration
-    - `/messages/en.json` and `/messages/pt.json` - i18n structure
+- [x] 0.1: Review the user creation and authentication flow
+  - Validation: Understand how Convex Auth creates users and how profiles are linked
+  - Output: The "users" table is managed by Convex Auth, userProfiles is our custom table
+  - Key Finding: `afterUserCreatedOrUpdated` callback is disabled, preventing profile linking
 
-- [x] 0.2: Identify where new files should be created based on PRD guidelines
-  - Validation: Ensure new files follow established naming conventions and folder hierarchy
-  - Output: List exact file paths that will be created/modified
-  - New files to create:
-    - `/app/[locale]/(dashboard)/users/page.tsx` - main users page
-    - `/app/[locale]/(dashboard)/users/users-client.tsx` - client component
-    - `/components/users/users-table.tsx` - table component
-    - `/components/users/create-user-dialog.tsx` - creation dialog
-    - `/components/users/edit-user-dialog.tsx` - edit dialog
-    - `/components/users/reset-password-dialog.tsx` - password reset dialog
-    - `/components/users/user-view-modal.tsx` - view modal
-  - Files to modify:
-    - `/convex/userProfiles.ts` - add new mutations
-    - `/convex/auth.ts` - add sign up callback
-    - `/components/app-sidebar.tsx` - add users menu item
-    - `/messages/en.json` - add English translations
-    - `/messages/pt.json` - add Portuguese translations
+- [x] 0.2: Identify files that need modification
+  - Validation: List all files to be changed
+  - Output:
+    - `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts` - Make userId optional
+    - `/Users/elberrd/Documents/Development/clientes/casys4/convex/userProfiles.ts` - Update preRegisterUser, create, and other mutations
+    - `/Users/elberrd/Documents/Development/clientes/casys4/convex/auth.ts` - Re-enable callback (optional enhancement)
+    - `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx` - Move Users menu
 
-- [x] 0.3: Check for existing similar implementations to maintain consistency
-  - Validation: Review existing code patterns that should be followed
-  - Output: Note architectural patterns to replicate
-  - Patterns to follow:
-    - Companies page structure: `/app/[locale]/(dashboard)/companies/` (page.tsx + companies-client.tsx)
-    - Table component pattern: `/components/companies/companies-table.tsx`
-    - Dialog component pattern: `/components/companies/company-form-dialog.tsx`
-    - Modal component pattern: `/components/companies/company-view-modal.tsx`
-    - Navigation pattern: `/components/app-sidebar.tsx` with i18n
-    - Convex mutation pattern: `/convex/userProfiles.ts` (existing CRUD operations)
+- [x] 0.3: Review existing similar patterns
+  - Validation: Check how other optional foreign keys are handled in schema
+  - Output: Many tables already use `v.optional(v.id("..."))` pattern (e.g., passports, companies, etc.)
 
 #### Quality Checklist:
 
 - [x] PRD structure reviewed and understood
 - [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified and will be followed
-- [x] No duplicate functionality will be created
+- [x] Authentication flow understood
+- [x] Schema patterns identified
 
 ---
 
-## Backend Implementation (Convex)
+### 1. Fix User Profile Schema to Support Pre-Registration
 
-### 1. Add Pre-Registration Mutation
-
-**Objective**: Create mutation to pre-register users without creating auth account, allowing admin to set up users before they activate their accounts
+**Objective**: Modify the userProfiles schema to allow userId to be optional, supporting the pre-registration workflow
 
 #### Sub-tasks:
 
-- [x] 1.1: Add `preRegisterUser` mutation to `/convex/userProfiles.ts`
-  - Implementation: Create mutation that inserts only userProfile record without userId
-  - Fields: email, fullName, role, companyId (if client), isActive (default false)
-  - Validation:
-    - Admin role required (use existing pattern from `create` mutation)
-    - Email uniqueness check (query userProfiles by email index)
-    - Role/company relationship validation (client must have companyId, admin cannot have companyId)
-    - Use Zod schema for input validation
-  - Dependencies: None (uses existing authentication helpers)
+- [ ] 1.1: Update userProfiles schema in `convex/schema.ts`
+  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`, line 13
+  - Change: `userId: v.id("users")` ’ `userId: v.optional(v.id("users"))`
+  - Validation: Schema still enforces type safety while allowing pre-registration
+  - Rationale: Pre-registered users don't have a userId yet; it gets assigned when they activate their account
 
-- [ ] 1.2: Test pre-registration mutation
-  - Validation: Test via Convex dashboard
-  - Test cases:
-    - Admin can pre-register admin user (no companyId)
-    - Admin can pre-register client user (with companyId)
-    - Client cannot call mutation (permission denied)
-    - Duplicate email rejected
-    - Invalid role/company combinations rejected
+- [ ] 1.2: Remove the type cast workaround in preRegisterUser
+  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/userProfiles.ts`, line 558
+  - Change: `userId: undefined as any` ’ `userId: undefined`
+  - Validation: No more type casting needed; TypeScript accepts undefined for optional field
+  - Clean Code: Removes the unsafe `as any` type assertion
 
-#### Quality Checklist:
+- [ ] 1.3: Update the create mutation to handle userId properly
+  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/userProfiles.ts`, line 233
+  - Review: Ensure the create mutation properly validates that userId is provided
+  - Add validation: If userId is required for regular creation, add explicit check
+  - Validation: Regular user creation (not pre-registration) must have userId
 
-- [x] TypeScript types defined (no `any`)
-- [x] Zod validation implemented for all inputs
-- [ ] i18n keys added for error messages (will be added with frontend)
-- [x] Clean code principles followed (follows existing mutation pattern)
-- [x] Error handling implemented (descriptive error messages)
-- [x] Access control enforced (admin only)
-- [x] Activity logging included (using existing pattern)
-
-### 2. Add Query to Check Pre-Registered Email
-
-**Objective**: Create public query to check if email is pre-registered (exists in userProfiles but has no userId), used during sign-up flow
-
-#### Sub-tasks:
-
-- [x] 2.1: Add `checkPreRegisteredEmail` query to `/convex/userProfiles.ts`
-  - Implementation: Query userProfiles by email, return true if exists and userId is undefined
-  - Access: Public (no authentication required - needed for sign-up page)
-  - Returns: `{ isPreRegistered: boolean, userProfile?: { role, companyId, fullName } }`
-  - Validation: Email format validation with Zod
-  - Dependencies: None
-
-- [ ] 2.2: Test pre-registered email query
-  - Validation: Test via Convex dashboard
-  - Test cases:
-    - Returns true for pre-registered email (no userId)
-    - Returns false for email with existing userId
-    - Returns false for non-existent email
-    - No authentication required (public access)
+- [ ] 1.4: Add database query safety for userId lookups
+  - Location: Throughout `convex/userProfiles.ts`
+  - Review: All queries using `by_userId` index must handle cases where userId might be undefined
+  - Add checks: Filter out or handle users with undefined userId appropriately
+  - Validation: No runtime errors when querying users without userId
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any`)
-- [ ] Zod validation implemented (using Convex v.string() validation)
-- [x] Clean code principles followed
-- [x] Error handling implemented
-- [x] Public access properly configured
-
-### 3. Add Password Reset Mutation
-
-**Objective**: Create admin-only mutation to reset user passwords using @convex-dev/auth API
-
-#### Sub-tasks:
-
-- [x] 3.1: Research @convex-dev/auth password reset API
-  - Investigation: Review @convex-dev/auth documentation for password reset
-  - Output: Document correct API usage pattern
-  - Dependencies: None
-
-- [x] 3.2: Add `resetUserPassword` mutation to `/convex/userProfiles.ts`
-  - Implementation: Admin sets new password for user
-  - Parameters: userProfileId, newPassword
-  - Access: Admin only (use existing `requireAdmin` pattern)
-  - Validation:
-    - Admin role required
-    - Target user exists
-    - Cannot reset own password (use separate flow)
-    - Password strength validation (min 8 chars, complexity rules)
-  - Use Zod schema for password validation
-  - Dependencies: @convex-dev/auth API research (3.1)
-
-- [x] 3.3: Add activity logging for password reset
-  - Implementation: Log password reset action to activityLogs table
-  - Details: Admin who reset, target user, timestamp
-  - Dependencies: Mutation implementation (3.2)
-  - NOTE: Implemented but commented out due to lucia hashing issue
-
-- [ ] 3.4: Test password reset mutation
-  - Validation: Test via Convex dashboard
-  - Test cases:
-    - Admin can reset client user password
-    - Admin can reset another admin password
-    - Admin cannot reset own password
-    - Client cannot call mutation
-    - Weak passwords rejected
-    - Activity logged correctly
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any`)
-- [x] Zod validation implemented (password strength rules)
-- [ ] i18n keys added for error messages (will be added with frontend)
-- [x] Clean code principles followed
-- [x] Error handling implemented
-- [x] Access control enforced (admin only)
-- [x] Activity logging included (commented out, pending lucia fix)
-- [ ] Security best practices followed (BLOCKED: lucia hashing not working in Convex)
-
-### 4. Modify Sign Up Hook in Auth Provider
-
-**Objective**: Add callback to Password provider to link new user accounts to pre-registered profiles or create new profiles with default "client" role
-
-#### Sub-tasks:
-
-- [x] 4.1: Research @convex-dev/auth callback system
-  - Investigation: Review @convex-dev/auth documentation for sign-up callbacks
-  - Output: Document callback API and lifecycle
-  - Dependencies: None
-
-- [x] 4.2: Add sign-up callback to Password provider in `/convex/auth.ts`
-  - Implementation: Configure Password provider with callbacks
-  - Logic:
-    - On user creation, get email from credentials
-    - Query userProfiles by email
-    - If pre-registered profile exists (email match, no userId):
-      - Link userId to existing profile
-      - Set isActive to true
-      - Preserve role, companyId, and other fields
-    - If no pre-registered profile:
-      - Create new profile with "client" role by default
-      - companyId is null (can be assigned later by admin)
-      - isActive is true
-  - Validation: Handle edge cases (multiple profiles with same email, etc.)
-  - Dependencies: @convex-dev/auth callback research (4.1)
-
-- [x] 4.3: Add error handling for callback failures
-  - Implementation: Proper error handling and rollback logic
-  - Validation: Failed profile operations don't prevent auth account creation
-  - Dependencies: Callback implementation (4.2)
-
-- [ ] 4.4: Test sign-up callback integration
-  - Validation: Test complete sign-up flow
-  - Test cases:
-    - Pre-registered admin user signs up ï¿½ profile linked, role preserved
-    - Pre-registered client user signs up ï¿½ profile linked, company preserved
-    - New user signs up ï¿½ new profile created with "client" role
-    - Error scenarios handled gracefully
-  - Dependencies: Callback implementation (4.2, 4.3)
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (used type assertions for callback context)
-- [x] Error handling implemented (with rollback if needed)
-- [x] Clean code principles followed
-- [x] Edge cases handled (duplicate emails, partial failures)
-- [x] Transaction safety ensured (atomic operations)
-- [x] Activity logging included (via console.log for debugging)
+- [ ] Schema change maintains type safety
+- [ ] No `any` type casts remaining
+- [ ] Pre-registration flow works correctly
+- [ ] Regular user creation still validates userId
+- [ ] All userId-based queries handle optional values
+- [ ] Database indexes still work correctly with optional userId
 
 ---
 
-## Frontend Implementation (React/Next.js)
+### 2. Verify and Document Pre-Registration Flow
 
-### 5. Create Users Management Page
-
-**Objective**: Create main users page following established patterns (page.tsx + users-client.tsx)
+**Objective**: Ensure the complete pre-registration to activation flow works correctly
 
 #### Sub-tasks:
 
-- [x] 5.1: Create `/app/[locale]/(dashboard)/users/page.tsx`
-  - Implementation: Server component with metadata generation
-  - Pattern: Follow `/app/[locale]/(dashboard)/companies/page.tsx` structure
-  - i18n: Use next-intl for translations (Users namespace)
-  - Validation: Metadata includes title and description from translations
-  - Dependencies: i18n keys (10.1)
+- [ ] 2.1: Document the intended user lifecycle
+  - Create inline comments in `convex/userProfiles.ts` explaining:
+    1. Admin pre-registers user ’ userProfile created with userId=undefined, isActive=false
+    2. User receives invitation and signs up ’ users table record created by Convex Auth
+    3. Callback links userProfile to user ’ userId populated, isActive=true
+  - Validation: Flow is clear for future developers
 
-- [x] 5.2: Create `/app/[locale]/(dashboard)/users/users-client.tsx`
-  - Implementation: Client component with state management
-  - Pattern: Follow `/app/[locale]/(dashboard)/companies/companies-client.tsx`
-  - Features:
-    - Fetch users via `api.userProfiles.list` query
-    - State for editingId, viewingId
-    - Breadcrumbs navigation
-    - Page header with title, description, create button
-    - UsersTable component integration
-    - UserViewModal integration
-    - EditUserDialog integration
-    - Delete confirmation with mutation
-  - Mobile responsive: Proper spacing and layout on mobile (p-4, gap-4)
-  - Validation: Admin sees all users, client sees only their company users
-  - Dependencies: UsersTable (6), CreateUserDialog (7), EditUserDialog (8), ViewModal (TBD)
+- [ ] 2.2: Review the disabled auth callback
+  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/auth.ts`, lines 6-47
+  - Analysis: The callback is disabled due to "type issues"
+  - Decision Point: Determine if we should fix and re-enable it or create alternative linking mechanism
+  - Validation: Understand why it was disabled and what needs to be fixed
 
-- [x] 5.3: Configure routing and navigation
-  - Validation: Page accessible at `/users` route
-  - Dependencies: Page components (5.1, 5.2)
+- [ ] 2.3: Create or verify user activation mechanism
+  - Check if there's an existing mutation to link pre-registered profile to authenticated user
+  - If missing, create `activatePreRegisteredUser` mutation that:
+    - Takes email from authenticated user (from Convex Auth)
+    - Finds matching userProfile with that email and userId=undefined
+    - Updates userProfile with userId and isActive=true
+  - Validation: Users can successfully activate their pre-registered accounts
+
+- [ ] 2.4: Add email uniqueness validation across both states
+  - Ensure email is unique across all userProfiles (both with and without userId)
+  - Current validation at line 536-543 only checks userProfiles table
+  - Consider: Should also check if email exists in users table (Convex Auth)
+  - Validation: No duplicate emails possible in the system
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any`)
-- [x] i18n keys used for all user-facing text
-- [x] Reusable components utilized
-- [x] Clean code principles followed
-- [x] Error handling implemented (loading states, error boundaries)
-- [x] Mobile responsiveness implemented (sm, md, lg breakpoints)
-- [x] Touch-friendly UI elements (min 44x44px buttons)
-- [x] Proper state management (useState, useQuery, useMutation)
-- [x] Follows established page patterns
+- [ ] User lifecycle is documented
+- [ ] Pre-registration creates profile with undefined userId
+- [ ] Activation mechanism links profile to user
+- [ ] Email uniqueness is enforced
+- [ ] isActive flag is properly managed
+- [ ] No orphaned pre-registered profiles
 
-### 6. Create Users Table Component
+---
 
-**Objective**: Create DataTable component for displaying users with actions
+### 3. Move Users Menu to Settings Section
 
-#### Sub-tasks:
-
-- [x] 6.1: Create `/components/users/users-table.tsx`
-  - Implementation: Table component using existing DataTable pattern
-  - Pattern: Follow `/components/companies/companies-table.tsx`
-  - Columns:
-    - Photo (avatar thumbnail)
-    - Full Name
-    - Email
-    - Role (Admin/Client badge with color coding)
-    - Company Name (for client users, "-" for admin)
-    - Status (Active/Inactive badge with color coding)
-    - Actions (View, Edit, Reset Password, Activate/Deactivate, Delete)
-  - Features:
-    - Sorting by name, email, role, status
-    - Filtering by role, company, status
-    - Search by name or email
-    - Responsive columns (hide company on mobile)
-  - Mobile responsive:
-    - Stacked card layout on mobile (< md breakpoint)
-    - Actions dropdown menu on mobile
-    - All columns visible on desktop
-  - Validation: Actions enabled/disabled based on permissions
-  - Dependencies: User query (5.2)
-
-- [x] 6.2: Add action handlers to table component
-  - Implementation: Props for onView, onEdit, onResetPassword, onToggleActive, onDelete
-  - Validation: All actions emit proper events to parent
-  - Dependencies: Table structure (6.1)
-
-- [x] 6.3: Style status and role badges
-  - Implementation: Color-coded badges for visual clarity
-  - Roles: Admin (blue), Client (green)
-  - Status: Active (green), Inactive (red)
-  - Mobile responsive: Touch-friendly badge sizes
-  - Dependencies: Table columns (6.1)
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any`)
-- [x] i18n keys used for all user-facing text
-- [x] Reusable table components utilized
-- [x] Clean code principles followed
-- [x] Mobile responsiveness implemented (stacked cards on mobile)
-- [x] Touch-friendly UI elements (dropdown menus, larger tap targets)
-- [x] Proper sorting and filtering
-- [x] Accessible markup (ARIA labels, keyboard navigation)
-
-### 7. Create User Creation Dialog
-
-**Objective**: Create dialog for pre-registering new users (admin only)
+**Objective**: Reorganize the sidebar navigation to nest Users under Settings
 
 #### Sub-tasks:
 
-- [x] 7.1: Create `/components/users/create-user-dialog.tsx`
-  - Implementation: Dialog component with form
-  - Pattern: Follow `/components/companies/company-form-dialog.tsx`
-  - Form fields:
-    - Email (email input, required, validated)
-    - Full Name (text input, required)
-    - Role (select dropdown: Admin/Client, required)
-    - Company (select dropdown, required if Client role, hidden if Admin role)
-    - Phone Number (optional)
-  - Features:
-    - Real-time validation with Zod schema
-    - Company dropdown populated from companies query
-    - Role selection toggles company field visibility
-    - Form state management with react-hook-form or similar
-  - Validation: Uses `preRegisterUser` mutation
-  - Mobile responsive: Full-width on mobile, proper spacing
-  - Dependencies: preRegisterUser mutation (1), companies query
+- [ ] 3.1: Review the current sidebar structure
+  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx`
+  - Current: Users menu at lines 91-100 (standalone with admin role check)
+  - Target: Settings section at lines 165-179
+  - Validation: Understand the navigation data structure
 
-- [x] 7.2: Add form validation with Zod
-  - Implementation: Zod schema matching backend validation
-  - Rules:
-    - Email format validation
-    - Required fields
-    - Client role requires company
-    - Admin role excludes company
-  - Validation: Show inline error messages
-  - Dependencies: Form structure (7.1)
-
-- [x] 7.3: Handle mutation success/failure
-  - Implementation: Toast notifications for success/error
-  - Success: Close dialog, refresh users list, show success message
-  - Error: Display error message in dialog
-  - Mobile responsive: Toast notifications visible on mobile
-  - Dependencies: Form submission (7.1, 7.2)
-
-- [x] 7.4: Add loading states and disabled states
-  - Implementation: Disable form during submission
-  - Loading spinner on submit button
-  - Dependencies: Mutation integration (7.3)
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any`)
-- [x] Zod validation implemented (matching backend)
-- [x] i18n keys added for all form labels and messages
-- [x] Reusable dialog components utilized
-- [x] Clean code principles followed
-- [x] Error handling implemented (inline errors, toast notifications)
-- [x] Mobile responsiveness implemented (full-width, proper spacing)
-- [x] Touch-friendly UI elements (min 44x44px inputs)
-- [x] Form accessibility (labels, error announcements)
-- [x] Loading states implemented
-
-### 8. Create User Edit Dialog
-
-**Objective**: Create dialog for editing existing user profiles (admin only)
-
-#### Sub-tasks:
-
-- [x] 8.1: Create `/components/users/edit-user-dialog.tsx`
-  - Implementation: Dialog component with pre-populated form
-  - Pattern: Follow create dialog structure (7.1)
-  - Form fields: Same as create dialog
-  - Features:
-    - Fetch user data via `api.userProfiles.get` query
-    - Pre-populate form with existing values
-    - Same validation as create dialog
-    - Additional field: Active status toggle
-  - Validation: Uses `update` mutation from `/convex/userProfiles.ts`
-  - Mobile responsive: Full-width on mobile
-  - Dependencies: User query, update mutation
-
-- [x] 8.2: Add form validation with Zod (reuse schema from create)
-  - Implementation: Same Zod schema as create dialog
-  - Dependencies: Form structure (8.1)
-
-- [x] 8.3: Handle mutation success/failure
-  - Implementation: Toast notifications for success/error
-  - Success: Close dialog, refresh users list, show success message
-  - Error: Display error message in dialog
-  - Dependencies: Form submission (8.1, 8.2)
-
-- [x] 8.4: Add loading states while fetching user data
-  - Implementation: Skeleton loader while query loads
-  - Validation: Form disabled until data loaded
-  - Dependencies: User query (8.1)
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any`)
-- [x] Zod validation implemented (reused schema)
-- [x] i18n keys added for all form labels and messages
-- [x] Reusable dialog components utilized
-- [x] Clean code principles followed
-- [x] Error handling implemented (loading states, error messages)
-- [x] Mobile responsiveness implemented
-- [x] Touch-friendly UI elements
-- [x] Form accessibility
-- [x] Loading states implemented
-
-### 9. Create Password Reset Dialog
-
-**Objective**: Create dialog for admin to set new temporary password for users
-
-#### Sub-tasks:
-
-- [x] 9.1: Create `/components/users/reset-password-dialog.tsx`
-  - Implementation: Simple dialog with password input
-  - Pattern: Follow dialog patterns from create/edit dialogs
-  - Form fields:
-    - Display user's name and email (read-only)
-    - New Password (password input with show/hide toggle, required)
-    - Confirm Password (password input, required)
-  - Features:
-    - Password strength indicator
-    - Password match validation
-    - Show/hide password toggle button
-  - Validation: Uses `resetUserPassword` mutation
-  - Mobile responsive: Full-width on mobile
-  - Dependencies: resetUserPassword mutation (3)
-
-- [x] 9.2: Add password validation with Zod
-  - Implementation: Zod schema for password strength
-  - Rules:
-    - Minimum 8 characters
-    - Must contain uppercase, lowercase, number
-    - Passwords must match
-  - Validation: Real-time validation feedback
-  - Dependencies: Form structure (9.1)
-
-- [x] 9.3: Add password strength indicator
-  - Implementation: Visual indicator (weak/medium/strong)
-  - Colors: Red (weak), yellow (medium), green (strong)
-  - Mobile responsive: Touch-friendly component
-  - Dependencies: Form structure (9.1)
-
-- [x] 9.4: Handle mutation success/failure
-  - Implementation: Toast notifications
-  - Success: Close dialog, show success message with instructions
-  - Error: Display error message in dialog
-  - Dependencies: Form submission (9.1, 9.2)
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any`)
-- [x] Zod validation implemented (password rules)
-- [x] i18n keys added for all labels and messages
-- [x] Reusable dialog components utilized
-- [x] Clean code principles followed
-- [x] Error handling implemented
-- [x] Mobile responsiveness implemented
-- [x] Touch-friendly UI elements
-- [x] Form accessibility (password field labels, announcements)
-- [x] Security best practices (password masking, strength validation)
-
-### 10. Add i18n Translation Keys
-
-**Objective**: Add all required translation keys for user management to English and Portuguese locale files
-
-#### Sub-tasks:
-
-- [x] 10.1: Add translations to `/messages/en.json`
-  - Implementation: Add "Users" namespace with all keys
-  - Keys needed:
-    - title, description
-    - createUser, editUser, resetPassword
-    - deleteConfirm, errorDelete, errorCreate, errorUpdate, errorResetPassword
-    - successCreate, successUpdate, successResetPassword, successDelete
-    - Form field labels: email, fullName, role, company, phoneNumber, password, confirmPassword, status
-    - Role labels: admin, client
-    - Status labels: active, inactive
-    - Table columns: photo, name, email, role, company, status, actions
-    - Actions: view, edit, resetPassword, activate, deactivate, delete
-    - Password: strength, weak, medium, strong, strengthHint, mustMatch
-  - Validation: All user-facing strings have translations
-  - Dependencies: None
-
-- [x] 10.2: Add translations to `/messages/pt.json`
-  - Implementation: Portuguese translations for all keys from 10.1
-  - Validation: Complete 1:1 translation coverage
-  - Dependencies: English translations (10.1)
-
-- [x] 10.3: Add navigation translation keys
-  - Implementation: Add "users" key to Navigation namespace
-  - Both en.json and pt.json
-  - Dependencies: None
-
-#### Quality Checklist:
-
-- [x] All user-facing strings have translation keys
-- [x] English translations complete
-- [x] Portuguese translations complete
-- [x] Navigation keys added
-- [x] Keys follow existing naming conventions
-- [x] No hard-coded strings in components (will be ensured during component creation)
-
-### 11. Add Users Link to Sidebar Navigation
-
-**Objective**: Add "Users" menu item to app sidebar, visible only to admin users
-
-#### Sub-tasks:
-
-- [x] 11.1: Add users navigation item to `/components/app-sidebar.tsx`
-  - Implementation: Add to navMain array
-  - Structure:
+- [ ] 3.2: Move Users menu item under Settings
+  - Remove lines 91-100 (standalone Users menu)
+  - Add Users as a nested item in Settings section
+  - Maintain the admin role check: only admins should see Users
+  - Structure should be:
     ```typescript
     {
-      title: t('users'),
-      url: "/users",
-      icon: Users, // import from lucide-react
-      items: [],
+      title: t('settings'),
+      url: "#",
+      icon: Settings2,
+      items: [
+        ...(userProfile?.role === "admin"
+          ? [
+              {
+                title: t('users'),
+                url: "/users",
+              },
+            ]
+          : []),
+        {
+          title: t('settings'),
+          url: "/settings",
+        },
+        {
+          title: t('activityLogs'),
+          url: "/activity-logs",
+        },
+      ],
     }
     ```
-  - Position: After "People & Companies" section, before "Documents Management"
-  - Validation: Icon imported from lucide-react
-  - Dependencies: i18n keys (10.3)
+  - Validation: Users appears under Settings, only for admins
 
-- [x] 11.2: Add role-based visibility logic
-  - Implementation: Conditionally render based on userProfile.role === "admin"
-  - Pattern: Filter navMain array before passing to NavMain component
-  - Validation: Client users do not see "Users" menu item
-  - Dependencies: userProfile query (existing), menu item (11.1)
+- [ ] 3.3: Verify translation keys exist
+  - The Users menu already uses `t('users')`
+  - Check that this translation key exists in all locale files
+  - Location: Check translation files in messages directory
+  - Validation: No missing translation errors
 
-- [x] 11.3: Test navigation
-  - Validation: Menu item appears for admin, not for client
-  - Validation: Clicking navigates to /users
-  - Dependencies: Menu implementation (11.1, 11.2)
+- [ ] 3.4: Test navigation visibility by role
+  - Admin users should see: Settings > Users, Settings, Activity Logs
+  - Client users should see: Settings > Settings, Activity Logs (no Users)
+  - Validation: Role-based menu rendering works correctly
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any`)
-- [x] i18n keys used for menu label
-- [x] Icon imported and used correctly
-- [x] Clean code principles followed
-- [x] Role-based access control enforced (admin only visibility)
-- [x] Mobile responsiveness maintained (sidebar works on mobile)
-- [ ] Navigation tested (routing works correctly) - pending page creation
+- [ ] Users menu removed from root level
+- [ ] Users menu added under Settings section
+- [ ] Admin role check properly applied
+- [ ] Translation keys verified
+- [ ] Navigation structure remains clean and logical
+- [ ] Mobile responsiveness maintained (existing Tailwind classes)
 
-### 12. Create User View Modal
+---
 
-**Objective**: Create read-only modal for viewing complete user details
+### 4. Testing and Verification
+
+**Objective**: Thoroughly test both fixes to ensure they work correctly
 
 #### Sub-tasks:
 
-- [x] 12.1: Create `/components/users/user-view-modal.tsx`
-  - Implementation: Modal component displaying user details
-  - Pattern: Follow `/components/companies/company-view-modal.tsx`
-  - Sections:
-    - Header: Photo, name, email
-    - Basic Info: Role, Company (if client), Phone, Status
-    - Account Info: Created date, Last updated, Active status
-    - Action buttons: Edit (opens edit dialog), Close
-  - Mobile responsive: Full-screen on mobile, proper spacing
-  - Validation: Fetch user via `api.userProfiles.get` query
-  - Dependencies: User query
+- [ ] 4.1: Test pre-registration flow
+  - As admin, pre-register a new user via the Users interface
+  - Verify userProfile is created with userId=undefined, isActive=false
+  - Verify no schema validation errors
+  - Check database to confirm record structure
+  - Validation: Pre-registration completes successfully without errors
 
-- [x] 12.2: Add loading state while fetching data
-  - Implementation: Skeleton loader
-  - Dependencies: Modal structure (12.1)
+- [ ] 4.2: Test user queries with optional userId
+  - Test the `list` query with pre-registered users (userId=undefined)
+  - Test `getCurrentUser` with authenticated users
+  - Ensure no runtime errors with undefined userId values
+  - Validation: All queries handle optional userId gracefully
 
-- [x] 12.3: Integrate with users-client.tsx
-  - Implementation: Open modal on row click or view action
-  - Dependencies: Modal component (12.1), users-client (5.2)
+- [ ] 4.3: Test sidebar navigation changes
+  - Log in as admin user
+  - Verify Users appears under Settings section
+  - Click through to /users page to ensure routing works
+  - Log in as client user
+  - Verify Users does NOT appear in sidebar
+  - Validation: Navigation works correctly for both roles
+
+- [ ] 4.4: Test edge cases
+  - Try to pre-register user with duplicate email
+  - Try to pre-register admin user with companyId (should fail)
+  - Try to pre-register client user without companyId (should fail)
+  - Verify error messages are clear and appropriate
+  - Validation: Edge cases handled gracefully with good error messages
+
+- [ ] 4.5: Verify database indexes still work
+  - Check that by_userId index works with undefined values
+  - Verify by_email index still enforces uniqueness
+  - Test filtering users by role, isActive status
+  - Validation: All database queries perform correctly
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any`)
-- [x] i18n keys used for all labels
-- [x] Reusable modal components utilized
-- [x] Clean code principles followed
-- [x] Mobile responsiveness implemented (full-screen on mobile)
-- [x] Touch-friendly UI elements
-- [x] Loading states implemented
-- [x] Proper data fetching
+- [ ] Pre-registration creates user without errors
+- [ ] UserProfile record has correct structure
+- [ ] Queries handle optional userId safely
+- [ ] Sidebar navigation correct for admin role
+- [ ] Sidebar navigation correct for client role
+- [ ] Edge cases handled properly
+- [ ] No console errors in browser or server logs
+- [ ] Database indexes functioning correctly
 
-### 13. Modify Login Form for Pre-Registered Users
+---
 
-**Objective**: Update sign-up flow to detect and handle pre-registered emails
+### 5. Future Enhancement (Optional)
+
+**Objective**: Consider re-enabling the auth callback for automatic profile linking
 
 #### Sub-tasks:
 
-- [x] 13.1: Add pre-registration check to `/components/login-form.tsx`
-  - Implementation: On sign-up flow, check email before account creation
-  - Logic:
-    - When user enters email in sign-up mode
-    - Call `checkPreRegisteredEmail` query on email blur or form submit
-    - If pre-registered:
-      - Show message: "This email has been pre-registered. Set your password to activate your account."
-      - Change button text: "Activate Account"
-      - Only show password field (no role/company selection)
-    - If not pre-registered:
-      - Normal sign-up flow (all fields visible)
-  - Validation: Query called efficiently (debounced input - 500ms)
-  - Dependencies: checkPreRegisteredEmail query (2)
+- [ ] 5.1: Investigate the "type issues" in auth callback
+  - Review the commented-out code in `convex/auth.ts`
+  - Research Convex Auth callback type requirements
+  - Determine what specific type errors occurred
+  - Validation: Understand the root cause of the type issues
 
-- [x] 13.2: Add user feedback for pre-registered accounts
-  - Implementation: Info message explaining pre-registration
-  - Message: Display role and company that was pre-assigned
-  - Mobile responsive: Clear messaging on mobile
-  - Dependencies: Pre-registration check (13.1)
+- [ ] 5.2: Fix type issues if feasible
+  - Update callback signature to match Convex Auth requirements
+  - Ensure ctx and userId parameters are correctly typed
+  - Test callback with TypeScript strict mode
+  - Validation: Callback compiles without type errors
 
-- [x] 13.3: Handle sign-up submission for pre-registered users
-  - Implementation: Different flow based on pre-registration status
-  - Pre-registered: Only submit email + password (profile already exists)
-  - New user: Submit full registration form
-  - Validation: Backend callback links profile correctly (4)
-  - Dependencies: Auth callback (4), pre-registration check (13.1)
-  - NOTE: Backend auth callback (Section 4) handles linking automatically
+- [ ] 5.3: Re-enable and test automatic linking
+  - Uncomment the afterUserCreatedOrUpdated callback
+  - Test full flow: pre-register ’ user signs up ’ profile automatically linked
+  - Verify userId is populated and isActive is set to true
+  - Validation: Automatic linking works seamlessly
 
-- [x] 13.4: Add error handling for edge cases
-  - Implementation: Handle pre-registration mismatches, expired sessions, etc.
-  - Validation: Clear error messages for all failure scenarios
-  - Dependencies: Sign-up submission (13.3)
+- [ ] 5.4: Document the decision
+  - If re-enabled: Document the fix and how the callback works
+  - If not re-enabled: Document why manual activation is preferred
+  - Add comments explaining the authentication flow
+  - Validation: Future developers understand the system design
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any`)
-- [x] i18n keys added for all messages (using existing Users translations)
-- [x] Clean code principles followed
-- [x] Error handling implemented (all edge cases)
-- [x] Mobile responsiveness implemented
-- [x] Touch-friendly UI elements
-- [x] User experience optimized (clear messaging with icons and visual feedback)
-- [x] Loading states implemented (debounced checking pre-registration)
+- [ ] Type issues understood and documented
+- [ ] If fixed: Callback properly typed and tested
+- [ ] If fixed: Automatic linking works end-to-end
+- [ ] Authentication flow is documented
+- [ ] Decision is clearly explained in code comments
 
 ---
 
@@ -671,95 +308,40 @@ Implement a comprehensive user management system that allows admin users to pre-
 
 ### Technical Considerations
 
-1. **Password Security**
-   - Use @convex-dev/auth's built-in password hashing
-   - Never store plain-text passwords
-   - Enforce strong password requirements
-   - Consider password expiration policy for admin-reset passwords
+1. **Schema Migration**: Changing `userId` from required to optional is a schema change. Convex handles this automatically, but existing records already have userId values, so no data migration needed.
 
-2. **Authentication Flow**
-   - Pre-registered users are "invited" by admin but not yet "activated"
-   - First login with password activates the account
-   - Maintain audit trail of account activation
+2. **Index Behavior**: The `by_userId` index will still work with optional values. Queries using this index should filter for `userId !== undefined` when looking for activated users.
 
-3. **Role-Based Access Control**
-   - All user management operations are admin-only
-   - Client users can only view their own profile (not included in this implementation)
-   - Use existing `requireAdmin` pattern consistently
+3. **Type Safety**: Using `v.optional(v.id("users"))` maintains type safety while allowing the pre-registration pattern. This is the correct Convex pattern.
 
-4. **Data Integrity**
-   - Prevent orphaned userProfiles (profile without user, or user without profile)
-   - Handle edge cases: duplicate emails, role changes, company reassignments
-   - Use transactions where necessary for atomic operations
+4. **Authentication Flow**: The system supports two user creation paths:
+   - **Pre-registration**: Admin creates userProfile ’ User signs up later ’ Profile gets linked
+   - **Direct signup**: User signs up ’ Profile created automatically (if callback is enabled)
 
-5. **User Experience**
-   - Clear visual distinction between pre-registered and active users
-   - Intuitive flow for password reset
-   - Responsive design for mobile administrators
-   - Real-time validation feedback
+5. **Navigation Structure**: Moving Users under Settings improves information architecture by grouping admin configuration items together.
 
-### Error Scenarios to Handle
+### Potential Gotchas
 
-1. **Backend Errors**
-   - Email already exists
-   - Invalid role/company combinations
-   - Password reset failures
-   - Auth callback failures
-   - Permission denied errors
+1. **Query Filters**: Any code that queries users by `userId` must account for undefined values. Use `.filter(u => u.userId !== undefined)` when needed.
 
-2. **Frontend Errors**
-   - Network failures during mutations
-   - Query loading states
-   - Form validation errors
-   - Stale data after mutations
+2. **Email Matching**: The pre-registration flow relies on email matching between the pre-registered profile and the auth user. Email must be unique and consistent.
 
-3. **Edge Cases**
-   - Pre-registered user tries to sign up again
-   - Admin tries to delete themselves
-   - Company deleted but users still assigned to it
-   - User tries to access page without proper permissions
+3. **Orphaned Profiles**: Pre-registered users who never activate will have profiles with `userId=undefined` and `isActive=false`. Consider a cleanup job for old pre-registrations.
 
-### Testing Strategy
-
-1. **Backend Testing** (via Convex Dashboard)
-   - Test all mutations with valid/invalid inputs
-   - Test permission enforcement
-   - Test edge cases and error scenarios
-
-2. **Frontend Testing** (Manual)
-   - Test complete user management workflow
-   - Test responsive design on mobile/tablet/desktop
-   - Test role-based visibility (admin vs client views)
-   - Test error handling and loading states
-
-3. **Integration Testing**
-   - Test complete sign-up flow (pre-registered vs new user)
-   - Test password reset flow end-to-end
-   - Test activity logging
-   - Test navigation and routing
-
-### Migration Considerations
-
-- Existing users in system already have profiles with userId
-- New system handles both existing users and pre-registered users
-- No migration needed for existing data
-- Backward compatible with existing authentication
-
----
+4. **Role-Based Rendering**: The sidebar uses conditional rendering based on role. Ensure the role check is correctly placed within the Settings items array, not outside it.
 
 ## Definition of Done
 
-- [ ] All backend mutations implemented and tested
-- [ ] All frontend components implemented and tested
-- [ ] All i18n keys added for English and Portuguese
-- [ ] Navigation updated with role-based visibility
-- [ ] Complete sign-up flow working for both pre-registered and new users
-- [ ] Password reset flow working end-to-end
-- [ ] Mobile responsiveness verified on all pages
-- [ ] Error handling tested for all failure scenarios
-- [ ] Activity logging verified for all user management actions
-- [ ] Admin can pre-register users successfully
-- [ ] Admin can manage existing users (view, edit, reset password, delete)
-- [ ] Client users cannot access user management features
-- [ ] Code follows established project patterns and conventions
-- [ ] All quality checklists completed
+- [ ] Schema updated to make userId optional in userProfiles
+- [ ] preRegisterUser mutation works without errors
+- [ ] Type casting (`as any`) removed from code
+- [ ] All user queries handle optional userId safely
+- [ ] Users menu moved under Settings in sidebar
+- [ ] Navigation visible only to admin users
+- [ ] Pre-registration flow tested and working
+- [ ] Edge cases handled with appropriate errors
+- [ ] No TypeScript errors
+- [ ] No runtime errors in browser console
+- [ ] Database queries perform correctly
+- [ ] Code follows clean code principles
+- [ ] User lifecycle is documented in comments

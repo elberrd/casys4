@@ -170,6 +170,12 @@ export const upload = mutation({
       }
     }
 
+    // Ensure user has userId (pre-registered users cannot upload documents)
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before uploading documents");
+    }
+    const uploaderUserId = userProfile.userId; // Save for later use
+
     // Get file URL from storage
     const fileUrl = await ctx.storage.getUrl(args.storageId);
     if (!fileUrl) {
@@ -213,7 +219,7 @@ export const upload = mutation({
       fileSize: args.fileSize,
       mimeType: args.mimeType,
       status: "uploaded",
-      uploadedBy: userProfile.userId,
+      uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
       version: version,
@@ -228,7 +234,7 @@ export const upload = mutation({
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId: uploaderUserId,
         action: "uploaded",
         entityType: "document",
         entityId: documentId,
@@ -294,26 +300,28 @@ export const approve = mutation({
       console.error("Failed to create document approval notification:", error);
     }
 
-    // Log activity (non-blocking)
+    // Log activity (non-blocking, only if admin has userId)
     try {
-      const [individualProcess, documentType, person] = await Promise.all([
-        ctx.db.get(document.individualProcessId),
-        ctx.db.get(document.documentTypeId),
-        document.personId ? ctx.db.get(document.personId) : null,
-      ]);
+      if (adminProfile.userId) {
+        const [individualProcess, documentType, person] = await Promise.all([
+          ctx.db.get(document.individualProcessId),
+          ctx.db.get(document.documentTypeId),
+          document.personId ? ctx.db.get(document.personId) : null,
+        ]);
 
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
-        action: "approved",
-        entityType: "document",
-        entityId: id,
-        details: {
-          fileName: document.fileName,
-          documentType: documentType?.name,
-          personName: person?.fullName,
-          previousStatus: document.status,
-        },
-      });
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "approved",
+          entityType: "document",
+          entityId: id,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType?.name,
+            personName: person?.fullName,
+            previousStatus: document.status,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -367,27 +375,29 @@ export const reject = mutation({
       console.error("Failed to create document rejection notification:", error);
     }
 
-    // Log activity (non-blocking)
+    // Log activity (non-blocking, only if admin has userId)
     try {
-      const [individualProcess, documentType, person] = await Promise.all([
-        ctx.db.get(document.individualProcessId),
-        ctx.db.get(document.documentTypeId),
-        document.personId ? ctx.db.get(document.personId) : null,
-      ]);
+      if (adminProfile.userId) {
+        const [individualProcess, documentType, person] = await Promise.all([
+          ctx.db.get(document.individualProcessId),
+          ctx.db.get(document.documentTypeId),
+          document.personId ? ctx.db.get(document.personId) : null,
+        ]);
 
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
-        action: "rejected",
-        entityType: "document",
-        entityId: id,
-        details: {
-          fileName: document.fileName,
-          documentType: documentType?.name,
-          personName: person?.fullName,
-          rejectionReason,
-          previousStatus: document.status,
-        },
-      });
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "rejected",
+          entityType: "document",
+          entityId: id,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType?.name,
+            personName: person?.fullName,
+            rejectionReason,
+            previousStatus: document.status,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -488,21 +498,23 @@ export const remove = mutation({
       isLatest: false,
     });
 
-    // Log activity (non-blocking)
+    // Log activity (non-blocking, only if admin has userId)
     try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: adminProfile.userId,
-        action: "removed",
-        entityType: "document",
-        entityId: id,
-        details: {
-          fileName: document.fileName,
-          documentType: documentType?.name,
-          personName: person?.fullName,
-          status: document.status,
-          version: document.version,
-        },
-      });
+      if (adminProfile.userId) {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "removed",
+          entityType: "document",
+          entityId: id,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType?.name,
+            personName: person?.fullName,
+            status: document.status,
+            version: document.version,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -661,25 +673,27 @@ export const bulkApprove = mutation({
           console.error("Failed to create notification:", error);
         }
 
-        // Log activity (non-blocking)
+        // Log activity (non-blocking, only if admin has userId)
         try {
-          const [documentType, person] = await Promise.all([
-            ctx.db.get(document.documentTypeId),
-            document.personId ? ctx.db.get(document.personId) : null,
-          ]);
+          if (adminProfile.userId) {
+            const [documentType, person] = await Promise.all([
+              ctx.db.get(document.documentTypeId),
+              document.personId ? ctx.db.get(document.personId) : null,
+            ]);
 
-          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
-            action: "bulk_approved",
-            entityType: "document",
-            entityId: documentId,
-            details: {
-              fileName: document.fileName,
-              documentType: documentType?.name,
-              personName: person?.fullName,
-              notes: args.notes,
-            },
-          });
+            await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+              userId: adminProfile.userId,
+              action: "bulk_approved",
+              entityType: "document",
+              entityId: documentId,
+              details: {
+                fileName: document.fileName,
+                documentType: documentType?.name,
+                personName: person?.fullName,
+                notes: args.notes,
+              },
+            });
+          }
         } catch (error) {
           console.error("Failed to log activity:", error);
         }
@@ -691,19 +705,21 @@ export const bulkApprove = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: adminProfile.userId,
-      action: "bulk_approve_documents_completed",
-      entityType: "document",
-      entityId: "bulk",
-      details: {
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-        notes: args.notes,
-      },
-    });
+    // Log bulk operation summary (only if admin has userId)
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "bulk_approve_documents_completed",
+        entityType: "document",
+        entityId: "bulk",
+        details: {
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          notes: args.notes,
+        },
+      });
+    }
 
     return results;
   },
@@ -769,25 +785,27 @@ export const bulkReject = mutation({
           console.error("Failed to create notification:", error);
         }
 
-        // Log activity (non-blocking)
+        // Log activity (non-blocking, only if admin has userId)
         try {
-          const [documentType, person] = await Promise.all([
-            ctx.db.get(document.documentTypeId),
-            document.personId ? ctx.db.get(document.personId) : null,
-          ]);
+          if (adminProfile.userId) {
+            const [documentType, person] = await Promise.all([
+              ctx.db.get(document.documentTypeId),
+              document.personId ? ctx.db.get(document.personId) : null,
+            ]);
 
-          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
-            action: "bulk_rejected",
-            entityType: "document",
-            entityId: documentId,
-            details: {
-              fileName: document.fileName,
-              documentType: documentType?.name,
-              personName: person?.fullName,
-              rejectionReason: args.rejectionReason,
-            },
-          });
+            await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+              userId: adminProfile.userId,
+              action: "bulk_rejected",
+              entityType: "document",
+              entityId: documentId,
+              details: {
+                fileName: document.fileName,
+                documentType: documentType?.name,
+                personName: person?.fullName,
+                rejectionReason: args.rejectionReason,
+              },
+            });
+          }
         } catch (error) {
           console.error("Failed to log activity:", error);
         }
@@ -799,19 +817,21 @@ export const bulkReject = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: adminProfile.userId,
-      action: "bulk_reject_documents_completed",
-      entityType: "document",
-      entityId: "bulk",
-      details: {
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-        rejectionReason: args.rejectionReason,
-      },
-    });
+    // Log bulk operation summary (only if admin has userId)
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "bulk_reject_documents_completed",
+        entityType: "document",
+        entityId: "bulk",
+        details: {
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          rejectionReason: args.rejectionReason,
+        },
+      });
+    }
 
     return results;
   },
@@ -868,21 +888,23 @@ export const bulkDelete = mutation({
 
         results.successful.push(documentId);
 
-        // Log activity (non-blocking)
+        // Log activity (non-blocking, only if admin has userId)
         try {
-          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-            userId: adminProfile.userId,
-            action: "bulk_deleted",
-            entityType: "document",
-            entityId: documentId,
-            details: {
-              fileName: document.fileName,
-              documentType: documentType?.name,
-              personName: person?.fullName,
-              status: document.status,
-              version: document.version,
-            },
-          });
+          if (adminProfile.userId) {
+            await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+              userId: adminProfile.userId,
+              action: "bulk_deleted",
+              entityType: "document",
+              entityId: documentId,
+              details: {
+                fileName: document.fileName,
+                documentType: documentType?.name,
+                personName: person?.fullName,
+                status: document.status,
+                version: document.version,
+              },
+            });
+          }
         } catch (error) {
           console.error("Failed to log activity:", error);
         }
@@ -894,18 +916,20 @@ export const bulkDelete = mutation({
       }
     }
 
-    // Log bulk operation summary
-    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-      userId: adminProfile.userId,
-      action: "bulk_delete_documents_completed",
-      entityType: "document",
-      entityId: "bulk",
-      details: {
-        totalProcessed: results.totalProcessed,
-        successful: results.successful.length,
-        failed: results.failed.length,
-      },
-    });
+    // Log bulk operation summary (only if admin has userId)
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "bulk_delete_documents_completed",
+        entityType: "document",
+        entityId: "bulk",
+        details: {
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
 
     return results;
   },

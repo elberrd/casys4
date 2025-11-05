@@ -197,7 +197,11 @@ export const createAppointmentNotifications = internalMutation({
 
     // Combine and deduplicate
     const allRelevantProfiles = [...userProfiles, ...adminProfiles];
-    const uniqueUserIds = new Set(allRelevantProfiles.map((p) => p.userId));
+    const uniqueUserIds = new Set(
+      allRelevantProfiles
+        .map((p) => p.userId)
+        .filter((userId) => userId !== undefined)
+    );
 
     // Format appointment date
     const appointmentDate = new Date(args.appointmentDateTime);

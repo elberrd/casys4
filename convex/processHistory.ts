@@ -187,7 +187,7 @@ export const create = mutation({
       individualProcessId: args.individualProcessId,
       previousStatus: args.previousStatus,
       newStatus: args.newStatus,
-      changedBy: userProfile.userId,
+      changedBy: userProfile.userId!,
       changedAt: Date.now(),
       notes: args.notes,
       metadata: args.metadata,

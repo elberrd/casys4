@@ -10,7 +10,7 @@ export default defineSchema({
 
   // User profiles with role-based access control
   userProfiles: defineTable({
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
     email: v.string(),
     fullName: v.string(),
     role: v.union(v.literal("admin"), v.literal("client")),

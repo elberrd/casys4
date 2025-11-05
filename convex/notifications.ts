@@ -45,7 +45,7 @@ export const getUserNotifications = query({
     // Query notifications for current user
     let results = await ctx.db
       .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", userProfile.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userProfile.userId!))
       .order("desc")
       .take(limit);
 
@@ -83,7 +83,7 @@ export const getUnreadCount = query({
     const notifications = await ctx.db
       .query("notifications")
       .withIndex("by_user_read", (q) =>
-        q.eq("userId", userProfile.userId).eq("isRead", false)
+        q.eq("userId", userProfile.userId!).eq("isRead", false)
       )
       .collect();
 
@@ -133,7 +133,7 @@ export const markAllAsRead = mutation({
     const unreadNotifications = await ctx.db
       .query("notifications")
       .withIndex("by_user_read", (q) =>
-        q.eq("userId", userProfile.userId).eq("isRead", false)
+        q.eq("userId", userProfile.userId!).eq("isRead", false)
       )
       .collect();
 
