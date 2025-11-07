@@ -2,6 +2,44 @@
 
 This command deploys the application to production using Vercel and Convex.
 
+## Deployment Steps
+
+This command will:
+1. Run local build to verify everything compiles correctly
+2. Deploy Convex functions to production
+3. Push commits to GitHub (triggers automatic Vercel deployment)
+4. Verify deployment success
+
+## Implementation
+
+When this command is executed, follow these steps in order:
+
+### Step 1: Verify Local Build
+```bash
+pnpm run build
+```
+- This ensures the application compiles correctly before deploying
+- If build fails, STOP and fix errors before continuing
+
+### Step 2: Deploy Convex to Production
+```bash
+npx convex deploy -y
+```
+- Deploys all Convex functions to production deployment
+- The `-y` flag auto-confirms the deployment
+
+### Step 3: Push to GitHub
+```bash
+git push origin main
+```
+- Pushes all commits to GitHub main branch
+- This triggers automatic Vercel deployment via GitHub integration
+
+### Step 4: Monitor Deployment
+- Check Vercel deployment status
+- Verify the production URL is accessible
+- Report deployment success or any errors
+
 ## Current Deployment Status
 
 - **Vercel Project**: casys4 (elberrds-projects)
