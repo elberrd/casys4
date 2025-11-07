@@ -19,6 +19,11 @@ export const get = query({
       return null;
     }
 
+    // If user profile is not yet activated (userId is undefined), return null
+    if (!userProfile.userId) {
+      return null;
+    }
+
     // Users can only see their own notifications
     if (notification.userId !== userProfile.userId) {
       return null;
@@ -41,6 +46,11 @@ export const getUserNotifications = query({
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
     const limit = args.limit ?? 50;
+
+    // If user profile is not yet activated (userId is undefined), return empty array
+    if (!userProfile.userId) {
+      return [];
+    }
 
     // Query notifications for current user
     let results = await ctx.db
@@ -80,6 +90,11 @@ export const getUnreadCount = query({
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // If user profile is not yet activated (userId is undefined), return 0
+    if (!userProfile.userId) {
+      return 0;
+    }
+
     const notifications = await ctx.db
       .query("notifications")
       .withIndex("by_user_read", (q) =>
@@ -101,6 +116,12 @@ export const markAsRead = mutation({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // If user profile is not yet activated (userId is undefined), throw error
+    if (!userProfile.userId) {
+      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+    }
+
     const notification = await ctx.db.get(args.notificationId);
 
     if (!notification) {
@@ -128,6 +149,11 @@ export const markAllAsRead = mutation({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // If user profile is not yet activated (userId is undefined), throw error
+    if (!userProfile.userId) {
+      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+    }
 
     // Get all unread notifications for current user
     const unreadNotifications = await ctx.db
@@ -163,6 +189,12 @@ export const deleteNotification = mutation({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // If user profile is not yet activated (userId is undefined), throw error
+    if (!userProfile.userId) {
+      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+    }
+
     const notification = await ctx.db.get(args.notificationId);
 
     if (!notification) {

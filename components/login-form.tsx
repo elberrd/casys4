@@ -63,6 +63,50 @@ export function LoginForm({
     }
   }, [email, flow])
 
+  // Convert technical errors to user-friendly messages
+  const getUserFriendlyError = (error: unknown): string => {
+    if (!(error instanceof Error)) {
+      return "An unexpected error occurred. Please try again."
+    }
+
+    const errorMessage = error.message
+
+    // Check for common authentication errors
+    if (errorMessage.includes("InvalidAccountId") || errorMessage.includes("retrieveAccount")) {
+      return flow === "signIn"
+        ? "Invalid email or password. Please check your credentials and try again."
+        : "Unable to create account. Please contact support if this issue persists."
+    }
+
+    if (errorMessage.includes("User profile not found")) {
+      return "Your account is not set up yet. Please contact an administrator."
+    }
+
+    if (errorMessage.includes("User profile not activated")) {
+      return "Your account is pending activation. Please contact an administrator."
+    }
+
+    if (errorMessage.includes("Invalid credentials") || errorMessage.includes("incorrect password")) {
+      return "Invalid email or password. Please try again."
+    }
+
+    if (errorMessage.includes("Email already exists") || errorMessage.includes("already registered")) {
+      return "This email is already registered. Please sign in instead."
+    }
+
+    if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+      return "Network error. Please check your connection and try again."
+    }
+
+    // If it's a short, non-technical message, show it as-is
+    if (errorMessage.length < 100 && !errorMessage.includes("Request ID") && !errorMessage.includes(".ts:")) {
+      return errorMessage
+    }
+
+    // Default fallback for unknown errors
+    return "Unable to complete your request. Please try again or contact support."
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
@@ -75,7 +119,7 @@ export function LoginForm({
       await signIn("password", formData)
       router.push("/dashboard")
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An error occurred"
+      const errorMessage = getUserFriendlyError(error)
       setError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -162,7 +206,7 @@ export function LoginForm({
 
               {error && (
                 <Alert variant="destructive">
-                  <AlertDescription className="font-mono text-xs">
+                  <AlertDescription>
                     {error}
                   </AlertDescription>
                 </Alert>

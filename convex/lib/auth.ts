@@ -5,6 +5,12 @@ import { Id, Doc } from "../_generated/dataModel";
 /**
  * Get the current authenticated user's profile
  * Throws an error if not authenticated or if profile not found
+ *
+ * IMPORTANT: The returned userProfile.userId may be undefined for pre-registered users
+ * who have not yet been activated. Always check if userProfile.userId exists before
+ * using it in queries that require a valid userId.
+ *
+ * For mutations that require an activated user, consider using requireActiveUserProfile() instead.
  */
 export async function getCurrentUserProfile(
   ctx: QueryCtx | MutationCtx
@@ -27,6 +33,27 @@ export async function getCurrentUserProfile(
   }
 
   return userProfile;
+}
+
+/**
+ * Get the current authenticated user's profile and require that it's activated
+ * Throws an error if not authenticated, profile not found, or profile is not activated
+ *
+ * Use this helper in mutations or queries that require an activated user with a valid userId.
+ * The returned profile is guaranteed to have a non-null userId property.
+ */
+export async function requireActiveUserProfile(
+  ctx: QueryCtx | MutationCtx
+): Promise<Doc<"userProfiles"> & { userId: Id<"users"> }> {
+  const userProfile = await getCurrentUserProfile(ctx);
+
+  if (!userProfile.userId) {
+    throw new Error(
+      "User profile not activated. Please contact an administrator to complete your account setup."
+    );
+  }
+
+  return userProfile as Doc<"userProfiles"> & { userId: Id<"users"> };
 }
 
 /**
