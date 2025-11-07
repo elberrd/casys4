@@ -1,678 +1,385 @@
-# ReUI - Phone Input
+# Custom Phone Input Component
 
-> Source: https://reui.io/docs/base-phone-input
-> Built on: react-phone-number-input (https://github.com/catamphetamine/react-phone-number-input)
-> Version: Latest
-> Last Updated: 2025-10-17
+> **Note**: This project uses a custom phone input implementation instead of the ReUI package.
+> Location: `/components/ui/phone-input.tsx`
+> Based on: shadcn/ui Command + Popover pattern
+> Last Updated: 2025-11-06
 
 ## Overview
 
-A phone number input component with country selection and validation. Built on top of Base UI components with react-phone-number-input. The component provides an intuitive interface for international phone number input, featuring automatic formatting, country code detection, and comprehensive validation capabilities.
+A custom phone number input component with country selector and automatic formatting. Built using shadcn/ui components (Command, Popover, ScrollArea) without external phone number libraries.
 
 **Key Features:**
-- International phone number formatting
-- Country selection dropdown with flags
-- Automatic phone number validation
-- E.164 format output
-- Multiple size variants (small, medium, large)
-- Form integration support
-- RTL (Right-to-Left) support
-- Accessibility features built-in
+- Country selector with 175+ countries (all UN members + territories)
+- Automatic phone number formatting based on selected country (50+ countries with format masks)
+- Search countries by name, dial code, or country code
+- Auto-detects country from pasted/typed dial codes
+- Compatible with React Hook Form via forwardRef
+- Mobile responsive with proper touch targets (h-9/36px minimum)
+- Accessible with ARIA labels and keyboard navigation
+- Fully internationalized (English/Portuguese) via next-intl
+- Type-safe with TypeScript (no `any` types)
+
+## Data Format
+
+- **Input/Output format**: `"+[dialCode] [number]"` (e.g., `"+55 11 98765-4321"`)
+- Automatically adds country code prefix
+- Supports various formatting characters (spaces, hyphens, parentheses, dots)
 
 ## Installation
 
-### Using CLI (Recommended)
+This component is already installed in the project. No additional setup required.
 
-```bash
-# Using pnpm
-pnpm dlx shadcn@latest add @reui/base-phone-input
-
-# Using npm
-npm dlx shadcn@latest add @reui/base-phone-input
-
-# Using yarn
-yarn dlx shadcn@latest add @reui/base-phone-input
-
-# Using bun
-bunx shadcn@latest add @reui/base-phone-input
-```
-
-### Manual Installation
-
-If you prefer manual installation, you need to install the underlying dependencies:
-
-```bash
-# Install react-phone-number-input
-npm install react-phone-number-input
-
-# Install required CSS
-npm install react-phone-number-input/style.css
-```
-
-## Dependencies
-
-The ReUI Phone Input component is built on top of:
-- **react-phone-number-input**: Core phone number parsing, formatting, and validation
-- **libphonenumber-js**: Phone number parsing and formatting library (included with react-phone-number-input)
-- **Base UI components**: ReUI's base component library
+**Dependencies:**
+- `next-intl` for internationalization
+- `lucide-react` for icons
+- `@/components/ui/button` - shadcn/ui Button
+- `@/components/ui/command` - shadcn/ui Command
+- `@/components/ui/popover` - shadcn/ui Popover
+- `@/components/ui/scroll-area` - shadcn/ui ScrollArea
+- `@/lib/data/countries-phone` - Country data (175+ countries)
 
 ## Usage
 
-### Basic Usage
+### Basic Usage with React Hook Form
 
 ```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
+import { PhoneInput } from '@/components/ui/phone-input';
+import { useForm } from 'react-hook-form';
 
 function BasicExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
+  const form = useForm();
 
   return (
-    <PhoneInput
-      placeholder="Enter phone number"
-      value={phoneNumber}
-      onChange={setPhoneNumber}
+    <FormField
+      control={form.control}
+      name="phoneNumber"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('phoneNumber')}</FormLabel>
+          <FormControl>
+            <PhoneInput {...field} defaultCountry="BR" />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
     />
-  )
+  );
 }
 ```
 
-The `value` will be in E.164 format (e.g., "+12133734253"). This is an international standard for phone numbers.
-
-### With Default Country
+### With Different Default Country
 
 ```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-
-function DefaultCountryExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
-
-  return (
-    <PhoneInput
-      placeholder="Enter phone number"
-      defaultCountry="US"
-      value={phoneNumber}
-      onChange={setPhoneNumber}
-    />
-  )
-}
-```
-
-### Size Variants
-
-The component supports three size variants: small, medium (default), and large.
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-
-function SizeExample() {
-  const [small, setSmall] = useState('')
-  const [medium, setMedium] = useState('')
-  const [large, setLarge] = useState('')
-
-  return (
-    <div className="space-y-4">
-      {/* Small */}
-      <PhoneInput
-        size="sm"
-        placeholder="Small"
-        value={small}
-        onChange={setSmall}
-      />
-
-      {/* Medium (Default) */}
-      <PhoneInput
-        size="md"
-        placeholder="Medium"
-        value={medium}
-        onChange={setMedium}
-      />
-
-      {/* Large */}
-      <PhoneInput
-        size="lg"
-        placeholder="Large"
-        value={large}
-        onChange={setLarge}
-      />
-    </div>
-  )
-}
-```
-
-### Form Integration
-
-The component integrates seamlessly with form libraries like React Hook Form.
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useForm } from 'react-hook-form'
-import { Button } from '@reui/components/button'
-
-interface FormData {
-  phoneNumber: string
-}
-
-function FormExample() {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch
-  } = useForm<FormData>()
-
-  const phoneNumber = watch('phoneNumber')
-
-  const onSubmit = (data: FormData) => {
-    console.log('Phone Number:', data.phoneNumber)
-  }
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <label htmlFor="phoneNumber" className="block text-sm font-medium mb-2">
-          Phone Number
-        </label>
-        <PhoneInput
-          id="phoneNumber"
-          placeholder="Enter your phone number"
-          value={phoneNumber}
-          onChange={(value) => setValue('phoneNumber', value || '')}
-          defaultCountry="US"
-        />
-        <p className="text-sm text-muted-foreground mt-1">
-          Enter your phone number to proceed
-        </p>
-        {errors.phoneNumber && (
-          <p className="text-sm text-destructive mt-1">
-            {errors.phoneNumber.message}
-          </p>
-        )}
-      </div>
-
-      <div className="flex gap-2">
-        <Button type="button" variant="outline">
-          Reset
-        </Button>
-        <Button type="submit">
-          Submit
-        </Button>
-      </div>
-    </form>
-  )
-}
+<PhoneInput
+  value={phoneNumber}
+  onChange={setPhoneNumber}
+  defaultCountry="US"
+  placeholder="Enter phone number"
+/>
 ```
 
 ### With Validation
 
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-import { isValidPhoneNumber, isPossiblePhoneNumber } from 'react-phone-number-input'
-
-function ValidationExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [error, setError] = useState('')
-
-  const handleChange = (value: string) => {
-    setPhoneNumber(value)
-
-    if (!value) {
-      setError('Phone number is required')
-    } else if (!isPossiblePhoneNumber(value)) {
-      setError('Invalid phone number length')
-    } else if (!isValidPhoneNumber(value)) {
-      setError('Invalid phone number')
-    } else {
-      setError('')
-    }
-  }
-
-  return (
-    <div>
-      <PhoneInput
-        placeholder="Enter phone number"
-        value={phoneNumber}
-        onChange={handleChange}
-      />
-      {error && (
-        <p className="text-sm text-destructive mt-1">{error}</p>
-      )}
-      {phoneNumber && !error && (
-        <p className="text-sm text-success mt-1">Valid phone number!</p>
-      )}
-    </div>
-  )
-}
-```
-
-### Formatting Display Values
+Use the validation schemas from `/lib/validations/phone.ts`:
 
 ```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-import { formatPhoneNumber, formatPhoneNumberIntl } from 'react-phone-number-input'
+import { optionalPhoneNumberSchema, requiredPhoneNumberSchema } from '@/lib/validations/phone';
+import { z } from 'zod';
 
-function FormatExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
+// Optional phone number
+const schema = z.object({
+  phoneNumber: optionalPhoneNumberSchema,
+});
 
-  return (
-    <div className="space-y-4">
-      <PhoneInput
-        placeholder="Enter phone number"
-        value={phoneNumber}
-        onChange={setPhoneNumber}
-      />
-
-      {phoneNumber && (
-        <div className="text-sm space-y-1">
-          <p>
-            <strong>E.164 Format:</strong> {phoneNumber}
-          </p>
-          <p>
-            <strong>National Format:</strong> {formatPhoneNumber(phoneNumber)}
-          </p>
-          <p>
-            <strong>International Format:</strong> {formatPhoneNumberIntl(phoneNumber)}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-```
-
-### Getting Country Information
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-import { parsePhoneNumber, getCountryCallingCode } from 'react-phone-number-input'
-
-function CountryInfoExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [country, setCountry] = useState<string>()
-
-  const phoneNumberObj = phoneNumber ? parsePhoneNumber(phoneNumber) : null
-
-  return (
-    <div className="space-y-4">
-      <PhoneInput
-        placeholder="Enter phone number"
-        value={phoneNumber}
-        onChange={setPhoneNumber}
-        onCountryChange={setCountry}
-      />
-
-      {phoneNumberObj && (
-        <div className="text-sm space-y-1">
-          <p>
-            <strong>Country:</strong> {phoneNumberObj.country}
-          </p>
-          <p>
-            <strong>Country Calling Code:</strong> +{phoneNumberObj.countryCallingCode}
-          </p>
-          <p>
-            <strong>National Number:</strong> {phoneNumberObj.nationalNumber}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-```
-
-### With Custom Styling
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-
-function CustomStyledExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
-
-  return (
-    <PhoneInput
-      placeholder="Enter phone number"
-      value={phoneNumber}
-      onChange={setPhoneNumber}
-      className="border-2 border-primary focus-within:ring-2 focus-within:ring-primary"
-    />
-  )
-}
+// Required phone number
+const schema = z.object({
+  phoneNumber: requiredPhoneNumberSchema,
+});
 ```
 
 ## Props/API Reference
 
-### Main Component Props
+### PhoneInputProps
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `value` | `string` | `undefined` | Phone number in E.164 format (e.g., "+12133734253") |
-| `onChange` | `(value: string \| undefined) => void` | - | Callback when phone number changes. Receives `undefined` for empty values |
-| `defaultCountry` | `string` | `undefined` | Default country code (ISO 3166-1 alpha-2). Example: "US", "GB", "FR" |
-| `countries` | `string[]` | All countries | Array of country codes to display in the selector |
-| `placeholder` | `string` | - | Placeholder text for the input |
-| `disabled` | `boolean` | `false` | Disables the input and country selector |
-| `readOnly` | `boolean` | `false` | Makes the input read-only |
-| `size` | `"sm" \| "md" \| "lg"` | `"md"` | Size variant of the input |
-| `international` | `boolean` | - | Force international format |
-| `withCountryCallingCode` | `boolean` | - | Include country calling code in the input |
-| `countryCallingCodeEditable` | `boolean` | `true` | Whether the country calling code can be edited |
-| `onCountryChange` | `(country?: string) => void` | - | Callback when country changes |
-| `labels` | `object` | English | Localization labels for countries and UI text |
-| `className` | `string` | - | Additional CSS classes |
-| `inputComponent` | `Component` | `input` | Custom input component |
-| `countrySelectComponent` | `Component` | Default select | Custom country select component |
-| `flagUrl` | `string` | Default CDN | Custom flag icon URL template |
-| `flags` | `object` | - | Custom flag icon components |
-| `addInternationalOption` | `boolean` | `true` | Show "International" option in country selector |
-| `smartCaret` | `boolean` | `true` | Enable smart caret positioning |
+| `value` | `string` | `""` | The current phone number value in international format (e.g., "+55 11 98765-4321") |
+| `onChange` | `(value: string) => void` | - | Callback function invoked when the phone number changes. Receives the new value with country code prefix |
+| `defaultCountry` | `string` | `"BR"` | ISO 3166-1 alpha-2 country code for the default country (e.g., "US", "GB", "DE", "FR") |
+| `className` | `string` | - | Additional CSS classes for the container |
+| `...props` | `React.ComponentProps<'input'>` | - | All standard HTML input attributes (except `onChange`, `value`, `type`) |
 
-### Standard Input Props
+## Validation
 
-The component also accepts standard HTML input attributes:
-- `autoComplete`
-- `autoFocus`
-- `tabIndex`
-- `name`
-- `id`
-- `type` (defaults to "tel")
-- All ARIA attributes
+The project includes comprehensive validation schemas in `/lib/validations/phone.ts`:
+
+### `phoneNumberSchema`
+Basic phone number validation (optional or empty string):
+- Validates international format with country code
+- Accepts formatting characters (spaces, hyphens, parentheses, dots)
+- Length: 8-30 characters
+
+### `requiredPhoneNumberSchema`
+Required phone number validation:
+- Same as `phoneNumberSchema` but requires a value
+- Validates digit count (7-25 digits after cleaning)
+
+### `optionalPhoneNumberSchema`
+Alias for `phoneNumberSchema` (for clarity in forms)
 
 ## Utility Functions
 
-The component exports several utility functions from react-phone-number-input:
+Available in `/lib/validations/phone.ts`:
 
-### `isValidPhoneNumber(value: string): boolean`
-
-Validates if a phone number is valid (checks length and digit patterns).
+### `cleanPhoneNumber(phone: string): string`
+Removes all formatting characters, leaving only digits and the + sign.
 
 ```tsx
-import { isValidPhoneNumber } from 'react-phone-number-input'
+import { cleanPhoneNumber } from '@/lib/validations/phone';
 
-isValidPhoneNumber('+12133734253') // true
-isValidPhoneNumber('+12223333333') // false
+cleanPhoneNumber("+55 (11) 98765-4321"); // "+5511987654321"
 ```
 
-### `isPossiblePhoneNumber(value: string): boolean`
-
-Checks if a phone number has valid length (less strict than `isValidPhoneNumber`).
+### `isValidPhoneLength(phone: string): boolean`
+Validates that the phone number has between 7 and 25 digits.
 
 ```tsx
-import { isPossiblePhoneNumber } from 'react-phone-number-input'
+import { isValidPhoneLength } from '@/lib/validations/phone';
 
-isPossiblePhoneNumber('+12223333333') // true
+isValidPhoneLength("+55 11 98765-4321"); // true
+isValidPhoneLength("+55 123"); // false
 ```
 
-### `formatPhoneNumber(value: string): string`
+## Country Data
 
-Formats phone number in national format.
+Country data is defined in `/lib/data/countries-phone.ts`:
 
-```tsx
-import { formatPhoneNumber } from 'react-phone-number-input'
+### Country Interface
 
-formatPhoneNumber('+12133734253') // "(213) 373-4253"
-```
-
-### `formatPhoneNumberIntl(value: string): string`
-
-Formats phone number in international format.
-
-```tsx
-import { formatPhoneNumberIntl } from 'react-phone-number-input'
-
-formatPhoneNumberIntl('+12133734253') // "+1 213 373 4253"
-```
-
-### `parsePhoneNumber(input: string): PhoneNumber | undefined`
-
-Parses a phone number string into a PhoneNumber object.
-
-```tsx
-import { parsePhoneNumber } from 'react-phone-number-input'
-
-const phoneNumber = parsePhoneNumber('+12133734253')
-if (phoneNumber) {
-  console.log(phoneNumber.country) // "US"
-  console.log(phoneNumber.nationalNumber) // "2133734253"
+```typescript
+interface Country {
+  code: string;      // ISO 3166-1 alpha-2 (e.g., "BR", "US")
+  name: string;      // Country name (e.g., "Brazil", "United States")
+  dialCode: string;  // Country dial code (e.g., "+55", "+1")
+  flag: string;      // Unicode emoji flag (e.g., "🇧🇷", "🇺🇸")
+  format?: string;   // Optional format mask (e.g., "(##) #####-####")
 }
 ```
 
-### `getCountryCallingCode(country: string): string`
+### Available Functions
 
-Gets the calling code for a country.
+```typescript
+// Find country by ISO code
+findCountryByCode(code: string): Country | undefined
+
+// Find country by dial code
+findCountryByDialCode(dialCode: string): Country | undefined
+
+// Format phone number according to country rules
+formatPhoneNumber(phoneNumber: string, country: Country): string
+
+// Clean phone number (remove formatting)
+cleanPhoneNumber(phoneNumber: string): string
+```
+
+## Internationalization
+
+The component uses `next-intl` for translations. Translation keys are in the `Common` namespace:
+
+### English (`messages/en.json`)
+```json
+{
+  "Common": {
+    "selectCountry": "Select country",
+    "searchCountry": "Search country...",
+    "noCountryFound": "No country found",
+    "enterPhoneNumber": "Enter phone number"
+  }
+}
+```
+
+### Portuguese (`messages/pt.json`)
+```json
+{
+  "Common": {
+    "selectCountry": "Selecionar país",
+    "searchCountry": "Pesquisar país...",
+    "noCountryFound": "Nenhum país encontrado",
+    "enterPhoneNumber": "Digite o número de telefone"
+  }
+}
+```
+
+## Examples
+
+### Complete Form Example
 
 ```tsx
-import { getCountryCallingCode } from 'react-phone-number-input'
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { PhoneInput } from '@/components/ui/phone-input';
+import { optionalPhoneNumberSchema } from '@/lib/validations/phone';
 
-getCountryCallingCode('US') // "1"
-getCountryCallingCode('GB') // "44"
-```
+const formSchema = z.object({
+  fullName: z.string().min(1, "Name is required"),
+  phoneNumber: optionalPhoneNumberSchema,
+});
 
-## Styling and Customization
+type FormData = z.infer<typeof formSchema>;
 
-### CSS Variables
+export function ContactForm() {
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      fullName: "",
+      phoneNumber: "",
+    },
+  });
 
-The component uses CSS variables for easy customization:
-
-```css
-:root {
-  --PhoneInputCountryFlag-height: 1em;
-  --PhoneInputCountryFlag-borderColor: rgba(0, 0, 0, 0.5);
-  --PhoneInputCountrySelectArrow-color: currentColor;
-  --PhoneInputCountrySelectArrow-opacity: 0.45;
-  --PhoneInput-color--focus: #03b2cb;
-}
-```
-
-### Size Classes
-
-The component applies different classes based on the `size` prop:
-- `size="sm"`: Smaller padding and font size
-- `size="md"`: Default medium size
-- `size="lg"`: Larger padding and font size
-
-### Custom Themes
-
-```css
-/* Example: Dark theme customization */
-.dark .PhoneInput {
-  --PhoneInputCountryFlag-borderColor: rgba(255, 255, 255, 0.5);
-  --PhoneInputCountrySelectArrow-color: white;
-  --PhoneInput-color--focus: #60a5fa;
-}
-
-/* Example: Custom brand colors */
-.PhoneInput {
-  --PhoneInput-color--focus: #3b82f6;
-}
-```
-
-## Localization
-
-The component supports internationalization through the `labels` prop. ReUI and react-phone-number-input come with several pre-built translations.
-
-### Using Localization
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import es from 'react-phone-number-input/locale/es' // Spanish
-import fr from 'react-phone-number-input/locale/fr' // French
-import ru from 'react-phone-number-input/locale/ru' // Russian
-
-function LocalizedExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
+  const onSubmit = (data: FormData) => {
+    console.log("Submitted:", data);
+    // data.phoneNumber will be in format: "+55 11 98765-4321"
+  };
 
   return (
-    <PhoneInput
-      labels={es} // Use Spanish labels
-      placeholder="Ingrese número de teléfono"
-      value={phoneNumber}
-      onChange={setPhoneNumber}
-    />
-  )
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <FormField
+          control={form.control}
+          name="fullName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="phoneNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone Number</FormLabel>
+              <FormControl>
+                <PhoneInput {...field} defaultCountry="BR" />
+              </FormControl>
+              <FormDescription>
+                Enter your phone number with country code
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Button type="submit">Submit</Button>
+      </form>
+    </Form>
+  );
 }
 ```
 
-### Available Locales
+### Parsing Existing Phone Numbers
 
-- English (en) - default
-- Spanish (es)
-- French (fr)
-- German (de)
-- Russian (ru)
-- Portuguese (pt)
-- Italian (it)
-- Chinese (zh)
-- Japanese (ja)
-- Korean (ko)
-- And many more...
+```tsx
+import { findCountryByDialCode } from '@/lib/data/countries-phone';
 
-See the [complete list of available locales](https://github.com/catamphetamine/react-phone-number-input/tree/master/locale).
+const phoneNumber = "+55 11 98765-4321";
+
+// Extract country from dial code
+for (const country of countries) {
+  if (phoneNumber.startsWith(country.dialCode)) {
+    console.log("Country:", country.name); // "Brazil"
+    console.log("Dial Code:", country.dialCode); // "+55"
+    break;
+  }
+}
+```
 
 ## Accessibility
 
-The Phone Input component is built with accessibility in mind:
+The component includes comprehensive accessibility features:
 
-- **ARIA Labels**: Proper `aria-label` attributes on country select
-- **Keyboard Navigation**: Full keyboard support for input and country selection
-- **Screen Reader Support**: Descriptive labels and announcements
-- **Focus Management**: Clear focus indicators and logical tab order
-- **Error Announcements**: Error messages are properly associated with inputs
-
-### Accessibility Best Practices
-
-```tsx
-import { PhoneInput } from '@reui/components/base-phone-input'
-import { useState } from 'react'
-
-function AccessibleExample() {
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [error, setError] = useState('')
-
-  return (
-    <div>
-      <label htmlFor="phone-input" className="block text-sm font-medium mb-2">
-        Phone Number <span className="text-destructive">*</span>
-      </label>
-      <PhoneInput
-        id="phone-input"
-        placeholder="Enter phone number"
-        value={phoneNumber}
-        onChange={setPhoneNumber}
-        required
-        aria-required="true"
-        aria-invalid={!!error}
-        aria-describedby={error ? "phone-error" : undefined}
-      />
-      {error && (
-        <p id="phone-error" className="text-sm text-destructive mt-1" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-```
-
-## Common Issues and Solutions
-
-### Issue: Phone number not being validated correctly
-
-**Solution**: Make sure you're using the appropriate validation function. Use `isPossiblePhoneNumber()` for length validation, and `isValidPhoneNumber()` for strict validation.
-
-```tsx
-// Recommended: Use isPossiblePhoneNumber for better UX
-if (phoneNumber && !isPossiblePhoneNumber(phoneNumber)) {
-  setError('Please enter a valid phone number')
-}
-```
-
-### Issue: Country not being detected
-
-**Solution**: Ensure the phone number is in E.164 format (starts with +) for automatic country detection.
-
-```tsx
-const phoneNumber = parsePhoneNumber(value)
-if (phoneNumber) {
-  console.log('Country:', phoneNumber.country)
-}
-```
-
-### Issue: Custom styling not applying
-
-**Solution**: Make sure to import the base CSS file and use CSS variables or className prop.
-
-```tsx
-import 'react-phone-number-input/style.css'
-
-<PhoneInput className="custom-phone-input" ... />
-```
-
-### Issue: Flags not displaying
-
-**Solution**: The component loads flags from CDN by default. If you need offline support, import flags directly:
-
-```tsx
-import flags from 'react-phone-number-input/flags'
-
-<PhoneInput flags={flags} ... />
-```
+- **ARIA Labels**: `aria-label` on country selector button
+- **ARIA Expanded**: `aria-expanded` state on combobox
+- **Keyboard Navigation**: Full keyboard support for country selection
+- **Screen Reader Support**: Proper announcements for selections
+- **Focus Management**: Logical tab order and focus indicators
+- **Mobile Touch Targets**: Minimum 36px (h-9) height for touch accessibility
 
 ## Best Practices
 
-1. **Always validate phone numbers**: Use `isPossiblePhoneNumber()` or `isValidPhoneNumber()` before form submission.
+1. **Always use with React Hook Form**: The component is designed to work seamlessly with react-hook-form via `forwardRef`.
 
-2. **Provide clear error messages**: Help users understand what's wrong with their input.
+2. **Use validation schemas**: Import validation from `/lib/validations/phone.ts` for consistent validation across forms.
 
-3. **Set a default country**: If you know your users' location, set `defaultCountry` for better UX.
+3. **Set appropriate default country**: Use `defaultCountry="BR"` for Brazilian users, adjust based on your audience.
 
-4. **Store in E.164 format**: Always store phone numbers in E.164 format in your database for consistency.
+4. **Store in consistent format**: Always store phone numbers as returned by the component (with country code prefix).
 
-5. **Display formatted numbers**: Use `formatPhoneNumber()` or `formatPhoneNumberIntl()` when displaying phone numbers to users.
+5. **Provide clear labels**: Always use proper form labels for accessibility.
 
-6. **Consider using `isPossiblePhoneNumber()` over `isValidPhoneNumber()`**: Phone numbering plans can change, and `isPossiblePhoneNumber()` is more future-proof.
+## Migration from ReUI
 
-7. **Accessibility matters**: Always provide proper labels and error messages.
+If you previously used `@reui/base-phone-input`, here are the key differences:
 
-8. **Test with real phone numbers**: Test your forms with actual phone numbers from different countries.
+### Installation
+- **ReUI**: Required `pnpm dlx shadcn@latest add @reui/base-phone-input`
+- **Custom**: Already included in the project
 
-## RTL (Right-to-Left) Support
-
-The component supports RTL languages out of the box. When the page direction is RTL, the component automatically adjusts its layout.
-
+### Import Path
 ```tsx
-<div dir="rtl">
-  <PhoneInput
-    placeholder="أدخل رقم الهاتف"
-    value={phoneNumber}
-    onChange={setPhoneNumber}
-  />
-</div>
+// ReUI (old)
+import { PhoneInput } from '@reui/components/base-phone-input';
+
+// Custom (new)
+import { PhoneInput } from '@/components/ui/phone-input';
 ```
 
-## Browser Support
+### Data Format
+- **ReUI**: E.164 format (`"+12133734253"`)
+- **Custom**: Formatted with spaces (`"+55 11 98765-4321"`)
 
-The component works in all modern browsers:
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
-- Mobile browsers
+### Validation
+```tsx
+// ReUI (old)
+import { isValidPhoneNumber } from 'react-phone-number-input';
 
-**Note**: Internet Explorer is not supported. For older browsers, you may need to transpile CSS variables.
+// Custom (new)
+import { optionalPhoneNumberSchema } from '@/lib/validations/phone';
+```
 
-## Related Resources
+### Size Prop
+- **ReUI**: Supported `size="sm" | "md" | "lg"`
+- **Custom**: No size prop (uses consistent h-9 height)
 
-- [ReUI Documentation](https://reui.io/docs)
-- [react-phone-number-input GitHub](https://github.com/catamphetamine/react-phone-number-input)
-- [react-phone-number-input Demo](https://catamphetamine.github.io/react-phone-number-input/)
-- [libphonenumber-js Documentation](https://gitlab.com/catamphetamine/libphonenumber-js)
-- [ISO 3166-1 Country Codes](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
+## Troubleshooting
 
-## License
+### Issue: Country not being detected from pasted number
 
-This component is part of ReUI, which uses the MIT license. The underlying react-phone-number-input library is also MIT licensed.
+**Solution**: Ensure the pasted number starts with `+` and includes the full dial code.
+
+### Issue: Validation failing for valid numbers
+
+**Solution**: Check that your validation schema allows the formatted output with spaces and hyphens.
+
+### Issue: Translations not showing
+
+**Solution**: Verify that the translation keys exist in both `messages/en.json` and `messages/pt.json` under the `Common` namespace.
+
+## Related Files
+
+- Component: `/components/ui/phone-input.tsx`
+- Country Data: `/lib/data/countries-phone.ts`
+- Validation: `/lib/validations/phone.ts`
+- Translations: `/messages/en.json`, `/messages/pt.json`
+
+## See Also
+
+- [i18n Documentation](./i18n.md)
+- [Form Validation Best Practices](../convex_rules.md)

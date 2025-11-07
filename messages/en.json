@@ -51,7 +51,11 @@
     "noResults": "No results found",
     "next": "Next",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "selectCountry": "Select country",
+    "searchCountry": "Search country...",
+    "noCountryFound": "No country found",
+    "enterPhoneNumber": "Enter phone number"
   },
   "Navigation": {
     "dashboard": "Dashboard",

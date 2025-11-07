@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 
 // User creation/edit validation schema
 export const userSchema = z.object({
@@ -20,10 +21,7 @@ export const userSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  phoneNumber: z
-    .string()
-    .optional()
-    .or(z.literal("")),
+  phoneNumber: optionalPhoneNumberSchema,
 }).refine(
   (data) => {
     // Client role must have companyId

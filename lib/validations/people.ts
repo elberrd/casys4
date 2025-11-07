@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 import { cleanDocumentNumber, isValidCPF } from "@/lib/utils/document-masks";
+import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 
 // CPF validation regex (accepts both formatted XXX.XXX.XXX-XX and unformatted XXXXXXXXXXX)
 const cpfRegex = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
@@ -30,7 +31,7 @@ export const personSchema = z.object({
   profession: z.string().min(1, "Profession must be valid").optional().or(z.literal("")),
   motherName: z.string().min(1, "Mother's name must be valid").optional().or(z.literal("")),
   fatherName: z.string().min(1, "Father's name must be valid").optional().or(z.literal("")),
-  phoneNumber: z.string().min(1, "Phone number must be valid").optional().or(z.literal("")),
+  phoneNumber: optionalPhoneNumberSchema,
   address: z.string().min(1, "Address must be valid").optional().or(z.literal("")),
   currentCityId: z.custom<Id<"cities">>((val) => typeof val === "string" && val.length > 0, {
     message: "Current city ID must be valid",

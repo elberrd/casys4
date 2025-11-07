@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { CNPJInput } from "@/components/ui/cnpj-input"
+import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Combobox } from "@/components/ui/combobox"
@@ -215,7 +216,7 @@ export function CompanyFormDialog({
                 <FormItem>
                   <FormLabel>{t('phoneNumber')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="+55 11 98765-4321" {...field} />
+                    <PhoneInput {...field} defaultCountry="BR" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

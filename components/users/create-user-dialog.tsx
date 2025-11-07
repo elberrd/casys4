@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/ui/phone-input"
 import { Combobox } from "@/components/ui/combobox"
 import {
   Select,
@@ -206,7 +207,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
                 <FormItem>
                   <FormLabel>{t('phoneNumber')} ({tCommon('optional')})</FormLabel>
                   <FormControl>
-                    <Input placeholder="+55 11 98765-4321" {...field} />
+                    <PhoneInput {...field} defaultCountry="BR" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

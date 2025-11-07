@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { CPFInput } from "@/components/ui/cpf-input"
+import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
@@ -376,7 +377,7 @@ export function PersonFormPage({
                   <FormItem>
                     <FormLabel>{t('phoneNumber')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="+55 11 98765-4321" {...field} />
+                      <PhoneInput {...field} defaultCountry="BR" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

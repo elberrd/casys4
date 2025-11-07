@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 import { cleanDocumentNumber, isValidCNPJ } from "@/lib/utils/document-masks";
+import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 
 // CNPJ validation regex (accepts both formatted XX.XXX.XXX/XXXX-XX and unformatted XXXXXXXXXXXXXX)
 const cnpjRegex = /^(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})$/;
@@ -24,7 +25,7 @@ export const companySchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  phoneNumber: z.string().min(1, "Phone number must be valid").optional().or(z.literal("")),
+  phoneNumber: optionalPhoneNumberSchema,
   email: z.string().email("Invalid email format").optional().or(z.literal("")),
   contactPersonId: z
     .custom<Id<"people">>((val) => typeof val === "string", {

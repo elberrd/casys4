@@ -51,7 +51,11 @@
     "noResults": "Nenhum resultado encontrado",
     "next": "Próximo",
     "yes": "Sim",
-    "no": "Não"
+    "no": "Não",
+    "selectCountry": "Selecionar país",
+    "searchCountry": "Pesquisar país...",
+    "noCountryFound": "Nenhum país encontrado",
+    "enterPhoneNumber": "Digite o número de telefone"
   },
   "Navigation": {
     "dashboard": "Painel",

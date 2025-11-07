@@ -26,6 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { consulateSchema, type ConsulateFormData } from "@/lib/validations/consulates";
@@ -203,7 +204,7 @@ export function ConsulateFormDialog({
                   <FormItem>
                     <FormLabel>{t("phoneNumber")}</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <PhoneInput {...field} defaultCountry="BR" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
