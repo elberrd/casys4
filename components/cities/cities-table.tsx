@@ -47,6 +47,7 @@ interface City {
     name: string
     code: string
     iso3: string
+    flag?: string
   } | null
 }
 
