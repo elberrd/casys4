@@ -89,6 +89,55 @@ export const list = query({
 });
 
 /**
+ * Query to get the current company for a person
+ * Access control: Admins can query any person, clients can only query their company's people
+ */
+export const getCurrentByPerson = query({
+  args: { personId: v.id("people") },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const currentRelationship = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_person", (q) => q.eq("personId", args.personId))
+      .filter((q) => q.eq(q.field("isCurrent"), true))
+      .first();
+
+    if (!currentRelationship) {
+      return null;
+    }
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      if (currentRelationship.companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: This person is not associated with your company"
+        );
+      }
+    }
+
+    const company = currentRelationship.companyId
+      ? await ctx.db.get(currentRelationship.companyId)
+      : null;
+
+    return {
+      ...currentRelationship,
+      company: company
+        ? {
+            _id: company._id,
+            name: company.name,
+          }
+        : null,
+    };
+  },
+});
+
+/**
  * Query to list relationships by person
  * Access control: Admins can list any person's relationships, clients can only list their company's people
  */
@@ -397,5 +446,78 @@ export const remove = mutation({
     await requireAdmin(ctx);
 
     await ctx.db.delete(args.id);
+  },
+});
+
+/**
+ * Mutation to upsert current company for a person (admin only)
+ * This simplifies the person form - it handles setting the current company
+ * and automatically marks it as current, unsetting any previous current employment
+ */
+export const upsertCurrent = mutation({
+  args: {
+    personId: v.id("people"),
+    companyId: v.optional(v.id("companies")),
+    role: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
+    // If companyId is not provided, remove current employment
+    if (!args.companyId) {
+      // Find and remove current employment
+      const currentEmployments = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_person", (q) => q.eq("personId", args.personId))
+        .filter((q) => q.eq(q.field("isCurrent"), true))
+        .collect();
+
+      for (const employment of currentEmployments) {
+        await ctx.db.delete(employment._id);
+      }
+
+      return null;
+    }
+
+    // Unset any existing current employment
+    const currentEmployments = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_person", (q) => q.eq("personId", args.personId))
+      .filter((q) => q.eq(q.field("isCurrent"), true))
+      .collect();
+
+    for (const employment of currentEmployments) {
+      await ctx.db.patch(employment._id, { isCurrent: false });
+    }
+
+    // Check if relationship already exists (but not current)
+    const existingRelationship = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_person_company", (q) =>
+        q.eq("personId", args.personId).eq("companyId", args.companyId)
+      )
+      .first();
+
+    if (existingRelationship) {
+      // Update existing to be current
+      await ctx.db.patch(existingRelationship._id, {
+        role: args.role || existingRelationship.role,
+        isCurrent: true,
+      });
+
+      return existingRelationship._id;
+    }
+
+    // Create new current employment
+    const relationshipId = await ctx.db.insert("peopleCompanies", {
+      personId: args.personId,
+      companyId: args.companyId,
+      role: args.role || "",
+      startDate: new Date().toISOString().split("T")[0], // Today's date
+      isCurrent: true,
+    });
+
+    return relationshipId;
   },
 });

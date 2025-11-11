@@ -102,9 +102,25 @@ export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTablePro
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('email')} />
         ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.email || '-'}</span>
-        ),
+        cell: ({ row }) => {
+          const email = row.original.email
+
+          if (!email) {
+            return <span className="text-muted-foreground">-</span>
+          }
+
+          return (
+            <a
+              href={`mailto:${email}`}
+              className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded px-1 py-0.5 block max-w-full truncate"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Send email to ${email}`}
+              title={email}
+            >
+              {email}
+            </a>
+          )
+        },
       },
       {
         accessorKey: "cpf",

@@ -637,7 +637,13 @@
     "addressInformation": "Informações de Endereço",
     "phone": "Telefone",
     "rg": "RG",
-    "passports": "Passaportes"
+    "passports": "Passaportes",
+    "company": "Empresa",
+    "selectCompany": "Selecione uma empresa",
+    "noCompany": "Sem empresa",
+    "createNewCompany": "Criar nova empresa",
+    "companyRole": "Cargo na Empresa",
+    "noName": "Sem nome"
   },
   "Companies": {
     "title": "Empresas",
@@ -671,7 +677,18 @@
     "errorCreate": "Erro ao criar empresa",
     "errorUpdate": "Erro ao atualizar empresa",
     "errorDelete": "Erro ao excluir empresa",
-    "noResults": "Nenhuma empresa encontrada"
+    "noResults": "Nenhuma empresa encontrada",
+    "quickCreateTitle": "Criar Empresa Rápido",
+    "quickCreateDescription": "Insira as informações básicas da empresa para criar rapidamente",
+    "companyCreated": "Empresa criada com sucesso",
+    "relatedPeople": "Pessoas Relacionadas",
+    "noPeople": "Nenhuma pessoa associada a esta empresa",
+    "addPersonDescription": "Adicione pessoas a esta empresa na página de Pessoas",
+    "role": "Cargo",
+    "currentEmployee": "Atual",
+    "formerEmployee": "Anterior",
+    "since": "Desde",
+    "viewPerson": "Ver Pessoa"
   },
   "Documents": {
     "title": "Documentos",

@@ -638,7 +638,13 @@
     "addressInformation": "Address Information",
     "phone": "Phone",
     "rg": "RG",
-    "passports": "Passports"
+    "passports": "Passports",
+    "company": "Company",
+    "selectCompany": "Select company",
+    "noCompany": "No company",
+    "createNewCompany": "Create new company",
+    "companyRole": "Role in Company",
+    "noName": "No name"
   },
   "Companies": {
     "title": "Companies",
@@ -672,7 +678,18 @@
     "errorCreate": "Error creating company",
     "errorUpdate": "Error updating company",
     "errorDelete": "Error deleting company",
-    "noResults": "No companies found"
+    "noResults": "No companies found",
+    "quickCreateTitle": "Quick Create Company",
+    "quickCreateDescription": "Enter basic company information to create quickly",
+    "companyCreated": "Company created successfully",
+    "relatedPeople": "Related People",
+    "noPeople": "No people associated with this company",
+    "addPersonDescription": "Add people to this company from the People page",
+    "role": "Role",
+    "currentEmployee": "Current",
+    "formerEmployee": "Former",
+    "since": "Since",
+    "viewPerson": "View Person"
   },
   "Documents": {
     "title": "Documents",

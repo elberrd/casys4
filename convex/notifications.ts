@@ -88,21 +88,26 @@ export const getUserNotifications = query({
 export const getUnreadCount = query({
   args: {},
   handler: async (ctx) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    try {
+      const userProfile = await getCurrentUserProfile(ctx);
 
-    // If user profile is not yet activated (userId is undefined), return 0
-    if (!userProfile.userId) {
+      // If user profile is not yet activated (userId is undefined), return 0
+      if (!userProfile.userId) {
+        return 0;
+      }
+
+      const notifications = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_read", (q) =>
+          q.eq("userId", userProfile.userId!).eq("isRead", false)
+        )
+        .collect();
+
+      return notifications.length;
+    } catch (error) {
+      // If user profile not found or not authenticated, return 0
       return 0;
     }
-
-    const notifications = await ctx.db
-      .query("notifications")
-      .withIndex("by_user_read", (q) =>
-        q.eq("userId", userProfile.userId!).eq("isRead", false)
-      )
-      .collect();
-
-    return notifications.length;
   },
 });
 

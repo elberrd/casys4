@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -26,6 +26,8 @@ import { CPFInput } from "@/components/ui/cpf-input"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
+import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
+import { CompanyQuickCreateDialog } from "@/components/companies/company-quick-create-dialog"
 import { Separator } from "@/components/ui/separator"
 import { PassportsSubtable } from "@/components/people/passports-subtable"
 import { useTranslations } from "next-intl"
@@ -47,16 +49,24 @@ export function PersonFormPage({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
   const router = useRouter()
+  const [companyDialogOpen, setCompanyDialogOpen] = useState(false)
 
   const person = useQuery(
     api.people.get,
     personId ? { id: personId } : "skip"
   )
 
+  const currentCompany = useQuery(
+    api.peopleCompanies.getCurrentByPerson,
+    personId ? { personId } : "skip"
+  )
+
   const cities = useQuery(api.cities.listWithRelations, {}) ?? []
   const countries = useQuery(api.countries.list, {}) ?? []
+  const companies = useQuery(api.companies.listActive, {}) ?? []
   const createPerson = useMutation(api.people.create)
   const updatePerson = useMutation(api.people.update)
+  const upsertCompanyRelationship = useMutation(api.peopleCompanies.upsertCurrent)
 
   const form = useForm<PersonFormData>({
     resolver: zodResolver(personSchema),
@@ -76,6 +86,7 @@ export function PersonFormPage({
       currentCityId: "" as Id<"cities">,
       photoUrl: "",
       notes: "",
+      companyId: "" as Id<"companies">,
     },
   })
 
@@ -98,15 +109,21 @@ export function PersonFormPage({
         currentCityId: person.currentCityId,
         photoUrl: person.photoUrl ?? "",
         notes: person.notes ?? "",
+        companyId: currentCompany?.companyId ?? ("" as Id<"companies">),
       })
     }
-  }, [person, form])
+  }, [person, currentCompany, form])
 
   const onSubmit = async (data: PersonFormData) => {
     try {
+      // Separate company fields from person data first
+      const companyId = data.companyId === "" ? undefined : data.companyId
+
       // Clean optional fields - convert empty strings to undefined
+      // Exclude companyId from submitData as it's handled separately
+      const { companyId: _, ...dataWithoutCompany } = data
       const submitData = {
-        ...data,
+        ...dataWithoutCompany,
         email: data.email || undefined,
         cpf: data.cpf || undefined,
         birthDate: data.birthDate || undefined,
@@ -123,17 +140,27 @@ export function PersonFormPage({
         notes: data.notes || undefined,
       }
 
+      let savedPersonId: Id<"people">
+
       if (personId) {
         await updatePerson({ id: personId, ...submitData })
+        savedPersonId = personId
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        await createPerson(submitData)
+        savedPersonId = await createPerson(submitData)
         toast({
           title: t('createdSuccess'),
         })
       }
+
+      // Update company relationship if provided
+      await upsertCompanyRelationship({
+        personId: savedPersonId,
+        companyId,
+        role: undefined,
+      })
 
       // Call onSuccess callback if provided, otherwise navigate to list
       if (onSuccess) {
@@ -162,6 +189,11 @@ export function PersonFormPage({
   const countryOptions = countries.map((country) => ({
     value: country._id,
     label: country.name,
+  }))
+
+  const companyOptions = companies.map((company) => ({
+    value: company._id,
+    label: company.name,
   }))
 
   return (
@@ -362,6 +394,28 @@ export function PersonFormPage({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="companyId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('company')}</FormLabel>
+                    <FormControl>
+                      <ComboboxWithCreate
+                        options={companyOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t('selectCompany')}
+                        canCreate={true}
+                        createButtonLabel={t('createNewCompany')}
+                        onCreateClick={() => setCompanyDialogOpen(true)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <Separator />
@@ -476,6 +530,16 @@ export function PersonFormPage({
           </div>
         )}
       </div>
+
+      {/* Company Quick Create Dialog */}
+      <CompanyQuickCreateDialog
+        open={companyDialogOpen}
+        onOpenChange={setCompanyDialogOpen}
+        onSuccess={(companyId) => {
+          form.setValue('companyId', companyId)
+          setCompanyDialogOpen(false)
+        }}
+      />
     </div>
   )
 }

@@ -38,3 +38,27 @@ export const companySchema = z.object({
 });
 
 export type CompanyFormData = z.infer<typeof companySchema>;
+
+// Quick-create schema - minimal required fields for inline company creation
+export const companyQuickCreateSchema = z.object({
+  name: z.string().min(1, "Company name is required"),
+  taxId: z
+    .string()
+    .regex(cnpjRegex, "Invalid CNPJ format")
+    .refine((val) => !val || val === "" || isValidCNPJ(val), {
+      message: "Invalid CNPJ check digits",
+    })
+    .transform((val) => (val ? cleanDocumentNumber(val) : val))
+    .optional()
+    .or(z.literal("")),
+  email: z.string().email("Invalid email format").optional().or(z.literal("")),
+  phoneNumber: optionalPhoneNumberSchema,
+  cityId: z
+    .custom<Id<"cities">>((val) => typeof val === "string", {
+      message: "City ID must be valid",
+    })
+    .optional()
+    .or(z.literal("")),
+});
+
+export type CompanyQuickCreateFormData = z.infer<typeof companyQuickCreateSchema>;

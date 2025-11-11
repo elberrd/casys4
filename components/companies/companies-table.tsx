@@ -133,12 +133,12 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         ),
       },
       {
-        accessorKey: "email",
+        accessorKey: "website",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('email')} />
+          <DataGridColumnHeader column={column} title={t('website')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.email}</span>
+          <span className="text-muted-foreground">{row.original.website || '-'}</span>
         ),
       },
       {

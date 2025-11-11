@@ -38,6 +38,10 @@ export const personSchema = z.object({
   }).optional().or(z.literal("")),
   photoUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
+  // Company relationship fields
+  companyId: z.custom<Id<"companies">>((val) => typeof val === "string" && val.length > 0, {
+    message: "Company ID must be valid",
+  }).optional().or(z.literal("")),
 });
 
 export type PersonFormData = z.infer<typeof personSchema>;
