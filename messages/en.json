@@ -644,7 +644,12 @@
     "noCompany": "No company",
     "createNewCompany": "Create new company",
     "companyRole": "Role in Company",
-    "noName": "No name"
+    "noName": "No name",
+    "cpfAvailable": "CPF available",
+    "cpfInUseBy": "CPF already in use by {name}",
+    "cpfChecking": "Checking CPF...",
+    "cpfDuplicateError": "This CPF is already registered to another person",
+    "cpfValidationInProgress": "Please wait while we validate the CPF"
   },
   "Companies": {
     "title": "Companies",

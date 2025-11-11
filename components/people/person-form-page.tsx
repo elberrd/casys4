@@ -35,6 +35,8 @@ import { personSchema, PersonFormData, maritalStatusOptions } from "@/lib/valida
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { useCpfValidation } from "@/hooks/use-cpf-validation"
+import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
 
 interface PersonFormPageProps {
   personId?: Id<"people">
@@ -90,6 +92,16 @@ export function PersonFormPage({
     },
   })
 
+  // Watch CPF field for real-time validation
+  const cpfValue = form.watch('cpf')
+
+  // CPF duplicate validation
+  const { isChecking, isAvailable, existingPerson } = useCpfValidation({
+    cpf: cpfValue,
+    personId: personId,
+    enabled: true,
+  })
+
   // Reset form when person data loads
   useEffect(() => {
     if (person) {
@@ -116,6 +128,25 @@ export function PersonFormPage({
 
   const onSubmit = async (data: PersonFormData) => {
     try {
+      // Check if CPF validation is in progress
+      if (isChecking) {
+        toast({
+          title: t('cpfValidationInProgress'),
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Check if CPF is already in use
+      if (isAvailable === false) {
+        toast({
+          title: t('cpfDuplicateError'),
+          description: existingPerson ? t('cpfInUseBy', { name: existingPerson.fullName }) : undefined,
+          variant: "destructive",
+        })
+        return
+      }
+
       // Separate company fields from person data first
       const companyId = data.companyId === "" ? undefined : data.companyId
 
@@ -251,9 +282,16 @@ export function PersonFormPage({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('cpf')}</FormLabel>
-                      <FormControl>
-                        <CPFInput {...field} />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <CPFInput {...field} />
+                        </FormControl>
+                        <CpfValidationFeedback
+                          isChecking={isChecking}
+                          isAvailable={isAvailable}
+                          existingPerson={existingPerson}
+                        />
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

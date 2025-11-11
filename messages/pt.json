@@ -643,7 +643,12 @@
     "noCompany": "Sem empresa",
     "createNewCompany": "Criar nova empresa",
     "companyRole": "Cargo na Empresa",
-    "noName": "Sem nome"
+    "noName": "Sem nome",
+    "cpfAvailable": "CPF disponível",
+    "cpfInUseBy": "CPF já está em uso por {name}",
+    "cpfChecking": "Verificando CPF...",
+    "cpfDuplicateError": "Este CPF já está registrado para outra pessoa",
+    "cpfValidationInProgress": "Por favor, aguarde enquanto validamos o CPF"
   },
   "Companies": {
     "title": "Empresas",

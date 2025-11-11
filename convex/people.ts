@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
+import { cleanDocumentNumber } from "../lib/utils/document-masks";
 
 /**
  * Query to list all people with optional search
@@ -128,6 +129,72 @@ export const search = query({
 });
 
 /**
+ * Query to check if a CPF is already in use by another person
+ * Returns availability status and existing person details if duplicate found
+ * Access control: Admins can check any CPF, clients can check CPFs (for creating/editing people)
+ */
+export const checkCpfDuplicate = query({
+  args: {
+    cpf: v.string(),
+    excludePersonId: v.optional(v.id("people")),
+  },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Return available if CPF is empty or undefined
+    if (!args.cpf || args.cpf.trim() === "") {
+      return {
+        isAvailable: true,
+        existingPerson: null,
+      };
+    }
+
+    // Clean CPF (remove formatting) before database query
+    const cleanedCpf = cleanDocumentNumber(args.cpf);
+
+    // Return available if CPF is incomplete (less than 11 digits)
+    if (cleanedCpf.length !== 11) {
+      return {
+        isAvailable: true,
+        existingPerson: null,
+      };
+    }
+
+    // Query for existing person with this CPF using the by_cpf index
+    const existingPerson = await ctx.db
+      .query("people")
+      .withIndex("by_cpf", (q) => q.eq("cpf", cleanedCpf))
+      .first();
+
+    // If no person found, CPF is available
+    if (!existingPerson) {
+      return {
+        isAvailable: true,
+        existingPerson: null,
+      };
+    }
+
+    // If found person is the one being edited (excludePersonId), CPF is available
+    if (args.excludePersonId && existingPerson._id === args.excludePersonId) {
+      return {
+        isAvailable: true,
+        existingPerson: null,
+      };
+    }
+
+    // CPF is taken by another person
+    return {
+      isAvailable: false,
+      existingPerson: {
+        _id: existingPerson._id,
+        fullName: existingPerson.fullName,
+      },
+    };
+  },
+});
+
+/**
  * Query to get a single person by ID
  * Access control: Admins can view any person, clients can only view people from their company
  */
@@ -215,6 +282,24 @@ export const create = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
+    // Check for duplicate CPF if provided
+    if (args.cpf) {
+      const cleanedCpf = cleanDocumentNumber(args.cpf);
+
+      if (cleanedCpf.length === 11) {
+        const existingPerson = await ctx.db
+          .query("people")
+          .withIndex("by_cpf", (q) => q.eq("cpf", cleanedCpf))
+          .first();
+
+        if (existingPerson) {
+          throw new Error(
+            `CPF ${args.cpf} is already registered to ${existingPerson.fullName}`
+          );
+        }
+      }
+    }
+
     const now = Date.now();
 
     const personId = await ctx.db.insert("people", {
@@ -254,6 +339,25 @@ export const update = mutation({
     await requireAdmin(ctx);
 
     const { id, ...data } = args;
+
+    // Check for duplicate CPF if provided
+    if (data.cpf) {
+      const cleanedCpf = cleanDocumentNumber(data.cpf);
+
+      if (cleanedCpf.length === 11) {
+        const existingPerson = await ctx.db
+          .query("people")
+          .withIndex("by_cpf", (q) => q.eq("cpf", cleanedCpf))
+          .first();
+
+        // If duplicate found and it's not the current person being updated
+        if (existingPerson && existingPerson._id !== id) {
+          throw new Error(
+            `CPF ${data.cpf} is already registered to ${existingPerson.fullName}`
+          );
+        }
+      }
+    }
 
     await ctx.db.patch(id, {
       ...data,
