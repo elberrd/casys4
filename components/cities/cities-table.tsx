@@ -103,10 +103,20 @@ export function CitiesTable({ cities, onView, onEdit, onDelete }: CitiesTablePro
       },
       {
         accessorKey: "country.name",
-        header: "Country",
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.country?.name || "-"} />
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('country')} />
         ),
+        cell: ({ row }) => {
+          const country = row.original.country
+          if (!country) return <DataGridHighlightedCell text="-" />
+
+          return (
+            <div className="flex items-center gap-2">
+              {country.flag && <span className="text-lg">{country.flag}</span>}
+              <DataGridHighlightedCell text={country.name} />
+            </div>
+          )
+        },
       },
       {
         accessorKey: "hasFederalPolice",

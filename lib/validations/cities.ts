@@ -9,6 +9,12 @@ export const citySchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  countryId: z
+    .custom<Id<"countries">>((val) => typeof val === "string", {
+      message: "Country ID must be valid",
+    })
+    .optional()
+    .or(z.literal("")),
   hasFederalPolice: z.boolean().optional(),
 });
 

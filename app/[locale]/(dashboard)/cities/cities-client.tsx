@@ -39,13 +39,11 @@ export function CitiesClient() {
   }
 
   const handleDelete = async (id: Id<"cities">) => {
-    if (confirm(t('deleteConfirm'))) {
-      try {
-        await deleteCity({ id })
-      } catch (error) {
-        console.error("Error deleting city:", error)
-        alert(t('errorDelete'))
-      }
+    try {
+      await deleteCity({ id })
+    } catch (error) {
+      console.error("Error deleting city:", error)
+      throw error // Let the hook handle the error toast
     }
   }
 

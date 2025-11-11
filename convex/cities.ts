@@ -32,9 +32,13 @@ export const get = query({
     if (!city) return null;
 
     const state = city.stateId ? await ctx.db.get(city.stateId) : null;
-    if (!state) return { ...city, state: null, country: null };
 
-    const country = state.countryId ? await ctx.db.get(state.countryId) : null;
+    // Fetch country from city's direct relationship (if exists)
+    const cityCountry = city.countryId ? await ctx.db.get(city.countryId) : null;
+
+    // Fallback to state's country if city doesn't have one
+    const country = cityCountry || (state?.countryId ? await ctx.db.get(state.countryId) : null);
+
     return {
       ...city,
       state,
@@ -57,9 +61,13 @@ export const listWithRelations = query({
     const citiesWithRelations = await Promise.all(
       cities.map(async (city) => {
         const state = city.stateId ? await ctx.db.get(city.stateId) : null;
-        if (!state) return { ...city, state: null, country: null };
 
-        const country = state.countryId ? await ctx.db.get(state.countryId) : null;
+        // Fetch country from city's direct relationship (if exists)
+        const cityCountry = city.countryId ? await ctx.db.get(city.countryId) : null;
+
+        // Fallback to state's country if city doesn't have one
+        const country = cityCountry || (state?.countryId ? await ctx.db.get(state.countryId) : null);
+
         return {
           ...city,
           state,
@@ -114,6 +122,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     stateId: v.optional(v.id("states")),
+    countryId: v.optional(v.id("countries")),
     hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -127,9 +136,18 @@ export const create = mutation({
       }
     }
 
+    // Check if country exists (when provided)
+    if (args.countryId) {
+      const country = await ctx.db.get(args.countryId);
+      if (!country) {
+        throw new Error("Country not found");
+      }
+    }
+
     const cityId = await ctx.db.insert("cities", {
       name: args.name,
       stateId: args.stateId,
+      countryId: args.countryId,
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
@@ -145,6 +163,7 @@ export const update = mutation({
     id: v.id("cities"),
     name: v.string(),
     stateId: v.optional(v.id("states")),
+    countryId: v.optional(v.id("countries")),
     hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -158,9 +177,18 @@ export const update = mutation({
       }
     }
 
+    // Check if country exists (when provided)
+    if (args.countryId) {
+      const country = await ctx.db.get(args.countryId);
+      if (!country) {
+        throw new Error("Country not found");
+      }
+    }
+
     await ctx.db.patch(id, {
       name: args.name,
       stateId: args.stateId,
+      countryId: args.countryId,
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 

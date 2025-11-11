@@ -51,6 +51,7 @@ import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
 import type * as seedCaseStatuses from "../seedCaseStatuses.js";
 import type * as seedCboCodes from "../seedCboCodes.js";
+import type * as seedCountries from "../seedCountries.js";
 import type * as seedInitialAdmin from "../seedInitialAdmin.js";
 import type * as states from "../states.js";
 import type * as tasks from "../tasks.js";
@@ -114,6 +115,7 @@ declare const fullApi: ApiFromModules<{
   processTypes: typeof processTypes;
   seedCaseStatuses: typeof seedCaseStatuses;
   seedCboCodes: typeof seedCboCodes;
+  seedCountries: typeof seedCountries;
   seedInitialAdmin: typeof seedInitialAdmin;
   states: typeof states;
   tasks: typeof tasks;

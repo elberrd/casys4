@@ -32,6 +32,7 @@ export default defineSchema({
     name: v.string(),
     code: v.string(),
     iso3: v.string(),
+    flag: v.optional(v.string()),
   }).index("by_code", ["code"]),
 
   states: defineTable({
@@ -45,8 +46,11 @@ export default defineSchema({
   cities: defineTable({
     name: v.string(),
     stateId: v.optional(v.id("states")),
+    countryId: v.optional(v.id("countries")),
     hasFederalPolice: v.optional(v.boolean()),
-  }).index("by_state", ["stateId"]),
+  })
+    .index("by_state", ["stateId"])
+    .index("by_country", ["countryId"]),
 
   // Process configuration lookup tables
   processTypes: defineTable({

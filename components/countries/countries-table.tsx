@@ -33,6 +33,7 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface Country {
   _id: Id<"countries">
   name: string
+  flag?: string
 }
 
 interface CountriesTableProps {
@@ -74,7 +75,10 @@ export function CountriesTable({ countries, onEdit, onDelete, onView }: Countrie
           <DataGridColumnHeader column={column} title={t('name')} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.name} />
+          <div className="flex items-center gap-2">
+            {row.original.flag && <span className="text-xl">{row.original.flag}</span>}
+            <DataGridHighlightedCell text={row.original.name} />
+          </div>
         ),
       },
       {

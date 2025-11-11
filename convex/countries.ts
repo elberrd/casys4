@@ -42,6 +42,7 @@ export const get = query({
 export const create = mutation({
   args: {
     name: v.string(),
+    flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -50,6 +51,7 @@ export const create = mutation({
       name: args.name,
       code: "",
       iso3: "",
+      flag: args.flag,
     });
 
     return countryId;
@@ -63,12 +65,14 @@ export const update = mutation({
   args: {
     id: v.id("countries"),
     name: v.string(),
+    flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
     await ctx.db.patch(args.id, {
       name: args.name,
+      flag: args.flag,
     });
 
     return args.id;

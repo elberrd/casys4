@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -26,6 +26,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox } from "@/components/ui/combobox"
+import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
+import { CountryQuickCreateDialog } from "@/components/countries/country-quick-create-dialog"
 import { useTranslations } from "next-intl"
 import { citySchema, CityFormData } from "@/lib/validations/cities"
 import { Id } from "@/convex/_generated/dataModel"
@@ -47,6 +49,8 @@ export function CityFormDialog({
   const t = useTranslations('Cities')
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
+  const [countryDialogOpen, setCountryDialogOpen] = useState(false)
+  const [newCountryName, setNewCountryName] = useState("")
 
   const city = useQuery(
     api.cities.get,
@@ -54,6 +58,7 @@ export function CityFormDialog({
   )
 
   const states = useQuery(api.states.listWithCountry) ?? []
+  const countries = useQuery(api.countries.list, {}) ?? []
   const createCity = useMutation(api.cities.create)
   const updateCity = useMutation(api.cities.update)
 
@@ -62,6 +67,7 @@ export function CityFormDialog({
     defaultValues: {
       name: "",
       stateId: "",
+      countryId: "",
       hasFederalPolice: false,
     },
   })
@@ -72,23 +78,39 @@ export function CityFormDialog({
       form.reset({
         name: city.name,
         stateId: city.stateId,
+        countryId: city.countryId,
         hasFederalPolice: city.hasFederalPolice,
       })
     } else if (!cityId) {
       form.reset({
         name: "",
         stateId: "",
+        countryId: "",
         hasFederalPolice: false,
       })
     }
   }, [city, cityId, form])
 
+  // Auto-fill country from state when state changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'stateId' && value.stateId) {
+        const selectedState = states.find((s) => s._id === value.stateId)
+        if (selectedState?.countryId) {
+          form.setValue('countryId', selectedState.countryId)
+        }
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [form, states])
+
   const onSubmit = async (data: CityFormData) => {
     try {
-      // Convert empty string to undefined for stateId
+      // Convert empty string to undefined for stateId and countryId
       const submitData = {
         ...data,
         stateId: data.stateId === "" ? undefined : data.stateId,
+        countryId: data.countryId === "" ? undefined : data.countryId,
       }
 
       if (cityId) {
@@ -116,6 +138,12 @@ export function CityFormDialog({
   const stateOptions = states.map((state) => ({
     value: state._id,
     label: `${state.name} - ${state.country?.name || 'Unknown Country'}`,
+  }))
+
+  const countryOptions = countries.map((country) => ({
+    value: country._id,
+    label: country.name,
+    icon: country.flag ? <span className="text-xl">{country.flag}</span> : undefined,
   }))
 
   return (
@@ -170,6 +198,33 @@ export function CityFormDialog({
 
             <FormField
               control={form.control}
+              name="countryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('country')}</FormLabel>
+                  <FormControl>
+                    <ComboboxWithCreate
+                      options={countryOptions}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder={t('selectCountry')}
+                      canCreate={true}
+                      smartCreate={true}
+                      createButtonLabel={t('createNewCountry')}
+                      smartCreateLabel={t('createCountryNamed')}
+                      onCreateClick={(searchText) => {
+                        setNewCountryName(searchText || "")
+                        setCountryDialogOpen(true)
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="hasFederalPolice"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
@@ -206,6 +261,17 @@ export function CityFormDialog({
           </form>
         </Form>
       </DialogContent>
+
+      <CountryQuickCreateDialog
+        open={countryDialogOpen}
+        onOpenChange={setCountryDialogOpen}
+        defaultName={newCountryName}
+        onSuccess={(countryId) => {
+          form.setValue('countryId', countryId)
+          setCountryDialogOpen(false)
+          setNewCountryName("")
+        }}
+      />
     </Dialog>
   )
 }
