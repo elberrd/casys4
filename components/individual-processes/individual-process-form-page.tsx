@@ -21,6 +21,8 @@ import { Separator } from "@/components/ui/separator"
 import { PersonSelectorWithDetail } from "@/components/individual-processes/person-selector-with-detail"
 import { PassportSelector } from "@/components/individual-processes/passport-selector"
 import { QuickPersonFormDialog } from "@/components/individual-processes/quick-person-form-dialog"
+import { InitialStatusForm } from "@/components/individual-processes/initial-status-form"
+import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
 import { useTranslations, useLocale } from "next-intl"
 import {
   individualProcessSchema,
@@ -47,6 +49,12 @@ export function IndividualProcessFormPage({
   const router = useRouter()
 
   const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
+
+  // State for initial status when creating new process
+  const [initialStatus, setInitialStatus] = useState<{
+    caseStatusId: Id<"caseStatuses">;
+    date: string;
+  } | null>(null)
 
   const individualProcess = useQuery(
     api.individualProcesses.get,
@@ -175,6 +183,7 @@ export function IndividualProcessFormPage({
       // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        mainProcessId: data.mainProcessId || undefined,
         passportId: data.passportId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
@@ -340,25 +349,6 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
-                name="caseStatusId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("caseStatus")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={caseStatusOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCaseStatus")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="legalFrameworkId"
                 render={({ field }) => (
                   <FormItem>
@@ -376,6 +366,29 @@ export function IndividualProcessFormPage({
                 )}
               />
             </div>
+
+            {/* Status Section - Show Initial Status Form when creating */}
+            {!individualProcessId && (
+              <InitialStatusForm
+                onStatusChange={(caseStatusId, date) => {
+                  setInitialStatus({ caseStatusId, date })
+                  // Also update the form's caseStatusId for backend compatibility
+                  form.setValue("caseStatusId", caseStatusId)
+                }}
+                defaultDate={new Date().toISOString().split('T')[0]}
+              />
+            )}
+
+            {/* Status History Subtable - Show when editing, right after required fields */}
+            {individualProcessId && (
+              <>
+                <Separator className="my-6" />
+                <IndividualProcessStatusesSubtable
+                  individualProcessId={individualProcessId}
+                  userRole="admin"
+                />
+              </>
+            )}
 
             <Separator />
 

@@ -114,7 +114,7 @@ export const list = query({
           // Check individualProcess's mainProcess
           if (task.individualProcessId) {
             const individualProcess = await ctx.db.get(task.individualProcessId);
-            if (individualProcess) {
+            if (individualProcess && individualProcess.mainProcessId) {
               const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
               if (mainProcess && mainProcess.companyId === userProfile.companyId) {
                 return task;
@@ -268,7 +268,7 @@ export const get = query({
       // Check individualProcess's mainProcess
       if (task.individualProcessId) {
         const individualProcess = await ctx.db.get(task.individualProcessId);
-        if (individualProcess) {
+        if (individualProcess && individualProcess.mainProcessId) {
           const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
           if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
             throw new Error("Access denied: Task does not belong to your company");
@@ -1370,6 +1370,10 @@ export async function autoGenerateTasksOnStatusChange(
 ): Promise<void> {
   const individualProcess = await ctx.db.get(individualProcessId);
   if (!individualProcess) {
+    return;
+  }
+
+  if (!individualProcess.mainProcessId) {
     return;
   }
 

@@ -15,12 +15,7 @@ export const sendAppointmentReminders = internalAction({
     const tomorrow = now + 24 * 60 * 60 * 1000;
 
     // Query all individual processes with appointments in the next 24 hours
-    const individualProcesses: Array<{
-      _id: Id<"individualProcesses">;
-      mainProcessId: Id<"mainProcesses">;
-      personId: Id<"people">;
-      appointmentDateTime?: string;
-    }> = await ctx.runQuery(
+    const individualProcesses = await ctx.runQuery(
       internal.appointmentReminders.getUpcomingAppointments,
       {
         startTime: now,
@@ -34,6 +29,9 @@ export const sendAppointmentReminders = internalAction({
     let notificationsCreated = 0;
     for (const process of individualProcesses) {
       try {
+        // Skip if no main process ID
+        if (!process.mainProcessId) continue;
+
         // Get the main process to find the company
         const mainProcess = await ctx.runQuery(
           internal.appointmentReminders.getMainProcessForNotification,
@@ -132,7 +130,9 @@ export const listUpcomingAppointments = query({
     const appointmentsWithDetails = await Promise.all(
       upcomingAppointments.map(async (process) => {
         const person = await ctx.db.get(process.personId);
-        const mainProcess = await ctx.db.get(process.mainProcessId);
+        const mainProcess = process.mainProcessId
+          ? await ctx.db.get(process.mainProcessId)
+          : null;
 
         return {
           individualProcess: process,

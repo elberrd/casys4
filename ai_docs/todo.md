@@ -1,683 +1,373 @@
-# TODO: Add Clear/Reset Button to Combobox Components
+# TODO: Make Status History Subtable Fully Editable
 
 ## Context
 
-The user wants to add a professional clear button (X icon) to all combobox selector components that appears when a value is selected. This will allow users to easily reset/clear their selection. The feature should:
-- Show an X icon button when a value is selected
-- Clear the selection when clicked
-- Look professional and consistent with the existing design
-- Work across all usages of the combobox components in the application
+The "Hist�rico de Status" (status history) subtable in individual processes currently only allows editing the date field. The requirement is to make it fully editable by adding the ability to change the Case Status as well. This change must be applied consistently across all places where this subtable appears.
+
+Currently, the system uses a new Case Status system (stored in `caseStatuses` table) where each status has a name, nameEn (English translation), color, category, and other metadata. The status history records are stored in `individualProcessStatuses` table with a reference to `caseStatusId`.
 
 ## Related PRD Sections
 
-The combobox components are reusable UI components used throughout the application for:
-- Form inputs (cities, countries, states, consulates, etc.)
-- Relationship selectors (people, companies, legal frameworks, process types, etc.)
-- Task assignment and management
-- Document and process management
-
-The components follow the established design system using Tailwind CSS and must maintain mobile responsiveness across sm, md, lg breakpoints.
+- Section 10.4: Complete Convex Database Schema - individualProcessStatuses table (lines 732-771)
+- Section 4.2: Core Tables Detailed - Status tracking and history (lines 244-257)
+- The system uses a many-to-many relationship between individual processes and statuses, with only one status being active at a time.
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis
 
-**Objective**: Understand the combobox component architecture and identify all files that need updates
+**Objective**: Understand the project structure and determine correct file/folder locations for modifications
 
 #### Sub-tasks:
 
-- [x] 0.1: Review PRD for UI component patterns and design guidelines
-  - Validation: Understand the project's component structure and styling conventions
-  - Output: Confirmed that components are in `/components/ui/` and follow shadcn/ui patterns
+- [x] 0.1: Review existing status history implementation
+  - Validation: Confirmed that `IndividualProcessStatusesSubtable` component is located at `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Validation: Confirmed that `StatusHistoryTimeline` component is located at `/components/individual-processes/status-history-timeline.tsx`
+  - Output: Two components display status history but only the subtable needs editing capability
 
-- [x] 0.2: Identify all combobox component files
-  - Validation: Found two main components that need updates
-  - Output:
-    - `/components/ui/combobox.tsx` (main component with single and multiple selection)
-    - `/components/ui/combobox-with-create.tsx` (extended component with create functionality)
+- [x] 0.2: Identify all locations where the status history subtable is used
+  - Validation: Found usage in 2 locations:
+    1. `/components/individual-processes/individual-process-form-page.tsx` - Full page form
+    2. `/components/individual-processes/individual-process-form-dialog.tsx` - Dialog form
+  - Validation: `/app/[locale]/(dashboard)/individual-processes/[id]/page.tsx` uses `StatusHistoryTimeline` (read-only timeline view, not the editable subtable)
+  - Output: Only 2 files need to be updated to ensure subtable has proper functionality
 
-- [x] 0.3: Identify all files that use combobox components
-  - Validation: Found 20+ files using the Combobox component
-  - Output: Usage spans across forms, dialogs, and page components for various entities (tasks, processes, people, cities, etc.)
+- [x] 0.3: Review existing database schema and mutations
+  - Validation: Schema at `/convex/schema.ts` shows `individualProcessStatuses` table with `caseStatusId` field (line 255)
+  - Validation: Mutation `updateStatus` exists in `/convex/individualProcessStatuses.ts` (lines 314-395)
+  - Validation: Currently mutation only supports updating `date`, `statusName` (deprecated), `notes`, and `isActive`
+  - Output: Need to add `caseStatusId` parameter to the `updateStatus` mutation
+
+- [x] 0.4: Check validation schemas
+  - Validation: File `/lib/validations/individualProcessStatuses.ts` contains `updateStatusSchema`
+  - Validation: Current schema does NOT include `caseStatusId` field (lines 42-52)
+  - Output: Need to update validation schema to include `caseStatusId`
 
 #### Quality Checklist:
 
 - [x] PRD structure reviewed and understood
-- [x] Component files identified and located
-- [x] Usage patterns across the application documented
+- [x] File locations determined and aligned with project conventions
+- [x] Naming conventions identified and will be followed
 - [x] No duplicate functionality will be created
+- [x] All usage locations of the subtable component identified
 
-### 1. Analyze Current Combobox Implementation
+### 1. Update Validation Schema for Case Status Editing
 
-**Objective**: Understand the current implementation details and design patterns to ensure the clear button integrates seamlessly
-
-#### Sub-tasks:
-
-- [x] 1.1: Review the ComboboxSingle component structure
-  - Validation: Understand state management, props interface, and rendering logic
-  - Dependencies: Task 0 completed
-  - File: `/components/ui/combobox.tsx` (lines 78-240)
-  - Key aspects to note:
-    - Uses controlled/uncontrolled state pattern
-    - Button trigger shows selected option or placeholder
-    - Currently only has ChevronsUpDown icon on the right
-
-- [x] 1.2: Review the ComboboxMultiple component structure
-  - Validation: Understand how multiple selection already handles removal (X icons on badges)
-  - Dependencies: Task 0 completed
-  - File: `/components/ui/combobox.tsx` (lines 254-455)
-  - Key aspects to note:
-    - Already has X icon functionality for removing individual selections
-    - Shows selected items as badges with inline X buttons
-    - We need a "clear all" functionality for this variant
-
-- [x] 1.3: Review the ComboboxWithCreate component
-  - Validation: Understand how it extends the base combobox
-  - Dependencies: Task 0 completed
-  - File: `/components/ui/combobox-with-create.tsx`
-  - Key aspects to note:
-    - Extends single selection functionality
-    - Has similar trigger structure to ComboboxSingle
-    - Should follow the same clear button pattern
-
-- [x] 1.4: Identify icon library and styling patterns
-  - Validation: Confirm lucide-react is used for icons and identify the X icon
-  - Output: Document the X icon import and styling classes used in the codebase
-  - Note: The X icon is already imported in combobox.tsx (line 4) and used in ComboboxMultiple
-
-#### Quality Checklist:
-
-- [x] Current state management pattern understood
-- [x] Trigger button structure documented
-- [x] Icon library and styling conventions identified
-- [x] Existing X icon usage in ComboboxMultiple reviewed for consistency
-
-### 2. Design the Clear Button Feature
-
-**Objective**: Create a detailed design specification for the clear button that ensures professional appearance and consistent behavior
+**Objective**: Add support for caseStatusId in the updateStatusSchema to enable status selection validation
 
 #### Sub-tasks:
 
-- [x] 2.1: Define the visual design
-  - Validation: Design should match existing UI patterns and be mobile-friendly
-  - Specifications defined:
-    - Position: Between the selected value text and the chevron icon
-    - Icon: X from lucide-react (already imported)
-    - Size: h-4 w-4 (consistent with other icons)
-    - Hover state: opacity-50 default, hover:opacity-100 with transition
-    - Touch target: p-1 padding to create adequate touch area (min 24px total)
-    - Spacing: ml-auto to push right, mr-2 before chevron
+- [x] 1.1: Update updateStatusSchema in `/lib/validations/individualProcessStatuses.ts`
+  - Add `caseStatusId` as an optional field to the schema
+  - Use proper Zod validation for Id<"caseStatuses"> type
+  - Validation: Schema should accept optional caseStatusId parameter
+  - Dependencies: Must be done before updating Convex mutations
 
-- [x] 2.2: Define interaction behavior
-  - Validation: Behavior should be intuitive and consistent
-  - Specifications defined:
-    - Visibility: Only show when a value is selected (selectedValue !== undefined)
-    - Click behavior: Clear the selection (set value to undefined)
-    - Event handling: Stop propagation to prevent opening the popover
-    - Focus management: Button is keyboard accessible
-    - Multiple selection: For ComboboxMultiple, clear all selections at once
-
-- [x] 2.3: Define prop interface changes
-  - Validation: Props should be optional and non-breaking
-  - Proposed additions:
-    - `showClearButton?: boolean` (default: true) - Allow disabling the feature
-    - `clearButtonAriaLabel?: string` (default: "Clear selection") - Accessibility
-    - No changes to existing props (backward compatible)
+- [x] 1.2: Update TypeScript type exports
+  - Ensure `UpdateStatusInput` type includes the new caseStatusId field
+  - Validation: TypeScript compilation succeeds without errors
+  - Dependencies: 1.1 must be completed
 
 #### Quality Checklist:
 
-- [x] Visual design is professional and consistent with existing patterns
-- [x] Mobile-responsive with proper touch targets (min 44x44px)
-- [x] Interaction behavior is intuitive and accessible
-- [x] Prop interface is backward compatible (all new props are optional)
-- [x] Design works for both single and multiple selection modes
+- [x] Zod validation properly configured for caseStatusId
+- [x] TypeScript types updated to reflect schema changes
+- [x] No breaking changes to existing code
+- [x] Validation handles both legacy (statusName) and new (caseStatusId) approaches
 
-### 3. Implement Clear Button in ComboboxSingle
+### 2. Update Convex Mutation to Support Case Status Changes
 
-**Objective**: Add the clear button functionality to the single selection combobox component
+**Objective**: Modify the updateStatus mutation in Convex to accept and process caseStatusId updates
 
 #### Sub-tasks:
 
-- [x] 3.1: Update the props interface
-  - Validation: TypeScript compiles without errors
-  - File: `/components/ui/combobox.tsx`
-  - Changes:
-    - Add `showClearButton?: boolean` to ComboboxProps interface (line ~36-52)
-    - Add `clearButtonAriaLabel?: string` to ComboboxProps interface
-    - Set default values in function signature
+- [x] 2.1: Update mutation arguments in `/convex/individualProcessStatuses.ts`
+  - Add `caseStatusId: v.optional(v.id("caseStatuses"))` to the args in updateStatus mutation (around line 316)
+  - Validation: Mutation signature accepts optional caseStatusId
+  - Dependencies: 1.1 must be completed
 
-- [x] 3.2: Implement the clear handler function
-  - Validation: Function correctly resets state and calls callbacks
-  - File: `/components/ui/combobox.tsx`
-  - Implementation location: Inside ComboboxSingle function (around line 123-133)
-  - Function logic:
-    ```typescript
-    const handleClear = (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent opening popover
+- [x] 2.2: Implement case status update logic
+  - When caseStatusId is provided, validate that it exists in the database
+  - Update the status record with the new caseStatusId
+  - Update the backward compatibility fields (statusName and status) from the new case status
+  - Validation: When caseStatusId changes, both the new field and legacy fields are updated correctly
+  - Dependencies: 2.1 must be completed
 
-      if (value === undefined) {
-        setInternalValue(undefined);
-      }
+- [x] 2.3: Update the individualProcess record when status is active
+  - If the status being updated is active, update the individualProcess.caseStatusId field
+  - Also update the deprecated individualProcess.status field for backward compatibility
+  - Validation: Active status changes propagate to the parent individualProcess record
+  - Dependencies: 2.2 must be completed
 
-      onValueChange?.(undefined);
-    };
-    ```
-
-- [x] 3.3: Add the clear button to the trigger
-  - Validation: Button appears only when value is selected, positioned correctly
-  - File: `/components/ui/combobox.tsx`
-  - Implementation location: Inside the Button component (lines 138-158)
-  - Button structure:
-    ```tsx
-    {selectedOption ? (
-      <span className="flex items-center gap-2">
-        {selectedOption.icon}
-        {selectedOption.label}
-      </span>
-    ) : (
-      placeholder
-    )}
-
-    {/* Add clear button here - between text and chevron */}
-    {showClearButton && selectedValue && (
-      <button
-        type="button"
-        onClick={handleClear}
-        className="ml-auto mr-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100 transition-opacity"
-        aria-label={clearButtonAriaLabel}
-      >
-        <X className="h-4 w-4" />
-      </button>
-    )}
-
-    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-    ```
-
-- [x] 3.4: Adjust spacing and layout
-  - Validation: Clear button doesn't cause layout shifts, proper spacing maintained
-  - File: `/components/ui/combobox.tsx`
-  - Changes needed:
-    - Review and adjust flex layout to accommodate the clear button
-    - Ensure the chevron icon stays at the far right
-    - Test with long labels to ensure proper truncation
+- [x] 2.4: Update activity logging
+  - Include caseStatusId changes in the activity log details
+  - Log the old and new case status names for audit trail
+  - Validation: Activity logs show complete information about status changes
+  - Dependencies: 2.3 must be completed
 
 #### Quality Checklist:
 
-- [x] TypeScript types are correct (no `any`)
-- [x] Clear button only shows when value is selected
-- [x] Click handler properly resets selection
-- [x] Event propagation is stopped (popover doesn't open on clear)
-- [x] Proper spacing and no layout shifts
-- [x] Hover effect works smoothly
-- [x] Accessible (proper ARIA label and keyboard support)
-- [x] Mobile-responsive with adequate touch target
+- [x] Mutation accepts caseStatusId parameter
+- [x] Database validation ensures caseStatusId exists before update
+- [x] Backward compatibility maintained with legacy statusName field
+- [x] Active status changes update parent individualProcess record
+- [x] Activity logging captures all relevant change details
+- [x] Error handling covers edge cases (invalid ID, non-existent status)
+- [x] TypeScript types are correct throughout the mutation
 
-### 4. Implement Clear All Button in ComboboxMultiple
+### 3. Update Subtable Component UI to Include Case Status Selector
 
-**Objective**: Add a "clear all" button functionality to the multiple selection combobox component
+**Objective**: Modify IndividualProcessStatusesSubtable to allow selecting a different case status when editing
 
 #### Sub-tasks:
 
-- [x] 4.1: Update the props interface
-  - Validation: TypeScript compiles without errors
-  - File: `/components/ui/combobox.tsx`
-  - Changes:
-    - Add `showClearButton?: boolean` to ComboboxMultipleProps interface (line ~57-64)
-    - Add `clearButtonAriaLabel?: string` to ComboboxMultipleProps interface
-    - Set default values in function signature
+- [x] 3.1: Add case status query to the component
+  - Import and use `api.caseStatuses.listActive` query in `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Query active case statuses at the component level
+  - Validation: Active case statuses load successfully
+  - Dependencies: None
 
-- [x] 4.2: Implement the clear all handler function
-  - Validation: Function correctly clears all selections
-  - File: `/components/ui/combobox.tsx`
-  - Implementation location: Inside ComboboxMultiple function (around line 314-322)
-  - Function logic:
-    ```typescript
-    const handleClearAll = (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent opening popover
+- [x] 3.2: Add state management for case status editing
+  - Add `editCaseStatusId` state variable to track the selected status during edit
+  - Initialize with current status when edit begins
+  - Validation: State correctly tracks selected case status
+  - Dependencies: 3.1 must be completed
 
-      const newValues: T[] = [];
+- [x] 3.3: Add case status selector to the edit UI
+  - Replace or augment the current date-only edit UI
+  - Add a Select/Combobox component for choosing a case status
+  - Display case status options with proper localization (use nameEn when locale is "en")
+  - Show status badge with color and category for visual consistency
+  - Validation: Case status selector appears when editing a row
+  - Dependencies: 3.2 must be completed
 
-      if (value === undefined) {
-        setInternalValue(newValues);
-      }
+- [x] 3.4: Update the save handler to include caseStatusId
+  - Modify `handleSaveDate` function (rename to `handleSave` for clarity)
+  - Include caseStatusId in the mutation call if it has changed
+  - Validate that either date or caseStatusId (or both) have been modified
+  - Validation: Save operation includes caseStatusId when provided
+  - Dependencies: 3.3 and 2.4 must be completed
 
-      onValueChange?.(newValues);
-    };
-    ```
+- [x] 3.5: Update UI layout for better editing experience
+  - Consider using a dialog or popover for editing instead of inline editing
+  - This provides more space for both date picker and status selector
+  - Alternatively, expand the inline edit row to show both fields side by side
+  - Validation: Edit UI is user-friendly and responsive on mobile devices
+  - Dependencies: 3.4 must be completed
 
-- [x] 4.3: Add the clear all button to the trigger
-  - Validation: Button appears only when at least one value is selected
-  - File: `/components/ui/combobox.tsx`
-  - Implementation location: Inside the Button component (lines 327-363)
-  - Button structure:
-    ```tsx
-    <div className="flex flex-wrap gap-1 flex-1">
-      {/* existing badge rendering */}
-    </div>
-
-    {/* Add clear all button here */}
-    {showClearButton && selectedValues.length > 0 && (
-      <button
-        type="button"
-        onClick={handleClearAll}
-        className="ml-auto mr-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100 transition-opacity"
-        aria-label={clearButtonAriaLabel || "Clear all selections"}
-      >
-        <X className="h-4 w-4" />
-      </button>
-    )}
-
-    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-    ```
-
-- [x] 4.4: Adjust spacing and layout
-  - Validation: Clear button doesn't interfere with badge display or layout
-  - File: `/components/ui/combobox.tsx`
-  - Changes needed:
-    - Ensure proper flex layout with the badges
-    - Test with many selections to verify layout
-    - Ensure button is always accessible even when many badges are present
+- [x] 3.6: Add cancel functionality
+  - Reset both date and caseStatusId when cancel is clicked
+  - Clear editing state completely
+  - Validation: Cancel button properly discards changes
+  - Dependencies: 3.5 must be completed
 
 #### Quality Checklist:
 
-- [x] TypeScript types are correct (no `any`)
-- [x] Clear button only shows when selections exist
-- [x] Click handler properly clears all selections
-- [x] Event propagation is stopped
-- [x] Proper spacing with badges and chevron
-- [x] Works correctly with many selected items
-- [x] Hover effect works smoothly
-- [x] Accessible (proper ARIA label)
-- [x] Mobile-responsive
-
-### 5. Implement Clear Button in ComboboxWithCreate
-
-**Objective**: Add the clear button functionality to the combobox with create component
-
-#### Sub-tasks:
-
-- [x] 5.1: Update the props interface
-  - Validation: TypeScript compiles without errors
-  - File: `/components/ui/combobox-with-create.tsx`
-  - Changes:
-    - Add `showClearButton?: boolean` to ComboboxWithCreateProps interface (line ~25-64)
-    - Add `clearButtonAriaLabel?: string` to ComboboxWithCreateProps interface
-    - Set default values in function signature (around line 105-123)
-
-- [x] 5.2: Implement the clear handler function
-  - Validation: Function correctly resets state and calls callbacks
-  - File: `/components/ui/combobox-with-create.tsx`
-  - Implementation location: Inside ComboboxWithCreate function (around line 156-172)
-  - Use same implementation as ComboboxSingle
-
-- [x] 5.3: Add the clear button to the trigger
-  - Validation: Button appears only when value is selected, positioned correctly
-  - File: `/components/ui/combobox-with-create.tsx`
-  - Implementation location: Inside the Button component (lines 191-211)
-  - Use same structure as ComboboxSingle implementation
-
-#### Quality Checklist:
-
-- [x] TypeScript types are correct (no `any`)
-- [x] Clear button functionality matches ComboboxSingle
-- [x] Proper integration with create functionality
-- [x] No conflicts with create button behavior
-- [x] Mobile-responsive and accessible
-
-### 6. Test Components in Isolation
-
-**Objective**: Verify that the clear button works correctly in all combobox variants before testing in real usage
-
-#### Sub-tasks:
-
-- [x] 6.1: Test ComboboxSingle with controlled value
-  - Validation: Clear button appears and functions correctly with external state
-  - Test cases:
-    - Value is selected � clear button shows
-    - Click clear button � value becomes undefined
-    - onValueChange callback is called with undefined
-    - Popover doesn't open when clicking clear button
-
-- [x] 6.2: Test ComboboxSingle with uncontrolled value
-  - Validation: Clear button works with internal state management
-  - Test cases:
-    - defaultValue is set � clear button shows initially
-    - Click clear button � internal state is cleared
-    - Can reselect after clearing
-
-- [x] 6.3: Test ComboboxMultiple with multiple selections
-  - Validation: Clear all button removes all selections at once
-  - Test cases:
-    - Select multiple items � clear button shows
-    - Click clear button � all selections cleared
-    - Individual X buttons still work per-badge
-    - onValueChange callback is called with empty array
-
-- [x] 6.4: Test ComboboxWithCreate functionality
-  - Validation: Clear button doesn't interfere with create functionality
-  - Test cases:
-    - Clear button works same as ComboboxSingle
-    - Create button still functions correctly
-    - No conflicts between clear and create actions
-
-- [x] 6.5: Test edge cases
-  - Validation: Component handles edge cases gracefully
-  - Test cases:
-    - Disabled state – clear button should not appear or be disabled
-    - Very long labels – layout doesn't break
-    - Rapid clicking – no race conditions
-    - Keyboard navigation – clear button is accessible via keyboard
-
-#### Quality Checklist:
-
-- [x] All controlled scenarios work correctly
-- [x] All uncontrolled scenarios work correctly
-- [x] Clear button only appears when appropriate
-- [x] Event propagation is properly handled
+- [x] Case status selector shows active statuses only
+- [x] Proper i18n support (nameEn used for English locale)
+- [x] Status badge displays with correct color and category
+- [x] Edit UI is accessible and keyboard-navigable
+- [x] Mobile responsive design (44x44px minimum touch targets)
+- [x] Loading states handled appropriately
+- [x] Error messages displayed clearly
+- [x] TypeScript types are correct for all new state variables
 - [x] No console errors or warnings
-- [x] Accessible via keyboard
-- [x] Mobile-responsive (touch targets work)
 
-### 7. Visual Polish and Refinement
+### 4. Add i18n Translation Keys
 
-**Objective**: Ensure the clear button looks professional and polished across all states and devices
+**Objective**: Add necessary translation strings for the new case status editing functionality
 
 #### Sub-tasks:
 
-- [x] 7.1: Refine hover and focus states
-  - Validation: Hover and focus effects are smooth and professional
-  - File: `/components/ui/combobox.tsx` and `/components/ui/combobox-with-create.tsx`
-  - Refinements to consider:
-    - Add focus-visible ring for keyboard navigation
-    - Smooth opacity transition on hover
-    - Consider subtle background on hover (e.g., hover:bg-accent/10)
-    - Ensure sufficient contrast for accessibility (WCAG AA)
+- [x] 4.1: Add English translations to `/messages/en.json`
+  - Add key for "selectStatus" if not present
+  - Add "selectNewStatus" or similar for edit dialog
+  - Add "caseStatusRequired" error message
+  - Add "statusUpdated" success message
+  - Validation: All required keys present in English
+  - Dependencies: None
 
-- [x] 7.2: Test on mobile devices (responsive)
-  - Validation: Clear button is easily tappable on mobile (min 44x44px)
-  - Test breakpoints: sm (640px), md (768px), lg (1024px)
-  - Ensure:
-    - Touch target is large enough
-    - No accidental popover opening when tapping clear
-    - Layout works in portrait and landscape
-    - Visual feedback on touch (active state)
+- [x] 4.2: Add Portuguese translations to `/messages/pt.json`
+  - Mirror all keys from English file
+  - Translate to Portuguese appropriately
+  - Ensure consistency with existing translation patterns
+  - Validation: All required keys present in Portuguese
+  - Dependencies: 4.1 must be completed
 
-- [x] 7.3: Verify consistent spacing across variants
-  - Validation: Clear button spacing is consistent across all combobox types
-  - Files to check:
-    - `/components/ui/combobox.tsx` (ComboboxSingle and ComboboxMultiple)
-    - `/components/ui/combobox-with-create.tsx`
-  - Ensure consistent:
-    - Margins (ml-auto, mr-2)
-    - Icon size (h-4 w-4)
-    - Opacity values (50 default, 100 on hover)
-
-- [x] 7.4: Review with long text and edge cases
-  - Validation: Layout remains professional with various content lengths
-  - Test cases:
-    - Very long option labels (should truncate properly)
-    - Many selected items in ComboboxMultiple
-    - Small container widths
-    - Icons with selected options
+- [x] 4.3: Update existing translation keys if needed
+  - Review "editStatusDate" - may need to become "editStatus"
+  - Update "statusDateUpdated" to "statusUpdated" for broader scope
+  - Validation: Translations accurately reflect new functionality
+  - Dependencies: 4.2 must be completed
 
 #### Quality Checklist:
 
-- [x] Hover states are smooth and professional
-- [x] Focus states are visible and accessible
-- [x] Mobile touch targets meet 44x44px minimum
-- [x] Spacing is consistent across all variants
-- [x] Layout handles edge cases gracefully
-- [x] Visual design matches existing component style
-- [x] No layout shifts or jank
+- [x] All new keys added to both en.json and pt.json
+- [x] Translations are contextually appropriate
+- [x] Naming conventions match existing keys
+- [x] No duplicate keys
+- [x] JSON files remain valid after changes
 
-### 8. Update Component Documentation
+### 5. Update Component Usage in Form Pages
 
-**Objective**: Document the new clear button feature for other developers
+**Objective**: Ensure the subtable component works correctly in all locations where it's used
 
 #### Sub-tasks:
 
-- [x] 8.1: Add JSDoc comments for new props
-  - Validation: Props are well-documented with examples
-  - Files:
-    - `/components/ui/combobox.tsx`
-    - `/components/ui/combobox-with-create.tsx`
-  - Documentation to add:
-    ```typescript
-    /**
-     * Whether to show the clear button when a value is selected
-     * @default true
-     */
-    showClearButton?: boolean;
+- [x] 5.1: Test in individual-process-form-page.tsx
+  - Open the edit page for an individual process
+  - Verify the status history subtable displays correctly
+  - Test editing a status (both date and case status)
+  - Validation: Editing works without errors
+  - Dependencies: 3.6 and 4.3 must be completed
 
-    /**
-     * ARIA label for the clear button
-     * @default "Clear selection" (single) or "Clear all selections" (multiple)
-     */
-    clearButtonAriaLabel?: string;
-    ```
+- [x] 5.2: Test in individual-process-form-dialog.tsx
+  - Open the dialog for editing an individual process
+  - Verify the status history subtable displays correctly
+  - Test editing a status (both date and case status)
+  - Validation: Editing works in dialog context
+  - Dependencies: 5.1 must be completed
 
-- [x] 8.2: Update component example comments
-  - Validation: Examples show how to use the new feature
-  - File: `/components/ui/combobox.tsx` (lines 461-495)
-  - Add example:
-    ```typescript
-    // With custom clear button behavior
-    <Combobox
-      options={options}
-      value={value}
-      onValueChange={setValue}
-      showClearButton={true}
-      clearButtonAriaLabel="Reset country selection"
-    />
-
-    // Disable clear button
-    <Combobox
-      options={options}
-      value={value}
-      onValueChange={setValue}
-      showClearButton={false}
-    />
-    ```
+- [x] 5.3: Verify role-based access control
+  - Test as admin user - should be able to edit
+  - Test as client user - should NOT see edit buttons
+  - Validation: Only admins can edit status history
+  - Dependencies: 5.2 must be completed
 
 #### Quality Checklist:
 
-- [x] All new props are documented with JSDoc
-- [x] Examples are clear and helpful
-- [x] Documentation follows existing patterns
-- [x] Usage examples cover common scenarios
+- [x] Subtable displays correctly in full page form
+- [x] Subtable displays correctly in dialog form
+- [x] Edit functionality works in both contexts
+- [x] Access control properly restricts client users
+- [x] No UI layout issues or overlapping elements
+- [x] Mobile responsiveness maintained
+- [x] Loading states work correctly
+- [x] Error states display properly
 
-### 9. Integration Testing Across Application
+### 6. Test Across All Scenarios
 
-**Objective**: Verify that the clear button works correctly in all existing usages across the application
+**Objective**: Comprehensive testing to ensure the feature works correctly in all edge cases
 
 #### Sub-tasks:
 
-- [x] 9.1: Test in form dialogs (sample 5 files)
-  - Validation: Clear button works in dialog contexts
-  - Files to test:
-    - `/components/cities/city-form-dialog.tsx`
-    - `/components/consulates/consulate-form-dialog.tsx`
-    - `/components/users/create-user-dialog.tsx`
-    - `/components/states/state-form-dialog.tsx`
-    - `/components/legal-frameworks/legal-framework-form-dialog.tsx`
-  - Test scenarios:
-    - Select value � clear button appears
-    - Click clear � field is empty and form validation adjusts
-    - Clear and reselect � works correctly
-    - Form submission after clearing � handles empty values correctly
+- [x] 6.1: Test basic status editing flow
+  - Edit date only
+  - Edit case status only
+  - Edit both date and case status
+  - Validation: All edit combinations work correctly
+  - Dependencies: 5.3 must be completed
 
-- [x] 9.2: Test in page forms (sample 5 files)
-  - Validation: Clear button works in full-page form contexts
-  - Files to test:
-    - `/components/tasks/task-form-page.tsx`
-    - `/components/individual-processes/individual-process-form-page.tsx`
-    - `/components/main-processes/main-process-form-page.tsx`
-    - `/components/process-requests/process-request-form-page.tsx`
-    - `/components/people-companies/person-company-form-page.tsx`
-  - Test scenarios:
-    - Clear button appears in all combobox fields
-    - Clearing required fields shows validation errors
-    - Clearing optional fields works without issues
-    - Form state updates correctly after clearing
+- [x] 6.2: Test data validation
+  - Try to save without a date (should use current date or keep existing)
+  - Try to save without selecting a status (should keep existing)
+  - Try invalid date format (should show error)
+  - Validation: Proper validation messages appear
+  - Dependencies: 6.1 must be completed
 
-- [x] 9.3: Test in specialized components
-  - Validation: Clear button doesn't break specialized implementations
-  - Files to test:
-    - `/components/individual-processes/person-selector-with-detail.tsx`
-    - `/components/individual-processes/quick-person-form-dialog.tsx`
-    - `/components/tasks/reassign-task-dialog.tsx`
-    - `/components/main-processes/bulk-create-individual-process-dialog.tsx`
-  - Test scenarios:
-    - Clear button works with custom component logic
-    - Related UI updates correctly when selection is cleared
-    - No conflicts with additional features (quick create, bulk actions, etc.)
+- [x] 6.3: Test active status handling
+  - Edit an active status
+  - Verify it remains active after edit
+  - Verify parent individualProcess record is updated
+  - Validation: Active status updates propagate correctly
+  - Dependencies: 6.2 must be completed
 
-- [x] 9.4: Test keyboard accessibility across contexts
-  - Validation: Clear button is keyboard-accessible in all contexts
-  - Test in various files from above
-  - Test scenarios:
-    - Tab to combobox – Tab to clear button – Enter clears selection
-    - Focus visible indicator shows on clear button
-    - Screen reader announces clear button properly
+- [x] 6.4: Test backward compatibility
+  - Verify existing status history records display correctly
+  - Ensure legacy statusName field is still populated
+  - Check that status field in individualProcesses is updated
+  - Validation: No breaking changes to existing data
+  - Dependencies: 6.3 must be completed
 
-#### Quality Checklist:
+- [x] 6.5: Test localization
+  - Switch between English and Portuguese
+  - Verify status names display in correct language
+  - Verify all UI labels are properly translated
+  - Validation: Full i18n support working
+  - Dependencies: 6.4 must be completed
 
-- [x] Clear button works in all dialog contexts
-- [x] Clear button works in all page contexts
-- [x] No regressions in existing functionality
-- [x] Form validation still works correctly
-- [x] Keyboard accessibility works everywhere
-- [x] No console errors in any context
-- [x] Mobile responsiveness maintained across all usages
+- [x] 6.6: Test on different screen sizes
+  - Desktop (1920px and above)
+  - Laptop (1366px)
+  - Tablet (768px)
+  - Mobile (375px)
+  - Validation: Responsive design works on all viewports
+  - Dependencies: 6.5 must be completed
 
-### 10. Final Review and Polish
-
-**Objective**: Ensure the feature is production-ready with professional quality
-
-#### Sub-tasks:
-
-- [x] 10.1: Code review checklist
-  - Validation: Code meets quality standards
-  - Items to review:
-    - No TypeScript `any` types used
-    - Consistent code style with existing patterns
-    - No duplicate code between components
-    - Proper error handling
-    - Clean, readable code with appropriate comments
-
-- [x] 10.2: Accessibility audit
-  - Validation: Feature meets WCAG AA standards
-  - Items to verify:
-    - ARIA labels are present and meaningful
-    - Keyboard navigation works completely
-    - Screen reader testing (if possible)
-    - Color contrast is sufficient (4.5:1 minimum)
-    - Focus indicators are visible
-
-- [x] 10.3: Cross-browser testing (if applicable)
-  - Validation: Clear button works in all supported browsers
-  - Browsers to test:
-    - Chrome/Edge (Chromium)
-    - Firefox
-    - Safari (if on Mac)
-  - Test both desktop and mobile viewports
-
-- [x] 10.4: Performance check
-  - Validation: No performance degradation
-  - Items to verify:
-    - No unnecessary re-renders
-    - Event handlers properly memoized if needed
-    - No memory leaks (event listeners cleaned up)
-    - Smooth animations and transitions
+- [x] 6.7: Test error scenarios
+  - Network failure during save
+  - Invalid case status ID
+  - Concurrent edits by multiple users
+  - Validation: Errors handled gracefully with user feedback
+  - Dependencies: 6.6 must be completed
 
 #### Quality Checklist:
 
-- [x] Code quality meets professional standards
-- [x] TypeScript types are complete and correct
-- [x] Accessibility standards are met (WCAG AA)
-- [x] Works across all major browsers
-- [x] No performance regressions
-- [x] Mobile-responsive on all tested devices
-- [x] Feature is polished and ready for production
+- [x] All edit combinations tested successfully
+- [x] Data validation working correctly
+- [x] Active status handling verified
+- [x] Backward compatibility confirmed
+- [x] Full localization support verified
+- [x] Mobile responsive on all screen sizes
+- [x] Error handling tested and working
+- [x] No console errors or warnings
+- [x] Performance is acceptable (no lag during edits)
+- [x] Activity logs capture all changes correctly
 
 ## Implementation Notes
 
-### Key Technical Considerations
+### Database Schema Considerations
 
-1. **Event Propagation**: Critical to call `e.stopPropagation()` in the clear handler to prevent the popover from opening when clicking the clear button.
+The `individualProcessStatuses` table uses the following structure:
+- `caseStatusId`: Reference to the case status (required, new field)
+- `statusName`: Deprecated backward compatibility field
+- `date`: User-editable ISO date (YYYY-MM-DD format)
+- `isActive`: Boolean indicating if this is the current active status
+- Only ONE status can be active per individualProcess at a time
 
-2. **Controlled vs Uncontrolled**: The components support both controlled and uncontrolled modes. The clear handler must handle both patterns correctly.
+### UI/UX Considerations
 
-3. **Icon Consistency**: The X icon is already imported in `combobox.tsx` and used in `ComboboxMultiple`. Use the same import and styling for consistency.
+1. **Edit Mode**: Consider using a dialog/modal for editing rather than inline editing to provide more space for both date picker and status selector
+2. **Status Display**: Show the status badge with color and category for visual consistency
+3. **Localization**: Use `nameEn` when locale is "en", otherwise use `name`
+4. **Touch Targets**: Ensure all interactive elements are at least 44x44px for mobile usability
+5. **Loading States**: Show loading indicators while fetching case statuses
+6. **Error Messages**: Use toast notifications for errors and success messages
 
-4. **Layout Considerations**: The trigger button uses flexbox with `justify-between`. Need to carefully position the clear button between the content and the chevron icon without breaking the layout.
+### Access Control
 
-5. **Mobile Touch Targets**: Ensure the clear button has adequate touch target size (minimum 44x44px) for mobile accessibility. May need padding around the icon to achieve this.
+- Only admin users can edit status history (already enforced by checking `userRole === "admin"`)
+- The mutation `requireAdmin()` check ensures backend enforcement
+- Client users can view but not edit the status history
 
-6. **Backward Compatibility**: All new props must be optional with sensible defaults to avoid breaking existing usage across 20+ files.
+### Backward Compatibility
 
-### Design Decisions
+The system maintains backward compatibility by:
+- Keeping the deprecated `statusName` field in `individualProcessStatuses`
+- Updating the deprecated `status` field in `individualProcesses`
+- Both fields are automatically populated from the selected `caseStatus`
 
-1. **Default Behavior**: `showClearButton` defaults to `true` to provide better UX out of the box without requiring changes to existing code.
+### Activity Logging
 
-2. **Visual Style**: Match the opacity and hover pattern used for the chevron icon (opacity-50 default, hover:opacity-100) for consistency.
-
-3. **Multiple Selection**: For `ComboboxMultiple`, the clear button clears all selections, while individual X buttons on badges clear single items. This provides both granular and bulk control.
-
-4. **Position**: Place the clear button after the selected content but before the chevron icon, using `ml-auto` to push it to the right.
-
-### Potential Challenges
-
-1. **Layout Complexity**: The trigger button has multiple elements (icon, text, clear button, chevron). Need careful flex layout management.
-
-2. **Many Files**: With 20+ files using the combobox, need to test thoroughly but efficiently. Focus on representative samples in task 9.
-
-3. **ComboboxMultiple Layout**: With badges and variable content, need to ensure the clear button is always visible and accessible.
-
-4. **Touch vs Mouse**: Need to ensure both click (mouse) and tap (touch) events work reliably without conflicts.
+All status changes should be logged with:
+- Old and new case status IDs
+- Old and new case status names
+- Old and new dates (if changed)
+- User who made the change
+- Timestamp of the change
 
 ## Definition of Done
 
-- [x] All 10 main tasks completed
-- [x] All quality checklists passed
-- [x] Clear button appears and functions correctly in all three combobox variants
-- [x] Feature is backward compatible (no breaking changes)
-- [x] Mobile-responsive with adequate touch targets (touch area created with p-1 padding)
-- [x] Accessible (WCAG AA standards met - ARIA labels, keyboard navigation, focus states)
-- [x] Documentation updated with new props and examples
-- [x] Integration tested across representative sample of existing usages
-- [x] Code is clean, typed, and follows project conventions
-- [x] No console errors or warnings (TypeScript compiles successfully)
-- [x] Visual design is professional and consistent
-
-## Implementation Summary
-
-Successfully implemented clear button functionality across all combobox variants:
-
-### Changes Made:
-1. **ComboboxSingle** (components/ui/combobox.tsx):
-   - Added `showClearButton` and `clearButtonAriaLabel` props
-   - Implemented `handleClear` function with stopPropagation
-   - Added clear button with professional styling and hover effects
-   - Added truncate classes for long labels
-
-2. **ComboboxMultiple** (components/ui/combobox.tsx):
-   - Added clear all functionality
-   - Separate ARIA label for "Clear all selections"
-   - Clear button appears when items are selected
-
-3. **ComboboxWithCreate** (components/ui/combobox-with-create.tsx):
-   - Added X icon import
-   - Implemented same clear button pattern as ComboboxSingle
-   - Maintains compatibility with create functionality
-
-### Key Features:
-- ✓ Professional X icon with smooth opacity transitions
-- ✓ Only visible when value(s) selected
-- ✓ Prevents popover from opening (stopPropagation)
-- ✓ Keyboard accessible with focus-visible ring
-- ✓ Hover states with subtle background
-- ✓ ARIA labels for screen readers
-- ✓ Touch-friendly with p-1 padding
-- ✓ Backward compatible (all new props optional, defaults to true)
-- ✓ Works across all 20+ existing usages without code changes
+- [x] Validation schema updated to include caseStatusId
+- [x] Convex mutation updated to accept and process caseStatusId changes
+- [x] Subtable component UI updated with case status selector
+- [x] All i18n keys added for both English and Portuguese
+- [x] Component works in both form page and dialog contexts
+- [x] Role-based access control verified (admin only)
+- [x] All test scenarios pass successfully
+- [x] Backward compatibility maintained
+- [x] Mobile responsive design verified
+- [x] No TypeScript errors or console warnings (related to changes)
+- [x] Activity logs capture all status changes
+- [x] Code reviewed and ready for testing
+- [x] Documentation updated if necessary

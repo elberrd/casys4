@@ -30,6 +30,9 @@ export const list = query({
       }
 
       // Check if the individual process belongs to the client's company
+      if (!individualProcess.mainProcessId) {
+        throw new Error("Individual process has no main process");
+      }
       const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
       if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied: Process does not belong to your company");
@@ -94,6 +97,9 @@ export const getActiveStatus = query({
         throw new Error("Client user must have a company assignment");
       }
 
+      if (!individualProcess.mainProcessId) {
+        throw new Error("Individual process has no main process");
+      }
       const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
       if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied: Process does not belong to your company");
@@ -156,6 +162,9 @@ export const getStatusHistory = query({
         throw new Error("Client user must have a company assignment");
       }
 
+      if (!individualProcess.mainProcessId) {
+        throw new Error("Individual process has no main process");
+      }
       const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
       if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied: Process does not belong to your company");
@@ -212,7 +221,9 @@ export const getStatusHistory = query({
 export const addStatus = mutation({
   args: {
     individualProcessId: v.id("individualProcesses"),
-    statusName: v.string(),
+    caseStatusId: v.id("caseStatuses"), // Required: Reference to case status
+    date: v.optional(v.string()), // Optional: ISO date YYYY-MM-DD, defaults to today
+    statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
@@ -232,8 +243,22 @@ export const addStatus = mutation({
       throw new Error("Individual process not found");
     }
 
+    // Validate that case status exists
+    const caseStatus = await ctx.db.get(args.caseStatusId);
+    if (!caseStatus) {
+      throw new Error("Case status not found");
+    }
+
     const now = Date.now();
     const isActive = args.isActive ?? true;
+
+    // Default date to current date if not provided
+    const statusDate = args.date || new Date(now).toISOString().split('T')[0];
+
+    // Validate date format (YYYY-MM-DD)
+    if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
+      throw new Error("Invalid date format. Expected YYYY-MM-DD");
+    }
 
     // If this new status is active, deactivate all other statuses
     if (isActive) {
@@ -253,7 +278,9 @@ export const addStatus = mutation({
     // Create the new status record
     const statusId = await ctx.db.insert("individualProcessStatuses", {
       individualProcessId: args.individualProcessId,
-      statusName: args.statusName,
+      caseStatusId: args.caseStatusId, // Store case status ID
+      statusName: args.statusName || caseStatus.name, // DEPRECATED: Backward compatibility
+      date: statusDate, // ISO date format YYYY-MM-DD
       isActive,
       notes: args.notes,
       changedBy: userId,
@@ -264,7 +291,8 @@ export const addStatus = mutation({
     // Update the backward compatibility field in individualProcesses
     if (isActive) {
       await ctx.db.patch(args.individualProcessId, {
-        status: args.statusName,
+        caseStatusId: args.caseStatusId, // Update to new case status
+        status: caseStatus.code, // DEPRECATED: Update backward compatibility field
         updatedAt: now,
       });
     }
@@ -277,7 +305,9 @@ export const addStatus = mutation({
       entityId: statusId,
       details: {
         individualProcessId: args.individualProcessId,
-        statusName: args.statusName,
+        caseStatusName: caseStatus.name,
+        caseStatusId: args.caseStatusId,
+        date: statusDate,
         isActive,
       },
     });
@@ -293,7 +323,9 @@ export const addStatus = mutation({
 export const updateStatus = mutation({
   args: {
     statusId: v.id("individualProcessStatuses"),
-    statusName: v.optional(v.string()),
+    caseStatusId: v.optional(v.id("caseStatuses")),
+    date: v.optional(v.string()), // Optional: ISO date YYYY-MM-DD
+    statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
@@ -311,6 +343,20 @@ export const updateStatus = mutation({
     const status = await ctx.db.get(args.statusId);
     if (!status) {
       throw new Error("Status record not found");
+    }
+
+    // Validate date format if provided (YYYY-MM-DD)
+    if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
+      throw new Error("Invalid date format. Expected YYYY-MM-DD");
+    }
+
+    // Get case status if caseStatusId is provided
+    let caseStatus = null;
+    if (args.caseStatusId) {
+      caseStatus = await ctx.db.get(args.caseStatusId);
+      if (!caseStatus) {
+        throw new Error("Case status not found");
+      }
     }
 
     const now = Date.now();
@@ -331,34 +377,88 @@ export const updateStatus = mutation({
 
     // Update the status record
     const updates: {
+      caseStatusId?: Id<"caseStatuses">;
+      date?: string;
       statusName?: string;
+      status?: string;
       notes?: string;
       isActive?: boolean;
     } = {};
+    if (args.caseStatusId !== undefined) {
+      updates.caseStatusId = args.caseStatusId;
+      // Update backward compatibility fields
+      if (caseStatus) {
+        updates.statusName = caseStatus.name;
+        updates.status = caseStatus.name;
+      }
+    }
+    if (args.date !== undefined) updates.date = args.date;
     if (args.statusName !== undefined) updates.statusName = args.statusName;
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(args.statusId, updates);
 
-    // Update backward compatibility field if this is now the active status
-    if (args.isActive === true || (status.isActive && args.statusName !== undefined)) {
-      await ctx.db.patch(status.individualProcessId, {
-        status: args.statusName ?? status.statusName,
+    // Update parent individualProcess if this is the active status
+    const isActiveStatus = args.isActive === true || status.isActive;
+    if (isActiveStatus && (args.caseStatusId !== undefined || args.statusName !== undefined)) {
+      const parentUpdates: {
+        caseStatusId?: Id<"caseStatuses">;
+        status?: string;
+        updatedAt: number;
+      } = {
         updatedAt: now,
-      });
+      };
+
+      if (args.caseStatusId !== undefined && caseStatus) {
+        parentUpdates.caseStatusId = args.caseStatusId;
+        parentUpdates.status = caseStatus.name;
+      } else if (args.statusName !== undefined) {
+        parentUpdates.status = args.statusName;
+      }
+
+      await ctx.db.patch(status.individualProcessId, parentUpdates);
     }
 
-    // Log activity
+    // Log activity with old and new values
+    const activityDetails: {
+      individualProcessId: Id<"individualProcesses">;
+      oldValues: {
+        caseStatusId?: Id<"caseStatuses">;
+        caseStatusName?: string;
+        date?: string;
+        notes?: string;
+        isActive?: boolean;
+      };
+      newValues: typeof updates;
+    } = {
+      individualProcessId: status.individualProcessId,
+      oldValues: {},
+      newValues: updates,
+    };
+
+    // Get old case status name if changed
+    if (args.caseStatusId !== undefined && status.caseStatusId) {
+      const oldCaseStatus = await ctx.db.get(status.caseStatusId);
+      activityDetails.oldValues.caseStatusId = status.caseStatusId;
+      activityDetails.oldValues.caseStatusName = oldCaseStatus?.name;
+    }
+    if (args.date !== undefined) {
+      activityDetails.oldValues.date = status.date;
+    }
+    if (args.notes !== undefined) {
+      activityDetails.oldValues.notes = status.notes;
+    }
+    if (args.isActive !== undefined) {
+      activityDetails.oldValues.isActive = status.isActive;
+    }
+
     await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
       userId,
       action: "status_updated",
       entityType: "individualProcessStatus",
       entityId: args.statusId,
-      details: {
-        individualProcessId: status.individualProcessId,
-        updates,
-      },
+      details: activityDetails,
     });
 
     return args.statusId;

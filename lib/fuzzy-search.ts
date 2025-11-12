@@ -8,6 +8,12 @@ export interface FuzzyMatch {
 /**
  * Performs fuzzy search matching on a string with accent-insensitive comparison.
  * Supports searching for "João" using "joao" and vice versa.
+ * Characters must appear consecutively in the text (no character separation allowed).
+ *
+ * Examples:
+ * - "yur" matches "Yuri" ✓ (consecutive)
+ * - "yur" does NOT match "Yagaurkli" ✗ (characters are separated)
+ * - "joao" matches "João" ✓ (accent-insensitive, consecutive)
  *
  * @param text The text to search in
  * @param searchTerm The search term to find
@@ -22,24 +28,21 @@ export function fuzzyMatch(text: string, searchTerm: string): FuzzyMatch | null 
   const textNormalized = normalizeString(text)
   const searchNormalized = normalizeString(searchTerm)
 
-  let searchIndex = 0
-  let textIndex = 0
-  const matches: number[] = []
-  let score = 0
+  // Check if the search term appears as a consecutive substring anywhere in the text
+  const index = textNormalized.indexOf(searchNormalized)
 
-  while (textIndex < textNormalized.length && searchIndex < searchNormalized.length) {
-    if (textNormalized[textIndex] === searchNormalized[searchIndex]) {
-      matches.push(textIndex)
-      score += (1 / (textIndex + 1)) * 100 // Earlier matches score higher
-      searchIndex++
-    }
-    textIndex++
-  }
-
-  // If we didn't match all characters, return null
-  if (searchIndex < searchNormalized.length) {
+  if (index === -1) {
     return null
   }
+
+  // Build matches array with consecutive character positions
+  const matches: number[] = []
+  for (let i = 0; i < searchNormalized.length; i++) {
+    matches.push(index + i)
+  }
+
+  // Score based on how early the match appears (earlier = higher score)
+  const score = (1 / (index + 1)) * 100
 
   return { score, matches }
 }

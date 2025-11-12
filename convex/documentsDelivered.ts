@@ -21,15 +21,14 @@ export const list = query({
       throw new Error("Individual process not found");
     }
 
-    // Get main process to get company ID
-    const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-    if (!mainProcess) {
-      throw new Error("Main process not found");
-    }
+    // Get main process to get company ID (if exists)
+    const mainProcess = individualProcess.mainProcessId
+      ? await ctx.db.get(individualProcess.mainProcessId)
+      : null;
 
     // Check access control
     const userProfile = await getCurrentUserProfile(ctx);
-    if (mainProcess.companyId) {
+    if (mainProcess?.companyId) {
       const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view these documents");
@@ -101,6 +100,10 @@ export const get = query({
       throw new Error("Individual process not found");
     }
 
+    if (!individualProcess.mainProcessId) {
+      throw new Error("Individual process has no main process");
+    }
+
     const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
     if (!mainProcess) {
       throw new Error("Main process not found");
@@ -155,6 +158,10 @@ export const upload = mutation({
     const individualProcess = await ctx.db.get(args.individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
+    }
+
+    if (!individualProcess.mainProcessId) {
+      throw new Error("Individual process has no main process");
     }
 
     const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
@@ -421,6 +428,10 @@ export const getVersionHistory = query({
     const individualProcess = await ctx.db.get(individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
+    }
+
+    if (!individualProcess.mainProcessId) {
+      throw new Error("Individual process has no main process");
     }
 
     const mainProcess = await ctx.db.get(individualProcess.mainProcessId);

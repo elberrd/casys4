@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -33,6 +33,9 @@ import {
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { IndividualProcessStatusesSubtable } from "./individual-process-statuses-subtable"
+import { InitialStatusForm } from "./initial-status-form"
+import { Separator } from "@/components/ui/separator"
 
 interface IndividualProcessFormDialogProps {
   open: boolean
@@ -51,6 +54,13 @@ export function IndividualProcessFormDialog({
   const tCommon = useTranslations("Common")
   const locale = useLocale()
   const { toast } = useToast()
+  const userProfile = useQuery(api.userProfiles.getCurrentUser)
+
+  // State for initial status when creating new process
+  const [initialStatus, setInitialStatus] = useState<{
+    caseStatusId: Id<"caseStatuses">;
+    date: string;
+  } | null>(null)
 
   const individualProcess = useQuery(
     api.individualProcesses.get,
@@ -142,6 +152,7 @@ export function IndividualProcessFormDialog({
       // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
+        mainProcessId: data.mainProcessId || undefined,
         passportId: data.passportId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
@@ -270,25 +281,6 @@ export function IndividualProcessFormDialog({
 
               <FormField
                 control={form.control}
-                name="caseStatusId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("caseStatus")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={caseStatusOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCaseStatus")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="legalFrameworkId"
                 render={({ field }) => (
                   <FormItem>
@@ -305,6 +297,30 @@ export function IndividualProcessFormDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Status Section - Show Initial Status Form when creating, Subtable when editing */}
+            <div className="space-y-4">
+              {!individualProcessId ? (
+                <InitialStatusForm
+                  onStatusChange={(caseStatusId, date) => {
+                    setInitialStatus({ caseStatusId, date })
+                    // Also update the form's caseStatusId for backend compatibility
+                    form.setValue("caseStatusId", caseStatusId)
+                  }}
+                  defaultDate={new Date().toISOString().split('T')[0]}
+                />
+              ) : (
+                userProfile && (
+                  <>
+                    <Separator />
+                    <IndividualProcessStatusesSubtable
+                      individualProcessId={individualProcessId}
+                      userRole={userProfile.role}
+                    />
+                  </>
+                )
+              )}
             </div>
 
             {/* Optional Fields Section */}

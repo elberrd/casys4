@@ -2,9 +2,12 @@ import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 
 export const individualProcessSchema = z.object({
-  mainProcessId: z.custom<Id<"mainProcesses">>((val) => typeof val === "string", {
-    message: "Main process is required",
-  }),
+  mainProcessId: z
+    .custom<Id<"mainProcesses">>((val) => typeof val === "string", {
+      message: "Invalid main process ID",
+    })
+    .optional()
+    .or(z.literal("")),
   personId: z.custom<Id<"people">>((val) => typeof val === "string", {
     message: "Person is required",
   }),

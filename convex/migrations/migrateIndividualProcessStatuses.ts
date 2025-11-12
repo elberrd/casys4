@@ -61,9 +61,28 @@ export const migrateToStatusRelationship = internalMutation({
               .first();
 
             if (!existingStatus) {
+              // Find case status by code from the legacy status field
+              let caseStatusId: Id<"caseStatuses"> | undefined;
+              if (process.status) {
+                const caseStatus = await ctx.db
+                  .query("caseStatuses")
+                  .withIndex("by_code", (q) => q.eq("code", process.status!))
+                  .first();
+                caseStatusId = caseStatus?._id;
+              }
+
+              // Skip if we can't find a matching case status
+              if (!caseStatusId) {
+                results.errors.push(
+                  `Process ${process._id} has status '${process.status}' but no matching case status found. Skipping.`
+                );
+                continue;
+              }
+
               // Create active status record
               await ctx.db.insert("individualProcessStatuses", {
                 individualProcessId: process._id,
+                caseStatusId: caseStatusId,
                 statusName: process.status,
                 isActive: true,
                 notes: "Migrated from legacy status field",
@@ -115,9 +134,28 @@ export const migrateToStatusRelationship = internalMutation({
               continue;
             }
 
+            // Find case status by code from the historical status
+            let caseStatusId: Id<"caseStatuses"> | undefined;
+            if (history.newStatus) {
+              const caseStatus = await ctx.db
+                .query("caseStatuses")
+                .withIndex("by_code", (q) => q.eq("code", history.newStatus))
+                .first();
+              caseStatusId = caseStatus?._id;
+            }
+
+            // Skip if we can't find a matching case status
+            if (!caseStatusId) {
+              results.errors.push(
+                `History record ${history._id} has status '${history.newStatus}' but no matching case status found. Skipping.`
+              );
+              continue;
+            }
+
             // Create status record for this historical change
             const statusId = await ctx.db.insert("individualProcessStatuses", {
               individualProcessId: processId,
+              caseStatusId: caseStatusId,
               statusName: history.newStatus,
               isActive: false, // Historical records are not active
               notes: history.notes || "Historical status from migration",

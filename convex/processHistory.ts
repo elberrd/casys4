@@ -55,7 +55,7 @@ export const list = query({
           const individualProcess = await ctx.db.get(
             historyRecord.individualProcessId,
           );
-          if (!individualProcess) return null;
+          if (!individualProcess || !individualProcess.mainProcessId) return null;
 
           const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
           if (mainProcess && mainProcess.companyId === userProfile.companyId) {
@@ -125,6 +125,10 @@ export const getByIndividualProcess = query({
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
+      }
+
+      if (!individualProcess.mainProcessId) {
+        throw new Error("Individual process has no main process");
       }
 
       const mainProcess = await ctx.db.get(individualProcess.mainProcessId);

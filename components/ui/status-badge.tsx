@@ -57,7 +57,9 @@ export function StatusBadge({
 
   // For case statuses, display the status name directly (already translated from backend)
   // For old statuses, use translation key
-  const label = color ? status : t(`${type}.${status}` as any);
+  // If color is provided, use status name directly (case status)
+  // Otherwise attempt translation, but fallback to status name if translation is missing
+  const label = color ? status : (t.has(`${type}.${status}` as any) ? t(`${type}.${status}` as any) : status);
 
   return (
     <div

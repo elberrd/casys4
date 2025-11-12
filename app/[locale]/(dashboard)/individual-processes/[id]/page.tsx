@@ -105,7 +105,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
               <RefreshCcw className="mr-2 h-4 w-4" />
               {t('updateStatus')}
             </Button>
-            <Button onClick={() => router.push(`/${resolvedParams.locale}/individual-processes`)}>
+            <Button onClick={() => router.push(`/${resolvedParams.locale}/individual-processes/${processId}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>

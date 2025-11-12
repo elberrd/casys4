@@ -44,6 +44,9 @@ export function PersonDetailView({
   const tCommon = useTranslations("Common");
 
   const person = useQuery(api.people.get, { id: personId });
+  const currentCompany = useQuery(api.peopleCompanies.getCurrentByPerson, {
+    personId,
+  });
 
   if (!person) {
     return (
@@ -247,7 +250,7 @@ export function PersonDetailView({
             )}
 
             {/* Professional Information */}
-            {person.profession && (
+            {(person.profession || currentCompany?.company) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -256,12 +259,43 @@ export function PersonDetailView({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {t("profession")}
-                    </p>
-                    <p className="text-base mt-1">{person.profession}</p>
-                  </div>
+                  {person.profession && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {t("profession")}
+                      </p>
+                      <p className="text-base mt-1">{person.profession}</p>
+                    </div>
+                  )}
+                  {currentCompany?.company && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {t("company")}
+                      </p>
+                      <p className="text-base mt-1">
+                        {currentCompany.company.name}
+                      </p>
+                    </div>
+                  )}
+                  {currentCompany?.role && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {t("companyRole")}
+                      </p>
+                      <p className="text-base mt-1">{currentCompany.role}</p>
+                    </div>
+                  )}
+                  {currentCompany?.startDate && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {t("startDate")}
+                      </p>
+                      <p className="text-base mt-1">
+                        {new Date(currentCompany.startDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

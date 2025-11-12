@@ -78,6 +78,7 @@ export const list = query({
       // Filter by mainProcess.companyId - fetch mainProcesses for each result
       const filteredByCompany = await Promise.all(
         filteredResults.map(async (process) => {
+          if (!process.mainProcessId) return null;
           const mainProcess = await ctx.db.get(process.mainProcessId);
           if (mainProcess && mainProcess.companyId === userProfile.companyId) {
             return process;
@@ -94,7 +95,7 @@ export const list = query({
       filteredResults.map(async (process) => {
         const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
           ctx.db.get(process.personId),
-          ctx.db.get(process.mainProcessId),
+          process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
           // Get active status from new status system
@@ -173,7 +174,7 @@ export const get = query({
 
     const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
       ctx.db.get(process.personId),
-      ctx.db.get(process.mainProcessId),
+      process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
       process.cboId ? ctx.db.get(process.cboId) : null,
       // Get active status from new status system
@@ -229,10 +230,10 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    mainProcessId: v.id("mainProcesses"),
+    mainProcessId: v.optional(v.id("mainProcesses")),
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport
-    caseStatusId: v.id("caseStatuses"), // NEW: Use case status ID
+    caseStatusId: v.optional(v.id("caseStatuses")), // Optional - defaults to "em_preparacao"
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
@@ -260,10 +261,23 @@ export const create = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Validate that case status exists
-    const caseStatus = await ctx.db.get(args.caseStatusId);
-    if (!caseStatus) {
-      throw new Error("Case status not found");
+    // Get case status - default to "em_preparacao" if not provided
+    let caseStatus;
+    if (args.caseStatusId) {
+      caseStatus = await ctx.db.get(args.caseStatusId);
+      if (!caseStatus) {
+        throw new Error("Case status not found");
+      }
+    } else {
+      // Default to "em_preparacao" status
+      caseStatus = await ctx.db
+        .query("caseStatuses")
+        .withIndex("by_code", (q) => q.eq("code", "em_preparacao"))
+        .first();
+
+      if (!caseStatus) {
+        throw new Error("Default status 'em_preparacao' not found in database");
+      }
     }
 
     // For backward compatibility, derive status string from case status if not provided
@@ -273,7 +287,7 @@ export const create = mutation({
       mainProcessId: args.mainProcessId,
       personId: args.personId,
       passportId: args.passportId, // Store passport reference
-      caseStatusId: args.caseStatusId, // NEW: Store case status ID
+      caseStatusId: caseStatus._id, // Store case status ID (defaults to em_preparacao)
       status: statusString, // DEPRECATED: Keep for backward compatibility
       legalFrameworkId: args.legalFrameworkId,
       cboId: args.cboId,
@@ -292,12 +306,16 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Create initial status record in the new status system
+    // Create initial status record in the new status system with current date
     try {
+      // Format current date as ISO date string (YYYY-MM-DD)
+      const currentDate = new Date(now).toISOString().split('T')[0];
+
       await ctx.db.insert("individualProcessStatuses", {
         individualProcessId: processId,
-        caseStatusId: args.caseStatusId, // NEW: Store case status ID
-        statusName: caseStatus.name, // Store case status name
+        caseStatusId: caseStatus._id, // Store case status ID
+        statusName: caseStatus.name, // DEPRECATED: Store case status name for backward compatibility
+        date: currentDate, // ISO date format YYYY-MM-DD
         isActive: true,
         notes: `Initial status: ${caseStatus.name}`,
         changedBy: userId,
@@ -335,7 +353,7 @@ export const create = mutation({
     try {
       const [person, mainProcess] = await Promise.all([
         ctx.db.get(args.personId),
-        ctx.db.get(args.mainProcessId),
+        args.mainProcessId ? ctx.db.get(args.mainProcessId) : Promise.resolve(null),
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
@@ -346,8 +364,8 @@ export const create = mutation({
         details: {
           personName: person?.fullName,
           mainProcessReference: mainProcess?.referenceNumber,
-          caseStatusName: caseStatus.name, // NEW: Log case status name
-          caseStatusId: args.caseStatusId, // NEW: Log case status ID
+          caseStatusName: caseStatus.name, // Log case status name
+          caseStatusId: caseStatus._id, // Log case status ID
           legalFrameworkId: args.legalFrameworkId,
         },
       });
@@ -479,7 +497,7 @@ export const update = mutation({
       try {
         const newStatusId = await ctx.db.insert("individualProcessStatuses", {
           individualProcessId: id,
-          caseStatusId: args.caseStatusId, // NEW: Store case status ID
+          caseStatusId: newCaseStatus._id, // NEW: Store case status ID
           statusName: newCaseStatus.name, // Store case status name
           isActive: true,
           notes: `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`,
@@ -514,7 +532,9 @@ export const update = mutation({
       try {
         // Get person and main process for notification details
         const person = await ctx.db.get(process.personId);
-        const mainProcess = await ctx.db.get(process.mainProcessId);
+        const mainProcess = process.mainProcessId
+          ? await ctx.db.get(process.mainProcessId)
+          : null;
 
         if (person && mainProcess) {
           // Notify company contact person (client user)
@@ -560,7 +580,7 @@ export const update = mutation({
       if (Object.keys(changedFields).length > 0) {
         const [person, mainProcess] = await Promise.all([
           ctx.db.get(process.personId),
-          ctx.db.get(process.mainProcessId),
+          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
         ]);
 
     if (!userProfile.userId) throw new Error("User must be activated");
@@ -601,7 +621,7 @@ export const remove = mutation({
     // Get person and main process data before deletion
     const [person, mainProcess] = await Promise.all([
       ctx.db.get(process.personId),
-      ctx.db.get(process.mainProcessId),
+      process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
     ]);
 
     // CASCADE DELETE: Delete all related data

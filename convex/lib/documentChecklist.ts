@@ -17,6 +17,10 @@ export async function generateDocumentChecklist(
   }
 
   // Get the main process to find the process type
+  if (!individualProcess.mainProcessId) {
+    throw new Error("Individual process has no main process");
+  }
+
   const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
   if (!mainProcess) {
     throw new Error("Main process not found");

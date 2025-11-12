@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { useTranslations } from "next-intl"
-import { Clock, User, FileText } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { Clock, User, FileText, Calendar } from "lucide-react"
+import { formatDistanceToNow, format } from "date-fns"
 import { enUS, ptBR } from "date-fns/locale"
 import { useLocale } from "next-intl"
 
@@ -124,6 +124,17 @@ export function StatusHistoryTimeline({ individualProcessId }: StatusHistoryTime
                     </div>
                   </div>
 
+                  {/* Status Date */}
+                  {status.date && (
+                    <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      <span className="font-medium">{t('statusDate')}:</span>
+                      <span>
+                        {format(new Date(status.date), 'PPP', { locale: dateLocale })}
+                      </span>
+                    </div>
+                  )}
+
                   {status.changedByUser && (
                     <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                       <User className="h-3 w-3" />
@@ -139,6 +150,7 @@ export function StatusHistoryTimeline({ individualProcessId }: StatusHistoryTime
                   )}
 
                   <div className="mt-2 text-xs text-muted-foreground">
+                    <span className="opacity-75">{locale === 'pt' ? 'Registrado em:' : 'Recorded at:'}</span>{' '}
                     {new Date(status.changedAt).toLocaleString(locale === 'pt' ? 'pt-BR' : 'en-US', {
                       year: 'numeric',
                       month: 'short',

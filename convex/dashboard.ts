@@ -22,6 +22,7 @@ export const getProcessStats = query({
       // Filter by company through mainProcess
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
+          if (!process.mainProcessId) return null;
           const mainProcess = await ctx.db.get(process.mainProcessId);
           if (mainProcess && mainProcess.companyId === userProfile.companyId) {
             return process;
@@ -83,7 +84,7 @@ export const getDocumentReviewQueue = query({
         ]);
 
         let mainProcess = null;
-        if (individualProcess) {
+        if (individualProcess && individualProcess.mainProcessId) {
           mainProcess = await ctx.db.get(individualProcess.mainProcessId);
         }
 
@@ -215,6 +216,7 @@ export const getUpcomingDeadlines = query({
 
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
+          if (!process.mainProcessId) return null;
           const mainProcess = await ctx.db.get(process.mainProcessId);
           if (mainProcess && mainProcess.companyId === userProfile.companyId) {
             return process;
@@ -231,7 +233,7 @@ export const getUpcomingDeadlines = query({
       processes.map(async (process) => {
         const [person, mainProcess, processType] = await Promise.all([
           ctx.db.get(process.personId),
-          ctx.db.get(process.mainProcessId),
+          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
         ]);
 
@@ -347,7 +349,7 @@ export const getRecentActivity = query({
       const filtered = await Promise.all(
         historyEntries.map(async (entry) => {
           const individualProcess = await ctx.db.get(entry.individualProcessId);
-          if (individualProcess) {
+          if (individualProcess && individualProcess.mainProcessId) {
             const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
             if (mainProcess && mainProcess.companyId === userProfile.companyId) {
               return entry;
@@ -379,7 +381,9 @@ export const getRecentActivity = query({
         let mainProcess = null;
         if (individualProcess) {
           person = await ctx.db.get(individualProcess.personId);
-          mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+          if (individualProcess.mainProcessId) {
+            mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+          }
         }
 
         return {

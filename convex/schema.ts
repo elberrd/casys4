@@ -218,7 +218,7 @@ export default defineSchema({
     .index("by_referenceNumber", ["referenceNumber"]),
 
   individualProcesses: defineTable({
-    mainProcessId: v.id("mainProcesses"),
+    mainProcessId: v.optional(v.id("mainProcesses")),
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport used for this process
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
@@ -252,7 +252,8 @@ export default defineSchema({
   individualProcessStatuses: defineTable({
     individualProcessId: v.id("individualProcesses"),
     statusName: v.string(), // DEPRECATED: Kept for backward compatibility during migration
-    caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
+    caseStatusId: v.id("caseStatuses"), // Reference to case status (required)
+    date: v.optional(v.string()), // ISO date format YYYY-MM-DD - user-editable status date
     isActive: v.boolean(), // Only ONE can be true at a time per process
     notes: v.optional(v.string()),
     changedBy: v.id("users"),
@@ -261,7 +262,7 @@ export default defineSchema({
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_individualProcess_active", ["individualProcessId", "isActive"])
-    .index("by_caseStatus", ["caseStatusId"]) // New index
+    .index("by_caseStatus", ["caseStatusId"])
     .index("by_changedAt", ["changedAt"]),
 
   // Documents management

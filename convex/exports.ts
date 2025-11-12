@@ -129,6 +129,7 @@ export const exportIndividualProcesses = query({
       // Filter by company through mainProcess
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
+          if (!process.mainProcessId) return null;
           const mainProcess = await ctx.db.get(process.mainProcessId);
           if (mainProcess && mainProcess.companyId === userProfile.companyId) {
             return process;
@@ -141,6 +142,7 @@ export const exportIndividualProcesses = query({
       // Admin can filter by specific company
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
+          if (!process.mainProcessId) return null;
           const mainProcess = await ctx.db.get(process.mainProcessId);
           if (mainProcess && mainProcess.companyId === args.companyId) {
             return process;
@@ -173,7 +175,7 @@ export const exportIndividualProcesses = query({
       processes.map(async (process) => {
         const [person, mainProcess, legalFramework, cbo] = await Promise.all([
           ctx.db.get(process.personId),
-          ctx.db.get(process.mainProcessId),
+          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
         ]);
@@ -392,7 +394,7 @@ export const exportDocuments = query({
           ]);
 
         // Get main process
-        const mainProcess = individualProcess
+        const mainProcess = individualProcess && individualProcess.mainProcessId
           ? await ctx.db.get(individualProcess.mainProcessId)
           : null;
 
