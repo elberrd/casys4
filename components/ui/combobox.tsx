@@ -49,18 +49,33 @@ export interface ComboboxProps<T = string> {
    * Enable multiple selection mode
    */
   multiple?: false;
+  /**
+   * Whether to show the clear button when a value is selected
+   * @default true
+   */
+  showClearButton?: boolean;
+  /**
+   * ARIA label for the clear button
+   * @default "Clear selection"
+   */
+  clearButtonAriaLabel?: string;
 }
 
 /**
  * Multiple combobox component props
  */
 export interface ComboboxMultipleProps<T = string>
-  extends Omit<ComboboxProps<T>, "value" | "onValueChange" | "multiple" | "defaultValue"> {
+  extends Omit<ComboboxProps<T>, "value" | "onValueChange" | "multiple" | "defaultValue" | "clearButtonAriaLabel"> {
   value?: T[];
   defaultValue?: T[];
   onValueChange?: (value: T[]) => void;
   multiple: true;
   maxSelected?: number;
+  /**
+   * ARIA label for the clear all button
+   * @default "Clear all selections"
+   */
+  clearButtonAriaLabel?: string;
 }
 
 /**
@@ -87,6 +102,8 @@ function ComboboxSingle<T extends string = string>({
   className,
   triggerClassName,
   contentClassName,
+  showClearButton = true,
+  clearButtonAriaLabel = "Clear selection",
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T | undefined>(
@@ -132,6 +149,16 @@ function ComboboxSingle<T extends string = string>({
     setOpen(false);
   };
 
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening popover
+
+    if (value === undefined) {
+      setInternalValue(undefined);
+    }
+
+    onValueChange?.(undefined);
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -147,12 +174,29 @@ function ComboboxSingle<T extends string = string>({
           )}
         >
           {selectedOption ? (
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 truncate">
               {selectedOption.icon}
-              {selectedOption.label}
+              <span className="truncate">{selectedOption.label}</span>
             </span>
           ) : (
             placeholder
+          )}
+          {showClearButton && selectedValue && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleClear}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleClear(e as any);
+                }
+              }}
+              className="ml-auto mr-2 p-1 h-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity rounded-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer"
+              aria-label={clearButtonAriaLabel}
+            >
+              <X className="h-4 w-4" />
+            </span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -264,6 +308,8 @@ function ComboboxMultiple<T extends string = string>({
   triggerClassName,
   contentClassName,
   maxSelected,
+  showClearButton = true,
+  clearButtonAriaLabel = "Clear all selections",
 }: ComboboxMultipleProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T[]>(
@@ -321,6 +367,18 @@ function ComboboxMultiple<T extends string = string>({
     onValueChange?.(newValues);
   };
 
+  const handleClearAll = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening popover
+
+    const newValues: T[] = [];
+
+    if (value === undefined) {
+      setInternalValue(newValues);
+    }
+
+    onValueChange?.(newValues);
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -359,6 +417,23 @@ function ComboboxMultiple<T extends string = string>({
                   </span>
                 ))}
           </div>
+          {showClearButton && selectedValues.length > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleClearAll}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleClearAll(e as any);
+                }
+              }}
+              className="ml-auto mr-2 p-1 h-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity rounded-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer"
+              aria-label={clearButtonAriaLabel}
+            >
+              <X className="h-4 w-4" />
+            </span>
+          )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -492,6 +567,25 @@ function ComboboxMultiple<T extends string = string>({
  *   ]}
  *   value={value}
  *   onValueChange={setValue}
+ * />
+ *
+ * @example
+ * // With custom clear button configuration
+ * <Combobox
+ *   options={options}
+ *   value={value}
+ *   onValueChange={setValue}
+ *   showClearButton={true}
+ *   clearButtonAriaLabel="Reset selection"
+ * />
+ *
+ * @example
+ * // Disable clear button
+ * <Combobox
+ *   options={options}
+ *   value={value}
+ *   onValueChange={setValue}
+ *   showClearButton={false}
  * />
  */
 export function Combobox<T extends string = string>(

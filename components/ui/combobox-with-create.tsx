@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { cn, normalizeString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,16 @@ export interface ComboboxWithCreateProps<T extends string = string> {
    * Example: "Create '{text}'"
    */
   smartCreateLabel?: string;
+  /**
+   * Whether to show the clear button when a value is selected
+   * @default true
+   */
+  showClearButton?: boolean;
+  /**
+   * ARIA label for the clear button
+   * @default "Clear selection"
+   */
+  clearButtonAriaLabel?: string;
 }
 
 /**
@@ -120,6 +130,8 @@ export function ComboboxWithCreate<T extends string = string>({
   onCreateClick,
   createDialog,
   smartCreate = false,
+  showClearButton = true,
+  clearButtonAriaLabel = "Clear selection",
 }: ComboboxWithCreateProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
@@ -171,6 +183,16 @@ export function ComboboxWithCreate<T extends string = string>({
     setOpen(false);
   };
 
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening popover
+
+    if (value === undefined) {
+      setInternalValue(undefined);
+    }
+
+    onValueChange?.(undefined);
+  };
+
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
@@ -200,12 +222,29 @@ export function ComboboxWithCreate<T extends string = string>({
             )}
           >
             {selectedOption ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 truncate">
                 {selectedOption.icon}
-                {selectedOption.label}
+                <span className="truncate">{selectedOption.label}</span>
               </span>
             ) : (
               placeholder
+            )}
+            {showClearButton && selectedValue && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={handleClear}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleClear(e as any);
+                  }
+                }}
+                className="ml-auto mr-2 p-1 h-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity rounded-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer"
+                aria-label={clearButtonAriaLabel}
+              >
+                <X className="h-4 w-4" />
+              </span>
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>

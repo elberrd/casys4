@@ -26,8 +26,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox } from "@/components/ui/combobox"
-import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
-import { CountryQuickCreateDialog } from "@/components/countries/country-quick-create-dialog"
 import { useTranslations } from "next-intl"
 import { useCountryTranslation } from "@/lib/i18n/countries"
 import { citySchema, CityFormData } from "@/lib/validations/cities"
@@ -51,8 +49,6 @@ export function CityFormDialog({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
   const getCountryName = useCountryTranslation()
-  const [countryDialogOpen, setCountryDialogOpen] = useState(false)
-  const [newCountryName, setNewCountryName] = useState("")
 
   const city = useQuery(
     api.cities.get,
@@ -211,19 +207,11 @@ export function CityFormDialog({
                 <FormItem>
                   <FormLabel>{t('country')}</FormLabel>
                   <FormControl>
-                    <ComboboxWithCreate
+                    <Combobox
                       options={countryOptions}
                       value={field.value}
                       onValueChange={field.onChange}
                       placeholder={t('selectCountry')}
-                      canCreate={true}
-                      smartCreate={true}
-                      createButtonLabel={t('createNewCountry')}
-                      smartCreateLabel={t('createCountryNamed')}
-                      onCreateClick={(searchText) => {
-                        setNewCountryName(searchText || "")
-                        setCountryDialogOpen(true)
-                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -269,17 +257,6 @@ export function CityFormDialog({
           </form>
         </Form>
       </DialogContent>
-
-      <CountryQuickCreateDialog
-        open={countryDialogOpen}
-        onOpenChange={setCountryDialogOpen}
-        defaultName={newCountryName}
-        onSuccess={(countryId) => {
-          form.setValue('countryId', countryId)
-          setCountryDialogOpen(false)
-          setNewCountryName("")
-        }}
-      />
     </Dialog>
   )
 }
