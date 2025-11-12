@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -44,6 +45,7 @@ export function PassportsSubtable({
 }: PassportsSubtableProps) {
   const t = useTranslations("Passports");
   const tCommon = useTranslations("Common");
+  const getCountryName = useCountryTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPassportId, setEditingPassportId] = useState<
     Id<"passports"> | undefined
@@ -138,7 +140,7 @@ export function PassportsSubtable({
                         {passport.passportNumber}
                       </TableCell>
                       <TableCell>
-                        {passport.issuingCountry?.name || "-"}
+                        {passport.issuingCountry ? (getCountryName(passport.issuingCountry.code) || passport.issuingCountry.name) : "-"}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {passport.issueDate

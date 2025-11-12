@@ -22,6 +22,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Button } from "@/components/ui/button"
 import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -33,6 +34,7 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface Country {
   _id: Id<"countries">
   name: string
+  code: string
   flag?: string
 }
 
@@ -46,6 +48,7 @@ interface CountriesTableProps {
 export function CountriesTable({ countries, onEdit, onDelete, onView }: CountriesTableProps) {
   const t = useTranslations('Countries')
   const tCommon = useTranslations('Common')
+  const getCountryName = useCountryTranslation()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -74,12 +77,15 @@ export function CountriesTable({ countries, onEdit, onDelete, onView }: Countrie
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('name')} />
         ),
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            {row.original.flag && <span className="text-xl">{row.original.flag}</span>}
-            <DataGridHighlightedCell text={row.original.name} />
-          </div>
-        ),
+        cell: ({ row }) => {
+          const translatedName = getCountryName(row.original.code) || row.original.name
+          return (
+            <div className="flex items-center gap-2">
+              {row.original.flag && <span className="text-xl">{row.original.flag}</span>}
+              <DataGridHighlightedCell text={translatedName} />
+            </div>
+          )
+        },
       },
       {
         id: "actions",
@@ -118,7 +124,7 @@ export function CountriesTable({ countries, onEdit, onDelete, onView }: Countrie
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete, onView]
+    [t, tCommon, onEdit, onDelete, onView, getCountryName, deleteConfirmation.confirmDelete]
   )
 
   const table = useReactTable({

@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
 import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 
 interface PersonFormPageProps {
   personId?: Id<"people">
@@ -52,6 +53,7 @@ export function PersonFormPage({
   const { toast } = useToast()
   const router = useRouter()
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false)
+  const getCountryName = useCountryTranslation()
 
   const person = useQuery(
     api.people.get,
@@ -217,10 +219,13 @@ export function PersonFormPage({
     label: `${city.name}${city.state ? ` - ${city.state.code}` : ''}`,
   }))
 
-  const countryOptions = countries.map((country) => ({
-    value: country._id,
-    label: country.name,
-  }))
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name
+    return {
+      value: country._id,
+      label: country.flag ? `${country.flag} ${translatedName}` : translatedName,
+    }
+  })
 
   const companyOptions = companies.map((company) => ({
     value: company._id,

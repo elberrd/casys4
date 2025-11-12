@@ -29,6 +29,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
 import { CountryQuickCreateDialog } from "@/components/countries/country-quick-create-dialog"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { citySchema, CityFormData } from "@/lib/validations/cities"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
@@ -49,6 +50,7 @@ export function CityFormDialog({
   const t = useTranslations('Cities')
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
+  const getCountryName = useCountryTranslation()
   const [countryDialogOpen, setCountryDialogOpen] = useState(false)
   const [newCountryName, setNewCountryName] = useState("")
 
@@ -135,16 +137,22 @@ export function CityFormDialog({
     }
   }
 
-  const stateOptions = states.map((state) => ({
-    value: state._id,
-    label: `${state.name} - ${state.country?.name || 'Unknown Country'}`,
-  }))
+  const stateOptions = states.map((state) => {
+    const countryName = state.country ? (getCountryName(state.country.code) || state.country.name) : 'Unknown Country'
+    return {
+      value: state._id,
+      label: `${state.name} - ${countryName}`,
+    }
+  })
 
-  const countryOptions = countries.map((country) => ({
-    value: country._id,
-    label: country.name,
-    icon: country.flag ? <span className="text-xl">{country.flag}</span> : undefined,
-  }))
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name
+    return {
+      value: country._id,
+      label: translatedName,
+      icon: country.flag ? <span className="text-xl">{country.flag}</span> : undefined,
+    }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -43,6 +43,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
 import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 
 interface PersonFormDialogProps {
   open: boolean
@@ -61,6 +62,7 @@ export function PersonFormDialog({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false)
+  const getCountryName = useCountryTranslation()
 
   const person = useQuery(
     api.people.get,
@@ -236,10 +238,13 @@ export function PersonFormDialog({
     label: `${city.name}${city.state ? ` - ${city.state.code}` : ''}`,
   }))
 
-  const countryOptions = countries.map((country) => ({
-    value: country._id,
-    label: country.name,
-  }))
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name
+    return {
+      value: country._id,
+      label: country.flag ? `${country.flag} ${translatedName}` : translatedName,
+    }
+  })
 
   const companyOptions = companies.map((company) => ({
     value: company._id,

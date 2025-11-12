@@ -4,6 +4,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { EntityViewModal, ViewSection } from "@/components/ui/entity-view-modal"
 import { createField } from "@/lib/entity-view-helpers"
 import { Globe } from "lucide-react"
@@ -23,6 +24,7 @@ export function CountryViewModal({
 }: CountryViewModalProps) {
   const t = useTranslations("Countries")
   const tCommon = useTranslations("Common")
+  const getCountryName = useCountryTranslation()
 
   const country = useQuery(api.countries.get, { id: countryId })
 
@@ -45,7 +47,7 @@ export function CountryViewModal({
       title: t("countryInformation"),
       icon: <Globe className="h-5 w-5" />,
       fields: [
-        createField(t("name"), country.name),
+        createField(t("name"), getCountryName(country.code) || country.name),
       ],
     },
   ]

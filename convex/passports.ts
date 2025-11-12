@@ -82,6 +82,7 @@ export const list = query({
             ? {
                 _id: country._id,
                 name: country.name,
+                code: country.code,
               }
             : null,
           status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
@@ -154,6 +155,7 @@ export const listByPerson = query({
             ? {
                 _id: country._id,
                 name: country.name,
+                code: country.code,
               }
             : null,
           status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",

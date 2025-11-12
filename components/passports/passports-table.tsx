@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -49,6 +50,7 @@ interface Passport {
   issuingCountry: {
     _id: Id<"countries">
     name: string
+    code: string
   } | null
   status?: "Valid" | "Expiring Soon" | "Expired"
 }
@@ -74,6 +76,7 @@ function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
 export function PassportsTable({ passports, onEdit, onDelete, onView }: PassportsTableProps) {
   const t = useTranslations('Passports')
   const tCommon = useTranslations('Common')
+  const getCountryName = useCountryTranslation()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -122,11 +125,12 @@ export function PassportsTable({ passports, onEdit, onDelete, onView }: Passport
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('issuingCountry')} />
         ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {row.original.issuingCountry?.name || '-'}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const country = row.original.issuingCountry
+          if (!country) return <span className="text-muted-foreground">-</span>
+          const translatedName = getCountryName(country.code) || country.name
+          return <span className="text-muted-foreground">{translatedName}</span>
+        },
       },
       {
         accessorKey: "issueDate",

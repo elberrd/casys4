@@ -5,6 +5,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -43,6 +44,7 @@ export function PassportSelector({
 }: PassportSelectorProps) {
   const t = useTranslations("Passports")
   const tIndividual = useTranslations("IndividualProcesses")
+  const getCountryName = useCountryTranslation()
   const [addPassportOpen, setAddPassportOpen] = useState(false)
 
   const passports = useQuery(
@@ -115,7 +117,7 @@ export function PassportSelector({
                   <span className="font-mono text-sm">{passport.passportNumber}</span>
                   {passport.issuingCountry && (
                     <span className="text-muted-foreground">
-                      {passport.issuingCountry.name}
+                      {getCountryName(passport.issuingCountry.code) || passport.issuingCountry.name}
                     </span>
                   )}
                   {passport.status && (

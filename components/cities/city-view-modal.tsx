@@ -4,6 +4,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { EntityViewModal, ViewSection } from "@/components/ui/entity-view-modal"
 import { createField } from "@/lib/entity-view-helpers"
 import { Building2, Shield } from "lucide-react"
@@ -24,6 +25,7 @@ export function CityViewModal({
 }: CityViewModalProps) {
   const t = useTranslations("Cities")
   const tCommon = useTranslations("Common")
+  const getCountryName = useCountryTranslation()
 
   const city = useQuery(api.cities.get, { id: cityId })
   const state = useQuery(
@@ -56,7 +58,7 @@ export function CityViewModal({
       fields: [
         createField(t("name"), city.name),
         createField(t("state"), state?.name),
-        createField(t("country"), country?.name),
+        createField(t("country"), country ? (getCountryName(country.code) || country.name) : undefined),
         createField(
           t("hasFederalPolice"),
           city.hasFederalPolice ? (

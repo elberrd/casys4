@@ -47,6 +47,7 @@ export const list = query({
             ? {
                 _id: country._id,
                 name: country.name,
+                code: country.code,
               }
             : null,
         };
@@ -108,6 +109,7 @@ export const get = query({
         ? {
             _id: country._id,
             name: country.name,
+            code: country.code,
           }
         : null,
     };

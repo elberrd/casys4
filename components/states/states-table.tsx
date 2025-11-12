@@ -22,6 +22,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Button } from "@/components/ui/button"
 import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -37,6 +38,7 @@ interface State {
   countryId?: Id<"countries">
   country: {
     name: string
+    code: string
   } | null
 }
 
@@ -50,6 +52,7 @@ interface StatesTableProps {
 export function StatesTable({ states, onView, onEdit, onDelete }: StatesTableProps) {
   const t = useTranslations('States')
   const tCommon = useTranslations('Common')
+  const getCountryName = useCountryTranslation()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -88,9 +91,12 @@ export function StatesTable({ states, onView, onEdit, onDelete }: StatesTablePro
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('country')} />
         ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.country?.name || "-"} />
-        ),
+        cell: ({ row }) => {
+          const country = row.original.country
+          if (!country) return <DataGridHighlightedCell text="-" />
+          const translatedName = getCountryName(country.code) || country.name
+          return <DataGridHighlightedCell text={translatedName} />
+        },
       },
       {
         id: "actions",

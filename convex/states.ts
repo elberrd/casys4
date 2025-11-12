@@ -65,7 +65,12 @@ export const listWithCountry = query({
         const country = state.countryId ? await ctx.db.get(state.countryId) : null;
         return {
           ...state,
-          country,
+          country: country
+            ? {
+                name: country.name,
+                code: country.code,
+              }
+            : null,
         };
       })
     );

@@ -51,11 +51,13 @@ import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
 import type * as seedCaseStatuses from "../seedCaseStatuses.js";
 import type * as seedCboCodes from "../seedCboCodes.js";
+import type * as seedCompanies from "../seedCompanies.js";
 import type * as seedCountries from "../seedCountries.js";
 import type * as seedInitialAdmin from "../seedInitialAdmin.js";
 import type * as states from "../states.js";
 import type * as tasks from "../tasks.js";
 import type * as userProfiles from "../userProfiles.js";
+import type * as verifyCompanies from "../verifyCompanies.js";
 
 import type {
   ApiFromModules,
@@ -115,11 +117,13 @@ declare const fullApi: ApiFromModules<{
   processTypes: typeof processTypes;
   seedCaseStatuses: typeof seedCaseStatuses;
   seedCboCodes: typeof seedCboCodes;
+  seedCompanies: typeof seedCompanies;
   seedCountries: typeof seedCountries;
   seedInitialAdmin: typeof seedInitialAdmin;
   states: typeof states;
   tasks: typeof tasks;
   userProfiles: typeof userProfiles;
+  verifyCompanies: typeof verifyCompanies;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

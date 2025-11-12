@@ -60,6 +60,7 @@
 import * as React from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useCountryTranslation } from '@/lib/i18n/countries';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -112,6 +113,7 @@ export interface PhoneInputProps
 export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
   ({ className, value = '', onChange, defaultCountry = 'BR', ...props }, ref) => {
     const t = useTranslations('Common');
+    const getCountryName = useCountryTranslation();
     const [open, setOpen] = React.useState(false);
     const [selectedCountry, setSelectedCountry] = React.useState<Country>(
       () => findCountryByCode(defaultCountry) || countries[0]
@@ -236,28 +238,31 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
                 <ScrollArea className="h-[300px]">
                   <CommandEmpty>{t('noCountryFound')}</CommandEmpty>
                   <CommandGroup>
-                    {countries.map((country) => (
-                      <CommandItem
-                        key={country.code}
-                        value={`${country.name} ${country.dialCode} ${country.code}`}
-                        onSelect={() => handleCountrySelect(country.code)}
-                      >
-                        <span className="flex items-center gap-2 leading-none flex-1 min-w-0">
-                          <span className="text-base shrink-0" aria-hidden="true">
-                            {country.flag}
+                    {countries.map((country) => {
+                      const translatedName = getCountryName(country.code) || country.name
+                      return (
+                        <CommandItem
+                          key={country.code}
+                          value={`${translatedName} ${country.dialCode} ${country.code}`}
+                          onSelect={() => handleCountrySelect(country.code)}
+                        >
+                          <span className="flex items-center gap-2 leading-none flex-1 min-w-0">
+                            <span className="text-base shrink-0" aria-hidden="true">
+                              {country.flag}
+                            </span>
+                            <span className="text-sm text-foreground truncate">
+                              {translatedName}
+                            </span>
+                            <span className="text-sm text-muted-foreground shrink-0 ml-auto">
+                              {country.dialCode}
+                            </span>
                           </span>
-                          <span className="text-sm text-foreground truncate">
-                            {country.name}
-                          </span>
-                          <span className="text-sm text-muted-foreground shrink-0 ml-auto">
-                            {country.dialCode}
-                          </span>
-                        </span>
-                        {selectedCountry.code === country.code && (
-                          <Check className="ml-2 h-4 w-4 shrink-0" />
-                        )}
-                      </CommandItem>
-                    ))}
+                          {selectedCountry.code === country.code && (
+                            <Check className="ml-2 h-4 w-4 shrink-0" />
+                          )}
+                        </CommandItem>
+                      )
+                    })}
                   </CommandGroup>
                 </ScrollArea>
               </CommandList>

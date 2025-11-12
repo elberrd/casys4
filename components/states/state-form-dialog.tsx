@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { stateSchema, StateFormData } from "@/lib/validations/states"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
@@ -45,6 +46,7 @@ export function StateFormDialog({
   const t = useTranslations('States')
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
+  const getCountryName = useCountryTranslation()
 
   const state = useQuery(
     api.states.get,
@@ -112,10 +114,13 @@ export function StateFormDialog({
     }
   }
 
-  const countryOptions = countries.map((country) => ({
-    value: country._id,
-    label: country.name,
-  }))
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name
+    return {
+      value: country._id,
+      label: translatedName,
+    }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

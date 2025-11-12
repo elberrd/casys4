@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
 import { z } from "zod"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,7 @@ export function QuickPersonFormDialog({
   const t = useTranslations("People")
   const tCommon = useTranslations("Common")
   const tIndividual = useTranslations("IndividualProcesses")
+  const getCountryName = useCountryTranslation()
 
   const countries = useQuery(api.countries.list, {}) ?? []
   const createPerson = useMutation(api.people.create)
@@ -82,10 +84,13 @@ export function QuickPersonFormDialog({
     }
   }
 
-  const countryOptions = countries.map((country) => ({
-    value: country._id,
-    label: country.name,
-  }))
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name
+    return {
+      value: country._id,
+      label: country.flag ? `${country.flag} ${translatedName}` : translatedName,
+    }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

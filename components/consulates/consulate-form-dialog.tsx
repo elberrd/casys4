@@ -6,7 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries";
 import { toast } from "sonner";
 
 import {
@@ -46,6 +47,7 @@ export function ConsulateFormDialog({
 }: ConsulateFormDialogProps) {
   const t = useTranslations("Consulates");
   const tCommon = useTranslations("Common");
+  const getCountryName = useCountryTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const consulate = useQuery(
@@ -126,10 +128,13 @@ export function ConsulateFormDialog({
     onOpenChange(newOpen);
   };
 
-  const cityOptions = cities.map((city) => ({
-    value: city._id,
-    label: `${city.name}, ${city.state?.name || ""}, ${city.country?.name || ""}`,
-  }));
+  const cityOptions = cities.map((city) => {
+    const countryName = city.country ? (getCountryName(city.country.code) || city.country.name) : ""
+    return {
+      value: city._id,
+      label: `${city.name}, ${city.state?.name || ""}, ${countryName}`,
+    }
+  });
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

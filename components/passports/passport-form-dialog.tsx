@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,7 @@ export function PassportFormDialog({
 }: PassportFormDialogProps) {
   const t = useTranslations("Passports")
   const tCommon = useTranslations("Common")
+  const getCountryName = useCountryTranslation()
 
   const passport = useQuery(
     api.passports.get,
@@ -211,10 +213,13 @@ export function PassportFormDialog({
                       <Combobox
                         value={field.value}
                         onValueChange={(value) => field.onChange(value || "")}
-                        options={countries.map((country) => ({
-                          value: country._id,
-                          label: country.name,
-                        }))}
+                        options={countries.map((country) => {
+                          const translatedName = getCountryName(country.code) || country.name
+                          return {
+                            value: country._id,
+                            label: translatedName,
+                          }
+                        })}
                         placeholder={t("selectCountry")}
                         searchPlaceholder={tCommon("search")}
                         emptyText={tCommon("noResults")}

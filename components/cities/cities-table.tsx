@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -61,6 +62,7 @@ interface CitiesTableProps {
 export function CitiesTable({ cities, onView, onEdit, onDelete }: CitiesTableProps) {
   const t = useTranslations('Cities')
   const tCommon = useTranslations('Common')
+  const getCountryName = useCountryTranslation()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -111,10 +113,11 @@ export function CitiesTable({ cities, onView, onEdit, onDelete }: CitiesTablePro
           const country = row.original.country
           if (!country) return <DataGridHighlightedCell text="-" />
 
+          const translatedName = getCountryName(country.code) || country.name
           return (
             <div className="flex items-center gap-2">
               {country.flag && <span className="text-lg">{country.flag}</span>}
-              <DataGridHighlightedCell text={country.name} />
+              <DataGridHighlightedCell text={translatedName} />
             </div>
           )
         },

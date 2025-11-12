@@ -21,7 +21,8 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Eye } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl"
+import { useCountryTranslation } from "@/lib/i18n/countries";
 import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { createSelectColumn } from "@/lib/data-grid-utils";
@@ -46,12 +47,13 @@ type Consulate = {
   website?: string;
   city: { _id: Id<"cities">; name: string } | null;
   state: { _id: Id<"states">; name: string } | null;
-  country: { _id: Id<"countries">; name: string } | null;
+  country: { _id: Id<"countries">; name: string; code: string } | null;
 };
 
 export function ConsulatesTable() {
   const t = useTranslations("Consulates");
   const tCommon = useTranslations("Common");
+  const getCountryName = useCountryTranslation();
 
   const consulates = useQuery(api.consulates.list, {}) ?? [];
   const removeConsulate = useMutation(api.consulates.remove);
@@ -116,7 +118,8 @@ export function ConsulatesTable() {
         cell: ({ row }) => {
           const city = row.original.city?.name || "";
           const state = row.original.state?.name || "";
-          const country = row.original.country?.name || "";
+          const countryObj = row.original.country;
+          const country = countryObj ? (getCountryName(countryObj.code) || countryObj.name) : "";
           return `${city}, ${state}, ${country}`;
         },
       },
