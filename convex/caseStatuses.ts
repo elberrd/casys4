@@ -92,6 +92,7 @@ export const create = mutation({
     color: v.optional(v.string()),
     sortOrder: v.number(),
     orderNumber: v.optional(v.number()),
+    fillableFields: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -128,6 +129,7 @@ export const create = mutation({
       color: args.color,
       sortOrder: args.sortOrder,
       orderNumber: args.orderNumber,
+      fillableFields: args.fillableFields,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -151,6 +153,7 @@ export const update = mutation({
     color: v.optional(v.string()),
     sortOrder: v.optional(v.number()),
     orderNumber: v.optional(v.number()),
+    fillableFields: v.optional(v.array(v.string())),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {

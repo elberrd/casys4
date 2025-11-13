@@ -50,6 +50,8 @@ export function IndividualProcessFormPage({
   const router = useRouter()
 
   const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
+  const [hasInitializedForm, setHasInitializedForm] = useState(false)
+  const [previousProcessTypeId, setPreviousProcessTypeId] = useState<string>("")
 
   // State for initial status when creating new process
   const [initialStatus, setInitialStatus] = useState<{
@@ -122,9 +124,15 @@ export function IndividualProcessFormPage({
     ? (filteredLegalFrameworks ?? [])
     : (allLegalFrameworks ?? [])
 
-  // Reset form when individual process data loads
+  // Reset form when individual process data loads (only once)
   useEffect(() => {
-    if (individualProcess) {
+    // Reset the initialization flag when the individualProcessId changes
+    setHasInitializedForm(false)
+  }, [individualProcessId])
+
+  useEffect(() => {
+    // Only initialize the form once when data first loads
+    if (individualProcess && !hasInitializedForm) {
       form.reset({
         mainProcessId: individualProcess.mainProcessId,
         personId: individualProcess.personId,
@@ -147,7 +155,69 @@ export function IndividualProcessFormPage({
         deadlineDate: individualProcess.deadlineDate ?? "",
         isActive: individualProcess.isActive,
       })
-    } else if (!individualProcessId) {
+      setHasInitializedForm(true)
+    } else if (individualProcess && hasInitializedForm) {
+      // Update form fields that might have been changed by filled fields modal
+      // Only update if the values actually changed to avoid overwriting user input
+      const currentValues = form.getValues()
+      const updates: Partial<IndividualProcessFormData> = {}
+
+      // Reference fields
+      if (currentValues.passportId !== (individualProcess.passportId ?? "")) {
+        updates.passportId = individualProcess.passportId ?? ""
+      }
+      if (currentValues.applicantId !== (individualProcess.applicantId ?? "")) {
+        updates.applicantId = individualProcess.applicantId ?? ""
+      }
+      if (currentValues.processTypeId !== (individualProcess.processTypeId ?? "")) {
+        updates.processTypeId = individualProcess.processTypeId ?? ""
+      }
+      if (currentValues.legalFrameworkId !== (individualProcess.legalFrameworkId ?? ("" as Id<"legalFrameworks">))) {
+        updates.legalFrameworkId = individualProcess.legalFrameworkId ?? ("" as Id<"legalFrameworks">)
+      }
+      if (currentValues.cboId !== (individualProcess.cboId ?? "")) {
+        updates.cboId = individualProcess.cboId ?? ""
+      }
+
+      // String fields
+      if (currentValues.douNumber !== (individualProcess.douNumber ?? "")) {
+        updates.douNumber = individualProcess.douNumber ?? ""
+      }
+      if (currentValues.douSection !== (individualProcess.douSection ?? "")) {
+        updates.douSection = individualProcess.douSection ?? ""
+      }
+      if (currentValues.douPage !== (individualProcess.douPage ?? "")) {
+        updates.douPage = individualProcess.douPage ?? ""
+      }
+      if (currentValues.douDate !== (individualProcess.douDate ?? "")) {
+        updates.douDate = individualProcess.douDate ?? ""
+      }
+      if (currentValues.protocolNumber !== (individualProcess.protocolNumber ?? "")) {
+        updates.protocolNumber = individualProcess.protocolNumber ?? ""
+      }
+      if (currentValues.rnmNumber !== (individualProcess.rnmNumber ?? "")) {
+        updates.rnmNumber = individualProcess.rnmNumber ?? ""
+      }
+      if (currentValues.rnmDeadline !== (individualProcess.rnmDeadline ?? "")) {
+        updates.rnmDeadline = individualProcess.rnmDeadline ?? ""
+      }
+      if (currentValues.mreOfficeNumber !== (individualProcess.mreOfficeNumber ?? "")) {
+        updates.mreOfficeNumber = individualProcess.mreOfficeNumber ?? ""
+      }
+      if (currentValues.appointmentDateTime !== (individualProcess.appointmentDateTime ?? "")) {
+        updates.appointmentDateTime = individualProcess.appointmentDateTime ?? ""
+      }
+      if (currentValues.deadlineDate !== (individualProcess.deadlineDate ?? "")) {
+        updates.deadlineDate = individualProcess.deadlineDate ?? ""
+      }
+
+      // Apply updates if there are any
+      if (Object.keys(updates).length > 0) {
+        Object.entries(updates).forEach(([key, value]) => {
+          form.setValue(key as any, value, { shouldValidate: false, shouldDirty: false })
+        })
+      }
+    } else if (!individualProcessId && !hasInitializedForm) {
       form.reset({
         mainProcessId: "" as Id<"mainProcesses">,
         personId: "" as Id<"people">,
@@ -170,8 +240,9 @@ export function IndividualProcessFormPage({
         deadlineDate: "",
         isActive: true,
       })
+      setHasInitializedForm(true)
     }
-  }, [individualProcess, individualProcessId, form])
+  }, [individualProcess, individualProcessId, form, hasInitializedForm])
 
   // Automatically select valid and active passport when person changes
   useEffect(() => {
@@ -204,15 +275,19 @@ export function IndividualProcessFormPage({
     }
   }, [selectedPersonId, personPassports, individualProcessId, individualProcess, form])
 
-  // Clear legal framework when process type changes
+  // Clear legal framework when process type changes (but not on initial load)
   useEffect(() => {
-    // Clear legal framework when process type changes or is cleared
-    const currentLegalFrameworkId = form.getValues("legalFrameworkId")
-    if (currentLegalFrameworkId) {
-      // Reset legal framework when process type changes
-      form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
+    // Only clear if process type actually changed (not on initial load)
+    if (previousProcessTypeId && previousProcessTypeId !== selectedProcessTypeId) {
+      const currentLegalFrameworkId = form.getValues("legalFrameworkId")
+      if (currentLegalFrameworkId) {
+        // Reset legal framework when process type changes
+        form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
+      }
     }
-  }, [selectedProcessTypeId])
+    // Update the previous process type
+    setPreviousProcessTypeId(selectedProcessTypeId || "")
+  }, [selectedProcessTypeId, previousProcessTypeId, form])
 
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
@@ -246,6 +321,8 @@ export function IndividualProcessFormPage({
         toast({
           title: t("updatedSuccess"),
         })
+        // Reset the initialization flag so the form can be re-initialized with updated data
+        setHasInitializedForm(false)
       } else {
         await createIndividualProcess(submitData)
         toast({
@@ -260,7 +337,9 @@ export function IndividualProcessFormPage({
         router.push('/individual-processes')
       }
 
-      form.reset()
+      if (!individualProcessId) {
+        form.reset()
+      }
     } catch (error) {
       toast({
         title: individualProcessId ? t("errorUpdate") : t("errorCreate"),
@@ -289,10 +368,12 @@ export function IndividualProcessFormPage({
     label: processType.name,
   }))
 
-  const legalFrameworkOptions = legalFrameworks.map((framework) => ({
-    value: framework._id,
-    label: framework.name,
-  }))
+  const legalFrameworkOptions = legalFrameworks
+    .filter((framework): framework is NonNullable<typeof framework> => framework !== null)
+    .map((framework) => ({
+      value: framework._id,
+      label: framework.name,
+    }))
 
   const cboOptions = cboCodes.map((cbo) => ({
     value: cbo._id,
@@ -550,19 +631,6 @@ export function IndividualProcessFormPage({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="appointmentDateTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("appointmentDateTime")}</FormLabel>
-                    <FormControl>
-                      <Input type="datetime-local" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
 
             <Separator />
@@ -667,6 +735,20 @@ export function IndividualProcessFormPage({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="appointmentDateTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("appointmentDateTime")}</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <Separator />

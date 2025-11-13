@@ -123,13 +123,57 @@ export const list = query({
           };
         }
 
+        // Enrich activeStatus with resolved reference field names
+        let enrichedActiveStatus = activeStatus;
+        if (activeStatus?.filledFieldsData) {
+          const filledData = activeStatus.filledFieldsData;
+          const enrichedData: Record<string, any> = {};
+
+          // Resolve reference field IDs to readable names
+          for (const [fieldName, fieldValue] of Object.entries(filledData)) {
+            if (fieldValue === null || fieldValue === undefined) {
+              enrichedData[fieldName] = fieldValue;
+              continue;
+            }
+
+            // Handle reference fields
+            if (fieldName === "passportId" && typeof fieldValue === "string") {
+              const passportDoc = await ctx.db.get(fieldValue as Id<"passports">);
+              enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
+            } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
+              const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+              enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+            } else if (fieldName === "personId" && typeof fieldValue === "string") {
+              const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+              enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+            } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
+              const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
+              enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
+            } else if (fieldName === "legalFrameworkId" && typeof fieldValue === "string") {
+              const legalFrameworkDoc = await ctx.db.get(fieldValue as Id<"legalFrameworks">);
+              enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
+            } else if (fieldName === "cboId" && typeof fieldValue === "string") {
+              const cboDoc = await ctx.db.get(fieldValue as Id<"cboCodes">);
+              enrichedData[fieldName] = cboDoc ? `${cboDoc.code} - ${cboDoc.title}` : fieldValue;
+            } else {
+              // Keep non-reference fields as-is
+              enrichedData[fieldName] = fieldValue;
+            }
+          }
+
+          enrichedActiveStatus = {
+            ...activeStatus,
+            filledFieldsData: enrichedData,
+          };
+        }
+
         return {
           ...process,
           person,
           mainProcess,
           legalFramework,
           cbo,
-          activeStatus,
+          activeStatus: enrichedActiveStatus,
           caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
           passport: enrichedPassport,
         };
@@ -234,13 +278,57 @@ export const get = query({
       };
     }
 
+    // Enrich activeStatus with resolved reference field names
+    let enrichedActiveStatus = activeStatus;
+    if (activeStatus?.filledFieldsData) {
+      const filledData = activeStatus.filledFieldsData;
+      const enrichedData: Record<string, any> = {};
+
+      // Resolve reference field IDs to readable names
+      for (const [fieldName, fieldValue] of Object.entries(filledData)) {
+        if (fieldValue === null || fieldValue === undefined) {
+          enrichedData[fieldName] = fieldValue;
+          continue;
+        }
+
+        // Handle reference fields
+        if (fieldName === "passportId" && typeof fieldValue === "string") {
+          const passportDoc = await ctx.db.get(fieldValue as Id<"passports">);
+          enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
+        } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
+          const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+          enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+        } else if (fieldName === "personId" && typeof fieldValue === "string") {
+          const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+          enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+        } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
+          const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
+          enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
+        } else if (fieldName === "legalFrameworkId" && typeof fieldValue === "string") {
+          const legalFrameworkDoc = await ctx.db.get(fieldValue as Id<"legalFrameworks">);
+          enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
+        } else if (fieldName === "cboId" && typeof fieldValue === "string") {
+          const cboDoc = await ctx.db.get(fieldValue as Id<"cboCodes">);
+          enrichedData[fieldName] = cboDoc ? `${cboDoc.code} - ${cboDoc.title}` : fieldValue;
+        } else {
+          // Keep non-reference fields as-is
+          enrichedData[fieldName] = fieldValue;
+        }
+      }
+
+      enrichedActiveStatus = {
+        ...activeStatus,
+        filledFieldsData: enrichedData,
+      };
+    }
+
     return {
       ...process,
       person,
       mainProcess,
       legalFramework,
       cbo,
-      activeStatus,
+      activeStatus: enrichedActiveStatus,
       caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
       passport: enrichedPassport,
       applicant: enrichedApplicant, // NEW: Include applicant with company

@@ -88,7 +88,9 @@ export function ProcessTypeFormDialog({
         description: processType.description,
         estimatedDays: processType.estimatedDays,
         isActive: processType.isActive,
-        legalFrameworkIds: currentLegalFrameworks.map((lf) => lf._id),
+        legalFrameworkIds: currentLegalFrameworks
+          .filter((lf): lf is NonNullable<typeof lf> => lf !== null)
+          .map((lf) => lf._id),
       })
     } else if (!processTypeId && open) {
       form.reset({

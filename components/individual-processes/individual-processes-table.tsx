@@ -22,7 +22,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo } from "lucide-react"
+import { Edit, Trash2, Eye, ListTodo, FileEdit } from "lucide-react"
 import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -31,6 +31,9 @@ import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
+import { getFieldMetadata } from "@/lib/individual-process-fields"
+import { formatFieldValue, truncateString } from "@/lib/format-field-value"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">
@@ -42,6 +45,7 @@ interface IndividualProcess {
     statusName: string
     isActive: boolean
     changedAt: number
+    filledFieldsData?: Record<string, any>
   } | null
   caseStatus?: {
     _id: Id<"caseStatuses">
@@ -51,6 +55,7 @@ interface IndividualProcess {
     color?: string
     category?: string
     sortOrder: number
+    fillableFields?: string[]
   } | null
   person?: {
     _id: Id<"people">
@@ -83,6 +88,7 @@ interface IndividualProcessesTableProps {
   onView?: (id: Id<"individualProcesses">) => void
   onEdit?: (id: Id<"individualProcesses">) => void
   onDelete?: (id: Id<"individualProcesses">) => void
+  onFillFields?: (individualProcessId: Id<"individualProcesses">, statusId: Id<"individualProcessStatuses">) => void
   onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => void
   onBulkCreateTask?: (selected: IndividualProcess[]) => void
   onRowClick?: (id: Id<"individualProcesses">) => void
@@ -93,6 +99,7 @@ export function IndividualProcessesTable({
   onView,
   onEdit,
   onDelete,
+  onFillFields,
   onBulkStatusUpdate,
   onBulkCreateTask,
   onRowClick
@@ -110,6 +117,9 @@ export function IndividualProcessesTable({
     entityName: "individual process",
   })
 
+  // Destructure to get stable function references
+  const { confirmDelete } = deleteConfirmation
+
   // Bulk delete confirmation for multiple items
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
     onDelete: async (item: IndividualProcess) => {
@@ -119,6 +129,9 @@ export function IndividualProcessesTable({
       setRowSelection({})
     },
   })
+
+  // Destructure to get stable function reference
+  const { confirmBulkDelete } = bulkDeleteConfirmation
 
   const columns = useMemo<ColumnDef<IndividualProcess>[]>(
     () => [
@@ -182,6 +195,63 @@ export function IndividualProcessesTable({
             />
           )
         },
+      },
+      {
+        id: "filledFields",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('filledFields')} />
+        ),
+        cell: ({ row }) => {
+          const filledFieldsData = row.original.activeStatus?.filledFieldsData
+          const fillableFields = row.original.caseStatus?.fillableFields
+
+          // If no filled fields data, show empty state
+          if (!filledFieldsData || !fillableFields || fillableFields.length === 0 || Object.keys(filledFieldsData).length === 0) {
+            return <span className="text-sm text-muted-foreground italic">{t('noFieldsFilled')}</span>
+          }
+
+          // Get field metadata for the filled fields
+          const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key))
+
+          if (entries.length === 0) {
+            return <span className="text-sm text-muted-foreground italic">{t('noFieldsFilled')}</span>
+          }
+
+          // Build summary text
+          const summaryLines = entries.map(([fieldName, value]) => {
+            const metadata = getFieldMetadata(fieldName)
+            if (!metadata) return null
+
+            const label = t(`fields.${fieldName}` as any)
+            const formattedValue = formatFieldValue(value, metadata.fieldType, locale)
+
+            return `${label}: ${formattedValue}`
+          }).filter(Boolean)
+
+          const fullText = summaryLines.join('\n')
+          const truncatedText = summaryLines.map(line => truncateString(line || "", 40)).join(', ')
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-sm max-w-[200px]">
+                    {summaryLines.map((line, idx) => (
+                      <div key={idx} className="truncate">
+                        <span className="font-semibold">{line?.split(':')[0]}</span>
+                        {line?.split(':')[1] && <span>: {line.split(':')[1]}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <div className="whitespace-pre-wrap">{fullText}</div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        enableSorting: false,
       },
       {
         accessorKey: "legalFramework.name",
@@ -251,11 +321,21 @@ export function IndividualProcessesTable({
             })
           }
 
+          // Add Fill Fields button if the caseStatus has fillable fields and activeStatus exists
+          if (onFillFields && row.original.caseStatus?.fillableFields && row.original.caseStatus.fillableFields.length > 0 && row.original.activeStatus) {
+            actions.push({
+              label: t('fillFields'),
+              icon: <FileEdit className="h-4 w-4" />,
+              onClick: () => onFillFields(row.original._id, row.original.activeStatus!._id),
+              variant: "default" as const,
+            })
+          }
+
           if (onDelete) {
             actions.push({
               label: tCommon('delete'),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => deleteConfirmation.confirmDelete(row.original._id),
+              onClick: () => confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
             })
@@ -268,7 +348,7 @@ export function IndividualProcessesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, locale, onView, onEdit, onDelete, deleteConfirmation.confirmDelete]
+    [t, tCommon, locale, onView, onEdit, onFillFields, onDelete, confirmDelete]
   )
 
   const table = useReactTable({
@@ -338,7 +418,7 @@ export function IndividualProcessesTable({
                 label: tCommon('deleteSelected'),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: (selectedRows: IndividualProcess[]) => {
-                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+                confirmBulkDelete(selectedRows)
               },
                 variant: "destructive" as const,
               }] : []),

@@ -36,6 +36,7 @@ import { useTranslations } from "next-intl"
 import { caseStatusSchema, CaseStatusFormData, caseStatusCategories } from "@/lib/validations/caseStatuses"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { FillableFieldsSelector } from "@/components/individual-processes/fillable-fields-selector"
 
 interface CaseStatusFormDialogProps {
   open: boolean
@@ -79,6 +80,7 @@ export function CaseStatusFormDialog({
       color: "#3B82F6",
       sortOrder: nextSortOrder,
       orderNumber: undefined,
+      fillableFields: undefined,
     },
   })
 
@@ -94,6 +96,7 @@ export function CaseStatusFormDialog({
         color: caseStatus.color || "#3B82F6",
         sortOrder: caseStatus.sortOrder,
         orderNumber: caseStatus.orderNumber,
+        fillableFields: caseStatus.fillableFields || undefined,
       })
     } else if (!caseStatusId) {
       form.reset({
@@ -105,6 +108,7 @@ export function CaseStatusFormDialog({
         color: "#3B82F6",
         sortOrder: nextSortOrder,
         orderNumber: undefined,
+        fillableFields: undefined,
       })
     }
   }, [caseStatus, caseStatusId, form, nextSortOrder])
@@ -329,6 +333,26 @@ export function CaseStatusFormDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="fillableFields"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('fillableFields')}</FormLabel>
+                  <FormControl>
+                    <FillableFieldsSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('fillableFieldsDescription')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

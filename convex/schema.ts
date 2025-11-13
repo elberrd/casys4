@@ -183,6 +183,7 @@ export default defineSchema({
     color: v.optional(v.string()), // For UI badges
     sortOrder: v.number(), // Display order
     orderNumber: v.optional(v.number()), // Workflow sequence order (1-15, some statuses have no order)
+    fillableFields: v.optional(v.array(v.string())), // Array of field names from individualProcesses that can be filled when this status is added
     isActive: v.boolean(), // Can be used
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -270,6 +271,8 @@ export default defineSchema({
     date: v.optional(v.string()), // ISO date format YYYY-MM-DD - user-editable status date
     isActive: v.boolean(), // Only ONE can be true at a time per process
     notes: v.optional(v.string()),
+    fillableFields: v.optional(v.array(v.string())), // Array of field names from individualProcesses that can be filled for this status
+    filledFieldsData: v.optional(v.any()), // Flexible object to store filled field data as key-value pairs
     changedBy: v.id("users"),
     changedAt: v.number(),
     createdAt: v.number(),

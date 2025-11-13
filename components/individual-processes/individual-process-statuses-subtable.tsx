@@ -17,10 +17,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Pencil, Save, X, Plus } from "lucide-react";
+import { Pencil, Save, X, Plus, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AddStatusDialog } from "./add-status-dialog";
+import { FillFieldsModal } from "./fill-fields-modal";
 
 interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
@@ -38,6 +39,10 @@ export function IndividualProcessStatusesSubtable({
   const [editDate, setEditDate] = useState("");
   const [editCaseStatusId, setEditCaseStatusId] = useState<Id<"caseStatuses"> | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [fillFieldsModalState, setFillFieldsModalState] = useState<{
+    open: boolean;
+    statusId: Id<"individualProcessStatuses"> | null;
+  }>({ open: false, statusId: null });
 
   // Query status history
   const statuses = useQuery(api.individualProcessStatuses.getStatusHistory, {
@@ -213,15 +218,31 @@ export function IndividualProcessStatusesSubtable({
                     {isAdmin && (
                       <TableCell>
                         {!isEditing && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => handleEditClick(status._id, status.date, status.caseStatusId)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">{t("editStatus")}</span>
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            {/* Fill Fields button - shows when status has fillable fields */}
+                            {status.caseStatus?.fillableFields && status.caseStatus.fillableFields.length > 0 && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => setFillFieldsModalState({ open: true, statusId: status._id })}
+                                title={t("fillFields")}
+                              >
+                                <FileEdit className="h-4 w-4 text-blue-600" />
+                                <span className="sr-only">{t("fillFields")}</span>
+                              </Button>
+                            )}
+                            {/* Edit button */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => handleEditClick(status._id, status.date, status.caseStatusId)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="sr-only">{t("editStatus")}</span>
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     )}
@@ -238,6 +259,16 @@ export function IndividualProcessStatusesSubtable({
           individualProcessId={individualProcessId}
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
+        />
+      )}
+
+      {/* Fill Fields Modal */}
+      {fillFieldsModalState.open && fillFieldsModalState.statusId && (
+        <FillFieldsModal
+          individualProcessId={individualProcessId}
+          statusId={fillFieldsModalState.statusId}
+          open={fillFieldsModalState.open}
+          onOpenChange={(open) => setFillFieldsModalState({ open, statusId: null })}
         />
       )}
     </div>

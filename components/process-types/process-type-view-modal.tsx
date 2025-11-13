@@ -80,11 +80,13 @@ export function ProcessTypeViewModal({
           label: t("legalFrameworks"),
           value: legalFrameworks.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {legalFrameworks.map((lf) => (
-                <Badge key={lf._id} variant="outline">
-                  {lf.name}
-                </Badge>
-              ))}
+              {legalFrameworks
+                .filter((lf): lf is NonNullable<typeof lf> => lf !== null)
+                .map((lf) => (
+                  <Badge key={lf._id} variant="outline">
+                    {lf.name}
+                  </Badge>
+                ))}
             </div>
           ) : (
             <span className="text-muted-foreground">{t("noLegalFrameworks")}</span>

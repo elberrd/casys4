@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { IndividualProcessesTable } from "@/components/individual-processes/individual-processes-table"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
+import { FillFieldsModal } from "@/components/individual-processes/fill-fields-modal"
 import { Button } from "@/components/ui/button"
 import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Plus } from "lucide-react"
@@ -21,6 +22,8 @@ export function IndividualProcessesClient() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedProcessId, setSelectedProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
+  const [fillFieldsModalOpen, setFillFieldsModalOpen] = useState(false)
+  const [selectedStatusId, setSelectedStatusId] = useState<Id<"individualProcessStatuses"> | undefined>(undefined)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -54,6 +57,12 @@ export function IndividualProcessesClient() {
     await deleteIndividualProcess({ id })
   }
 
+  const handleFillFields = (individualProcessId: Id<"individualProcesses">, statusId: Id<"individualProcessStatuses">) => {
+    setSelectedProcessId(individualProcessId)
+    setSelectedStatusId(statusId)
+    setFillFieldsModalOpen(true)
+  }
+
   return (
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
@@ -79,6 +88,7 @@ export function IndividualProcessesClient() {
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onFillFields={handleFillFields}
           onRowClick={handleView}
         />
 
@@ -88,6 +98,15 @@ export function IndividualProcessesClient() {
           individualProcessId={selectedProcessId}
           onSuccess={handleSuccess}
         />
+
+        {selectedProcessId && selectedStatusId && (
+          <FillFieldsModal
+            individualProcessId={selectedProcessId}
+            statusId={selectedStatusId}
+            open={fillFieldsModalOpen}
+            onOpenChange={setFillFieldsModalOpen}
+          />
+        )}
       </div>
     </>
   )

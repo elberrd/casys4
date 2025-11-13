@@ -243,10 +243,12 @@ export function IndividualProcessFormDialog({
     label: processType.name,
   }))
 
-  const legalFrameworkOptions = legalFrameworks.map((framework) => ({
-    value: framework._id,
-    label: framework.name,
-  }))
+  const legalFrameworkOptions = legalFrameworks
+    .filter((framework): framework is NonNullable<typeof framework> => framework !== null)
+    .map((framework) => ({
+      value: framework._id,
+      label: framework.name,
+    }))
 
   const cboOptions = cboCodes.map((cbo) => ({
     value: cbo._id,

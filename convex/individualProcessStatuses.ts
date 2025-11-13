@@ -283,6 +283,7 @@ export const addStatus = mutation({
       date: statusDate, // ISO date format YYYY-MM-DD
       isActive,
       notes: args.notes,
+      fillableFields: caseStatus.fillableFields, // Copy fillable fields from case status
       changedBy: userId,
       changedAt: now,
       createdAt: now,
@@ -380,7 +381,6 @@ export const updateStatus = mutation({
       caseStatusId?: Id<"caseStatuses">;
       date?: string;
       statusName?: string;
-      status?: string;
       notes?: string;
       isActive?: boolean;
     } = {};
@@ -389,7 +389,6 @@ export const updateStatus = mutation({
       // Update backward compatibility fields
       if (caseStatus) {
         updates.statusName = caseStatus.name;
-        updates.status = caseStatus.name;
       }
     }
     if (args.date !== undefined) updates.date = args.date;
@@ -510,5 +509,241 @@ export const deleteStatus = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Mutation to update fillable fields configuration for a status
+ * Access control: Admin only
+ */
+export const updateFillableFields = mutation({
+  args: {
+    statusId: v.id("individualProcessStatuses"),
+    fillableFields: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    await requireAdmin(ctx);
+
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Authentication required");
+    }
+
+    // Get the status record
+    const status = await ctx.db.get(args.statusId);
+    if (!status) {
+      throw new Error("Status not found");
+    }
+
+    // Validate field names against metadata (additional runtime check)
+    const validFieldNames = [
+      "passportId", "applicantId", "processTypeId", "legalFrameworkId", "cboId",
+      "mreOfficeNumber", "douNumber", "douSection", "douPage", "douDate",
+      "protocolNumber", "rnmNumber", "rnmDeadline", "appointmentDateTime", "deadlineDate"
+    ];
+
+    if (args.fillableFields) {
+      const invalidFields = args.fillableFields.filter(
+        (name) => !validFieldNames.includes(name)
+      );
+      if (invalidFields.length > 0) {
+        throw new Error(`Invalid field names: ${invalidFields.join(", ")}`);
+      }
+    }
+
+    // Update the status record
+    await ctx.db.patch(args.statusId, {
+      fillableFields: args.fillableFields,
+    });
+
+    // Log activity
+    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+      userId,
+      action: "fillable_fields_updated",
+      entityType: "individualProcessStatus",
+      entityId: args.statusId,
+      details: {
+        fillableFields: args.fillableFields,
+      },
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Mutation to save filled field data
+ * Access control: Both admin and client (if they have access to the process)
+ */
+export const saveFilledFields = mutation({
+  args: {
+    statusId: v.id("individualProcessStatuses"),
+    filledFieldsData: v.any(), // Flexible object for field data
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Authentication required");
+    }
+
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get the status record
+    const status = await ctx.db.get(args.statusId);
+    if (!status) {
+      throw new Error("Status not found");
+    }
+
+    // Get the individual process to check access
+    const individualProcess = await ctx.db.get(status.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      if (!individualProcess.mainProcessId) {
+        throw new Error("Individual process has no main process");
+      }
+      const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+      if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
+        throw new Error("Access denied: Process does not belong to your company");
+      }
+    }
+
+    // Get fillable fields - prioritize status record, fallback to case status
+    let fillableFields = status.fillableFields || [];
+
+    // If status doesn't have fillableFields, get them from the case status
+    if ((!fillableFields || fillableFields.length === 0) && status.caseStatusId) {
+      const caseStatus = await ctx.db.get(status.caseStatusId);
+      if (caseStatus && caseStatus.fillableFields) {
+        fillableFields = caseStatus.fillableFields;
+      }
+    }
+
+    // Validate that only fillable fields are being filled
+    const filledFieldKeys = Object.keys(args.filledFieldsData);
+    const invalidKeys = filledFieldKeys.filter(
+      (key) => !fillableFields.includes(key)
+    );
+
+    if (invalidKeys.length > 0) {
+      throw new Error(`Cannot fill fields that are not configured as fillable: ${invalidKeys.join(", ")}`);
+    }
+
+    // Update the status record with filled data
+    await ctx.db.patch(args.statusId, {
+      filledFieldsData: args.filledFieldsData,
+    });
+
+    // Also update the individual process record with the filled values
+    const updateData: any = {};
+    for (const [key, value] of Object.entries(args.filledFieldsData)) {
+      updateData[key] = value;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await ctx.db.patch(status.individualProcessId, updateData);
+    }
+
+    // Log activity
+    await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+      userId,
+      action: "filled_fields_saved",
+      entityType: "individualProcessStatus",
+      entityId: args.statusId,
+      details: {
+        filledFields: filledFieldKeys,
+      },
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Query to get fillable fields metadata for a status
+ * Returns array of field metadata for fields that can be filled
+ * Falls back to case status fillableFields if status record doesn't have them
+ */
+export const getFillableFields = query({
+  args: {
+    statusId: v.id("individualProcessStatuses"),
+  },
+  handler: async (ctx, args) => {
+    // Get the status record
+    const status = await ctx.db.get(args.statusId);
+    if (!status) {
+      throw new Error("Status not found");
+    }
+
+    // Get the individual process to check access
+    const individualProcess = await ctx.db.get(status.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Apply role-based access control if authenticated
+    const userId = await getAuthUserId(ctx);
+    if (userId !== null) {
+      const userProfile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .first();
+
+      if (userProfile && userProfile.role === "client") {
+        if (!userProfile.companyId) {
+          throw new Error("Client user must have a company assignment");
+        }
+
+        if (!individualProcess.mainProcessId) {
+          throw new Error("Individual process has no main process");
+        }
+        const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+        if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
+          throw new Error("Access denied: Process does not belong to your company");
+        }
+      }
+    }
+
+    // Get fillable fields - prioritize status record, fallback to case status
+    let fillableFields = status.fillableFields || [];
+
+    // If status doesn't have fillableFields, get them from the case status
+    if ((!fillableFields || fillableFields.length === 0) && status.caseStatusId) {
+      const caseStatus = await ctx.db.get(status.caseStatusId);
+      if (caseStatus && caseStatus.fillableFields) {
+        fillableFields = caseStatus.fillableFields;
+      }
+    }
+
+    // Get current values from the individualProcess record
+    // This ensures we show existing data even if it wasn't saved via this specific status record
+    const currentValues: Record<string, any> = {};
+    for (const fieldName of fillableFields) {
+      const value = (individualProcess as any)[fieldName];
+      if (value !== undefined && value !== null && value !== "") {
+        currentValues[fieldName] = value;
+      }
+    }
+
+    // Merge with status record's filledFieldsData (status record takes priority)
+    const mergedData = {
+      ...currentValues,
+      ...(status.filledFieldsData || {}),
+    };
+
+    // Return fillable fields configuration with current values
+    return {
+      fillableFields,
+      filledFieldsData: mergedData,
+    };
   },
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { FILLABLE_FIELDS } from "@/lib/individual-process-fields";
 
 /**
  * Date validation schema for status dates (ISO 8601 format: YYYY-MM-DD)
@@ -80,8 +81,41 @@ export const deleteStatusSchema = z.object({
   }, "Invalid status ID"),
 });
 
+/**
+ * Valid field names from the fillable fields metadata
+ */
+const validFieldNames = FILLABLE_FIELDS.map((f) => f.fieldName);
+
+/**
+ * Validation schema for configuring fillable fields on a status
+ */
+export const updateFillableFieldsSchema = z.object({
+  statusId: z.custom<Id<"individualProcessStatuses">>((val) => {
+    return typeof val === "string" && val.length > 0;
+  }, "Invalid status ID"),
+  fillableFields: z
+    .array(z.string())
+    .refine(
+      (fieldNames) => fieldNames.every((name) => validFieldNames.includes(name)),
+      { message: "Invalid field name in fillableFields array" }
+    )
+    .optional(),
+});
+
+/**
+ * Validation schema for saving filled field data
+ */
+export const saveFilledFieldsSchema = z.object({
+  statusId: z.custom<Id<"individualProcessStatuses">>((val) => {
+    return typeof val === "string" && val.length > 0;
+  }, "Invalid status ID"),
+  filledFieldsData: z.record(z.string(), z.any()), // Flexible object for field data
+});
+
 // Type exports for use in components
 export type CreateStatusInput = z.infer<typeof createStatusSchema>;
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>;
 export type AddStatusInput = z.infer<typeof addStatusSchema>;
 export type DeleteStatusInput = z.infer<typeof deleteStatusSchema>;
+export type UpdateFillableFieldsInput = z.infer<typeof updateFillableFieldsSchema>;
+export type SaveFilledFieldsInput = z.infer<typeof saveFilledFieldsSchema>;

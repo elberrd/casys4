@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { FILLABLE_FIELDS } from "@/lib/individual-process-fields";
 
 // Category enum for case statuses
 export const caseStatusCategories = [
@@ -58,6 +59,16 @@ export const caseStatusSchema = z.object({
     .max(99, "Order number must be less than 100")
     .optional()
     .or(z.literal("")),
+  fillableFields: z
+    .array(z.string())
+    .refine(
+      (fieldNames) => {
+        const validFieldNames = FILLABLE_FIELDS.map((f) => f.fieldName);
+        return fieldNames.every((name) => validFieldNames.includes(name));
+      },
+      { message: "Invalid field name in fillableFields array" }
+    )
+    .optional(),
 });
 
 export type CaseStatusFormData = z.infer<typeof caseStatusSchema>;
