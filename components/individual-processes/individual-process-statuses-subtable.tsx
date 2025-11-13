@@ -20,6 +20,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Pencil, Save, X, Plus, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ptBR, enUS } from "date-fns/locale";
 import { AddStatusDialog } from "./add-status-dialog";
 import { FillFieldsModal } from "./fill-fields-modal";
 
@@ -108,6 +109,22 @@ export function IndividualProcessStatusesSubtable({
   // Sort statuses by changedAt descending (most recent first)
   const sortedStatuses = [...statuses].sort((a, b) => b.changedAt - a.changedAt);
 
+  // Date formatting helper
+  const formatDateDisplay = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+
+      if (locale === "pt") {
+        return format(date, "dd/MM/yyyy", { locale: ptBR });
+      } else {
+        return format(date, "MM/dd/yyyy", { locale: enUS });
+      }
+    } catch (error) {
+      return dateString;
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -132,8 +149,8 @@ export function IndividualProcessStatusesSubtable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("status")}</TableHead>
                 <TableHead>{t("statusDate")}</TableHead>
+                <TableHead>{t("status")}</TableHead>
                 {isAdmin && <TableHead className="w-[100px]">{tCommon("actions")}</TableHead>}
               </TableRow>
             </TableHeader>
@@ -145,6 +162,43 @@ export function IndividualProcessStatusesSubtable({
 
                 return (
                   <TableRow key={status._id}>
+                    <TableCell>
+                      {isEditing ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="h-8 w-[150px]"
+                            aria-label={t("editStatusDate")}
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => handleSave(status._id)}
+                          >
+                            <Save className="h-4 w-4" />
+                            <span className="sr-only">{tCommon("save")}</span>
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={handleCancelEdit}
+                          >
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">{tCommon("cancel")}</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">
+                            {formatDateDisplay(displayDate)}
+                          </span>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {isEditing ? (
                         <Combobox
@@ -178,49 +232,13 @@ export function IndividualProcessStatusesSubtable({
                         )
                       )}
                     </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="date"
-                            value={editDate}
-                            onChange={(e) => setEditDate(e.target.value)}
-                            className="h-8 w-[150px]"
-                            aria-label={t("editStatusDate")}
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => handleSave(status._id)}
-                          >
-                            <Save className="h-4 w-4" />
-                            <span className="sr-only">{tCommon("save")}</span>
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={handleCancelEdit}
-                          >
-                            <X className="h-4 w-4" />
-                            <span className="sr-only">{tCommon("cancel")}</span>
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">
-                            {displayDate}
-                          </span>
-                        </div>
-                      )}
-                    </TableCell>
                     {isAdmin && (
                       <TableCell>
                         {!isEditing && (
                           <div className="flex items-center gap-1">
                             {/* Fill Fields button - shows when status has fillable fields */}
-                            {status.caseStatus?.fillableFields && status.caseStatus.fillableFields.length > 0 && (
+                            {((status.caseStatus?.fillableFields && status.caseStatus.fillableFields.length > 0) ||
+                              (status.fillableFields && status.fillableFields.length > 0)) && (
                               <Button
                                 size="icon"
                                 variant="ghost"

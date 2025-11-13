@@ -1,36 +1,22 @@
-# TODO: Individual Process Status Field Configuration Feature
+# TODO: Fix Hist�rico de Status Section in Individual Process
 
 ## Context
 
-The user wants to enhance the individualProcessStatuses system to allow configuring which fields from the individualProcesses table can be filled based on the status. This creates a dynamic workflow where:
-
-1. User adds a new status to an individual process
-2. If that status has configurable fields, a button appears to fill those fields
-3. User clicks the button, opens a modal, and fills the configured fields
-4. After filling, a summary of filled fields displays in a new column
-
-This feature adds flexibility to the process management system by allowing status-specific field configurations.
+The "Hist�rico de Status" section in the individual process form needs several improvements:
+1. Rename section from "Hist�rico de Status" to "Hist�rico do Andamento"
+2. Rename "Data Status" to "Data Andamento" and move it to be the first column
+3. Display dates in Brazilian format (dd/mm/yyyy) when language is Portuguese
+4. Fix bug where clicking the edit button (Pencil icon) in the "A��es" column doesn't open the fillable fields modal for editing
 
 ## Related PRD Sections
 
-This feature relates to:
-- Individual Process management system
-- Status tracking (individualProcessStatuses table)
-- Field configuration and dynamic forms
-- i18n localization for field labels
-
-## Architecture Overview
-
-**Tables involved:**
-- `individualProcessStatuses` - will store array of fillable field names
-- `individualProcesses` - source of field definitions and data
-
-**Key files to create/modify:**
-- `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts` - schema update
-- `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts` - backend logic
-- `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/individualProcessStatuses.ts` - validation schemas
-- `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/*` - UI components
-- `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `pt.json` - i18n keys
+This affects the Individual Process management feature. The project uses:
+- Next.js 15 with React 19
+- TypeScript with strict types
+- next-intl for internationalization
+- Convex for backend
+- date-fns for date formatting
+- Tailwind CSS for styling
 
 ## Task Sequence
 
@@ -40,482 +26,298 @@ This feature relates to:
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing schema structure for individualProcessStatuses
-  - Validation: Confirmed current schema fields (individualProcessId, caseStatusId, date, isActive, notes, changedBy, changedAt, createdAt)
-  - Output: Schema uses Convex v validators, follows pattern with indexes
+- [x] 0.1: Review existing code structure
+  - Validation: Located the main component at `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Output: Component uses next-intl for translations with keys from `IndividualProcesses` namespace
 
-- [x] 0.2: Identify folder structure for components
-  - Validation: Components are in `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/`
-  - Output: New modal component should follow existing patterns like `individual-processes-table.tsx`
+- [x] 0.2: Identify translation files
+  - Validation: Found translation files at `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json` and `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Output: Current keys: `statusHistory`, `statusDate`, `statusHistoryDescription`
 
-- [x] 0.3: Review i18n structure
-  - Validation: Messages stored in `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `pt.json`
-  - Output: Need to add new keys under IndividualProcesses namespace
-
-- [x] 0.4: Review validation patterns
-  - Validation: Zod schemas in `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/`
-  - Output: Must add validation for fillable fields array
+- [x] 0.3: Check existing date formatting patterns
+  - Validation: Found that other components use `date-fns` with `ptBR` and `enUS` locales
+  - Output: Pattern established in activity-logs and notifications components
 
 #### Quality Checklist:
 
-- [x] Schema structure reviewed and understood
-- [x] Component folder structure identified
-- [x] i18n pattern confirmed
-- [x] Validation pattern confirmed
+- [x] Project structure reviewed and understood
+- [x] File locations determined and aligned with project conventions
+- [x] Naming conventions identified and will be followed
+- [x] No duplicate functionality will be created
 
-### 1. Database Schema Update
+### 1. Update i18n Translation Keys
 
-**Objective**: Add fillableFields array to individualProcessStatuses table to store which fields can be filled for each status, plus add filledFieldsData to store the actual filled values
+**Objective**: Change "Hist�rico de Status" to "Hist�rico do Andamento" and "Data Status" to "Data Andamento" in both Portuguese and English translation files
 
 #### Sub-tasks:
 
-- [x] 1.1: Update `convex/schema.ts` to add new fields to individualProcessStatuses table
-  - Add `fillableFields: v.optional(v.array(v.string()))` - array of field names that can be filled
-  - Add `filledFieldsData: v.optional(v.object({ /* dynamic key-value pairs */ }))` - stored as flexible object
-  - Validation: Schema compiles without errors, maintains backward compatibility
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts` (line ~266-280)
+- [x] 1.1: Update Portuguese translations in `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Change `statusHistory` from "Hist�rico de Status" to "Hist�rico do Andamento"
+  - Change `statusDate` from "Data do Status" to "Data Andamento"
+  - Update `statusHistoryDescription` from "Linha do tempo completa de altera��es de status para este processo" to "Linha do tempo completa de altera��es de andamento para este processo"
+  - Update `editStatusDate` from "Editar Data do Status" to "Editar Data do Andamento"
+  - Update `statusDateUpdated` from "Data do status atualizada com sucesso" to "Data do andamento atualizada com sucesso"
+  - Validation: Verify JSON syntax is valid, keys are properly quoted
 
-- [x] 1.2: Add index for efficient querying of statuses with fillable fields
-  - Add `.index("by_has_fillable_fields", ["individualProcessId", "fillableFields"])` if needed for performance
-  - Validation: Index is properly defined in schema
-  - Location: Same file, after line 280
-  - Note: Not needed - existing indexes are sufficient for this use case
+- [x] 1.2: Update English translations in `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Change `statusHistory` from "Status History" to "Progress History"
+  - Change `statusDate` from "Status Date" to "Progress Date"
+  - Update `statusHistoryDescription` from "Complete timeline of status changes for this process" to "Complete timeline of progress changes for this process"
+  - Update `editStatusDate` from "Edit Status Date" to "Edit Progress Date"
+  - Update `statusDateUpdated` from "Status date updated successfully" to "Progress date updated successfully"
+  - Validation: Verify JSON syntax is valid, English translations are grammatically correct
 
 #### Quality Checklist:
 
-- [ ] TypeScript types properly defined
-- [ ] Schema is backward compatible (optional fields)
-- [ ] No breaking changes to existing data
-- [ ] Convex schema validates successfully
+- [ ] All Portuguese translations updated consistently
+- [ ] All English translations updated consistently
+- [ ] JSON files remain valid (no syntax errors)
+- [ ] Translation keys remain unchanged (only values updated)
+- [ ] No breaking changes to existing i18n references
 
-### 2. Define Fillable Field Metadata
+### 2. Reorder Table Columns - Move Date Column First
 
-**Objective**: Create a centralized metadata structure that defines all available fields from individualProcesses that can be configured as fillable
+**Objective**: Modify the table structure in the status history subtable to display "Data Andamento" as the first column instead of the last
 
 #### Sub-tasks:
 
-- [x] 2.1: Create field metadata configuration file
-  - Create `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts`
-  - Define interface for field metadata (fieldName, labelKey, fieldType, validation)
-  - Export array of all fillable fields from individualProcesses
-  - Validation: All fields from individualProcesses table are represented
-  - Fields to include:
-    - passportId (reference)
-    - applicantId (reference)
-    - processTypeId (reference)
-    - legalFrameworkId (reference)
-    - cboId (reference)
-    - mreOfficeNumber (string)
-    - douNumber (string)
-    - douSection (string)
-    - douPage (string)
-    - douDate (string/date)
-    - protocolNumber (string)
-    - rnmNumber (string)
-    - rnmDeadline (string/date)
-    - appointmentDateTime (string/datetime)
-    - deadlineDate (string/date)
+- [x] 2.1: Update TableHeader in `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Move the `<TableHead>{t("statusDate")}</TableHead>` line (currently line 136) to be the first column after the opening `<TableRow>` (before line 135)
+  - Adjust the "A��es" column width class to maintain proper layout
+  - Validation: Verify TableHeader has columns in correct order: Date, Status, Actions
 
-- [x] 2.2: Add i18n keys for all field labels
-  - Update `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Update `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Add keys under `IndividualProcesses.fields` namespace
-  - Validation: All field names have both English and Portuguese translations
-  - Example keys:
-    - `passportId: "Passport"`
-    - `applicantId: "Applicant"`
-    - `protocolNumber: "Protocol Number"`
-    - etc.
+- [x] 2.2: Update TableBody cells to match new column order
+  - In the `sortedStatuses.map()` loop (starting line 141), reorder the TableCell components
+  - Move the date cell (currently lines 181-217) to be the first TableCell after the opening `<TableRow>`
+  - Keep status cell as second column
+  - Keep actions cell as third column
+  - Validation: Verify all TableCell components align with TableHeader order
+
+- [ ] 2.3: Test responsive behavior on mobile devices
+  - Ensure date column is visible and properly sized on mobile (sm breakpoint)
+  - Verify table scrolls horizontally if needed on small screens
+  - Validation: Test on mobile viewport sizes (320px, 375px, 425px)
 
 #### Quality Checklist:
 
-- [ ] All individualProcesses fields documented
-- [ ] Field types properly defined
-- [ ] i18n keys added for both languages
-- [ ] Metadata structure is extensible
+- [ ] Table header columns reordered correctly
+- [ ] Table body cells reordered to match header
+- [ ] Edit mode input fields remain in correct positions
+- [ ] Actions column remains functional
+- [ ] Mobile responsiveness maintained
+- [ ] No TypeScript errors introduced
 
-### 3. Backend Mutations for Field Configuration
+### 3. Implement Brazilian Date Format Display
 
-**Objective**: Create backend logic to manage fillable fields configuration on status records and store filled field data
+**Objective**: Display dates in dd/mm/yyyy format when locale is Portuguese, while keeping yyyy-mm-dd for English
 
 #### Sub-tasks:
 
-- [x] 3.1: Update validation schema in `lib/validations/individualProcessStatuses.ts`
-  - Add validation for fillableFields array (must be valid field names from metadata)
-  - Add validation for filledFieldsData object
-  - Validation: Zod schema validates against field metadata
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/individualProcessStatuses.ts`
+- [x] 3.1: Import date-fns format function and locales at the top of `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Add `import { format } from "date-fns";` (already imported on line 22)
+  - Add `import { ptBR, enUS } from "date-fns/locale";`
+  - Validation: Verify imports are correctly added without duplicates
 
-- [x] 3.2: Create mutation to update fillableFields on status record
-  - Add `updateFillableFields` mutation in `convex/individualProcessStatuses.ts`
-  - Parameters: statusId, fillableFields array
-  - Validate field names against metadata
-  - Validation: Only admin users can update fillable fields
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts`
+- [x] 3.2: Create a date formatting helper function within the component
+  - Add function before the return statement that takes a date string and locale
+  - Function should parse yyyy-mm-dd format and return formatted date based on locale
+  - For Portuguese (pt): format as dd/mm/yyyy using date-fns
+  - For English (en): keep as mm/dd/yyyy or use standard US format
+  - Handle edge cases: empty dates, invalid dates
+  - Validation: Function properly handles all date formats from the database
 
-- [x] 3.3: Create mutation to save filled field data
-  - Add `saveFilledFields` mutation in `convex/individualProcessStatuses.ts`
-  - Parameters: statusId, filledFieldsData object
-  - Validate that only fillable fields are being filled
-  - Update the individualProcess record with the filled data
-  - Validation: Data validation and access control checks
-  - Location: Same file
+- [x] 3.3: Apply date formatting to the display date in TableCell
+  - Locate the display date rendering (currently line 213: `{displayDate}`)
+  - Replace with formatted date using the helper function
+  - Use the `locale` constant already available in component scope (line 37)
+  - Ensure edit mode still uses yyyy-mm-dd for input type="date" compatibility
+  - Validation: Display shows correct format, edit mode works correctly
 
-- [x] 3.4: Create query to retrieve fillable fields for a status
-  - Add `getFillableFields` query in `convex/individualProcessStatuses.ts`
-  - Returns array of field metadata for fields that can be filled
-  - Validation: Proper access control applied
-  - Location: Same file
+- [x] 3.4: Ensure date input remains in yyyy-mm-dd format for HTML date input
+  - The input field (lines 184-190) should continue using yyyy-mm-dd
+  - Only the display should change format
+  - Validation: Date picker works correctly, saves in correct format
 
 #### Quality Checklist:
 
-- [ ] Zod validation schemas complete
-- [ ] Admin-only access control enforced
-- [ ] Field name validation against metadata
-- [ ] Error handling for invalid field names
-- [ ] Activity logging for changes
+- [ ] date-fns imports added correctly
+- [ ] Date formatting helper function implemented with proper TypeScript types
+- [ ] Brazilian format (dd/mm/yyyy) displays when locale is "pt"
+- [ ] US format displays when locale is "en"
+- [ ] Edit mode date input remains functional with yyyy-mm-dd
+- [ ] Invalid dates handled gracefully (no crashes)
+- [ ] No TypeScript errors (proper date type handling)
 
-### 4. UI Component - Field Configuration Selector
+### 4. Fix Edit Button Bug - Open Fillable Fields Modal
 
-**Objective**: Create UI component for admins to configure which fields are fillable for a status
+**Objective**: Fix the bug where clicking the edit (Pencil) icon should open the fillable fields modal when the status has fillable fields, allowing users to edit the status-specific data
 
 #### Sub-tasks:
 
-- [x] 4.1: Create multi-select component for field selection
-  - Create `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/fillable-fields-selector.tsx`
-  - Use existing Combobox or multi-select pattern from the project
-  - Display field labels using i18n (respecting current locale)
-  - Support selection/deselection of multiple fields
-  - Validation: Component integrates with existing form patterns
-  - Props: value (string[]), onChange, disabled, className
+- [ ] 4.1: Analyze current edit button behavior
+  - Current edit button (lines 236-244) calls `handleEditClick` which only sets inline editing mode
+  - This is correct for editing the date and status dropdown inline
+  - The bug appears to be a misunderstanding: the Pencil icon is for inline editing, not opening fillable fields
+  - Validation: Understand the difference between inline editing vs fillable fields modal
 
-- [x] 4.2: Integrate field selector into status creation/edit flow
-  - Add fillable fields selector to the status form
-  - Can be in the existing status add/update modal or form
-  - Should show below or near the case status selection
-  - Validation: Form submission includes fillableFields data
-  - Location: Update existing status management component
+- [x] 4.2: Review the fillable fields button implementation
+  - Lines 223-234 show a separate FileEdit button that opens the fillable fields modal
+  - This button only appears when `status.caseStatus?.fillableFields` exists and has length > 0
+  - The issue might be that fillableFields is not being populated correctly from the database
+  - Validation: Check if fillableFields data is properly queried and returned
 
-- [x] 4.3: Add i18n keys for field configuration UI
-  - Add keys to messages files:
-    - `fillableFields: "Fillable Fields"`
-    - `selectFieldsToFill: "Select fields that can be filled from this status"`
-    - `noFieldsSelected: "No fields configured"`
-    - `fieldsConfigured: "{count} fields configured"`
-  - Validation: Both EN and PT translations added
+- [x] 4.3: Debug why fillableFields might not be showing
+  - Check the Convex query `api.individualProcessStatuses.getStatusHistory` to ensure it includes fillableFields
+  - Verify the caseStatus relationship properly includes fillableFields array
+  - Add console.log to check if status.caseStatus?.fillableFields exists for statuses that should have them
+  - Validation: Identify root cause of missing fillableFields data
+
+- [ ] 4.4: Fix the data query or add missing relationship
+  - If fillableFields is not being queried: Update `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts` getStatusHistory query
+  - Ensure the query includes the caseStatus edge with fillableFields
+  - The query should return statuses with their related caseStatus including all relevant fields
+  - Validation: Query returns fillableFields when present in caseStatus
+
+- [x] 4.5: Alternatively - Change Pencil icon behavior based on user expectation
+  - If the user expects the Pencil icon to open fillable fields instead of inline edit:
+  - Modify handleEditClick to check if fillableFields exist
+  - If fillableFields exist, open the fillable fields modal
+  - If no fillableFields, proceed with inline editing
+  - Update button logic to be more intuitive
+  - Validation: User can access fillable fields via Pencil icon when available
+
+- [ ] 4.6: Test the complete edit flow
+  - Click Pencil icon on a status with fillableFields (e.g., "Publicado no DOU")
+  - Verify fillable fields modal opens
+  - Test editing fields and saving
+  - Verify data persists correctly
+  - Test inline editing for date/status still works
+  - Validation: Complete edit workflow functions correctly
 
 #### Quality Checklist:
 
-- [ ] Multi-select component follows project patterns
-- [ ] i18n properly implemented
-- [ ] Accessible (keyboard navigation, screen readers)
-- [ ] Mobile responsive (touch-friendly)
-- [ ] Form validation integrated
+- [ ] Root cause of bug identified and documented
+- [ ] Convex query includes fillableFields relationship
+- [ ] FileEdit button appears for statuses with fillable fields
+- [ ] Pencil button behavior is intuitive and functional
+- [ ] Both inline editing and fillable fields modal work correctly
+- [ ] No TypeScript errors
+- [ ] Error handling for missing data
+- [ ] User experience is clear and intuitive
 
-### 5. UI Component - Fill Fields Button
+### 5. Testing and Validation
 
-**Objective**: Add button to individualProcesses table that appears when a status has fillable fields
+**Objective**: Comprehensively test all changes across different scenarios and locales
 
 #### Sub-tasks:
 
-- [x] 5.1: Add conditional button to table row actions
-  - Update `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Add button/icon that appears when activeStatus has fillableFields array
-  - Use Edit or Form icon from lucide-react
-  - Button label: "Fill Fields" (i18n: `fillFields`)
-  - Validation: Button only shows when fillableFields is not empty
-  - Location: Add to row actions column (around line 100-300)
+- [ ] 5.1: Test translation changes
+  - Switch language between Portuguese and English in app settings
+  - Verify section title shows "Hist�rico do Andamento" in PT and "Progress History" in EN
+  - Verify column header shows "Data Andamento" in PT and "Progress Date" in EN
+  - Validation: All translations display correctly in both languages
 
-- [x] 5.2: Add click handler to open modal
-  - Handler receives individualProcessId and statusId
-  - Opens fill fields modal (to be created in next task)
-  - Validation: Click opens modal with correct data
-  - Location: Same component
+- [ ] 5.2: Test column reordering
+  - View individual process status history
+  - Verify date column appears first
+  - Verify status column appears second
+  - Verify actions column appears last
+  - Check alignment of headers and data cells
+  - Validation: Table structure is correct and aligned
 
-- [x] 5.3: Add i18n keys for button
-  - Add to messages files:
-    - `fillFields: "Fill Fields"`
-    - `fillFieldsTooltip: "Fill the required fields for this status"`
-  - Validation: Both languages supported
+- [ ] 5.3: Test date formatting
+  - View status history with Portuguese locale
+  - Verify dates display in dd/mm/yyyy format
+  - Switch to English locale
+  - Verify dates display in appropriate English format
+  - Test with various dates (edge cases: leap year, different months)
+  - Validation: Date formatting works correctly for both locales
+
+- [ ] 5.4: Test edit functionality
+  - Click edit (Pencil) button on a status entry
+  - Verify inline edit mode activates correctly
+  - Edit the date and status
+  - Save changes and verify they persist
+  - Validation: Inline editing works as expected
+
+- [ ] 5.5: Test fillable fields functionality
+  - Add or view a status with fillable fields (e.g., "Publicado no DOU")
+  - Verify FileEdit button appears
+  - Click FileEdit button
+  - Verify fillable fields modal opens
+  - Fill in fields and save
+  - Verify data persists correctly
+  - Validation: Fillable fields feature works end-to-end
+
+- [ ] 5.6: Test mobile responsiveness
+  - View status history on mobile viewport (375px width)
+  - Verify table is readable and scrollable
+  - Test edit functionality on mobile
+  - Verify touch targets are adequate (44x44px minimum)
+  - Validation: All features work on mobile devices
+
+- [ ] 5.7: Test edge cases
+  - Status without a date
+  - Status without fillable fields
+  - Empty status history
+  - Very long status names
+  - Multiple rapid edits
+  - Validation: Edge cases handled gracefully without crashes
 
 #### Quality Checklist:
 
-- [ ] Button conditionally renders based on fillableFields
-- [ ] Icon/button styling consistent with table actions
-- [ ] i18n keys added
-- [ ] Touch-friendly on mobile (min 44x44px)
-- [ ] Proper TypeScript types
-
-### 6. UI Component - Fill Fields Modal
-
-**Objective**: Create modal that displays form to fill the configured fields for a status
-
-#### Sub-tasks:
-
-- [x] 6.1: Create fill fields modal component
-  - Create `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/fill-fields-modal.tsx`
-  - Use existing Dialog component pattern from the project
-  - Props: isOpen, onClose, individualProcessId, statusId
-  - Validation: Modal follows existing dialog patterns
-  - Location: New file in individual-processes folder
-
-- [x] 6.2: Build dynamic form based on fillable fields
-  - Query fillable fields from status record
-  - For each field, render appropriate input component:
-    - String fields: Input text
-    - Date fields: DatePicker
-    - Reference fields (IDs): Combobox/Select with proper options
-  - Use field metadata to determine component type
-  - Display field labels using i18n
-  - Validation: All field types properly handled with correct input components
-
-- [x] 6.3: Implement form submission
-  - Collect all filled field values
-  - Call `saveFilledFields` mutation
-  - On success, update individualProcess record
-  - Show success/error toast
-  - Close modal on success
-  - Validation: Data properly validated before submission
-  - Location: Same component
-
-- [x] 6.4: Add i18n keys for modal
-  - Add to messages files:
-    - `fillFieldsModalTitle: "Fill Fields"`
-    - `fillFieldsModalDescription: "Fill the required fields for this status"`
-    - `saveFields: "Save Fields"`
-    - `savingFields: "Saving..."`
-    - `fieldsSaved: "Fields saved successfully"`
-    - `fieldsError: "Failed to save fields"`
-  - Validation: All UI text is localized
-
-#### Quality Checklist:
-
-- [ ] Dynamic form generation working
-- [ ] All field types supported (string, date, reference)
-- [ ] Zod validation for form data
-- [ ] Error handling and display
-- [ ] Loading states during submission
-- [ ] Mobile responsive layout
-- [ ] Accessible form (labels, ARIA attributes)
-- [ ] i18n complete
-
-### 7. UI Component - Filled Fields Summary Column
-
-**Objective**: Add new column to individualProcesses table that displays summary of filled fields
-
-#### Sub-tasks:
-
-- [ ] 7.1: Add summary column to table
-  - Update `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Add new column after status column
-  - Column header: "Filled Fields" (i18n: `filledFields`)
-  - Validation: Column properly added to table configuration
-  - Location: Update columns definition (around line 100-200)
-
-- [ ] 7.2: Create filled fields summary cell component
-  - Display each filled field on a new line
-  - Format: **Field Label**: Value
-  - Use bold for field label, normal weight for value
-  - Truncate long values with ellipsis
-  - Show tooltip with full value on hover
-  - Handle empty state (no fields filled)
-  - Validation: Properly formatted display for all field types
-  - Location: Can be inline in column definition or separate component
-
-- [ ] 7.3: Format field values appropriately
-  - String values: Display as-is
-  - Date values: Format using locale-aware date formatter
-  - Reference values: Display name/label (e.g., person name, not ID)
-  - Validation: All field types display human-readable values
-  - Location: Create utility function in `/Users/elberrd/Documents/Development/clientes/casys4/lib/format-field-value.ts`
-
-- [x] 7.4: Add i18n keys for summary column
-  - Add to messages files:
-    - `filledFields: "Filled Fields"`
-    - `noFieldsFilled: "No fields filled"`
-    - `fieldLabelSeparator: ":"` (for "Label: Value" format)
-  - Validation: Localized for both languages
-
-#### Quality Checklist:
-
-- [ ] Summary displays all filled fields
-- [ ] Field labels properly localized
-- [ ] Values properly formatted
-- [ ] Responsive on mobile (wraps appropriately)
-- [ ] Handles empty state gracefully
-- [ ] Reference fields show readable names, not IDs
-- [ ] i18n complete
-
-### 8. Query Enhancement for Filled Fields Display
-
-**Objective**: Update backend queries to include filled field data and resolve references
-
-#### Sub-tasks:
-
-- [ ] 8.1: Update `list` query in `convex/individualProcesses.ts`
-  - Include filledFieldsData from activeStatus
-  - Resolve reference field IDs to readable names
-  - Validation: Query returns enriched data with filled fields
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts` (around line 94-137)
-
-- [ ] 8.2: Update `get` query in `convex/individualProcesses.ts`
-  - Include filledFieldsData from activeStatus
-  - Resolve all reference field IDs
-  - Validation: Single item query includes filled fields
-  - Location: Same file (around line 166-249)
-
-- [ ] 8.3: Optimize reference resolution
-  - Batch fetch referenced entities (people, passports, etc.)
-  - Avoid N+1 query problems
-  - Validation: Queries are performant
-  - Location: Same file, update existing enrichment logic
-
-#### Quality Checklist:
-
-- [ ] Filled fields data included in queries
-- [ ] Reference IDs resolved to names
-- [ ] No N+1 query issues
-- [ ] Backward compatible with existing code
-- [ ] TypeScript types updated
-
-### 9. Integration Testing & Edge Cases
-
-**Objective**: Ensure the feature works end-to-end and handles edge cases
-
-#### Sub-tasks:
-
-- [ ] 9.1: Test field configuration workflow
-  - Admin creates status with fillable fields
-  - Verify fields are saved correctly
-  - Verify fields appear in selector with i18n labels
-  - Validation: Configuration flow works without errors
-
-- [ ] 9.2: Test field filling workflow
-  - User adds status to individual process
-  - Fill fields button appears
-  - Modal opens with correct fields
-  - Fill fields and submit
-  - Verify data saved to both status and individual process
-  - Validation: Complete workflow functions correctly
-
-- [ ] 9.3: Test summary display
-  - Verify filled fields appear in table column
-  - Check formatting for all field types
-  - Verify i18n labels display correctly
-  - Test with both EN and PT locales
-  - Validation: Summary displays correctly formatted data
-
-- [ ] 9.4: Test edge cases
-  - Status with no fillable fields (button should not appear)
-  - Status with fillable fields but none filled (empty state)
-  - Updating fillable fields on existing status
-  - Deleting fields that were previously configured
-  - Mobile responsiveness for all components
-  - Validation: Edge cases handled gracefully
-
-- [ ] 9.5: Test access control
-  - Verify only admins can configure fillable fields
-  - Verify both admin and client can fill fields
-  - Validation: Proper role-based access control
-
-#### Quality Checklist:
-
-- [ ] End-to-end workflow tested
-- [ ] All field types work correctly
-- [ ] i18n works for both languages
-- [ ] Mobile responsive on all screen sizes
-- [ ] Access control properly enforced
-- [ ] Error states handled gracefully
-- [ ] Loading states work correctly
-
-### 10. Documentation & Code Review
-
-**Objective**: Document the feature and ensure code quality
-
-#### Sub-tasks:
-
-- [ ] 10.1: Add code comments
-  - Document complex logic in mutations
-  - Add JSDoc comments to public functions
-  - Explain field metadata structure
-  - Validation: Code is well-documented
-
-- [ ] 10.2: Update type definitions
-  - Ensure all TypeScript types are accurate
-  - Export necessary types for components
-  - Validation: No `any` types, full type safety
-
-- [ ] 10.3: Code review checklist
-  - Clean code principles followed (SOLID, DRY, KISS)
-  - Proper separation of concerns
-  - Reusable components utilized
-  - Error handling comprehensive
-  - Validation: Code quality standards met
+- [ ] All translations verified in both locales
+- [ ] Table column order correct
+- [ ] Date formatting works for both locales
+- [ ] Inline editing functional
+- [ ] Fillable fields modal functional
+- [ ] Mobile responsive design works
+- [ ] Edge cases handled properly
+- [ ] No console errors
+- [ ] No TypeScript errors
+- [ ] User experience is smooth and intuitive
 
 ## Implementation Notes
 
-### Field Metadata Structure
+### Key Files to Modify:
+1. `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json` - Portuguese translations
+2. `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` - English translations
+3. `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-statuses-subtable.tsx` - Main component
+4. `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts` - Backend query (if fillableFields not included)
 
-The field metadata should follow this pattern:
+### Technical Considerations:
+- The component already imports `format` from date-fns (line 22), but needs locale imports
+- The `locale` constant is already available via `useLocale()` hook (line 37)
+- Date inputs must remain in yyyy-mm-dd format for HTML5 date input compatibility
+- The fillableFields feature uses a separate modal component (FillFieldsModal) already implemented
+- The bug is likely in the data query not including fillableFields from caseStatus relationship
 
-```typescript
-interface FieldMetadata {
-  fieldName: string // e.g., "protocolNumber"
-  labelKey: string // i18n key e.g., "IndividualProcesses.fields.protocolNumber"
-  fieldType: "string" | "date" | "datetime" | "reference"
-  referenceTable?: string // For reference fields (e.g., "people", "passports")
-  validation?: ZodSchema // Optional Zod validation
-}
-```
+### Current Component Structure:
+- Uses inline editing for date and status (Pencil icon)
+- Uses separate FileEdit icon for fillable fields modal
+- Both features are independent and should work together
 
-### Storage Strategy
-
-The filled field data will be stored in two places:
-1. `individualProcessStatuses.filledFieldsData` - The raw data as entered
-2. `individualProcesses.[fieldName]` - Updated to reflect the filled values
-
-This dual storage ensures:
-- Historical tracking (status records preserve filled data)
-- Easy querying (individual process has current values)
-
-### i18n Field Labels
-
-All field labels must be stored in the messages files under:
-- `IndividualProcesses.fields.[fieldName]`
-
-Example:
-```json
-{
-  "IndividualProcesses": {
-    "fields": {
-      "protocolNumber": "Protocol Number",
-      "rnmNumber": "RNM Number",
-      "passportId": "Passport",
-      ...
-    }
-  }
-}
-```
-
-### Mobile Responsiveness
-
-All new UI components must be responsive:
-- Modal: Full-screen on mobile, centered dialog on desktop
-- Form fields: Stack vertically on mobile, grid on desktop
-- Summary column: Wrap text, show ellipsis, allow expanding
-- Fill button: Touch-friendly minimum 44x44px tap target
+### Architecture Pattern:
+The component follows the established pattern:
+- Uses next-intl for translations (`useTranslations`)
+- Uses Convex for queries (`useQuery`)
+- Uses date-fns for date operations
+- Uses shadcn/ui components (Table, Button, Input, etc.)
+- Follows mobile-first responsive design with Tailwind CSS
 
 ## Definition of Done
 
-- [ ] All tasks completed
-- [ ] All quality checklists passed
-- [ ] Database schema updated without breaking changes
-- [ ] Backend mutations and queries working
-- [ ] UI components functional and responsive
-- [ ] i18n complete for both EN and PT
-- [ ] Access control enforced
-- [ ] Edge cases handled
+- [ ] Section renamed to "Hist�rico do Andamento" in Portuguese and "Progress History" in English
+- [ ] Column renamed to "Data Andamento" in Portuguese and "Progress Date" in English
+- [ ] Date column is the first column in the table
+- [ ] Dates display in dd/mm/yyyy format when language is Portuguese
+- [ ] Dates display in appropriate English format when language is English
+- [ ] Edit (Pencil) button correctly opens fillable fields modal when status has fillable fields
+- [ ] Inline editing for date and status still works correctly
+- [ ] All translations consistent across the application
 - [ ] No TypeScript errors
-- [ ] No Zod validation errors
-- [ ] Code follows project conventions
-- [ ] Feature tested end-to-end
+- [ ] No console errors
+- [ ] Mobile responsive design maintained
+- [ ] All edge cases handled gracefully
+- [ ] Code follows project conventions and patterns
+- [ ] Changes tested in both Portuguese and English locales

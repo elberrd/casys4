@@ -383,12 +383,15 @@ export const updateStatus = mutation({
       statusName?: string;
       notes?: string;
       isActive?: boolean;
+      fillableFields?: string[];
     } = {};
     if (args.caseStatusId !== undefined) {
       updates.caseStatusId = args.caseStatusId;
       // Update backward compatibility fields
       if (caseStatus) {
         updates.statusName = caseStatus.name;
+        // Update fillable fields from new caseStatus
+        updates.fillableFields = caseStatus.fillableFields;
       }
     }
     if (args.date !== undefined) updates.date = args.date;
