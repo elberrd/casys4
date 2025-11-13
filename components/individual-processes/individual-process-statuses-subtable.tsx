@@ -16,6 +16,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { Pencil, Save, X, Plus, FileEdit } from "lucide-react";
 import { toast } from "sonner";
@@ -165,12 +166,10 @@ export function IndividualProcessStatusesSubtable({
                     <TableCell>
                       {isEditing ? (
                         <div className="flex items-center gap-2">
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={editDate}
-                            onChange={(e) => setEditDate(e.target.value)}
+                            onChange={(value) => setEditDate(value || "")}
                             className="h-8 w-[150px]"
-                            aria-label={t("editStatusDate")}
                           />
                           <Button
                             size="icon"

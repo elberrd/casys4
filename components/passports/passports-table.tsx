@@ -22,12 +22,13 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2, Eye } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { useCountryTranslation } from "@/lib/i18n/countries"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { formatDate } from "@/lib/format-field-value"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
@@ -77,6 +78,7 @@ export function PassportsTable({ passports, onEdit, onDelete, onView }: Passport
   const t = useTranslations('Passports')
   const tCommon = useTranslations('Common')
   const getCountryName = useCountryTranslation()
+  const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -139,7 +141,7 @@ export function PassportsTable({ passports, onEdit, onDelete, onView }: Passport
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.issueDate ? new Date(row.original.issueDate).toLocaleDateString() : '-'}
+            {row.original.issueDate ? formatDate(row.original.issueDate, locale) : '-'}
           </span>
         ),
       },
@@ -150,7 +152,7 @@ export function PassportsTable({ passports, onEdit, onDelete, onView }: Passport
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.expiryDate ? new Date(row.original.expiryDate).toLocaleDateString() : '-'}
+            {row.original.expiryDate ? formatDate(row.original.expiryDate, locale) : '-'}
           </span>
         ),
       },

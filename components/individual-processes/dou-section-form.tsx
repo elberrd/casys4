@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format-field-value";
 
 interface DOUSectionFormProps {
   douNumber: string;
@@ -52,6 +54,7 @@ export function DOUSectionForm({
 }: DOUSectionFormProps) {
   const t = useTranslations('IndividualProcesses');
   const tCommon = useTranslations('Common');
+  const locale = useLocale();
   const [isOpen, setIsOpen] = useState(defaultOpen || Boolean(douNumber || douSection || douPage || douDate));
   const [copied, setCopied] = useState(false);
 
@@ -66,7 +69,7 @@ export function DOUSectionForm({
     if (douSection) parts.push(`${t('douSection')}: ${douSection}`);
     if (douPage) parts.push(`${t('douPage')}: ${douPage}`);
     if (douDate) {
-      const formattedDate = new Date(douDate).toLocaleDateString();
+      const formattedDate = formatDate(douDate, locale);
       parts.push(`${t('douDate')}: ${formattedDate}`);
     }
     return parts.join('\n');
@@ -230,11 +233,9 @@ export function DOUSectionForm({
                 ({tCommon('optional')})
               </span>
             </Label>
-            <Input
-              id="douDate"
-              type="date"
+            <DatePicker
               value={douDate}
-              onChange={(e) => onChange('douDate', e.target.value)}
+              onChange={(value) => onChange('douDate', value || "")}
               disabled={disabled}
             />
           </div>
@@ -270,7 +271,7 @@ export function DOUSectionForm({
                 <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <span className="text-sm text-green-700 dark:text-green-300">
                   {t('douPublishedOn', {
-                    date: new Date(douDate).toLocaleDateString()
+                    date: formatDate(douDate, locale)
                   })}
                 </span>
               </>

@@ -31,11 +31,21 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
+interface ProcessType {
+  _id: Id<"processTypes">
+  name: string
+  description?: string
+  estimatedDays?: number
+  isActive?: boolean
+  sortOrder?: number
+}
+
 interface LegalFramework {
   _id: Id<"legalFrameworks">
   name: string
   description?: string
   isActive?: boolean
+  processTypes?: ProcessType[]
 }
 
 interface LegalFrameworksTableProps {
@@ -81,16 +91,26 @@ export function LegalFrameworksTable({ legalFrameworks, onView, onEdit, onDelete
         ),
       },
       {
-        accessorKey: "description",
+        accessorKey: "processTypes",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('description')} />
+          <DataGridColumnHeader column={column} title={t('processType')} />
         ),
         cell: ({ row }) => {
-          const desc = row.original.description
-          if (!desc) return <DataGridHighlightedCell text="-" />
-          const displayText = desc.length > 50 ? `${desc.substring(0, 50)}...` : desc
-          return <DataGridHighlightedCell text={displayText} />
+          const processTypes = row.original.processTypes
+          if (!processTypes || processTypes.length === 0) {
+            return <span className="text-muted-foreground">-</span>
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {processTypes.map((pt) => (
+                <Badge key={pt._id} variant="outline">
+                  {pt.name}
+                </Badge>
+              ))}
+            </div>
+          )
         },
+        enableSorting: false,
       },
       {
         accessorKey: "isActive",

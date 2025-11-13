@@ -8,6 +8,7 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  dateProcess: z.string().optional().or(z.literal("")), // ISO date format YYYY-MM-DD
   personId: z.custom<Id<"people">>((val) => typeof val === "string", {
     message: "Person is required",
   }),
@@ -17,9 +18,21 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  applicantId: z
+  applicantId: z // DEPRECATED: Split into companyApplicantId and userApplicantId
     .custom<Id<"people">>((val) => typeof val === "string", {
       message: "Invalid applicant ID",
+    })
+    .optional()
+    .or(z.literal("")),
+  companyApplicantId: z
+    .custom<Id<"companies">>((val) => typeof val === "string", {
+      message: "Invalid company applicant ID",
+    })
+    .optional()
+    .or(z.literal("")),
+  userApplicantId: z
+    .custom<Id<"people">>((val) => typeof val === "string", {
+      message: "Invalid user applicant ID",
     })
     .optional()
     .or(z.literal("")),

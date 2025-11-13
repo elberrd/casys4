@@ -27,6 +27,7 @@ import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
+import { DatePicker } from "@/components/ui/date-picker"
 import { CompanyQuickCreateDialog } from "@/components/companies/company-quick-create-dialog"
 import { Separator } from "@/components/ui/separator"
 import { PassportsSubtable } from "@/components/people/passports-subtable"
@@ -311,7 +312,11 @@ export function PersonFormPage({
                     <FormItem>
                       <FormLabel>{t('birthDate')}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          showYearMonthDropdowns
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

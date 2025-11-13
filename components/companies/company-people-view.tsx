@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Eye, Mail, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { formatDate } from "@/lib/format-field-value"
 
 interface CompanyPeopleViewProps {
   companyId: Id<"companies">
@@ -28,6 +29,7 @@ interface CompanyPeopleViewProps {
 export function CompanyPeopleView({ companyId }: CompanyPeopleViewProps) {
   const t = useTranslations('Companies')
   const tPeople = useTranslations('People')
+  const locale = useLocale()
 
   const relationships = useQuery(api.peopleCompanies.listByCompany, {
     companyId,
@@ -112,8 +114,8 @@ export function CompanyPeopleView({ companyId }: CompanyPeopleViewProps) {
 
             {relationship.startDate && (
               <div className="text-xs text-muted-foreground">
-                {t('since')}: {new Date(relationship.startDate).toLocaleDateString()}
-                {relationship.endDate && ` - ${new Date(relationship.endDate).toLocaleDateString()}`}
+                {t('since')}: {formatDate(relationship.startDate, locale)}
+                {relationship.endDate && ` - ${formatDate(relationship.endDate, locale)}`}
               </div>
             )}
           </div>

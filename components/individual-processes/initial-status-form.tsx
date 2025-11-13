@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 
 interface InitialStatusFormProps {
@@ -84,12 +85,9 @@ export function InitialStatusForm({
 
         <div className="grid gap-2">
           <Label htmlFor="initial-status-date">{t("statusDate")}</Label>
-          <Input
-            id="initial-status-date"
-            type="date"
+          <DatePicker
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
+            onChange={(value) => setDate(value || "")}
           />
         </div>
       </div>

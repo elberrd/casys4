@@ -39,7 +39,29 @@ export const list = query({
       });
     }
 
-    return results;
+    // Get process types for each legal framework
+    const resultsWithProcessTypes = await Promise.all(
+      results.map(async (legalFramework) => {
+        const links = await ctx.db
+          .query("processTypesLegalFrameworks")
+          .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", legalFramework._id))
+          .collect();
+
+        const processTypes = await Promise.all(
+          links.map(async (link) => {
+            const pt = await ctx.db.get(link.processTypeId);
+            return pt ? { ...pt, _id: link.processTypeId } : null;
+          })
+        );
+
+        return {
+          ...legalFramework,
+          processTypes: processTypes.filter((pt) => pt !== null),
+        };
+      })
+    );
+
+    return resultsWithProcessTypes;
   },
 });
 
@@ -62,7 +84,26 @@ export const listActive = query({
 export const get = query({
   args: { id: v.id("legalFrameworks") },
   handler: async (ctx, { id }) => {
-    return await ctx.db.get(id);
+    const legalFramework = await ctx.db.get(id);
+    if (!legalFramework) return null;
+
+    // Get process types for this legal framework
+    const links = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
+
+    const processTypes = await Promise.all(
+      links.map(async (link) => {
+        const pt = await ctx.db.get(link.processTypeId);
+        return pt ? { ...pt, _id: link.processTypeId } : null;
+      })
+    );
+
+    return {
+      ...legalFramework,
+      processTypes: processTypes.filter((pt) => pt !== null),
+    };
   },
 });
 
@@ -95,17 +136,30 @@ export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const legalFrameworkId = await ctx.db.insert("legalFrameworks", {
       name: args.name,
       description: args.description ?? "",
       isActive: args.isActive ?? true,
     });
+
+    // Create junction table records for process types
+    if (args.processTypeIds && args.processTypeIds.length > 0 && userProfile.userId) {
+      for (const processTypeId of args.processTypeIds) {
+        await ctx.db.insert("processTypesLegalFrameworks", {
+          processTypeId,
+          legalFrameworkId,
+          createdAt: Date.now(),
+          createdBy: userProfile.userId,
+        });
+      }
+    }
 
     return legalFrameworkId;
   },
@@ -119,11 +173,12 @@ export const update = mutation({
     id: v.id("legalFrameworks"),
     name: v.string(),
     description: v.optional(v.string()),
+    processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const updates: any = {
       name: args.name,
@@ -133,6 +188,31 @@ export const update = mutation({
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(id, updates);
+
+    // Update junction table records for process types
+    if (args.processTypeIds !== undefined && userProfile.userId) {
+      // Delete all existing links
+      const existingLinks = await ctx.db
+        .query("processTypesLegalFrameworks")
+        .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+        .collect();
+
+      for (const link of existingLinks) {
+        await ctx.db.delete(link._id);
+      }
+
+      // Create new links
+      if (args.processTypeIds.length > 0) {
+        for (const processTypeId of args.processTypeIds) {
+          await ctx.db.insert("processTypesLegalFrameworks", {
+            processTypeId,
+            legalFrameworkId: id,
+            createdAt: Date.now(),
+            createdBy: userProfile.userId,
+          });
+        }
+      }
+    }
 
     return id;
   },

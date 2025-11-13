@@ -129,6 +129,50 @@ export const search = query({
 });
 
 /**
+ * Query to list people filtered by company
+ * Used for cascading selectors where user applicant is filtered by selected company
+ * Access control: Admins see all people from specified company, clients see only people from their company
+ */
+export const listPeopleByCompany = query({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // For clients, verify they can only access their own company
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+      if (userProfile.companyId !== args.companyId) {
+        throw new Error("Access denied: You can only view people from your own company");
+      }
+    }
+
+    // Get all current (isCurrent=true) peopleCompanies relationships for the specified company
+    const companyPeople = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .filter((q) => q.eq(q.field("isCurrent"), true))
+      .collect();
+
+    // Fetch person details for each relationship
+    const people = await Promise.all(
+      companyPeople.map(async (pc) => {
+        if (!pc.personId) return null;
+        const person = await ctx.db.get(pc.personId);
+        return person;
+      })
+    );
+
+    // Filter out null values and return
+    return people.filter((person): person is NonNullable<typeof person> => person !== null);
+  },
+});
+
+/**
  * Query to check if a CPF is already in use by another person
  * Returns availability status and existing person details if duplicate found
  * Access control: Admins can check any CPF, clients can check CPFs (for creating/editing people)

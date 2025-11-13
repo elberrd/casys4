@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
@@ -200,12 +201,9 @@ export function AddStatusDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="date">{t("statusDate")}</Label>
-              <Input
-                id="date"
-                type="date"
+              <DatePicker
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
+                onChange={(value) => setDate(value || "")}
               />
             </div>
 

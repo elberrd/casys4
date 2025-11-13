@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, FileText, Calendar, MapPin, Newspaper } from "lucide-react";
+import { formatDate } from "@/lib/format-field-value";
 import { GovernmentProtocolEditDialog } from "./government-protocol-edit-dialog";
 import { GovernmentStatusBadge } from "./government-status-badge";
 import { GovernmentProgressIndicator } from "./government-progress-indicator";
@@ -153,7 +154,7 @@ export function GovernmentProtocolCard({
                     {individualProcess.douDate && (
                       <>
                         <span className="text-muted-foreground">{t('douDate')}</span>
-                        <span>{new Date(individualProcess.douDate).toLocaleDateString()}</span>
+                        <span>{formatDate(individualProcess.douDate)}</span>
                       </>
                     )}
                   </div>
@@ -203,7 +204,7 @@ export function GovernmentProtocolCard({
                     {individualProcess.rnmDeadline && (
                       <>
                         <span className="text-muted-foreground">{t('rnmDeadline')}</span>
-                        <span>{new Date(individualProcess.rnmDeadline).toLocaleDateString()}</span>
+                        <span>{formatDate(individualProcess.rnmDeadline)}</span>
                       </>
                     )}
                   </div>

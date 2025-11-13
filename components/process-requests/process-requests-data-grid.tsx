@@ -26,6 +26,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { createSelectColumn } from "@/lib/data-grid-utils";
 import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { formatDate } from "@/lib/format-field-value";
 
 interface ProcessRequest {
   _id: Id<"processRequests">;
@@ -173,7 +174,7 @@ export function ProcessRequestsDataGrid({
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Date(row.original.requestDate).toLocaleDateString()}
+            {formatDate(row.original.requestDate)}
           </span>
         ),
       },

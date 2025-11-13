@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Select,
   SelectContent,
@@ -154,22 +155,18 @@ export function ActivityLogFilters({
           {/* Start Date Filter */}
           <div className="space-y-2">
             <Label htmlFor="startDate">{t('startDate')}</Label>
-            <Input
-              id="startDate"
-              type="date"
+            <DatePicker
               value={startDateStr}
-              onChange={(e) => setStartDateStr(e.target.value)}
+              onChange={(value) => setStartDateStr(value || "")}
             />
           </div>
 
           {/* End Date Filter */}
           <div className="space-y-2">
             <Label htmlFor="endDate">{t('endDate')}</Label>
-            <Input
-              id="endDate"
-              type="date"
+            <DatePicker
               value={endDateStr}
-              onChange={(e) => setEndDateStr(e.target.value)}
+              onChange={(value) => setEndDateStr(value || "")}
             />
           </div>
         </div>

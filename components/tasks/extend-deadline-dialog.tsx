@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
 import { useTranslations } from "next-intl"
 import { extendDeadlineSchema, ExtendDeadlineFormData } from "@/lib/validations/tasks"
@@ -115,11 +116,7 @@ export function ExtendDeadlineDialog({
                 <FormItem>
                   <FormLabel>{t('newDueDate')}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      min={minDate}
-                      {...field}
-                    />
+                    <DatePicker value={field.value} onChange={field.onChange} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

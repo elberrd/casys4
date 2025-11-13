@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatDate } from "@/lib/format-field-value";
 import {
   CheckCircle,
   XCircle,
@@ -188,7 +189,7 @@ export function RequestDetailsDialog({
                 <div className="flex-1">
                   <p className="text-sm font-medium">{t("requestDate")}</p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(request.requestDate).toLocaleDateString()}
+                    {formatDate(request.requestDate)}
                   </p>
                 </div>
               </div>

@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input"
 import { CPFInput } from "@/components/ui/cpf-input"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
 import { CompanyQuickCreateDialog } from "@/components/companies/company-quick-create-dialog"
@@ -331,7 +332,11 @@ export function PersonFormDialog({
                     <FormItem>
                       <FormLabel>{t('birthDate')}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          showYearMonthDropdowns
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

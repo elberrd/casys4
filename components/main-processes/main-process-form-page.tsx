@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 
@@ -353,7 +354,10 @@ export function MainProcessFormPage({
             <FormItem>
               <FormLabel>{t("requestDate")}</FormLabel>
               <FormControl>
-                <Input type="date" {...field} />
+                <DatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               </FormControl>
               <FormDescription>{t("requestDateDescription")}</FormDescription>
               <FormMessage />

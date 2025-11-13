@@ -22,11 +22,12 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2, Eye } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { formatDate } from "@/lib/format-field-value"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
@@ -59,6 +60,7 @@ interface PeopleCompaniesTableProps {
 export function PeopleCompaniesTable({ relationships, onView, onEdit, onDelete }: PeopleCompaniesTableProps) {
   const t = useTranslations('PeopleCompanies')
   const tCommon = useTranslations('Common')
+  const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -120,7 +122,7 @@ export function PeopleCompaniesTable({ relationships, onView, onEdit, onDelete }
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.startDate ? new Date(row.original.startDate).toLocaleDateString() : "-"}
+            {row.original.startDate ? formatDate(row.original.startDate, locale) : "-"}
           </span>
         ),
       },
@@ -138,7 +140,7 @@ export function PeopleCompaniesTable({ relationships, onView, onEdit, onDelete }
           return (
             <span className="text-muted-foreground">
               {row.original.endDate
-                ? new Date(row.original.endDate).toLocaleDateString()
+                ? formatDate(row.original.endDate, locale)
                 : '-'}
             </span>
           )

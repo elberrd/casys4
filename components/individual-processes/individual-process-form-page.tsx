@@ -17,10 +17,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Combobox } from "@/components/ui/combobox"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Separator } from "@/components/ui/separator"
 import { PersonSelectorWithDetail } from "@/components/individual-processes/person-selector-with-detail"
 import { PassportSelector } from "@/components/individual-processes/passport-selector"
 import { ApplicantSelector } from "@/components/individual-processes/applicant-selector"
+import { CompanyApplicantSelector } from "@/components/individual-processes/company-applicant-selector"
+import { UserApplicantSelector } from "@/components/individual-processes/user-applicant-selector"
 import { QuickPersonFormDialog } from "@/components/individual-processes/quick-person-form-dialog"
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form"
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
@@ -76,9 +79,12 @@ export function IndividualProcessFormPage({
     resolver: zodResolver(individualProcessSchema),
     defaultValues: {
       mainProcessId: "" as Id<"mainProcesses">,
+      dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
       personId: "" as Id<"people">,
       passportId: "",
-      applicantId: "",
+      applicantId: "", // DEPRECATED
+      companyApplicantId: "",
+      userApplicantId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
       processTypeId: "",
@@ -108,6 +114,9 @@ export function IndividualProcessFormPage({
   // Watch process type for cascading legal framework filtering
   const selectedProcessTypeId = form.watch("processTypeId")
 
+  // Watch company applicant for cascading user applicant filtering
+  const selectedCompanyApplicantId = form.watch("companyApplicantId")
+
   // Get filtered legal frameworks based on selected process type
   const filteredLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
@@ -135,9 +144,12 @@ export function IndividualProcessFormPage({
     if (individualProcess && !hasInitializedForm) {
       form.reset({
         mainProcessId: individualProcess.mainProcessId,
+        dateProcess: individualProcess.dateProcess ?? "",
         personId: individualProcess.personId,
         passportId: individualProcess.passportId ?? "",
-        applicantId: individualProcess.applicantId ?? "",
+        applicantId: individualProcess.applicantId ?? "", // DEPRECATED
+        companyApplicantId: individualProcess.companyApplicantId ?? "",
+        userApplicantId: individualProcess.userApplicantId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         processTypeId: individualProcess.processTypeId ?? "",
@@ -163,11 +175,20 @@ export function IndividualProcessFormPage({
       const updates: Partial<IndividualProcessFormData> = {}
 
       // Reference fields
+      if (currentValues.dateProcess !== (individualProcess.dateProcess ?? "")) {
+        updates.dateProcess = individualProcess.dateProcess ?? ""
+      }
       if (currentValues.passportId !== (individualProcess.passportId ?? "")) {
         updates.passportId = individualProcess.passportId ?? ""
       }
       if (currentValues.applicantId !== (individualProcess.applicantId ?? "")) {
         updates.applicantId = individualProcess.applicantId ?? ""
+      }
+      if (currentValues.companyApplicantId !== (individualProcess.companyApplicantId ?? "")) {
+        updates.companyApplicantId = individualProcess.companyApplicantId ?? ""
+      }
+      if (currentValues.userApplicantId !== (individualProcess.userApplicantId ?? "")) {
+        updates.userApplicantId = individualProcess.userApplicantId ?? ""
       }
       if (currentValues.processTypeId !== (individualProcess.processTypeId ?? "")) {
         updates.processTypeId = individualProcess.processTypeId ?? ""
@@ -220,9 +241,12 @@ export function IndividualProcessFormPage({
     } else if (!individualProcessId && !hasInitializedForm) {
       form.reset({
         mainProcessId: "" as Id<"mainProcesses">,
+        dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
         personId: "" as Id<"people">,
         passportId: "",
-        applicantId: "",
+        applicantId: "", // DEPRECATED
+        companyApplicantId: "",
+        userApplicantId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
         processTypeId: "",
@@ -289,14 +313,26 @@ export function IndividualProcessFormPage({
     setPreviousProcessTypeId(selectedProcessTypeId || "")
   }, [selectedProcessTypeId, previousProcessTypeId, form])
 
+  // Clear user applicant when company applicant changes
+  useEffect(() => {
+    const currentUserApplicantId = form.getValues("userApplicantId")
+    if (currentUserApplicantId) {
+      // Reset user applicant when company changes
+      form.setValue("userApplicantId", "")
+    }
+  }, [selectedCompanyApplicantId, form])
+
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
       // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
         mainProcessId: data.mainProcessId || undefined,
+        dateProcess: data.dateProcess || undefined,
         passportId: data.passportId || undefined,
-        applicantId: data.applicantId || undefined,
+        applicantId: data.applicantId || undefined, // DEPRECATED
+        companyApplicantId: data.companyApplicantId || undefined,
+        userApplicantId: data.userApplicantId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
         processTypeId: data.processTypeId || undefined,
@@ -421,6 +457,20 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
+                name="dateProcess"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("dateProcess")}</FormLabel>
+                    <FormControl>
+                      <DatePicker value={field.value} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="mainProcessId"
                 render={({ field }) => (
                   <FormItem>
@@ -478,12 +528,30 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
-                name="applicantId"
+                name="companyApplicantId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("applicant")}</FormLabel>
+                    <FormLabel>{t("companyApplicant")}</FormLabel>
                     <FormControl>
-                      <ApplicantSelector
+                      <CompanyApplicantSelector
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="userApplicantId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("userApplicant")}</FormLabel>
+                    <FormControl>
+                      <UserApplicantSelector
+                        companyId={selectedCompanyApplicantId}
                         value={field.value || ""}
                         onChange={field.onChange}
                       />
@@ -624,7 +692,7 @@ export function IndividualProcessFormPage({
                   <FormItem>
                     <FormLabel>{t("deadlineDate")}</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DatePicker value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -691,7 +759,7 @@ export function IndividualProcessFormPage({
                     <FormItem>
                       <FormLabel>{t("douDate")}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -728,7 +796,7 @@ export function IndividualProcessFormPage({
                     <FormItem>
                       <FormLabel>{t("rnmDeadline")}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
@@ -236,11 +237,9 @@ export function DocumentUploadDialog({
           {/* Expiry date (optional) */}
           <div className="space-y-2">
             <Label htmlFor="expiryDate">{t("expiryDate")} ({tCommon("optional")})</Label>
-            <Input
-              id="expiryDate"
-              type="date"
+            <DatePicker
               value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
+              onChange={(value) => setExpiryDate(value || "")}
               disabled={isUploading}
             />
           </div>

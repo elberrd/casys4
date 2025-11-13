@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,7 @@ import {
   Building2,
   Edit,
 } from "lucide-react";
+import { formatDate } from "@/lib/format-field-value";
 
 interface PersonDetailViewProps {
   personId: Id<"people">;
@@ -42,6 +43,7 @@ export function PersonDetailView({
 }: PersonDetailViewProps) {
   const t = useTranslations("People");
   const tCommon = useTranslations("Common");
+  const locale = useLocale();
 
   const person = useQuery(api.people.get, { id: personId });
   const currentCompany = useQuery(api.peopleCompanies.getCurrentByPerson, {
@@ -147,7 +149,7 @@ export function PersonDetailView({
                       {t("birthDate")}
                     </p>
                     <p className="text-base mt-1">
-                      {new Date(person.birthDate).toLocaleDateString()}
+                      {formatDate(person.birthDate, locale)}
                     </p>
                   </div>
                 )}
@@ -292,7 +294,7 @@ export function PersonDetailView({
                         {t("startDate")}
                       </p>
                       <p className="text-base mt-1">
-                        {new Date(currentCompany.startDate).toLocaleDateString()}
+                        {formatDate(currentCompany.startDate, locale)}
                       </p>
                     </div>
                   )}

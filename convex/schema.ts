@@ -230,9 +230,12 @@ export default defineSchema({
 
   individualProcesses: defineTable({
     mainProcessId: v.optional(v.id("mainProcesses")),
+    dateProcess: v.optional(v.string()), // ISO date format YYYY-MM-DD - Process date
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport used for this process
-    applicantId: v.optional(v.id("people")), // Reference to person who is applicant (must have company relationship)
+    applicantId: v.optional(v.id("people")), // DEPRECATED: Split into companyApplicantId and userApplicantId
+    companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
+    userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
@@ -256,7 +259,9 @@ export default defineSchema({
     .index("by_mainProcess", ["mainProcessId"])
     .index("by_person", ["personId"])
     .index("by_passport", ["passportId"]) // Index for passport lookups
-    .index("by_applicant", ["applicantId"]) // Index for applicant lookups
+    .index("by_applicant", ["applicantId"]) // DEPRECATED: Index for applicant lookups
+    .index("by_companyApplicant", ["companyApplicantId"]) // Index for company applicant filtering
+    .index("by_userApplicant", ["userApplicantId"]) // Index for user applicant filtering
     .index("by_status", ["status"])
     .index("by_caseStatus", ["caseStatusId"]) // New index
     .index("by_processType", ["processTypeId"]) // Index for process type filtering

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { DatePicker } from "@/components/ui/date-picker"
 import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -250,7 +251,10 @@ export function PassportFormPage({
                     <FormItem>
                       <FormLabel>{t("issueDate")}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -264,7 +268,10 @@ export function PassportFormPage({
                     <FormItem>
                       <FormLabel>{t("expiryDate")}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

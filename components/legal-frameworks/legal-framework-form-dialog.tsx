@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/ui/combobox"
 import { useTranslations } from "next-intl"
 import { legalFrameworkSchema, LegalFrameworkFormData } from "@/lib/validations/legalFrameworks"
 import { Id } from "@/convex/_generated/dataModel"
@@ -53,14 +54,27 @@ export function LegalFrameworkFormDialog({
     legalFrameworkId ? { id: legalFrameworkId } : "skip"
   )
 
+  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
+
   const createLegalFramework = useMutation(api.legalFrameworks.create)
   const updateLegalFramework = useMutation(api.legalFrameworks.update)
+
+  // Prepare process types options for combobox
+  const processTypeOptions = useMemo(
+    () =>
+      processTypes.map((pt) => ({
+        value: pt._id,
+        label: pt.name,
+      })),
+    [processTypes]
+  )
 
   const form = useForm<LegalFrameworkFormData>({
     resolver: zodResolver(legalFrameworkSchema),
     defaultValues: {
       name: "",
       description: "",
+      processTypeIds: [],
       isActive: true,
     },
   })
@@ -71,12 +85,14 @@ export function LegalFrameworkFormDialog({
       form.reset({
         name: legalFramework.name,
         description: legalFramework.description,
+        processTypeIds: legalFramework.processTypes?.map((pt) => pt._id) || [],
         isActive: legalFramework.isActive,
       })
     } else if (!legalFrameworkId) {
       form.reset({
         name: "",
         description: "",
+        processTypeIds: [],
         isActive: true,
       })
     }
@@ -84,10 +100,13 @@ export function LegalFrameworkFormDialog({
 
   const onSubmit = async (data: LegalFrameworkFormData) => {
     try {
-      // Clean optional fields
+      // Clean optional fields and convert processTypeIds to the correct type
       const submitData = {
         ...data,
         description: data.description || undefined,
+        processTypeIds: data.processTypeIds && data.processTypeIds.length > 0
+          ? data.processTypeIds as Id<"processTypes">[]
+          : undefined,
       }
 
       let createdId: Id<"legalFrameworks"> | undefined
@@ -140,6 +159,31 @@ export function LegalFrameworkFormDialog({
                   <FormControl>
                     <Input placeholder="Law 13.445/2017" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="processTypeIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('processType')}</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      multiple
+                      options={processTypeOptions}
+                      value={field.value || []}
+                      onValueChange={field.onChange}
+                      placeholder={t('selectProcessType')}
+                      searchPlaceholder={tCommon('search')}
+                      emptyText={tCommon('noResults')}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select the process types this legal framework applies to
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { DOUSectionForm } from "./dou-section-form";
@@ -164,11 +165,9 @@ export function GovernmentProtocolEditDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rnmDeadline">{t('rnmDeadline')}</Label>
-                <Input
-                  id="rnmDeadline"
-                  type="date"
+                <DatePicker
                   value={formData.rnmDeadline}
-                  onChange={(e) => handleChange('rnmDeadline', e.target.value)}
+                  onChange={(value) => handleChange('rnmDeadline', value || "")}
                 />
               </div>
             </div>

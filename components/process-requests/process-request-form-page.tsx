@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
@@ -252,7 +253,7 @@ export function ProcessRequestFormPage({
             <FormItem>
               <FormLabel>{t("requestDate")}</FormLabel>
               <FormControl>
-                <Input type="date" {...field} />
+                <DatePicker value={field.value} onChange={field.onChange} />
               </FormControl>
               <FormDescription>{t("requestDateDescription")}</FormDescription>
               <FormMessage />

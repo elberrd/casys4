@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "next-intl"
@@ -314,7 +315,7 @@ export function TaskFormPage({
                     <FormItem>
                       <FormLabel>{t('dueDate')}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

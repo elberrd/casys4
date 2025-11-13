@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { useCountryTranslation } from "@/lib/i18n/countries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import { PassportFormDialog } from "@/components/passports/passport-form-dialog"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/format-field-value";
 
 interface PassportsSubtableProps {
   personId: Id<"people">;
@@ -46,6 +47,7 @@ export function PassportsSubtable({
   const t = useTranslations("Passports");
   const tCommon = useTranslations("Common");
   const getCountryName = useCountryTranslation();
+  const locale = useLocale();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPassportId, setEditingPassportId] = useState<
     Id<"passports"> | undefined
@@ -144,12 +146,12 @@ export function PassportsSubtable({
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {passport.issueDate
-                          ? new Date(passport.issueDate).toLocaleDateString()
+                          ? formatDate(passport.issueDate, locale)
                           : "-"}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {passport.expiryDate
-                          ? new Date(passport.expiryDate).toLocaleDateString()
+                          ? formatDate(passport.expiryDate, locale)
                           : "-"}
                       </TableCell>
                       <TableCell>

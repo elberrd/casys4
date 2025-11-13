@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
+import { DatePicker } from "@/components/ui/date-picker"
 import { personCompanySchema, type PersonCompanyFormData } from "@/lib/validations/peopleCompanies"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -223,7 +224,10 @@ export function PersonCompanyFormPage({
                     <FormItem>
                       <FormLabel>{t("startDate")}</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -237,9 +241,9 @@ export function PersonCompanyFormPage({
                     <FormItem>
                       <FormLabel>{t("endDate")}</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
                           disabled={isCurrent}
                           className={isCurrent ? "opacity-50" : ""}
                         />
