@@ -40,11 +40,11 @@ export function ClientProcessesWidget() {
 
   const mainStatuses = ["in_progress", "documentation_pending", "under_review", "completed"]
   const displayedStatuses = mainStatuses
-    .filter((status) => stats.statusCounts[status] > 0)
+    .filter((status) => stats.statusCounts[status]?.count > 0)
     .map((status) => ({
       status,
-      count: stats.statusCounts[status],
-      percentage: stats.statusPercentages[status],
+      count: stats.statusCounts[status]?.count || 0,
+      percentage: stats.statusPercentages[status] || 0,
     }))
 
   return (

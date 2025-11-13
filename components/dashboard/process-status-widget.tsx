@@ -38,7 +38,7 @@ export function ProcessStatusWidget() {
   }
 
   const sortedStatuses = Object.entries(stats.statusCounts).sort(
-    ([, a], [, b]) => (b as number) - (a as number)
+    ([, a], [, b]) => (b.count) - (a.count)
   )
 
   return (
@@ -55,7 +55,7 @@ export function ProcessStatusWidget() {
           </div>
 
           <div className="space-y-2">
-            {sortedStatuses.map(([status, count]) => {
+            {sortedStatuses.map(([status, statusData]) => {
               const percentage = stats.statusPercentages[status] || 0
               return (
                 <div key={status} className="space-y-1">
@@ -66,7 +66,7 @@ export function ProcessStatusWidget() {
                       </Badge>
                     </div>
                     <span className="font-medium">
-                      {count} ({percentage.toFixed(1)}%)
+                      {statusData.count} ({percentage.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
