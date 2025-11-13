@@ -38,13 +38,15 @@ export function ClientProcessesWidget() {
     cancelled: "destructive",
   }
 
-  const mainStatuses = ["in_progress", "documentation_pending", "under_review", "completed"]
-  const displayedStatuses = mainStatuses
-    .filter((status) => stats.statusCounts[status]?.count > 0)
-    .map((status) => ({
-      status,
-      count: stats.statusCounts[status]?.count || 0,
-      percentage: stats.statusPercentages[status] || 0,
+  const mainStatusCodes = ["in_progress", "documentation_pending", "under_review", "completed"]
+  const displayedStatuses = Object.entries(stats.statusCounts)
+    .filter(([, statusData]) => mainStatusCodes.includes(statusData.code))
+    .map(([statusId, statusData]) => ({
+      statusId,
+      code: statusData.code,
+      name: statusData.name,
+      count: statusData.count,
+      percentage: stats.statusPercentages[statusId] || 0,
     }))
 
   return (
@@ -78,11 +80,11 @@ export function ClientProcessesWidget() {
           {displayedStatuses.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium">{t("statusBreakdown")}</h4>
-              {displayedStatuses.map(({ status, count, percentage }) => (
-                <div key={status} className="flex items-center justify-between text-sm">
+              {displayedStatuses.map(({ statusId, code, name, count, percentage }) => (
+                <div key={statusId} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    <Badge variant={statusColors[status] as any || "outline"}>
-                      {tProcesses(`statuses.${status}`)}
+                    <Badge variant={statusColors[code] as any || "outline"}>
+                      {name}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">

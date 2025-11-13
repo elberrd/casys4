@@ -55,14 +55,14 @@ export function ProcessStatusWidget() {
           </div>
 
           <div className="space-y-2">
-            {sortedStatuses.map(([status, statusData]) => {
-              const percentage = stats.statusPercentages[status] || 0
+            {sortedStatuses.map(([statusId, statusData]) => {
+              const percentage = stats.statusPercentages[statusId] || 0
               return (
-                <div key={status} className="space-y-1">
+                <div key={statusId} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <Badge variant={statusColors[status] as any || "outline"}>
-                        {tProcesses(`statuses.${status}`)}
+                      <Badge variant={statusColors[statusData.code] as any || "outline"}>
+                        {statusData.name}
                       </Badge>
                     </div>
                     <span className="font-medium">
