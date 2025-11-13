@@ -22,14 +22,7 @@ export function LegalFrameworksClient() {
   const [editingId, setEditingId] = useState<Id<"legalFrameworks"> | null>(null)
 
   const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
-  const processTypes = useQuery(api.processTypes.list, {}) ?? []
   const deleteLegalFramework = useMutation(api.legalFrameworks.remove)
-
-  // Join legal frameworks with process types
-  const enrichedLegalFrameworks = legalFrameworks.map((lf) => ({
-    ...lf,
-    processTypeName: processTypes.find((pt) => pt._id === lf.processTypeId)?.name,
-  }))
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -72,7 +65,7 @@ export function LegalFrameworksClient() {
         </div>
 
         <LegalFrameworksTable
-          legalFrameworks={enrichedLegalFrameworks}
+          legalFrameworks={legalFrameworks}
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}

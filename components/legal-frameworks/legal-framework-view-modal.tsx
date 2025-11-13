@@ -26,10 +26,6 @@ export function LegalFrameworkViewModal({
   const tCommon = useTranslations("Common")
 
   const legalFramework = useQuery(api.legalFrameworks.get, { id: legalFrameworkId })
-  const processType = useQuery(
-    api.processTypes.get,
-    legalFramework?.processTypeId ? { id: legalFramework.processTypeId } : "skip"
-  )
 
   if (!legalFramework) {
     return (
@@ -51,7 +47,6 @@ export function LegalFrameworkViewModal({
       icon: <Scale className="h-5 w-5" />,
       fields: [
         createField(t("name"), legalFramework.name, undefined, { fullWidth: true }),
-        createField(t("processType"), processType?.name, undefined, { fullWidth: true }),
         createField(
           t("status"),
           legalFramework.isActive ? (

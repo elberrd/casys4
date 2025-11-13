@@ -31,6 +31,13 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
+interface LegalFramework {
+  _id: Id<"legalFrameworks">
+  name: string
+  description?: string
+  isActive?: boolean
+}
+
 interface ProcessType {
   _id: Id<"processTypes">
   name: string
@@ -38,6 +45,7 @@ interface ProcessType {
   estimatedDays?: number
   isActive?: boolean
   sortOrder?: number
+  legalFrameworks?: LegalFramework[]
 }
 
 interface ProcessTypesTableProps {
@@ -81,6 +89,39 @@ export function ProcessTypesTable({ processTypes, onView, onEdit, onDelete }: Pr
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.name} />
         ),
+      },
+      {
+        accessorKey: "legalFrameworks",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('legalFrameworks')} />
+        ),
+        cell: ({ row }) => {
+          const legalFrameworks = row.original.legalFrameworks || []
+          if (legalFrameworks.length === 0) {
+            return <span className="text-muted-foreground text-sm">-</span>
+          }
+          if (legalFrameworks.length <= 2) {
+            return (
+              <div className="flex flex-wrap gap-1">
+                {legalFrameworks.map((lf) => (
+                  <Badge key={lf._id} variant="outline" className="text-xs">
+                    {lf.name}
+                  </Badge>
+                ))}
+              </div>
+            )
+          }
+          return (
+            <div className="flex items-center gap-1">
+              <Badge variant="outline" className="text-xs">
+                {legalFrameworks[0].name}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {t('andMore', { count: legalFrameworks.length - 1 })}
+              </span>
+            </div>
+          )
+        },
       },
       {
         accessorKey: "estimatedDays",

@@ -17,6 +17,12 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  applicantId: z
+    .custom<Id<"people">>((val) => typeof val === "string", {
+      message: "Invalid applicant ID",
+    })
+    .optional()
+    .or(z.literal("")),
   caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
     message: "Case status is required",
   }),
@@ -24,6 +30,12 @@ export const individualProcessSchema = z.object({
   activeStatusId: z
     .custom<Id<"individualProcessStatuses">>((val) => typeof val === "string", {
       message: "Invalid status ID",
+    })
+    .optional()
+    .or(z.literal("")),
+  processTypeId: z
+    .custom<Id<"processTypes">>((val) => typeof val === "string", {
+      message: "Invalid process type ID",
     })
     .optional()
     .or(z.literal("")),

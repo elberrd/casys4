@@ -21,7 +21,7 @@ export function ProcessTypesClient() {
   const [viewingId, setViewingId] = useState<Id<"processTypes"> | null>(null)
   const [editingId, setEditingId] = useState<Id<"processTypes"> | null>(null)
 
-  const processTypes = useQuery(api.processTypes.list, {}) ?? []
+  const processTypes = useQuery(api.processTypes.listWithLegalFrameworks, {}) ?? []
   const deleteProcessType = useMutation(api.processTypes.remove)
 
   const breadcrumbs = [

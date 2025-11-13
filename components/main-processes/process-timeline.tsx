@@ -157,19 +157,6 @@ export function ProcessTimeline({ individualProcessId }: ProcessTimelineProps) {
 
                   {/* Details card */}
                   <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                    {/* Changed by */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        {t("changedBy")}:
-                      </span>
-                      <span className="font-medium">
-                        {record.changedByProfile?.fullName ||
-                          record.changedByUser?.email ||
-                          t("unknown")}
-                      </span>
-                    </div>
-
                     {/* Date and time */}
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="h-4 w-4 text-muted-foreground" />

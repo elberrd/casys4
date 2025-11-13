@@ -40,6 +40,7 @@ interface CaseStatus {
   category?: string
   color?: string
   sortOrder: number
+  orderNumber?: number
   isActive: boolean
   createdAt: number
   updatedAt: number
@@ -96,6 +97,20 @@ export function CaseStatusesTable({
           </div>
         ),
         size: 80,
+      },
+      {
+        accessorKey: "orderNumber",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('orderNumber')} />
+        ),
+        cell: ({ row }) => (
+          <div className="w-12 text-center font-medium">
+            {row.original.orderNumber !== undefined ? row.original.orderNumber : (
+              <span className="text-muted-foreground text-xs">-</span>
+            )}
+          </div>
+        ),
+        size: 100,
       },
       {
         accessorKey: "name",

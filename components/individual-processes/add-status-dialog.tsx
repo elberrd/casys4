@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -25,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight } from "lucide-react";
 
 interface AddStatusDialogProps {
   individualProcessId: Id<"individualProcesses">;
@@ -49,8 +51,36 @@ export function AddStatusDialog({
   const caseStatuses = useQuery(api.caseStatuses.listActive);
   const addStatus = useMutation(api.individualProcessStatuses.addStatus);
 
+  // Query current active status for this individual process
+  const activeStatus = useQuery(
+    api.individualProcessStatuses.getActiveStatus,
+    { individualProcessId }
+  );
+
+  // Query the current case status details to get orderNumber
+  const currentCaseStatus = useQuery(
+    api.caseStatuses.get,
+    activeStatus?.caseStatusId ? { id: activeStatus.caseStatusId } : "skip"
+  );
+
+  // Query the next suggested status based on current orderNumber
+  const suggestedNextStatus = useQuery(
+    api.caseStatuses.getNextStatusByOrderNumber,
+    currentCaseStatus?.orderNumber !== undefined
+      ? { currentOrderNumber: currentCaseStatus.orderNumber }
+      : "skip"
+  );
+
+  // Auto-select suggested status when dialog opens
+  useEffect(() => {
+    if (open && suggestedNextStatus) {
+      setSelectedStatusId(suggestedNextStatus._id);
+    }
+  }, [open, suggestedNextStatus]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling to parent form
 
     if (!selectedStatusId) {
       toast.error(t("statusRequired"));
@@ -90,8 +120,23 @@ export function AddStatusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <form onSubmit={handleSubmit}>
+      <DialogContent
+        className="sm:max-w-[500px]"
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenChange(false);
+        }}
+      >
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{t("addStatus")}</DialogTitle>
             <DialogDescription>
@@ -100,6 +145,25 @@ export function AddStatusDialog({
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            {/* Current Status and Suggestion Info */}
+            {currentCaseStatus && suggestedNextStatus && (
+              <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{t("currentStatus")}:</span>
+                  <span>{currentCaseStatus.name}</span>
+                  {currentCaseStatus.orderNumber && (
+                    <Badge variant="outline" className="text-xs">
+                      #{currentCaseStatus.orderNumber}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ArrowRight className="h-4 w-4" />
+                  <span>{t("basedOnCurrentStatus")}</span>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="status">{t("status")}</Label>
               <Select
@@ -110,11 +174,26 @@ export function AddStatusDialog({
                   <SelectValue placeholder={t("selectStatus")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {caseStatuses?.map((status) => (
-                    <SelectItem key={status._id} value={status._id}>
-                      {status.name}
-                    </SelectItem>
-                  ))}
+                  {caseStatuses?.map((status) => {
+                    const isSuggested = suggestedNextStatus?._id === status._id;
+                    return (
+                      <SelectItem key={status._id} value={status._id}>
+                        <div className="flex items-center gap-2">
+                          <span>{status.name}</span>
+                          {status.orderNumber && (
+                            <Badge variant="outline" className="text-xs">
+                              #{status.orderNumber}
+                            </Badge>
+                          )}
+                          {isSuggested && (
+                            <Badge variant="secondary" className="text-xs">
+                              {t("suggestedStatus")}
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -146,7 +225,11 @@ export function AddStatusDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenChange(false);
+              }}
               disabled={isSubmitting}
             >
               {tCommon("cancel")}

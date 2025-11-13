@@ -17,6 +17,7 @@ const caseStatusesData = [
     category: "preparation",
     color: "#3B82F6", // blue
     sortOrder: 1,
+    orderNumber: 1, // Workflow order
   },
   {
     name: "Em Trâmite",
@@ -26,6 +27,7 @@ const caseStatusesData = [
     category: "in_progress",
     color: "#FBBF24", // yellow
     sortOrder: 2,
+    orderNumber: 2, // Workflow order
   },
   {
     name: "Encaminhado a análise",
@@ -35,6 +37,7 @@ const caseStatusesData = [
     category: "review",
     color: "#F97316", // orange
     sortOrder: 3,
+    orderNumber: 3, // Workflow order
   },
   {
     name: "Exigência",
@@ -44,6 +47,7 @@ const caseStatusesData = [
     category: "review",
     color: "#F97316", // orange
     sortOrder: 4,
+    orderNumber: 4, // Workflow order
   },
   {
     name: "Juntada de documento",
@@ -53,6 +57,17 @@ const caseStatusesData = [
     category: "in_progress",
     color: "#FBBF24", // yellow
     sortOrder: 5,
+    orderNumber: 5, // Workflow order
+  },
+  {
+    name: "Proposta de Deferimento",
+    nameEn: "Proposal for Approval",
+    code: "proposta_deferimento",
+    description: "Proposta de deferimento submetida",
+    category: "review",
+    color: "#F97316", // orange
+    sortOrder: 6,
+    orderNumber: 6, // Workflow order
   },
   {
     name: "Deferido",
@@ -61,7 +76,8 @@ const caseStatusesData = [
     description: "Processo deferido",
     category: "approved",
     color: "#10B981", // green
-    sortOrder: 6,
+    sortOrder: 7,
+    orderNumber: 7, // Workflow order
   },
   {
     name: "Publicado no DOU",
@@ -70,7 +86,8 @@ const caseStatusesData = [
     description: "Publicado no Diário Oficial da União",
     category: "completed",
     color: "#059669", // emerald
-    sortOrder: 7,
+    sortOrder: 8,
+    orderNumber: 8, // Workflow order
   },
   {
     name: "Emissão do VITEM",
@@ -79,7 +96,8 @@ const caseStatusesData = [
     description: "Emissão do visto temporário",
     category: "completed",
     color: "#059669", // emerald
-    sortOrder: 8,
+    sortOrder: 9,
+    orderNumber: 9, // Workflow order
   },
   {
     name: "Entrada no Brasil",
@@ -88,7 +106,8 @@ const caseStatusesData = [
     description: "Entrada do estrangeiro no Brasil",
     category: "completed",
     color: "#059669", // emerald
-    sortOrder: 9,
+    sortOrder: 10,
+    orderNumber: 10, // Workflow order
   },
   {
     name: "Registro Nacional Migratório (RNM)",
@@ -97,7 +116,8 @@ const caseStatusesData = [
     description: "Registro Nacional Migratório concluído",
     category: "completed",
     color: "#059669", // emerald
-    sortOrder: 10,
+    sortOrder: 11,
+    orderNumber: 11, // Workflow order
   },
   {
     name: "Em Renovação",
@@ -106,16 +126,8 @@ const caseStatusesData = [
     description: "Processo em renovação",
     category: "in_progress",
     color: "#FBBF24", // yellow
-    sortOrder: 11,
-  },
-  {
-    name: "Nova Solicitação de Visto",
-    nameEn: "New Visa Request",
-    code: "nova_solicitacao_visto",
-    description: "Nova solicitação de visto",
-    category: "preparation",
-    color: "#3B82F6", // blue
     sortOrder: 12,
+    orderNumber: 12, // Workflow order
   },
   {
     name: "Pedido de Cancelamento",
@@ -125,6 +137,7 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 13,
+    orderNumber: 13, // Workflow order
   },
   {
     name: "Pedido de Arquivamento",
@@ -134,6 +147,7 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 14,
+    orderNumber: 14, // Workflow order
   },
   {
     name: "Pedido cancelado",
@@ -143,15 +157,17 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 15,
+    orderNumber: 15, // Workflow order
   },
   {
-    name: "Proposta de Deferimento",
-    nameEn: "Proposal for Approval",
-    code: "proposta_deferimento",
-    description: "Proposta de deferimento submetida",
-    category: "review",
-    color: "#F97316", // orange
+    name: "Nova Solicitação de Visto",
+    nameEn: "New Visa Request",
+    code: "nova_solicitacao_visto",
+    description: "Nova solicitação de visto",
+    category: "preparation",
+    color: "#3B82F6", // blue
     sortOrder: 16,
+    // No orderNumber - not part of workflow sequence
   },
   {
     name: "Diário Oficial",
@@ -161,6 +177,7 @@ const caseStatusesData = [
     category: "review",
     color: "#F97316", // orange
     sortOrder: 17,
+    // No orderNumber - not part of workflow sequence
   },
 ];
 

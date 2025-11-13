@@ -172,7 +172,7 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
+    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant] = await Promise.all([
       ctx.db.get(process.personId),
       process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -188,6 +188,8 @@ export const get = query({
       process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
       // Get passport details if passportId exists
       process.passportId ? ctx.db.get(process.passportId) : null,
+      // Get applicant details if applicantId exists
+      process.applicantId ? ctx.db.get(process.applicantId) : null,
     ]);
 
     // Check access permissions for client users
@@ -211,6 +213,27 @@ export const get = query({
       };
     }
 
+    // If applicant exists, enrich with company information
+    let enrichedApplicant = null;
+    if (applicant) {
+      // Get applicant's current company relationship
+      const applicantCompany = await ctx.db
+        .query("peopleCompanies")
+        .withIndex("by_person", (q) => q.eq("personId", applicant._id))
+        .filter((q) => q.eq(q.field("isCurrent"), true))
+        .first();
+
+      let company = null;
+      if (applicantCompany?.companyId) {
+        company = await ctx.db.get(applicantCompany.companyId);
+      }
+
+      enrichedApplicant = {
+        ...applicant,
+        company,
+      };
+    }
+
     return {
       ...process,
       person,
@@ -220,6 +243,7 @@ export const get = query({
       activeStatus,
       caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
       passport: enrichedPassport,
+      applicant: enrichedApplicant, // NEW: Include applicant with company
     };
   },
 });
@@ -233,8 +257,10 @@ export const create = mutation({
     mainProcessId: v.optional(v.id("mainProcesses")),
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport
+    applicantId: v.optional(v.id("people")), // Reference to applicant (person with company)
     caseStatusId: v.optional(v.id("caseStatuses")), // Optional - defaults to "em_preparacao"
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
+    processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
@@ -287,8 +313,10 @@ export const create = mutation({
       mainProcessId: args.mainProcessId,
       personId: args.personId,
       passportId: args.passportId, // Store passport reference
+      applicantId: args.applicantId, // Store applicant reference
       caseStatusId: caseStatus._id, // Store case status ID (defaults to em_preparacao)
       status: statusString, // DEPRECATED: Keep for backward compatibility
+      processTypeId: args.processTypeId, // Process type for cascading filtering
       legalFrameworkId: args.legalFrameworkId,
       cboId: args.cboId,
       mreOfficeNumber: args.mreOfficeNumber,
@@ -385,8 +413,10 @@ export const update = mutation({
   args: {
     id: v.id("individualProcesses"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport
+    applicantId: v.optional(v.id("people")), // Reference to applicant (person with company)
     caseStatusId: v.optional(v.id("caseStatuses")), // NEW: Use case status ID
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
+    processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
@@ -450,6 +480,9 @@ export const update = mutation({
       // DEPRECATED: Support old status string parameter for backward compatibility
       updates.status = args.status;
     }
+    if (args.passportId !== undefined) updates.passportId = args.passportId;
+    if (args.applicantId !== undefined) updates.applicantId = args.applicantId;
+    if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;
     if (args.cboId !== undefined) updates.cboId = args.cboId;

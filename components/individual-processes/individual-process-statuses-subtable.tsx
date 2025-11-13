@@ -129,7 +129,6 @@ export function IndividualProcessStatusesSubtable({
               <TableRow>
                 <TableHead>{t("status")}</TableHead>
                 <TableHead>{t("statusDate")}</TableHead>
-                <TableHead>{t("changedBy")}</TableHead>
                 {isAdmin && <TableHead className="w-[100px]">{tCommon("actions")}</TableHead>}
               </TableRow>
             </TableHeader>
@@ -210,11 +209,6 @@ export function IndividualProcessStatusesSubtable({
                           </span>
                         </div>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {status.changedByUser?.fullName || tCommon("unknown")}
-                      </div>
                     </TableCell>
                     {isAdmin && (
                       <TableCell>

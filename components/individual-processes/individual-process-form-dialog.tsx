@@ -69,7 +69,7 @@ export function IndividualProcessFormDialog({
 
   const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
-  const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
+  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
   const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
 
@@ -84,6 +84,7 @@ export function IndividualProcessFormDialog({
       passportId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
+      processTypeId: "",
       legalFrameworkId: "" as Id<"legalFrameworks">,
       cboId: "",
       mreOfficeNumber: "",
@@ -100,6 +101,25 @@ export function IndividualProcessFormDialog({
     },
   })
 
+  // Watch process type for cascading legal framework filtering
+  const selectedProcessTypeId = form.watch("processTypeId")
+
+  // Get filtered legal frameworks based on selected process type
+  const filteredLegalFrameworks = useQuery(
+    api.processTypes.getLegalFrameworks,
+    selectedProcessTypeId && selectedProcessTypeId !== ""
+      ? { processTypeId: selectedProcessTypeId as Id<"processTypes"> }
+      : "skip"
+  )
+
+  // Fallback to all legal frameworks if no process type selected
+  const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
+
+  // Use filtered or all legal frameworks
+  const legalFrameworks = selectedProcessTypeId && selectedProcessTypeId !== ""
+    ? (filteredLegalFrameworks ?? [])
+    : (allLegalFrameworks ?? [])
+
   // Reset form when individual process data loads
   useEffect(() => {
     if (individualProcess) {
@@ -109,6 +129,7 @@ export function IndividualProcessFormDialog({
         passportId: individualProcess.passportId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
+        processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
         cboId: individualProcess.cboId ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
@@ -130,6 +151,7 @@ export function IndividualProcessFormDialog({
         passportId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
+        processTypeId: "",
         legalFrameworkId: "" as Id<"legalFrameworks">,
         cboId: "",
         mreOfficeNumber: "",
@@ -147,6 +169,16 @@ export function IndividualProcessFormDialog({
     }
   }, [individualProcess, individualProcessId, form])
 
+  // Clear legal framework when process type changes
+  useEffect(() => {
+    // Clear legal framework when process type changes or is cleared
+    const currentLegalFrameworkId = form.getValues("legalFrameworkId")
+    if (currentLegalFrameworkId) {
+      // Reset legal framework when process type changes
+      form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
+    }
+  }, [selectedProcessTypeId])
+
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
       // Clean optional fields - convert empty strings to undefined
@@ -154,8 +186,10 @@ export function IndividualProcessFormDialog({
         ...data,
         mainProcessId: data.mainProcessId || undefined,
         passportId: data.passportId || undefined,
+        applicantId: data.applicantId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
+        processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
         cboId: data.cboId || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
@@ -171,7 +205,9 @@ export function IndividualProcessFormDialog({
       }
 
       if (individualProcessId) {
-        await updateIndividualProcess({ id: individualProcessId, ...submitData })
+        // Remove personId from submit data when updating (can't change person of existing process)
+        const { personId, ...updateData } = submitData
+        await updateIndividualProcess({ id: individualProcessId, ...updateData })
         toast({
           title: t("updatedSuccess"),
         })
@@ -200,6 +236,11 @@ export function IndividualProcessFormDialog({
   const peopleOptions = people.map((person) => ({
     value: person._id,
     label: person.fullName,
+  }))
+
+  const processTypeOptions = processTypes.map((processType) => ({
+    value: processType._id,
+    label: processType.name,
   }))
 
   const legalFrameworkOptions = legalFrameworks.map((framework) => ({
@@ -272,6 +313,25 @@ export function IndividualProcessFormDialog({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t("selectPerson")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="processTypeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("processType")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={processTypeOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectProcessType")}
                       />
                     </FormControl>
                     <FormMessage />

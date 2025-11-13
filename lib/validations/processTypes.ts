@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Id } from "@/convex/_generated/dataModel";
 
 export const processTypeSchema = z.object({
   name: z.string().min(1, "Process type name is required"),
@@ -10,6 +11,11 @@ export const processTypeSchema = z.object({
     .optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().nonnegative().optional(),
+  legalFrameworkIds: z.array(
+    z.custom<Id<"legalFrameworks">>((val) => typeof val === "string", {
+      message: "Invalid legal framework ID",
+    })
+  ).default([]),
 });
 
 export type ProcessTypeFormData = z.infer<typeof processTypeSchema>;

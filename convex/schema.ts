@@ -62,17 +62,25 @@ export default defineSchema({
   })
     .index("by_active", ["isActive"]),
 
-  // Legal Frameworks - Linked to Process Types
-  // BREAKING CHANGE: Removed 'code' field, added 'processTypeId' foreign key
-  // Migration: Existing records will need processTypeId assigned manually
+  // Legal Frameworks - Now has many-to-many relationship with Process Types via junction table
+  // BREAKING CHANGE: Removed processTypeId field - use processTypesLegalFrameworks junction table instead
   legalFrameworks: defineTable({
     name: v.string(),
-    processTypeId: v.optional(v.id("processTypes")),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   })
-    .index("by_processType", ["processTypeId"])
     .index("by_active", ["isActive"]),
+
+  // Junction table for many-to-many relationship between Process Types and Legal Frameworks
+  processTypesLegalFrameworks: defineTable({
+    processTypeId: v.id("processTypes"),
+    legalFrameworkId: v.id("legalFrameworks"),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_processType", ["processTypeId"])
+    .index("by_legalFramework", ["legalFrameworkId"])
+    .index("by_processType_legalFramework", ["processTypeId", "legalFrameworkId"]),
 
   // Client and people management tables
   people: defineTable({
@@ -174,12 +182,14 @@ export default defineSchema({
     category: v.optional(v.string()), // Group similar statuses
     color: v.optional(v.string()), // For UI badges
     sortOrder: v.number(), // Display order
+    orderNumber: v.optional(v.number()), // Workflow sequence order (1-15, some statuses have no order)
     isActive: v.boolean(), // Can be used
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_code", ["code"])
     .index("by_sortOrder", ["sortOrder"])
+    .index("by_orderNumber", ["orderNumber"])
     .index("by_active", ["isActive"])
     .index("by_category", ["category"]),
 
@@ -221,8 +231,10 @@ export default defineSchema({
     mainProcessId: v.optional(v.id("mainProcesses")),
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport used for this process
+    applicantId: v.optional(v.id("people")), // Reference to person who is applicant (must have company relationship)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
+    processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
@@ -243,8 +255,10 @@ export default defineSchema({
     .index("by_mainProcess", ["mainProcessId"])
     .index("by_person", ["personId"])
     .index("by_passport", ["passportId"]) // Index for passport lookups
+    .index("by_applicant", ["applicantId"]) // Index for applicant lookups
     .index("by_status", ["status"])
     .index("by_caseStatus", ["caseStatusId"]) // New index
+    .index("by_processType", ["processTypeId"]) // Index for process type filtering
     .index("by_legalFramework", ["legalFrameworkId"])
     .index("by_active", ["isActive"]),
 

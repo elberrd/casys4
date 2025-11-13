@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -26,10 +26,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Badge } from "@/components/ui/badge"
+import { Plus, X } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { processTypeSchema, ProcessTypeFormData } from "@/lib/validations/processTypes"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { LegalFrameworkFormDialog } from "@/components/legal-frameworks/legal-framework-form-dialog"
 
 interface ProcessTypeFormDialogProps {
   open: boolean
@@ -48,42 +52,54 @@ export function ProcessTypeFormDialog({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
 
+  const [showLegalFrameworkDialog, setShowLegalFrameworkDialog] = useState(false)
+
   const processType = useQuery(
     api.processTypes.get,
     processTypeId ? { id: processTypeId } : "skip"
   )
 
+  const legalFrameworks = useQuery(api.legalFrameworks.listActive) || []
+
+  const currentLegalFrameworks = useQuery(
+    api.processTypes.getLegalFrameworks,
+    processTypeId ? { processTypeId } : "skip"
+  ) || []
+
   const createProcessType = useMutation(api.processTypes.create)
   const updateProcessType = useMutation(api.processTypes.update)
 
-  const form = useForm<ProcessTypeFormData>({
+  const form = useForm({
     resolver: zodResolver(processTypeSchema),
     defaultValues: {
       name: "",
       description: "",
       estimatedDays: 30,
       isActive: true,
+      legalFrameworkIds: [] as Id<"legalFrameworks">[],
     },
   })
 
   // Reset form when process type data loads
   useEffect(() => {
-    if (processType) {
+    if (processType && currentLegalFrameworks) {
       form.reset({
         name: processType.name,
         description: processType.description,
         estimatedDays: processType.estimatedDays,
         isActive: processType.isActive,
+        legalFrameworkIds: currentLegalFrameworks.map((lf) => lf._id),
       })
-    } else if (!processTypeId) {
+    } else if (!processTypeId && open) {
       form.reset({
         name: "",
         description: "",
         estimatedDays: 30,
         isActive: true,
+        legalFrameworkIds: [],
       })
     }
-  }, [processType, processTypeId, form])
+  }, [processType, currentLegalFrameworks, processTypeId, open, form.reset])
 
   const onSubmit = async (data: ProcessTypeFormData) => {
     try {
@@ -183,6 +199,68 @@ export function ProcessTypeFormDialog({
 
             <FormField
               control={form.control}
+              name="legalFrameworkIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('legalFrameworks')}</FormLabel>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <FormControl>
+                          <MultiSelect
+                            options={legalFrameworks.map((lf) => ({
+                              value: lf._id,
+                              label: lf.name,
+                            }))}
+                            defaultValue={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t('selectLegalFrameworks')}
+                          />
+                        </FormControl>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowLegalFrameworkDialog(true)}
+                        className="shrink-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {field.value && field.value.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {field.value.map((id) => {
+                          const lf = legalFrameworks.find((l) => l._id === id)
+                          if (!lf) return null
+                          return (
+                            <Badge key={id} variant="secondary" className="gap-1">
+                              {lf.name}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  field.onChange(field.value?.filter((v) => v !== id))
+                                }}
+                                className="ml-1 hover:bg-secondary-foreground/20 rounded-sm"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <FormDescription>
+                      {field.value?.length || 0} {t('legalFrameworksCount')}
+                    </FormDescription>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="isActive"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
@@ -219,6 +297,19 @@ export function ProcessTypeFormDialog({
           </form>
         </Form>
       </DialogContent>
+
+      <LegalFrameworkFormDialog
+        open={showLegalFrameworkDialog}
+        onOpenChange={setShowLegalFrameworkDialog}
+        onSuccess={(newLegalFrameworkId) => {
+          // Add the newly created legal framework to the selection
+          const currentIds = form.getValues('legalFrameworkIds') || []
+          if (newLegalFrameworkId && !currentIds.includes(newLegalFrameworkId)) {
+            form.setValue('legalFrameworkIds', [...currentIds, newLegalFrameworkId])
+          }
+          setShowLegalFrameworkDialog(false)
+        }}
+      />
     </Dialog>
   )
 }

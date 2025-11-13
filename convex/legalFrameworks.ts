@@ -10,19 +10,12 @@ import { normalizeString } from "./lib/stringUtils";
 export const list = query({
   args: {
     isActive: v.optional(v.boolean()),
-    processTypeId: v.optional(v.id("processTypes")),
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let results;
 
-    // Filter by processTypeId if provided
-    if (args.processTypeId !== undefined) {
-      results = await ctx.db
-        .query("legalFrameworks")
-        .withIndex("by_processType", (q) => q.eq("processTypeId", args.processTypeId))
-        .collect();
-    } else if (args.isActive !== undefined) {
+    if (args.isActive !== undefined) {
       // Filter by isActive if provided
       results = await ctx.db
         .query("legalFrameworks")
@@ -74,15 +67,24 @@ export const get = query({
 });
 
 /**
- * Query to get legal frameworks by Process Type
+ * Query to get process types for a legal framework
  */
-export const listByProcessType = query({
-  args: { processTypeId: v.id("processTypes") },
-  handler: async (ctx, { processTypeId }) => {
-    return await ctx.db
-      .query("legalFrameworks")
-      .withIndex("by_processType", (q) => q.eq("processTypeId", processTypeId))
+export const getProcessTypes = query({
+  args: { legalFrameworkId: v.id("legalFrameworks") },
+  handler: async (ctx, { legalFrameworkId }) => {
+    const links = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", legalFrameworkId))
       .collect();
+
+    const processTypes = await Promise.all(
+      links.map(async (link) => {
+        const pt = await ctx.db.get(link.processTypeId);
+        return pt ? { ...pt, _id: link.processTypeId } : null;
+      })
+    );
+
+    return processTypes.filter((pt) => pt !== null);
   },
 });
 
@@ -92,7 +94,6 @@ export const listByProcessType = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    processTypeId: v.optional(v.id("processTypes")),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
@@ -100,17 +101,8 @@ export const create = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
-    // Verify that the process type exists if provided
-    if (args.processTypeId) {
-      const processType = await ctx.db.get(args.processTypeId);
-      if (!processType) {
-        throw new Error("Process Type not found");
-      }
-    }
-
     const legalFrameworkId = await ctx.db.insert("legalFrameworks", {
       name: args.name,
-      processTypeId: args.processTypeId,
       description: args.description ?? "",
       isActive: args.isActive ?? true,
     });
@@ -126,7 +118,6 @@ export const update = mutation({
   args: {
     id: v.id("legalFrameworks"),
     name: v.string(),
-    processTypeId: v.optional(v.id("processTypes")),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
@@ -134,19 +125,10 @@ export const update = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
-    // Verify that the process type exists if provided
-    if (args.processTypeId) {
-      const processType = await ctx.db.get(args.processTypeId);
-      if (!processType) {
-        throw new Error("Process Type not found");
-      }
-    }
-
     const updates: any = {
       name: args.name,
     };
 
-    if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
     if (args.description !== undefined) updates.description = args.description;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
@@ -165,8 +147,17 @@ export const remove = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
-    // Note: Add cascade checks here if there are related tables
-    // For now, we'll just delete the legal framework
+    // Delete all junction table records first
+    const existingLinks = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
+
+    for (const link of existingLinks) {
+      await ctx.db.delete(link._id);
+    }
+
+    // Delete the legal framework
     await ctx.db.delete(id);
   },
 });

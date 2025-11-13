@@ -78,6 +78,7 @@ export function CaseStatusFormDialog({
       category: "",
       color: "#3B82F6",
       sortOrder: nextSortOrder,
+      orderNumber: undefined,
     },
   })
 
@@ -92,6 +93,7 @@ export function CaseStatusFormDialog({
         category: (caseStatus.category || "") as "" | "preparation" | "in_progress" | "review" | "approved" | "completed" | "cancelled",
         color: caseStatus.color || "#3B82F6",
         sortOrder: caseStatus.sortOrder,
+        orderNumber: caseStatus.orderNumber,
       })
     } else if (!caseStatusId) {
       form.reset({
@@ -102,6 +104,7 @@ export function CaseStatusFormDialog({
         category: "",
         color: "#3B82F6",
         sortOrder: nextSortOrder,
+        orderNumber: undefined,
       })
     }
   }, [caseStatus, caseStatusId, form, nextSortOrder])
@@ -115,6 +118,7 @@ export function CaseStatusFormDialog({
         description: data.description === "" ? undefined : data.description,
         category: data.category === "" ? undefined : data.category,
         color: data.color === "" ? undefined : data.color,
+        orderNumber: data.orderNumber === "" || data.orderNumber === undefined ? undefined : data.orderNumber,
       }
 
       if (caseStatusId) {
@@ -192,28 +196,28 @@ export function CaseStatusFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('code')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="em_preparacao"
-                        {...field}
-                        disabled={!!caseStatusId}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('codeDescription')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('code')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="em_preparacao"
+                      {...field}
+                      disabled={!!caseStatusId}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('codeDescription')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="sortOrder"
@@ -230,6 +234,34 @@ export function CaseStatusFormDialog({
                     </FormControl>
                     <FormDescription>
                       {t('sortOrderDescription')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="orderNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('orderNumber')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="99"
+                        placeholder={t('orderNumberPlaceholder')}
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          field.onChange(val === "" ? undefined : parseInt(val));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('orderNumberHelp')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

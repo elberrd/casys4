@@ -167,6 +167,13 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
                 <div className="text-sm font-medium">{t('email')}</div>
                 <div className="text-sm">{individualProcess.person?.email || '-'}</div>
 
+                <div className="text-sm font-medium">{t('applicant')}</div>
+                <div className="text-sm">
+                  {individualProcess.applicant && individualProcess.applicant.company
+                    ? `${individualProcess.applicant.fullName} - ${individualProcess.applicant.company.name}`
+                    : '-'}
+                </div>
+
                 {individualProcess.cbo && (
                   <>
                     <div className="text-sm font-medium">{t('cboCode')}</div>

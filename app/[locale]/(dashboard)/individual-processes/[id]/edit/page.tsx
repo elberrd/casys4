@@ -34,7 +34,6 @@ export default function EditIndividualProcessPage({ params }: EditIndividualProc
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <IndividualProcessFormPage
           individualProcessId={processId}
-          onSuccess={() => router.push(`/${resolvedParams.locale}/individual-processes/${processId}`)}
         />
       </div>
     </>

@@ -65,6 +65,14 @@ interface IndividualProcess {
     _id: Id<"legalFrameworks">
     name: string
   } | null
+  applicant?: {
+    _id: Id<"people">
+    fullName: string
+    company?: {
+      _id: Id<"companies">
+      name: string
+    } | null
+  } | null
   protocolNumber?: string
   rnmNumber?: string
   deadlineDate?: string
@@ -123,6 +131,24 @@ export function IndividualProcessesTable({
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.person?.fullName || "-"} />
         ),
+      },
+      {
+        accessorKey: "applicant.fullName",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('applicant')} className="hidden md:table-cell" />
+        ),
+        cell: ({ row }) => {
+          const applicant = row.original.applicant
+          if (!applicant || !applicant.company) {
+            return <span className="hidden md:table-cell text-sm text-muted-foreground">-</span>
+          }
+          return (
+            <span className="hidden md:table-cell text-sm">
+              {`${applicant.fullName} - ${applicant.company.name}`}
+            </span>
+          )
+        },
+        enableHiding: true,
       },
       {
         accessorKey: "mainProcess.referenceNumber",

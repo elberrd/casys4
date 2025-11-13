@@ -194,11 +194,6 @@ export const exportIndividualProcesses = query({
           ? await ctx.db.get(mainProcess.companyId)
           : null;
 
-        // Get process type from legal framework
-        const legalFrameworkProcessType = legalFramework && legalFramework.processTypeId
-          ? await ctx.db.get(legalFramework.processTypeId)
-          : null;
-
         return {
           id: process._id,
           mainProcessReference: mainProcess?.referenceNumber || "",
@@ -212,7 +207,6 @@ export const exportIndividualProcesses = query({
           personBirthCity: birthCity?.name || "",
           status: process.status,
           legalFramework: legalFramework?.name || "",
-          legalFrameworkProcessType: legalFrameworkProcessType?.name || "",
           cboCode: cbo?.code || "",
           cboTitle: cbo?.title || "",
           mreOfficeNumber: process.mreOfficeNumber || "",

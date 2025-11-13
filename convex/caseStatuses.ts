@@ -91,6 +91,7 @@ export const create = mutation({
     category: v.optional(v.string()),
     color: v.optional(v.string()),
     sortOrder: v.number(),
+    orderNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -105,6 +106,18 @@ export const create = mutation({
       throw new Error(`Case status with code "${args.code}" already exists`);
     }
 
+    // Check if orderNumber already exists (if provided)
+    if (args.orderNumber !== undefined) {
+      const existingByOrder = await ctx.db
+        .query("caseStatuses")
+        .withIndex("by_orderNumber", (q) => q.eq("orderNumber", args.orderNumber))
+        .first();
+
+      if (existingByOrder) {
+        throw new Error(`Case status with orderNumber ${args.orderNumber} already exists`);
+      }
+    }
+
     const now = Date.now();
     const caseStatusId = await ctx.db.insert("caseStatuses", {
       name: args.name,
@@ -114,6 +127,7 @@ export const create = mutation({
       category: args.category,
       color: args.color,
       sortOrder: args.sortOrder,
+      orderNumber: args.orderNumber,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -136,6 +150,7 @@ export const update = mutation({
     category: v.optional(v.string()),
     color: v.optional(v.string()),
     sortOrder: v.optional(v.number()),
+    orderNumber: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -168,6 +183,18 @@ export const update = mutation({
 
       if (existingByCode) {
         throw new Error(`Case status with code "${newCode}" already exists`);
+      }
+    }
+
+    // If orderNumber is being changed, check if new orderNumber already exists
+    if (args.orderNumber !== undefined && args.orderNumber !== existing.orderNumber) {
+      const existingByOrder = await ctx.db
+        .query("caseStatuses")
+        .withIndex("by_orderNumber", (q) => q.eq("orderNumber", args.orderNumber))
+        .first();
+
+      if (existingByOrder && existingByOrder._id !== id) {
+        throw new Error(`Case status with orderNumber ${args.orderNumber} already exists`);
       }
     }
 
@@ -280,5 +307,46 @@ export const toggleActive = mutation({
     });
 
     return id;
+  },
+});
+
+/**
+ * Query to get a case status by orderNumber
+ */
+export const getByOrderNumber = query({
+  args: { orderNumber: v.number() },
+  handler: async (ctx, { orderNumber }) => {
+    return await ctx.db
+      .query("caseStatuses")
+      .withIndex("by_orderNumber", (q) => q.eq("orderNumber", orderNumber))
+      .first();
+  },
+});
+
+/**
+ * Query to get the next case status in the workflow sequence
+ * Returns the active status with orderNumber = currentOrderNumber + 1
+ */
+export const getNextStatusByOrderNumber = query({
+  args: { currentOrderNumber: v.optional(v.number()) },
+  handler: async (ctx, { currentOrderNumber }) => {
+    // If no current orderNumber provided, return null
+    if (currentOrderNumber === undefined) {
+      return null;
+    }
+
+    // Find the next status in sequence
+    const nextOrderNumber = currentOrderNumber + 1;
+    const nextStatus = await ctx.db
+      .query("caseStatuses")
+      .withIndex("by_orderNumber", (q) => q.eq("orderNumber", nextOrderNumber))
+      .first();
+
+    // Only return if it's active
+    if (nextStatus && nextStatus.isActive) {
+      return nextStatus;
+    }
+
+    return null;
   },
 });

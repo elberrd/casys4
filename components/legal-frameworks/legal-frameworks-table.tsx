@@ -34,8 +34,6 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 interface LegalFramework {
   _id: Id<"legalFrameworks">
   name: string
-  processTypeId?: Id<"processTypes">
-  processTypeName?: string
   description?: string
   isActive?: boolean
 }
@@ -80,15 +78,6 @@ export function LegalFrameworksTable({ legalFrameworks, onView, onEdit, onDelete
         ),
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.name} />
-        ),
-      },
-      {
-        accessorKey: "processTypeName",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('processType')} />
-        ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.processTypeName || "N/A"} />
         ),
       },
       {

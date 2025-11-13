@@ -51,6 +51,13 @@ export const caseStatusSchema = z.object({
     .int("Sort order must be an integer")
     .min(1, "Sort order must be at least 1")
     .max(9999, "Sort order must be less than 10000"),
+  orderNumber: z
+    .number()
+    .int("Order number must be an integer")
+    .min(1, "Order number must be at least 1")
+    .max(99, "Order number must be less than 100")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type CaseStatusFormData = z.infer<typeof caseStatusSchema>;

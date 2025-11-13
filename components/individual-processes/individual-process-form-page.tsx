@@ -20,6 +20,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
 import { PersonSelectorWithDetail } from "@/components/individual-processes/person-selector-with-detail"
 import { PassportSelector } from "@/components/individual-processes/passport-selector"
+import { ApplicantSelector } from "@/components/individual-processes/applicant-selector"
 import { QuickPersonFormDialog } from "@/components/individual-processes/quick-person-form-dialog"
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form"
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
@@ -62,7 +63,7 @@ export function IndividualProcessFormPage({
   )
 
   const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
-  const legalFrameworks = useQuery(api.legalFrameworks.list, {}) ?? []
+  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
   const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
 
@@ -75,8 +76,10 @@ export function IndividualProcessFormPage({
       mainProcessId: "" as Id<"mainProcesses">,
       personId: "" as Id<"people">,
       passportId: "",
+      applicantId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
+      processTypeId: "",
       legalFrameworkId: "" as Id<"legalFrameworks">,
       cboId: "",
       mreOfficeNumber: "",
@@ -100,6 +103,25 @@ export function IndividualProcessFormPage({
     selectedPersonId ? { personId: selectedPersonId as Id<"people"> } : "skip"
   ) ?? []
 
+  // Watch process type for cascading legal framework filtering
+  const selectedProcessTypeId = form.watch("processTypeId")
+
+  // Get filtered legal frameworks based on selected process type
+  const filteredLegalFrameworks = useQuery(
+    api.processTypes.getLegalFrameworks,
+    selectedProcessTypeId && selectedProcessTypeId !== ""
+      ? { processTypeId: selectedProcessTypeId as Id<"processTypes"> }
+      : "skip"
+  )
+
+  // Fallback to all legal frameworks if no process type selected
+  const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
+
+  // Use filtered or all legal frameworks
+  const legalFrameworks = selectedProcessTypeId && selectedProcessTypeId !== ""
+    ? (filteredLegalFrameworks ?? [])
+    : (allLegalFrameworks ?? [])
+
   // Reset form when individual process data loads
   useEffect(() => {
     if (individualProcess) {
@@ -107,8 +129,10 @@ export function IndividualProcessFormPage({
         mainProcessId: individualProcess.mainProcessId,
         personId: individualProcess.personId,
         passportId: individualProcess.passportId ?? "",
+        applicantId: individualProcess.applicantId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
+        processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
         cboId: individualProcess.cboId ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
@@ -128,8 +152,10 @@ export function IndividualProcessFormPage({
         mainProcessId: "" as Id<"mainProcesses">,
         personId: "" as Id<"people">,
         passportId: "",
+        applicantId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
+        processTypeId: "",
         legalFrameworkId: "" as Id<"legalFrameworks">,
         cboId: "",
         mreOfficeNumber: "",
@@ -178,6 +204,16 @@ export function IndividualProcessFormPage({
     }
   }, [selectedPersonId, personPassports, individualProcessId, individualProcess, form])
 
+  // Clear legal framework when process type changes
+  useEffect(() => {
+    // Clear legal framework when process type changes or is cleared
+    const currentLegalFrameworkId = form.getValues("legalFrameworkId")
+    if (currentLegalFrameworkId) {
+      // Reset legal framework when process type changes
+      form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
+    }
+  }, [selectedProcessTypeId])
+
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
       // Clean optional fields - convert empty strings to undefined
@@ -185,8 +221,10 @@ export function IndividualProcessFormPage({
         ...data,
         mainProcessId: data.mainProcessId || undefined,
         passportId: data.passportId || undefined,
+        applicantId: data.applicantId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
+        processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
         cboId: data.cboId || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
@@ -202,7 +240,9 @@ export function IndividualProcessFormPage({
       }
 
       if (individualProcessId) {
-        await updateIndividualProcess({ id: individualProcessId, ...submitData })
+        // Remove personId from submit data when updating (can't change person of existing process)
+        const { personId, ...updateData } = submitData
+        await updateIndividualProcess({ id: individualProcessId, ...updateData })
         toast({
           title: t("updatedSuccess"),
         })
@@ -244,6 +284,11 @@ export function IndividualProcessFormPage({
     label: process.referenceNumber,
   }))
 
+  const processTypeOptions = processTypes.map((processType) => ({
+    value: processType._id,
+    label: processType.name,
+  }))
+
   const legalFrameworkOptions = legalFrameworks.map((framework) => ({
     value: framework._id,
     label: framework.name,
@@ -276,7 +321,19 @@ export function IndividualProcessFormPage({
       </div>
       <div>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form
+            onSubmit={(e) => {
+              // Only allow submission if triggered by the submit button
+              const submitter = (e.nativeEvent as SubmitEvent).submitter;
+              if (!submitter || submitter.getAttribute('type') !== 'submit') {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              form.handleSubmit(onSubmit)(e);
+            }}
+            className="space-y-6"
+          >
             {/* Required Fields Section */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("requiredFields")}</h3>
@@ -293,6 +350,61 @@ export function IndividualProcessFormPage({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t("selectMainProcess")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="processTypeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("processType")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={processTypeOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectProcessType")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="legalFrameworkId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("legalFramework")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={legalFrameworkOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectLegalFramework")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="applicantId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("applicant")}</FormLabel>
+                    <FormControl>
+                      <ApplicantSelector
+                        value={field.value || ""}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />
@@ -340,25 +452,6 @@ export function IndividualProcessFormPage({
                         personId={form.watch("personId")}
                         value={field.value || ""}
                         onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="legalFrameworkId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("legalFramework")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={legalFrameworkOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectLegalFramework")}
                       />
                     </FormControl>
                     <FormMessage />

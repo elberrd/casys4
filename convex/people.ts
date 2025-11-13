@@ -410,3 +410,75 @@ export const remove = mutation({
     await ctx.db.delete(id);
   },
 });
+
+/**
+ * Query to list people who have associated companies (for applicant selection)
+ * Returns people with their current company information for display in combobox
+ * Access control: Admins see all people with companies, clients see only people from their company
+ */
+export const listPeopleWithCompanies = query({
+  args: {
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get all people-company relationships where isCurrent=true
+    let peopleCompanies = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
+      .collect();
+
+    // Apply role-based access control for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Filter to only people-companies relationships for client's company
+      const clientCompanyId = userProfile.companyId;
+      peopleCompanies = peopleCompanies.filter(
+        (pc) => pc.companyId === clientCompanyId
+      );
+    }
+
+    // Build result with person and company information
+    const results = await Promise.all(
+      peopleCompanies.map(async (pc) => {
+        if (!pc.personId || !pc.companyId) return null;
+
+        const person = await ctx.db.get(pc.personId);
+        const company = await ctx.db.get(pc.companyId);
+
+        if (!person || !company) return null;
+
+        return {
+          _id: person._id,
+          fullName: person.fullName,
+          companyName: company.name,
+          companyId: company._id,
+          role: pc.role,
+        };
+      })
+    );
+
+    // Filter out null results
+    let filteredResults = results.filter((r) => r !== null);
+
+    // Apply search filter if provided (accent-insensitive)
+    if (args.search) {
+      const searchNormalized = normalizeString(args.search);
+      filteredResults = filteredResults.filter(
+        (result) =>
+          normalizeString(result.fullName).includes(searchNormalized) ||
+          normalizeString(result.companyName).includes(searchNormalized)
+      );
+    }
+
+    // Sort by person name
+    filteredResults.sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    return filteredResults;
+  },
+});

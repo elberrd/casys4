@@ -26,7 +26,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Combobox } from "@/components/ui/combobox"
 import { useTranslations } from "next-intl"
 import { legalFrameworkSchema, LegalFrameworkFormData } from "@/lib/validations/legalFrameworks"
 import { Id } from "@/convex/_generated/dataModel"
@@ -36,7 +35,7 @@ interface LegalFrameworkFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   legalFrameworkId?: Id<"legalFrameworks">
-  onSuccess?: () => void
+  onSuccess?: (createdId?: Id<"legalFrameworks">) => void
 }
 
 export function LegalFrameworkFormDialog({
@@ -54,8 +53,6 @@ export function LegalFrameworkFormDialog({
     legalFrameworkId ? { id: legalFrameworkId } : "skip"
   )
 
-  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
-
   const createLegalFramework = useMutation(api.legalFrameworks.create)
   const updateLegalFramework = useMutation(api.legalFrameworks.update)
 
@@ -63,7 +60,6 @@ export function LegalFrameworkFormDialog({
     resolver: zodResolver(legalFrameworkSchema),
     defaultValues: {
       name: "",
-      processTypeId: "" as Id<"processTypes">,
       description: "",
       isActive: true,
     },
@@ -74,14 +70,12 @@ export function LegalFrameworkFormDialog({
     if (legalFramework) {
       form.reset({
         name: legalFramework.name,
-        processTypeId: legalFramework.processTypeId,
         description: legalFramework.description,
         isActive: legalFramework.isActive,
       })
     } else if (!legalFrameworkId) {
       form.reset({
         name: "",
-        processTypeId: "" as Id<"processTypes">,
         description: "",
         isActive: true,
       })
@@ -93,9 +87,10 @@ export function LegalFrameworkFormDialog({
       // Clean optional fields
       const submitData = {
         ...data,
-        processTypeId: data.processTypeId || undefined,
         description: data.description || undefined,
       }
+
+      let createdId: Id<"legalFrameworks"> | undefined
 
       if (legalFrameworkId) {
         await updateLegalFramework({ id: legalFrameworkId, ...submitData })
@@ -103,13 +98,13 @@ export function LegalFrameworkFormDialog({
           title: t('updatedSuccess'),
         })
       } else {
-        await createLegalFramework(submitData)
+        createdId = await createLegalFramework(submitData)
         toast({
           title: t('createdSuccess'),
         })
       }
       form.reset()
-      onSuccess?.()
+      onSuccess?.(createdId)
     } catch (error) {
       toast({
         title: legalFrameworkId ? t('errorUpdate') : t('errorCreate'),
@@ -144,30 +139,6 @@ export function LegalFrameworkFormDialog({
                   <FormLabel>{t('name')}</FormLabel>
                   <FormControl>
                     <Input placeholder="Law 13.445/2017" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="processTypeId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('processType')}</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      options={processTypes.map((pt) => ({
-                        label: pt.name,
-                        value: pt._id,
-                      }))}
-                      placeholder={t('selectProcessType')}
-                      emptyText={tCommon('noResults')}
-                      searchPlaceholder={tCommon('search')}
-                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

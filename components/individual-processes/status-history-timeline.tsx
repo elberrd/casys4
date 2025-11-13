@@ -135,13 +135,6 @@ export function StatusHistoryTimeline({ individualProcessId }: StatusHistoryTime
                     </div>
                   )}
 
-                  {status.changedByUser && (
-                    <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                      <User className="h-3 w-3" />
-                      <span>{status.changedByUser.fullName}</span>
-                    </div>
-                  )}
-
                   {status.notes && (
                     <div className="mt-2 flex items-start gap-2 rounded-lg border bg-muted/50 p-3">
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
