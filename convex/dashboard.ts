@@ -34,20 +34,34 @@ export const getProcessStats = query({
       processes = filteredProcesses.filter((p) => p !== null) as typeof processes;
     }
 
-    // Count by status
-    const statusCounts = processes.reduce((acc: Record<string, number>, process) => {
-      if (process.status) {
-        acc[process.status] = (acc[process.status] || 0) + 1;
-      }
-      return acc;
-    }, {});
+    // Count by case status
+    const statusCounts: Record<string, { count: number; name: string; code: string }> = {};
+
+    await Promise.all(
+      processes.map(async (process) => {
+        if (process.caseStatusId) {
+          const caseStatus = await ctx.db.get(process.caseStatusId);
+          if (caseStatus) {
+            const key = caseStatus._id;
+            if (!statusCounts[key]) {
+              statusCounts[key] = {
+                count: 0,
+                name: caseStatus.name,
+                code: caseStatus.code,
+              };
+            }
+            statusCounts[key].count++;
+          }
+        }
+      })
+    );
 
     const total = processes.length;
 
     // Calculate percentages
     const statusPercentages: Record<string, number> = {};
-    Object.keys(statusCounts).forEach((status) => {
-      statusPercentages[status] = total > 0 ? (statusCounts[status] / total) * 100 : 0;
+    Object.keys(statusCounts).forEach((statusId) => {
+      statusPercentages[statusId] = total > 0 ? (statusCounts[statusId].count / total) * 100 : 0;
     });
 
     return {
@@ -199,14 +213,34 @@ export const getUpcomingDeadlines = query({
     // Get all individual processes with deadlines
     let processes = await ctx.db.query("individualProcesses").collect();
 
-    // Filter by deadline range
-    processes = processes.filter(
+    // Filter by deadline range and get case statuses
+    const processesWithDeadlines = processes.filter(
       (p) =>
         p.deadlineDate &&
         p.deadlineDate >= todayStr &&
         p.deadlineDate <= thirtyDaysStr &&
-        p.status && p.status !== "completed"
+        p.caseStatusId // Has a case status assigned
     );
+
+    // Filter out completed processes
+    const filteredByStatus = await Promise.all(
+      processesWithDeadlines.map(async (process) => {
+        if (process.caseStatusId) {
+          const caseStatus = await ctx.db.get(process.caseStatusId);
+          // Exclude if status code indicates completion (concluido, cancelado, etc.)
+          if (caseStatus && (
+            caseStatus.code === "concluido" ||
+            caseStatus.code === "cancelado" ||
+            caseStatus.code === "indeferido"
+          )) {
+            return null;
+          }
+        }
+        return process;
+      })
+    );
+
+    processes = filteredByStatus.filter((p) => p !== null) as typeof processes;
 
     // Filter by company for client users
     if (userProfile.role === "client") {
