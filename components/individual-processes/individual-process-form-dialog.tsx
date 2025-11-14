@@ -24,6 +24,13 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useTranslations, useLocale } from "next-intl"
@@ -39,6 +46,7 @@ import { InitialStatusForm } from "./initial-status-form"
 import { Separator } from "@/components/ui/separator"
 import { CompanyApplicantSelector } from "./company-applicant-selector"
 import { UserApplicantSelector } from "./user-applicant-selector"
+import { PassportSelector } from "./passport-selector"
 
 interface IndividualProcessFormDialogProps {
   open: boolean
@@ -80,7 +88,7 @@ export function IndividualProcessFormDialog({
   const updateIndividualProcess = useMutation(api.individualProcesses.update)
 
   const form = useForm<IndividualProcessFormData>({
-    resolver: zodResolver(individualProcessSchema),
+    resolver: zodResolver(individualProcessSchema) as any,
     defaultValues: {
       mainProcessId: "" as Id<"mainProcesses">,
       dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
@@ -104,6 +112,9 @@ export function IndividualProcessFormDialog({
       rnmDeadline: "",
       appointmentDateTime: "",
       deadlineDate: "",
+      deadlineUnit: "",
+      deadlineQuantity: undefined,
+      deadlineSpecificDate: "",
       isActive: true,
     },
   })
@@ -153,6 +164,9 @@ export function IndividualProcessFormDialog({
         rnmDeadline: individualProcess.rnmDeadline ?? "",
         appointmentDateTime: individualProcess.appointmentDateTime ?? "",
         deadlineDate: individualProcess.deadlineDate ?? "",
+        deadlineUnit: individualProcess.deadlineUnit ?? "",
+        deadlineQuantity: individualProcess.deadlineQuantity,
+        deadlineSpecificDate: individualProcess.deadlineSpecificDate ?? "",
         isActive: individualProcess.isActive,
       })
     } else if (!individualProcessId) {
@@ -179,6 +193,9 @@ export function IndividualProcessFormDialog({
         rnmDeadline: "",
         appointmentDateTime: "",
         deadlineDate: "",
+        deadlineUnit: "",
+        deadlineQuantity: undefined,
+        deadlineSpecificDate: "",
         isActive: true,
       })
     }
@@ -425,6 +442,89 @@ export function IndividualProcessFormDialog({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="passportId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("passport")}</FormLabel>
+                    <FormControl>
+                      <PassportSelector
+                        personId={form.watch("personId")}
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Deadline Information Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("deadlineDate")}</h3>
+
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="deadlineUnit"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>{t("deadlineUnit")}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={t("selectDeadlineUnit")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="years">{t("deadlineUnits.years")}</SelectItem>
+                          <SelectItem value="months">{t("deadlineUnits.months")}</SelectItem>
+                          <SelectItem value="days">{t("deadlineUnits.days")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="deadlineQuantity"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>{t("deadlineQuantity")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder={t("enterDeadlineQuantity")}
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
+                          className="w-full"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="deadlineSpecificDate"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>{t("deadlineSpecificDate")}</FormLabel>
+                      <FormControl>
+                        <DatePicker value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Status Section - Show Initial Status Form when creating, Subtable when editing */}

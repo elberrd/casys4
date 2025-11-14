@@ -71,6 +71,9 @@ export const individualProcessSchema = z.object({
   rnmDeadline: z.string().optional().or(z.literal("")),
   appointmentDateTime: z.string().optional().or(z.literal("")),
   deadlineDate: z.string().optional().or(z.literal("")),
+  deadlineUnit: z.string().optional().or(z.literal("")),
+  deadlineQuantity: z.coerce.number().optional(),
+  deadlineSpecificDate: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 

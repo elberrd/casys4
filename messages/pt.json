@@ -417,6 +417,17 @@
     "rnmDeadline": "Validade do RNM",
     "appointmentDateTime": "Data e Hora do Agendamento",
     "deadlineDate": "Data Limite",
+    "deadlineUnit": "Prazo",
+    "deadlineQuantity": "Quantidade Prazo",
+    "deadlineSpecificDate": "Data do Prazo",
+    "selectDeadlineUnit": "Selecione a unidade de prazo",
+    "enterDeadlineQuantity": "Digite a quantidade",
+    "selectDeadlineDate": "Selecione a data do prazo",
+    "deadlineUnits": {
+      "years": "Ano(s)",
+      "months": "Mes(es)",
+      "days": "Dia(s)"
+    },
     "isActive": "Ativo",
     "selectMainProcess": "Selecione um processo principal",
     "selectPerson": "Selecione um candidato",
@@ -473,7 +484,10 @@
       "rnmNumber": "Número RNM",
       "rnmDeadline": "Validade do RNM",
       "appointmentDateTime": "Data e Hora do Agendamento",
-      "deadlineDate": "Data Limite"
+      "deadlineDate": "Data Limite",
+      "deadlineUnit": "Prazo",
+      "deadlineQuantity": "Quantidade Prazo",
+      "deadlineSpecificDate": "Data do Prazo"
     },
     "fillableFields": "Campos Preenchíveis",
     "selectFieldsToFill": "Selecione campos que podem ser preenchidos a partir deste status",

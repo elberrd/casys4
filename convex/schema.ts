@@ -251,6 +251,10 @@ export default defineSchema({
     rnmDeadline: v.optional(v.string()),
     appointmentDateTime: v.optional(v.string()),
     deadlineDate: v.optional(v.string()),
+    // Deadline fields for tracking process deadlines with granularity
+    deadlineUnit: v.optional(v.string()), // "years", "months", or "days"
+    deadlineQuantity: v.optional(v.number()), // Numeric quantity for the deadline unit
+    deadlineSpecificDate: v.optional(v.string()), // ISO date format YYYY-MM-DD - Specific deadline date
     isActive: v.optional(v.boolean()),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),

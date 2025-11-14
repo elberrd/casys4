@@ -391,6 +391,9 @@ export const create = mutation({
     rnmDeadline: v.optional(v.string()),
     appointmentDateTime: v.optional(v.string()),
     deadlineDate: v.optional(v.string()),
+    deadlineUnit: v.optional(v.string()),
+    deadlineQuantity: v.optional(v.number()),
+    deadlineSpecificDate: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -450,6 +453,9 @@ export const create = mutation({
       rnmDeadline: args.rnmDeadline,
       appointmentDateTime: args.appointmentDateTime,
       deadlineDate: args.deadlineDate,
+      deadlineUnit: args.deadlineUnit,
+      deadlineQuantity: args.deadlineQuantity,
+      deadlineSpecificDate: args.deadlineSpecificDate,
       isActive: args.isActive ?? true,
       createdAt: now,
       updatedAt: now,
@@ -553,6 +559,9 @@ export const update = mutation({
     rnmDeadline: v.optional(v.string()),
     appointmentDateTime: v.optional(v.string()),
     deadlineDate: v.optional(v.string()),
+    deadlineUnit: v.optional(v.string()),
+    deadlineQuantity: v.optional(v.number()),
+    deadlineSpecificDate: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -627,6 +636,12 @@ export const update = mutation({
       updates.appointmentDateTime = args.appointmentDateTime;
     if (args.deadlineDate !== undefined)
       updates.deadlineDate = args.deadlineDate;
+    if (args.deadlineUnit !== undefined)
+      updates.deadlineUnit = args.deadlineUnit;
+    if (args.deadlineQuantity !== undefined)
+      updates.deadlineQuantity = args.deadlineQuantity;
+    if (args.deadlineSpecificDate !== undefined)
+      updates.deadlineSpecificDate = args.deadlineSpecificDate;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     // Mark as completed if status is completed (backward compatibility)

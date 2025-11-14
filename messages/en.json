@@ -417,6 +417,17 @@
     "rnmDeadline": "RNM Deadline",
     "appointmentDateTime": "Appointment Date & Time",
     "deadlineDate": "Deadline Date",
+    "deadlineUnit": "Deadline Unit",
+    "deadlineQuantity": "Deadline Quantity",
+    "deadlineSpecificDate": "Specific Deadline Date",
+    "selectDeadlineUnit": "Select deadline unit",
+    "enterDeadlineQuantity": "Enter quantity",
+    "selectDeadlineDate": "Select deadline date",
+    "deadlineUnits": {
+      "years": "Year(s)",
+      "months": "Month(s)",
+      "days": "Day(s)"
+    },
     "isActive": "Active",
     "selectMainProcess": "Select a main process",
     "selectPerson": "Select a candidate",
@@ -473,7 +484,10 @@
       "rnmNumber": "RNM Number",
       "rnmDeadline": "RNM Deadline",
       "appointmentDateTime": "Appointment Date & Time",
-      "deadlineDate": "Deadline Date"
+      "deadlineDate": "Deadline Date",
+      "deadlineUnit": "Deadline Unit",
+      "deadlineQuantity": "Deadline Quantity",
+      "deadlineSpecificDate": "Specific Deadline Date"
     },
     "fillableFields": "Fillable Fields",
     "selectFieldsToFill": "Select fields that can be filled from this status",
