@@ -111,9 +111,6 @@ export function IndividualProcessFormDialog({
   // Watch process type for cascading legal framework filtering
   const selectedProcessTypeId = form.watch("processTypeId")
 
-  // Watch company applicant for cascading user applicant filtering
-  const selectedCompanyApplicantId = form.watch("companyApplicantId")
-
   // Get filtered legal frameworks based on selected process type
   const filteredLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
@@ -196,15 +193,6 @@ export function IndividualProcessFormDialog({
       form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
     }
   }, [selectedProcessTypeId])
-
-  // Clear user applicant when company applicant changes
-  useEffect(() => {
-    const currentUserApplicantId = form.getValues("userApplicantId")
-    if (currentUserApplicantId) {
-      // Reset user applicant when company changes
-      form.setValue("userApplicantId", "")
-    }
-  }, [selectedCompanyApplicantId])
 
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
@@ -429,7 +417,6 @@ export function IndividualProcessFormDialog({
                     <FormLabel>{t("userApplicant")}</FormLabel>
                     <FormControl>
                       <UserApplicantSelector
-                        companyId={selectedCompanyApplicantId}
                         value={field.value || ""}
                         onChange={field.onChange}
                       />
