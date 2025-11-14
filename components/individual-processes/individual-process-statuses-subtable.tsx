@@ -113,7 +113,13 @@ export function IndividualProcessStatusesSubtable({
   // Date formatting helper
   const formatDateDisplay = (dateString: string): string => {
     try {
-      const date = new Date(dateString);
+      // Parse the date string as local date to avoid timezone issues
+      // ISO format: YYYY-MM-DD
+      const [year, month, day] = dateString.split('-').map(Number);
+      if (!year || !month || !day) return dateString;
+
+      // Create date in local timezone (month is 0-indexed)
+      const date = new Date(year, month - 1, day);
       if (isNaN(date.getTime())) return dateString;
 
       if (locale === "pt") {

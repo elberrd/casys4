@@ -241,6 +241,15 @@ export function IndividualProcessFormPage({
       if (currentValues.deadlineDate !== (individualProcess.deadlineDate ?? "")) {
         updates.deadlineDate = individualProcess.deadlineDate ?? ""
       }
+      if (currentValues.deadlineUnit !== (individualProcess.deadlineUnit ?? "")) {
+        updates.deadlineUnit = individualProcess.deadlineUnit ?? ""
+      }
+      if (currentValues.deadlineQuantity !== individualProcess.deadlineQuantity) {
+        updates.deadlineQuantity = individualProcess.deadlineQuantity
+      }
+      if (currentValues.deadlineSpecificDate !== (individualProcess.deadlineSpecificDate ?? "")) {
+        updates.deadlineSpecificDate = individualProcess.deadlineSpecificDate ?? ""
+      }
 
       // Apply updates if there are any
       if (Object.keys(updates).length > 0) {
@@ -352,11 +361,14 @@ export function IndividualProcessFormPage({
         rnmDeadline: data.rnmDeadline || undefined,
         appointmentDateTime: data.appointmentDateTime || undefined,
         deadlineDate: data.deadlineDate || undefined,
+        deadlineUnit: data.deadlineUnit || undefined,
+        deadlineQuantity: data.deadlineQuantity,
+        deadlineSpecificDate: data.deadlineSpecificDate || undefined,
       }
 
       if (individualProcessId) {
-        // Remove personId from submit data when updating (can't change person of existing process)
-        const { personId, ...updateData } = submitData
+        // Remove personId and mainProcessId from submit data when updating (can't change these on existing process)
+        const { personId, mainProcessId, ...updateData } = submitData
         await updateIndividualProcess({ id: individualProcessId, ...updateData })
         toast({
           title: t("updatedSuccess"),
