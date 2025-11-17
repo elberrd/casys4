@@ -58,7 +58,16 @@
     "searchCountry": "Pesquisar país...",
     "noCountryFound": "Nenhum país encontrado",
     "enterPhoneNumber": "Digite o número de telefone",
-    "days": "dias"
+    "days": "dias",
+    "datePicker": {
+      "invalidFormat": "Formato de data inválido. Use dd/MM/yyyy",
+      "invalidDate": "Por favor, insira uma data válida",
+      "dateOutOfRange": "A data deve estar entre 1900 e 2100",
+      "enterManually": "Digite a data manualmente",
+      "selectFromCalendar": "Selecione do calendário",
+      "invalidDay": "Dia inválido para este mês",
+      "invalidMonth": "Mês deve estar entre 1 e 12"
+    }
   },
   "Navigation": {
     "dashboard": "Painel",
@@ -436,6 +445,7 @@
     "selectPersonFirst": "Por favor, selecione um candidato primeiro",
     "personHasNoPassports": "Esta pessoa não possui passaportes cadastrados",
     "dateProcess": "Data da Solicitação",
+    "dateProcessSyncDescription": "Esta data é sincronizada com a data do andamento 'Em Preparação'",
     "selectDateProcess": "Selecione a data do processo",
     "applicant": "Requerente",
     "selectApplicant": "Selecionar requerente",
@@ -504,6 +514,11 @@
     "filledFields": "Campos Preenchidos",
     "noFieldsFilled": "Nenhum campo preenchido",
     "fieldLabelSeparator": ":",
+    "customFields": "Campos Personalizados",
+    "customFieldsDescription": "Preencha os campos personalizados para este andamento",
+    "fillCustomFields": "Preencher Campos Personalizados",
+    "noCustomFields": "Nenhum campo personalizado disponível",
+    "loadingCustomFields": "Carregando campos personalizados...",
     "statuses": {
       "pending_documents": "Documentos Pendentes",
       "documents_submitted": "Documentos Enviados",
@@ -650,6 +665,10 @@
     "statusAdded": "Status adicionado com sucesso",
     "statusDateUpdated": "Data do andamento atualizada com sucesso",
     "statusUpdated": "Status atualizado com sucesso",
+    "deleteStatus": "Deletar Status",
+    "deleteStatusConfirmTitle": "Deletar Status",
+    "deleteStatusConfirmDescription": "Tem certeza que deseja deletar o status \"{statusName}\"? Esta ação não pode ser desfeita.",
+    "statusDeleted": "Status deletado com sucesso",
     "addStatusDescription": "Adicionar um novo status a este processo",
     "addNotesPlaceholder": "Adicione notas sobre esta mudança de status...",
     "changedBy": "Alterado Por",

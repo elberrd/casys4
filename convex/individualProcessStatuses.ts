@@ -226,6 +226,7 @@ export const addStatus = mutation({
     statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    filledFieldsData: v.optional(v.any()), // Optional: Data for fillable fields
   },
   handler: async (ctx, args) => {
     // Require admin access
@@ -247,6 +248,19 @@ export const addStatus = mutation({
     const caseStatus = await ctx.db.get(args.caseStatusId);
     if (!caseStatus) {
       throw new Error("Case status not found");
+    }
+
+    // Validate filled fields data if provided
+    if (args.filledFieldsData && caseStatus.fillableFields) {
+      const fillableFieldNames = caseStatus.fillableFields;
+      const providedFieldNames = Object.keys(args.filledFieldsData);
+
+      // Check that all provided fields are in the fillableFields list
+      for (const fieldName of providedFieldNames) {
+        if (!fillableFieldNames.includes(fieldName)) {
+          throw new Error(`Field "${fieldName}" is not a fillable field for this status`);
+        }
+      }
     }
 
     const now = Date.now();
@@ -284,10 +298,31 @@ export const addStatus = mutation({
       isActive,
       notes: args.notes,
       fillableFields: caseStatus.fillableFields, // Copy fillable fields from case status
+      filledFieldsData: args.filledFieldsData, // Store filled fields data
       changedBy: userId,
       changedAt: now,
       createdAt: now,
     });
+
+    // Update individual process with filled fields data if provided
+    if (args.filledFieldsData && Object.keys(args.filledFieldsData).length > 0) {
+      // Merge filled fields data with existing individual process data
+      const updateData: any = { updatedAt: now };
+
+      for (const [key, value] of Object.entries(args.filledFieldsData)) {
+        updateData[key] = value;
+      }
+
+      await ctx.db.patch(args.individualProcessId, updateData);
+    }
+
+    // Sync "em preparação" status date to dateProcess
+    if (caseStatus.code === "em_preparacao" && isActive) {
+      await ctx.db.patch(args.individualProcessId, {
+        dateProcess: statusDate,
+        updatedAt: now,
+      });
+    }
 
     // Update the backward compatibility field in individualProcesses
     if (isActive) {
@@ -400,6 +435,19 @@ export const updateStatus = mutation({
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(args.statusId, updates);
+
+    // Sync "em preparação" status date changes back to dateProcess
+    if (args.date !== undefined) {
+      // Get the case status to check if this is "em preparação"
+      const currentCaseStatus = await ctx.db.get(status.caseStatusId);
+      if (currentCaseStatus && currentCaseStatus.code === "em_preparacao") {
+        // Update the individualProcess dateProcess
+        await ctx.db.patch(status.individualProcessId, {
+          dateProcess: args.date,
+          updatedAt: now,
+        });
+      }
+    }
 
     // Update parent individualProcess if this is the active status
     const isActiveStatus = args.isActive === true || status.isActive;

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -480,6 +481,9 @@ export function IndividualProcessFormPage({
                     <FormControl>
                       <DatePicker value={field.value} onChange={field.onChange} />
                     </FormControl>
+                    <FormDescription>
+                      {t("dateProcessSyncDescription")}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

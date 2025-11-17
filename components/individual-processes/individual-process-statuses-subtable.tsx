@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
-import { Pencil, Save, X, Plus, FileEdit } from "lucide-react";
+import { Pencil, Save, X, Plus, FileEdit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 import { AddStatusDialog } from "./add-status-dialog";
 import { FillFieldsModal } from "./fill-fields-modal";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
@@ -45,6 +46,12 @@ export function IndividualProcessStatusesSubtable({
     open: boolean;
     statusId: Id<"individualProcessStatuses"> | null;
   }>({ open: false, statusId: null });
+  const [deleteConfirmationState, setDeleteConfirmationState] = useState<{
+    open: boolean;
+    statusId: Id<"individualProcessStatuses"> | null;
+    statusName: string;
+  }>({ open: false, statusId: null, statusName: "" });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Query status history
   const statuses = useQuery(api.individualProcessStatuses.getStatusHistory, {
@@ -56,6 +63,9 @@ export function IndividualProcessStatusesSubtable({
 
   // Mutation to update status
   const updateStatus = useMutation(api.individualProcessStatuses.updateStatus);
+
+  // Mutation to delete status
+  const deleteStatus = useMutation(api.individualProcessStatuses.deleteStatus);
 
   const isAdmin = userRole === "admin";
 
@@ -97,6 +107,33 @@ export function IndividualProcessStatusesSubtable({
     setEditingId(null);
     setEditDate("");
     setEditCaseStatusId(null);
+  };
+
+  const handleDeleteClick = (
+    statusId: Id<"individualProcessStatuses">,
+    statusName: string
+  ) => {
+    setDeleteConfirmationState({
+      open: true,
+      statusId,
+      statusName,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmationState.statusId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteStatus({ statusId: deleteConfirmationState.statusId });
+      toast.success(t("statusDeleted"));
+      setDeleteConfirmationState({ open: false, statusId: null, statusName: "" });
+    } catch (error: any) {
+      console.error("Error deleting status:", error);
+      toast.error(error.message || tCommon("error"));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (!statuses) {
@@ -265,6 +302,19 @@ export function IndividualProcessStatusesSubtable({
                               <Pencil className="h-4 w-4" />
                               <span className="sr-only">{t("editStatus")}</span>
                             </Button>
+                            {/* Delete button - only for inactive statuses */}
+                            {!status.isActive && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteClick(status._id, caseStatusName || status.statusName)}
+                                title={t("deleteStatus")}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">{t("deleteStatus")}</span>
+                              </Button>
+                            )}
                           </div>
                         )}
                       </TableCell>
@@ -294,6 +344,19 @@ export function IndividualProcessStatusesSubtable({
           onOpenChange={(open) => setFillFieldsModalState({ open, statusId: null })}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteConfirmationState.open}
+        onOpenChange={(open) => !isDeleting && setDeleteConfirmationState({ ...deleteConfirmationState, open })}
+        title={t("deleteStatusConfirmTitle")}
+        description={t("deleteStatusConfirmDescription", { statusName: deleteConfirmationState.statusName })}
+        confirmText={t("deleteStatus")}
+        cancelText={tCommon("cancel")}
+        onConfirm={handleConfirmDelete}
+        variant="destructive"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

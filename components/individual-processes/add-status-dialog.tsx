@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   Select,
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
+import { DynamicFieldRenderer } from "./dynamic-field-renderer";
+import { getFieldsMetadata } from "@/lib/individual-process-fields";
 
 interface AddStatusDialogProps {
   individualProcessId: Id<"individualProcesses">;
@@ -46,11 +48,22 @@ export function AddStatusDialog({
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"caseStatuses"> | "">("");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
   const [notes, setNotes] = useState("");
+  const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Query active case statuses
   const caseStatuses = useQuery(api.caseStatuses.listActive);
   const addStatus = useMutation(api.individualProcessStatuses.addStatus);
+
+  // Query fillable fields for the selected status
+  const fillableFieldsData = useQuery(
+    api.caseStatuses.getFillableFieldsForCaseStatus,
+    selectedStatusId && selectedStatusId !== "" ? { caseStatusId: selectedStatusId as Id<"caseStatuses"> } : "skip"
+  );
+
+  // Get field metadata for the fillable fields
+  const fillableFields = fillableFieldsData?.fillableFields || [];
+  const fieldsMetadata = getFieldsMetadata(fillableFields);
 
   // Query current active status for this individual process
   const activeStatus = useQuery(
@@ -79,6 +92,18 @@ export function AddStatusDialog({
     }
   }, [open, suggestedNextStatus]);
 
+  // Reset form data when status changes or dialog closes
+  useEffect(() => {
+    if (!open) {
+      setFormData({});
+    }
+  }, [open]);
+
+  // Clear form data when status changes
+  useEffect(() => {
+    setFormData({});
+  }, [selectedStatusId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent event from bubbling to parent form
@@ -97,11 +122,20 @@ export function AddStatusDialog({
     setIsSubmitting(true);
 
     try {
+      // Filter out empty values from form data
+      const filteredFormData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(formData)) {
+        if (value !== "" && value !== null && value !== undefined) {
+          filteredFormData[key] = value;
+        }
+      }
+
       await addStatus({
         individualProcessId,
         caseStatusId: selectedStatusId as Id<"caseStatuses">,
         date: date || undefined,
         notes: notes || undefined,
+        filledFieldsData: Object.keys(filteredFormData).length > 0 ? filteredFormData : undefined,
       });
 
       toast.success(t("statusAdded"));
@@ -111,12 +145,20 @@ export function AddStatusDialog({
       setSelectedStatusId("");
       setDate(new Date().toISOString().split('T')[0]);
       setNotes("");
+      setFormData({});
     } catch (error) {
       console.error("Error adding status:", error);
       toast.error(tCommon("error"));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFieldChange = (fieldName: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldName]: value,
+    }));
   };
 
   return (
@@ -217,6 +259,46 @@ export function AddStatusDialog({
                 rows={3}
               />
             </div>
+
+            {/* Dynamic Fields Section */}
+            {selectedStatusId && selectedStatusId !== "" && (
+              <>
+                {fillableFieldsData === undefined ? (
+                  // Show loading state while fetching fillable fields
+                  <>
+                    <Separator className="my-2" />
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium">{t("customFields")}</h3>
+                      <DynamicFieldRenderer
+                        fieldsMetadata={[]}
+                        formData={formData}
+                        onFieldChange={handleFieldChange}
+                        isLoading={true}
+                      />
+                    </div>
+                  </>
+                ) : fieldsMetadata.length > 0 ? (
+                  // Show dynamic fields if available
+                  <>
+                    <Separator className="my-2" />
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-medium">{t("customFields")}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {t("customFieldsDescription")}
+                        </p>
+                      </div>
+                      <DynamicFieldRenderer
+                        fieldsMetadata={fieldsMetadata}
+                        formData={formData}
+                        onFieldChange={handleFieldChange}
+                        isLoading={false}
+                      />
+                    </div>
+                  </>
+                ) : null}
+              </>
+            )}
           </div>
 
           <DialogFooter>

@@ -58,7 +58,16 @@
     "searchCountry": "Search country...",
     "noCountryFound": "No country found",
     "enterPhoneNumber": "Enter phone number",
-    "days": "days"
+    "days": "days",
+    "datePicker": {
+      "invalidFormat": "Invalid date format. Use MM/dd/yyyy",
+      "invalidDate": "Please enter a valid date",
+      "dateOutOfRange": "Date must be between 1900 and 2100",
+      "enterManually": "Type date manually",
+      "selectFromCalendar": "Select from calendar",
+      "invalidDay": "Invalid day for this month",
+      "invalidMonth": "Month must be between 1 and 12"
+    }
   },
   "Navigation": {
     "dashboard": "Dashboard",
@@ -436,6 +445,7 @@
     "selectPersonFirst": "Please select a candidate first",
     "personHasNoPassports": "This person has no passports registered",
     "dateProcess": "Request Date",
+    "dateProcessSyncDescription": "This date is synchronized with the 'In Preparation' progress entry date",
     "selectDateProcess": "Select process date",
     "applicant": "Applicant",
     "selectApplicant": "Select applicant",
@@ -504,6 +514,11 @@
     "filledFields": "Filled Fields",
     "noFieldsFilled": "No fields filled",
     "fieldLabelSeparator": ":",
+    "customFields": "Custom Fields",
+    "customFieldsDescription": "Fill in the custom fields for this status",
+    "fillCustomFields": "Fill Custom Fields",
+    "noCustomFields": "No custom fields available",
+    "loadingCustomFields": "Loading custom fields...",
     "statuses": {
       "pending_documents": "Pending Documents",
       "documents_submitted": "Documents Submitted",
@@ -651,6 +666,10 @@
     "statusAdded": "Status added successfully",
     "statusDateUpdated": "Progress date updated successfully",
     "statusUpdated": "Status updated successfully",
+    "deleteStatus": "Delete Status",
+    "deleteStatusConfirmTitle": "Delete Status",
+    "deleteStatusConfirmDescription": "Are you sure you want to delete the status \"{statusName}\"? This action cannot be undone.",
+    "statusDeleted": "Status deleted successfully",
     "addStatusDescription": "Add a new status to this process",
     "addNotesPlaceholder": "Add any notes about this status change...",
     "changedBy": "Changed By",

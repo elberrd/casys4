@@ -130,7 +130,16 @@ export function StatusHistoryTimeline({ individualProcessId }: StatusHistoryTime
                       <Calendar className="h-3 w-3" />
                       <span className="font-medium">{t('statusDate')}:</span>
                       <span>
-                        {format(new Date(status.date), 'PPP', { locale: dateLocale })}
+                        {(() => {
+                          // Parse date string as local date to avoid timezone issues
+                          // ISO format: YYYY-MM-DD
+                          const [year, month, day] = status.date.split('-').map(Number);
+                          if (!year || !month || !day) return status.date;
+                          // Create date in local timezone (month is 0-indexed)
+                          const localDate = new Date(year, month - 1, day);
+                          if (isNaN(localDate.getTime())) return status.date;
+                          return format(localDate, 'PPP', { locale: dateLocale });
+                        })()}
                       </span>
                     </div>
                   )}

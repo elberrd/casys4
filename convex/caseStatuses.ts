@@ -353,3 +353,23 @@ export const getNextStatusByOrderNumber = query({
     return null;
   },
 });
+
+/**
+ * Query to get fillable fields configuration for a case status
+ * Returns the fillableFields array if it exists
+ * Used by AddStatusDialog to dynamically render custom fields
+ */
+export const getFillableFieldsForCaseStatus = query({
+  args: { caseStatusId: v.id("caseStatuses") },
+  handler: async (ctx, { caseStatusId }) => {
+    const caseStatus = await ctx.db.get(caseStatusId);
+
+    if (!caseStatus) {
+      return { fillableFields: undefined };
+    }
+
+    return {
+      fillableFields: caseStatus.fillableFields
+    };
+  },
+});

@@ -8,7 +8,7 @@ import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
-import { ensureSingleActiveStatus } from "./lib/statusManagement";
+import { ensureSingleActiveStatus, getEmPreparacaoStatus } from "./lib/statusManagement";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
@@ -466,11 +466,14 @@ export const create = mutation({
       // Format current date as ISO date string (YYYY-MM-DD)
       const currentDate = new Date(now).toISOString().split('T')[0];
 
+      // Use provided dateProcess or default to today for "em preparação" status
+      const statusDate = args.dateProcess || currentDate;
+
       await ctx.db.insert("individualProcessStatuses", {
         individualProcessId: processId,
         caseStatusId: caseStatus._id, // Store case status ID
         statusName: caseStatus.name, // DEPRECATED: Store case status name for backward compatibility
-        date: currentDate, // ISO date format YYYY-MM-DD
+        date: statusDate, // ISO date format YYYY-MM-DD - sync with dateProcess
         isActive: true,
         notes: `Initial status: ${caseStatus.name}`,
         changedBy: userId,
@@ -650,6 +653,16 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updates);
+
+    // Sync dateProcess changes to "em preparação" status
+    if (args.dateProcess !== undefined) {
+      const emPreparacaoStatus = await getEmPreparacaoStatus(ctx, id);
+      if (emPreparacaoStatus && emPreparacaoStatus.date !== args.dateProcess) {
+        await ctx.db.patch(emPreparacaoStatus._id, {
+          date: args.dateProcess,
+        });
+      }
+    }
 
     // Log status change to history and create new status record if status was updated
     if (isStatusChanging && newCaseStatus) {
