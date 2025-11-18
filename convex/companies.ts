@@ -43,6 +43,9 @@ export const list = query({
         (company) =>
           normalizeString(company.name).includes(searchNormalized) ||
           (company.address && normalizeString(company.address).includes(searchNormalized)) ||
+          (company.addressStreet && normalizeString(company.addressStreet).includes(searchNormalized)) ||
+          (company.addressNeighborhood && normalizeString(company.addressNeighborhood).includes(searchNormalized)) ||
+          (company.addressPostalCode && normalizeString(company.addressPostalCode).includes(searchNormalized)) ||
           (company.email && normalizeString(company.email).includes(searchNormalized))
       );
     }
@@ -150,8 +153,14 @@ export const create = mutation({
   args: {
     name: v.string(),
     taxId: v.optional(v.string()),
+    openingDate: v.optional(v.string()),
     website: v.optional(v.string()),
-    address: v.optional(v.string()),
+    address: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
+    addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     cityId: v.optional(v.id("cities")),
     phoneNumber: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -168,8 +177,14 @@ export const create = mutation({
     const companyId = await ctx.db.insert("companies", {
       name: args.name,
       taxId: args.taxId,
+      openingDate: args.openingDate,
       website: args.website,
       address: args.address,
+      addressStreet: args.addressStreet,
+      addressNumber: args.addressNumber,
+      addressComplement: args.addressComplement,
+      addressNeighborhood: args.addressNeighborhood,
+      addressPostalCode: args.addressPostalCode,
       cityId: args.cityId,
       phoneNumber: args.phoneNumber,
       email: args.email,
@@ -215,8 +230,14 @@ export const update = mutation({
     id: v.id("companies"),
     name: v.string(),
     taxId: v.optional(v.string()),
+    openingDate: v.optional(v.string()),
     website: v.optional(v.string()),
-    address: v.optional(v.string()),
+    address: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
+    addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     cityId: v.optional(v.id("cities")),
     phoneNumber: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -238,8 +259,14 @@ export const update = mutation({
     await ctx.db.patch(id, {
       name: data.name,
       taxId: data.taxId,
+      openingDate: data.openingDate,
       website: data.website,
       address: data.address,
+      addressStreet: data.addressStreet,
+      addressNumber: data.addressNumber,
+      addressComplement: data.addressComplement,
+      addressNeighborhood: data.addressNeighborhood,
+      addressPostalCode: data.addressPostalCode,
       cityId: data.cityId,
       phoneNumber: data.phoneNumber,
       email: data.email,
@@ -347,5 +374,158 @@ export const remove = mutation({
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
+  },
+});
+
+/**
+ * Query to get all economic activities for a company
+ */
+export const getEconomicActivities = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    // Get all junction table entries for this company
+    const links = await ctx.db
+      .query("companiesEconomicActivities")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    // Fetch the actual economic activity data
+    const activities = await Promise.all(
+      links.map(async (link) => {
+        const activity = await ctx.db.get(link.economicActivityId);
+        return activity;
+      })
+    );
+
+    // Filter out any null values (in case an activity was deleted)
+    return activities.filter((activity) => activity !== null);
+  },
+});
+
+/**
+ * Mutation to add an economic activity to a company
+ */
+export const addEconomicActivity = mutation({
+  args: {
+    companyId: v.id("companies"),
+    economicActivityId: v.id("economicActivities"),
+  },
+  handler: async (ctx, { companyId, economicActivityId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Verify company exists
+    const company = await ctx.db.get(companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    // Verify economic activity exists
+    const activity = await ctx.db.get(economicActivityId);
+    if (!activity) {
+      throw new Error("Economic activity not found");
+    }
+
+    // Check for duplicate link
+    const existingLink = await ctx.db
+      .query("companiesEconomicActivities")
+      .withIndex("by_company_economicActivity", (q) =>
+        q.eq("companyId", companyId).eq("economicActivityId", economicActivityId)
+      )
+      .first();
+
+    if (existingLink) {
+      // Already linked, just return the existing ID
+      return existingLink._id;
+    }
+
+    // Create the link
+    const linkId = await ctx.db.insert("companiesEconomicActivities", {
+      companyId,
+      economicActivityId,
+      createdAt: Date.now(),
+      createdBy: userProfile.userId as Id<"users">,
+    });
+
+    return linkId;
+  },
+});
+
+/**
+ * Mutation to remove an economic activity from a company
+ */
+export const removeEconomicActivity = mutation({
+  args: {
+    companyId: v.id("companies"),
+    economicActivityId: v.id("economicActivities"),
+  },
+  handler: async (ctx, { companyId, economicActivityId }) => {
+    await getCurrentUserProfile(ctx);
+
+    // Find the link
+    const link = await ctx.db
+      .query("companiesEconomicActivities")
+      .withIndex("by_company_economicActivity", (q) =>
+        q.eq("companyId", companyId).eq("economicActivityId", economicActivityId)
+      )
+      .first();
+
+    if (!link) {
+      // Already removed or never existed
+      return;
+    }
+
+    // Delete the link
+    await ctx.db.delete(link._id);
+  },
+});
+
+/**
+ * Mutation to set all economic activities for a company (replaces existing)
+ * This is used when saving company forms to sync the economic activities
+ */
+export const setEconomicActivities = mutation({
+  args: {
+    companyId: v.id("companies"),
+    economicActivityIds: v.array(v.id("economicActivities")),
+  },
+  handler: async (ctx, { companyId, economicActivityIds }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Verify company exists
+    const company = await ctx.db.get(companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    // Get all existing links
+    const existingLinks = await ctx.db
+      .query("companiesEconomicActivities")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const existingIds = existingLinks.map((link) => link.economicActivityId);
+    const newIds = economicActivityIds;
+
+    // Find activities to add (in newIds but not in existingIds)
+    const toAdd = newIds.filter((id) => !existingIds.includes(id));
+
+    // Find activities to remove (in existingIds but not in newIds)
+    const toRemove = existingLinks.filter((link) => !newIds.includes(link.economicActivityId));
+
+    // Remove old links
+    await Promise.all(toRemove.map((link) => ctx.db.delete(link._id)));
+
+    // Add new links
+    const now = Date.now();
+    await Promise.all(
+      toAdd.map((activityId) =>
+        ctx.db.insert("companiesEconomicActivities", {
+          companyId,
+          economicActivityId: activityId,
+          createdAt: now,
+          createdBy: userProfile.userId as Id<"users">,
+        })
+      )
+    );
   },
 });

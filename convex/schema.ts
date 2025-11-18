@@ -62,7 +62,7 @@ export default defineSchema({
   })
     .index("by_active", ["isActive"]),
 
-  // Legal Frameworks - Now has many-to-many relationship with Process Types via junction table
+  // Legal Frameworks - Now has many-to-many relationship with Authorization Types via junction table
   // BREAKING CHANGE: Removed processTypeId field - use processTypesLegalFrameworks junction table instead
   legalFrameworks: defineTable({
     name: v.string(),
@@ -71,7 +71,7 @@ export default defineSchema({
   })
     .index("by_active", ["isActive"]),
 
-  // Junction table for many-to-many relationship between Process Types and Legal Frameworks
+  // Junction table for many-to-many relationship between Authorization Types and Legal Frameworks
   processTypesLegalFrameworks: defineTable({
     processTypeId: v.id("processTypes"),
     legalFrameworkId: v.id("legalFrameworks"),
@@ -107,11 +107,18 @@ export default defineSchema({
     .index("by_nationality", ["nationalityId"])
     .index("by_currentCity", ["currentCityId"]),
 
+  // Companies - Has many-to-many relationship with Economic Activities via companiesEconomicActivities junction table
   companies: defineTable({
     name: v.string(),
     taxId: v.optional(v.string()),
+    openingDate: v.optional(v.string()), // ISO date format YYYY-MM-DD - Company opening/establishment date
     website: v.optional(v.string()),
-    address: v.optional(v.string()),
+    address: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility, use separated address fields below
+    addressStreet: v.optional(v.string()), // Logradouro (street name)
+    addressNumber: v.optional(v.string()), // Número
+    addressComplement: v.optional(v.string()), // Complemento (apt, suite, etc.)
+    addressNeighborhood: v.optional(v.string()), // Bairro
+    addressPostalCode: v.optional(v.string()), // CEP (Brazilian postal code)
     cityId: v.optional(v.id("cities")),
     phoneNumber: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -124,6 +131,29 @@ export default defineSchema({
     .index("by_city", ["cityId"])
     .index("by_taxId", ["taxId"])
     .index("by_active", ["isActive"]),
+
+  // Economic Activities - Support data for company business activities
+  economicActivities: defineTable({
+    name: v.string(),
+    code: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_code", ["code"]),
+
+  // Junction table for many-to-many relationship between Companies and Economic Activities
+  companiesEconomicActivities: defineTable({
+    companyId: v.id("companies"),
+    economicActivityId: v.id("economicActivities"),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_economicActivity", ["economicActivityId"])
+    .index("by_company_economicActivity", ["companyId", "economicActivityId"]),
 
   passports: defineTable({
     personId: v.optional(v.id("people")),
@@ -238,7 +268,7 @@ export default defineSchema({
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
-    processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
+    processTypeId: v.optional(v.id("processTypes")), // Authorization type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
     mreOfficeNumber: v.optional(v.string()),
@@ -268,7 +298,7 @@ export default defineSchema({
     .index("by_userApplicant", ["userApplicantId"]) // Index for user applicant filtering
     .index("by_status", ["status"])
     .index("by_caseStatus", ["caseStatusId"]) // New index
-    .index("by_processType", ["processTypeId"]) // Index for process type filtering
+    .index("by_processType", ["processTypeId"]) // Index for authorization type filtering
     .index("by_legalFramework", ["legalFrameworkId"])
     .index("by_active", ["isActive"]),
 
@@ -340,7 +370,7 @@ export default defineSchema({
     .index("by_reviewedBy", ["reviewedBy"])
     .index("by_approvedMainProcess", ["approvedMainProcessId"]),
 
-  // Document Template System - Admin-created templates for process types
+  // Document Template System - Admin-created templates for authorization types
   documentTemplates: defineTable({
     name: v.string(),
     description: v.string(),

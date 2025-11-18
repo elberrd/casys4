@@ -6,6 +6,9 @@ import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 // CNPJ validation regex (accepts both formatted XX.XXX.XXX/XXXX-XX and unformatted XXXXXXXXXXXXXX)
 const cnpjRegex = /^(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})$/;
 
+// CEP validation regex (accepts both formatted XXXXX-XXX and unformatted XXXXXXXX)
+const cepRegex = /^\d{5}-?\d{3}$/;
+
 export const companySchema = z.object({
   name: z.string().min(1, "Company name is required"),
   taxId: z
@@ -17,8 +20,18 @@ export const companySchema = z.object({
     .transform((val) => (val ? cleanDocumentNumber(val) : val))
     .optional()
     .or(z.literal("")),
+  openingDate: z.string().optional().or(z.literal("")), // ISO date format YYYY-MM-DD
   website: z.string().url("Invalid URL format").optional().or(z.literal("")),
-  address: z.string().min(1, "Address must be valid").optional().or(z.literal("")),
+  address: z.string().min(1, "Address must be valid").optional().or(z.literal("")), // DEPRECATED: Kept for backward compatibility
+  addressStreet: z.string().optional().or(z.literal("")),
+  addressNumber: z.string().optional().or(z.literal("")),
+  addressComplement: z.string().optional().or(z.literal("")),
+  addressNeighborhood: z.string().optional().or(z.literal("")),
+  addressPostalCode: z
+    .string()
+    .regex(cepRegex, "Invalid CEP format. Use XXXXX-XXX")
+    .optional()
+    .or(z.literal("")),
   cityId: z
     .custom<Id<"cities">>((val) => typeof val === "string", {
       message: "City ID must be valid",
@@ -33,6 +46,7 @@ export const companySchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  economicActivityIds: z.array(z.custom<Id<"economicActivities">>()).optional(),
   isActive: z.boolean().optional(),
   notes: z.string().optional().or(z.literal("")),
 });
@@ -51,6 +65,7 @@ export const companyQuickCreateSchema = z.object({
     .transform((val) => (val ? cleanDocumentNumber(val) : val))
     .optional()
     .or(z.literal("")),
+  openingDate: z.string().optional().or(z.literal("")), // ISO date format YYYY-MM-DD
   email: z.string().email("Invalid email format").optional().or(z.literal("")),
   phoneNumber: optionalPhoneNumberSchema,
   cityId: z

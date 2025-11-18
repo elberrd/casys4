@@ -1,318 +1,541 @@
-# TODO: Dynamic Field Rendering in "Adicionar Status" Modal
+# TODO: Economic Activity (Atividade Econômica) Feature
 
 ## Context
 
-The "Adicionar status" (Add status) modal currently only allows users to select a status and date. However, some statuses have custom fillable fields that need to be completed when the status is added. This enhancement will dynamically show these custom fields in the "Adicionar status" modal based on the selected status.
+Implement a complete Economic Activity management feature that allows users to:
+- Create and manage economic activities in a dedicated page under "Dados de Suporte" (Support Data)
+- Associate multiple economic activities with companies (many-to-many relationship)
+- Quick-create new economic activities directly from the company form using a Combobox component
 
-## Current System Understanding
-
-- The system has a `FillFieldsModal` component that shows custom fields for existing statuses
-- Case statuses (`caseStatuses` table) have a `fillableFields` array defining which fields can be filled
-- The `AddStatusDialog` component currently exists but doesn't show custom fields
-- Field metadata is centralized in `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts`
-- The `getFillableFields` query exists in `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts`
+This follows the same pattern established for cities in the company table, where users can create new cities inline while creating/editing companies.
 
 ## Related PRD Sections
 
-Not applicable - no PRD file exists yet.
+This feature extends the existing company management system and support data infrastructure. It follows established patterns for:
+- Convex database schema and queries
+- Combobox components with inline creation functionality
+- Support data pages (cities, states, countries, etc.)
+- Many-to-many relationships (similar to processTypesLegalFrameworks)
 
 ## Task Sequence
 
-### 0. Project Structure Analysis (ALWAYS FIRST)
+### 0. Project Structure Analysis
 
 **Objective**: Understand the project structure and determine correct file/folder locations
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing file structure for status management
-  - Validation: Confirmed `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/` contains status-related components
-  - Output: All status components are in `components/individual-processes/` directory
+- [x] 0.1: Review project architecture and existing patterns
+  - Validation: Identified schema patterns, Convex queries/mutations structure, component locations
+  - Output: Files will be created following these patterns:
+    - Schema: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+    - Queries/Mutations: `/Users/elberrd/Documents/Development/clientes/casys4/convex/economicActivities.ts`
+    - Page: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/economic-activities/page.tsx`
+    - Client Component: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/economic-activities/economic-activities-client.tsx`
+    - Form Dialog: `/Users/elberrd/Documents/Development/clientes/casys4/components/economic-activities/economic-activity-form-dialog.tsx`
+    - Validation: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/economic-activities.ts`
 
-- [x] 0.2: Identify reusable patterns from FillFieldsModal
-  - Validation: Reviewed `fill-fields-modal.tsx` for field rendering logic
-  - Output: Field rendering logic can be extracted and reused
+- [x] 0.2: Identify existing similar implementations for reference
+  - Validation: Cities implementation provides the model for:
+    - Combobox with inline creation (`onCreateNew` prop)
+    - Basic CRUD operations with admin/user permissions
+    - Support data table structure
+  - Output: Will replicate city pattern for economic activities
 
-- [x] 0.3: Verify data structure for fillableFields
-  - Validation: Checked schema.ts and caseStatuses.ts
-  - Output: `caseStatuses.fillableFields` is an optional array of strings
+- [x] 0.3: Identify many-to-many relationship pattern
+  - Validation: Found `processTypesLegalFrameworks` junction table pattern in schema
+  - Output: Will create `companiesEconomicActivities` junction table
 
 #### Quality Checklist:
 
-- [x] Project structure reviewed and understood
+- [x] PRD structure reviewed and understood
 - [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified and will be followed
+- [x] Naming conventions identified (camelCase for table names, kebab-case for routes)
 - [x] No duplicate functionality will be created
 
-### 1. Create Query to Fetch Fillable Fields for Case Status
+### 1. Database Schema Implementation
 
-**Objective**: Add a Convex query to retrieve fillable fields configuration for a case status before a status record is created
-
-#### Sub-tasks:
-
-- [ ] 1.1: Add new query `getFillableFieldsForCaseStatus` in `/Users/elberrd/Documents/Development/clientes/casys4/convex/caseStatuses.ts`
-  - Validation: Query accepts `caseStatusId` and returns `fillableFields` array
-  - Dependencies: None
-  - Implementation: Simple query that gets case status and returns fillableFields
-
-- [ ] 1.2: Test query returns correct data structure
-  - Validation: Query returns `{ fillableFields: string[] }` or `{ fillableFields: undefined }`
-  - Dependencies: Task 1.1 must be completed
-
-#### Quality Checklist:
-
-- [ ] TypeScript types defined (no `any`)
-- [ ] Query follows existing Convex patterns in caseStatuses.ts
-- [ ] Clean code principles followed
-- [ ] Error handling for non-existent case status
-
-### 2. Extract Reusable Field Rendering Logic
-
-**Objective**: Create a shared component for rendering dynamic fields that both FillFieldsModal and AddStatusDialog can use
+**Objective**: Create database tables for Economic Activities and company relationships
 
 #### Sub-tasks:
 
-- [ ] 2.1: Create new component `DynamicFieldRenderer` in `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/dynamic-field-renderer.tsx`
-  - Validation: Component accepts props for field metadata, form data, and change handlers
-  - Dependencies: None
-  - Implementation:
-    - Extract rendering logic from FillFieldsModal
-    - Create TypeScript interface for props
-    - Support string, date, datetime, and reference field types
+- [x] 1.1: Add `economicActivities` table to schema
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Fields:
+    - `name: v.string()` - Economic activity name (required)
+    - `code: v.optional(v.string())` - Optional activity code/identifier
+    - `description: v.optional(v.string())` - Optional description
+    - `isActive: v.boolean()` - Active status flag
+    - `createdAt: v.number()` - Timestamp
+    - `updatedAt: v.number()` - Timestamp
+  - Indexes:
+    - `by_active` on `isActive`
+    - `by_code` on `code`
+  - Validation: Schema compiles without errors, follows existing table patterns
 
-- [ ] 2.2: Refactor FillFieldsModal to use DynamicFieldRenderer
-  - Validation: FillFieldsModal works exactly as before, no regression
-  - Dependencies: Task 2.1 must be completed
-  - Implementation: Replace inline field rendering with DynamicFieldRenderer component
+- [x] 1.2: Add `companiesEconomicActivities` junction table to schema
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Fields:
+    - `companyId: v.id("companies")` - Reference to company
+    - `economicActivityId: v.id("economicActivities")` - Reference to economic activity
+    - `createdAt: v.number()` - Timestamp
+    - `createdBy: v.id("users")` - User who created the relationship
+  - Indexes:
+    - `by_company` on `companyId`
+    - `by_economicActivity` on `economicActivityId`
+    - `by_company_economicActivity` on `["companyId", "economicActivityId"]` - Composite index for uniqueness
+  - Validation: Junction table follows `processTypesLegalFrameworks` pattern exactly
 
-- [ ] 2.3: Add loading state support to DynamicFieldRenderer
-  - Validation: Component shows skeleton loaders while data is fetching
-  - Dependencies: Task 2.1 must be completed
-  - Implementation: Accept `isLoading` prop and render Skeleton components
+- [x] 1.3: Update companies table schema documentation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add comment noting economic activities relationship is via junction table
+  - Validation: Documentation is clear for future developers
 
 #### Quality Checklist:
 
-- [ ] TypeScript types defined (no `any`)
-- [ ] Component is properly abstracted and reusable
-- [ ] Props interface clearly defined
-- [ ] Clean code principles followed
-- [ ] Component handles all field types (string, date, datetime, reference)
-- [ ] Loading states implemented with proper UI feedback
-- [ ] No breaking changes to FillFieldsModal
+- [x] TypeScript types auto-generated by Convex
+- [x] No `any` types in schema
+- [x] All indexes properly defined for query optimization
+- [x] Junction table prevents duplicate company-activity pairs
+- [x] Clean code principles followed
+- [x] Schema follows existing naming conventions
 
-### 3. Enhance AddStatusDialog with Dynamic Field Rendering
+### 2. Convex Queries and Mutations
 
-**Objective**: Modify AddStatusDialog to fetch and display fillable fields based on selected status
+**Objective**: Implement backend CRUD operations for Economic Activities
 
 #### Sub-tasks:
 
-- [ ] 3.1: Add query to fetch fillable fields when status is selected in `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/add-status-dialog.tsx`
-  - Validation: Uses the new `getFillableFieldsForCaseStatus` query
-  - Dependencies: Task 1.1 must be completed
-  - Implementation:
-    - Add `useQuery` hook for fillable fields
-    - Pass `selectedStatusId` to query (use "skip" when empty)
-    - Store query result in component state
+- [x] 2.1: Create `economicActivities.ts` file with list query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/economicActivities.ts`
+  - Implement `list` query with:
+    - Optional `isActive` filter
+    - Optional `search` parameter with accent-insensitive search (using `normalizeString`)
+    - Search across name, code, and description fields
+    - Return all economic activities (admin sees all, any authenticated user can view)
+  - Validation: Query returns filtered results correctly, follows `cities.list` pattern
 
-- [ ] 3.2: Add state management for dynamic field values
-  - Validation: Form can track values for any number of dynamic fields
-  - Dependencies: None
-  - Implementation:
-    - Add `formData` state: `Record<string, any>`
-    - Add handler function to update field values
-    - Reset formData when dialog closes or status changes
+- [x] 2.2: Implement `listActive` query
+  - Query active economic activities only
+  - Used for dropdown selections
+  - No authentication required (any authenticated user can view)
+  - Validation: Returns only active economic activities
 
-- [ ] 3.3: Integrate DynamicFieldRenderer component
-  - Validation: Dynamic fields render when status has fillableFields
-  - Dependencies: Tasks 2.1, 3.1, and 3.2 must be completed
-  - Implementation:
-    - Import DynamicFieldRenderer
-    - Pass fillable fields metadata using getFieldsMetadata
-    - Wire up formData and change handlers
-    - Show loading state while query is fetching
+- [x] 2.3: Implement `get` query
+  - Fetch single economic activity by ID
+  - Include usage count (number of companies using this activity)
+  - Validation: Returns economic activity with related data
 
-- [ ] 3.4: Update form submission to include dynamic field values
-  - Validation: Dynamic field values are passed to addStatus mutation
-  - Dependencies: Task 3.2 must be completed
-  - Implementation:
-    - Extend addStatus mutation call to accept filledFieldsData
-    - Only include fields that have values (filter out empty strings)
+- [x] 2.4: Implement `create` mutation
+  - Allow any authenticated user to create (for quick-create from forms)
+  - Arguments: name, code (optional), description (optional), isActive (default true)
+  - Validation:
+    - Name is required and non-empty
+    - Check for duplicate names (case-insensitive)
+  - Return: Created economic activity ID
+  - Validation: Follows `cities.create` permission pattern
 
-- [ ] 3.5: Add visual separation between standard and dynamic fields
-  - Validation: UI clearly shows which fields are standard and which are custom
-  - Dependencies: Task 3.3 must be completed
-  - Implementation:
-    - Add Separator component before dynamic fields section
-    - Add descriptive heading for dynamic fields section
-    - Use conditional rendering (only show section if fields exist)
+- [x] 2.5: Implement `update` mutation (admin only)
+  - Require admin role using `requireAdmin`
+  - Update name, code, description, isActive
+  - Log activity using `internal.activityLogs.logActivity` (track changes)
+  - Validation: Only admins can update, activity logged correctly
+
+- [x] 2.6: Implement `remove` mutation (admin only)
+  - Require admin role
+  - Check if economic activity is used by any companies (via junction table)
+  - If in use, throw error preventing deletion
+  - If not in use, allow deletion
+  - Log deletion activity
+  - Validation: Cannot delete activities in use, deletion logged
+
+- [x] 2.7: Implement junction table queries in `companies.ts`
+  - Add `getEconomicActivities` query to fetch all economic activities for a company
+  - Add `addEconomicActivity` mutation to link economic activity to company
+  - Add `removeEconomicActivity` mutation to unlink economic activity from company
+  - Prevent duplicate links (check before inserting)
+  - Validation: Junction table operations work correctly
 
 #### Quality Checklist:
 
-- [ ] TypeScript types defined (no `any`)
-- [ ] Clean code principles followed
-- [ ] Proper error handling implemented
-- [ ] Loading states provide clear user feedback
-- [ ] Form validation works for all field types
-- [ ] Dialog properly resets state when closed
-- [ ] Mobile responsiveness maintained (sm, md, lg breakpoints)
-- [ ] All user-facing strings use i18n
+- [x] All queries and mutations properly typed
+- [x] Error handling implemented for all edge cases
+- [x] Access control follows established patterns (admin vs. authenticated user)
+- [x] Activity logging for audit trail
+- [x] Cascade deletion checks prevent data integrity issues
+- [x] Accent-insensitive search implemented using `normalizeString`
+- [x] No `any` types used
 
-### 4. Update Backend Mutation to Handle Dynamic Fields
+### 3. Zod Validation Schemas
 
-**Objective**: Modify the addStatus mutation to accept and save dynamic field data
+**Objective**: Create type-safe validation schemas for Economic Activities forms
 
 #### Sub-tasks:
 
-- [ ] 4.1: Update addStatus mutation signature in `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts`
-  - Validation: Mutation accepts optional `filledFieldsData` parameter
-  - Dependencies: None
-  - Implementation:
-    - Add `filledFieldsData: v.optional(v.any())` to args
-    - Update mutation handler to accept the new parameter
+- [x] 3.1: Create validation schemas file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/economic-activities.ts`
+  - Implement `economicActivitySchema`:
+    - `name: z.string().min(1, "Name is required")`
+    - `code: z.string().optional().or(z.literal(""))`
+    - `description: z.string().optional().or(z.literal(""))`
+    - `isActive: z.boolean().optional()`
+  - Export TypeScript type: `EconomicActivityFormData`
+  - Validation: Schema validates all form inputs correctly
 
-- [ ] 4.2: Save filled fields data when creating status
-  - Validation: filledFieldsData is saved to status record
-  - Dependencies: Task 4.1 must be completed
-  - Implementation:
-    - Add filledFieldsData to the insert call
-    - Also update the individualProcess record with field values (same logic as saveFilledFields mutation)
-
-- [ ] 4.3: Add validation for fillable fields
-  - Validation: Only fields defined in fillableFields can be saved
-  - Dependencies: Task 4.1 must be completed
-  - Implementation:
-    - Get fillableFields from caseStatus
-    - Validate that keys in filledFieldsData exist in fillableFields
-    - Throw error if invalid fields are attempted
+- [x] 3.2: Create quick-create schema
+  - Implement `economicActivityQuickCreateSchema`:
+    - Only includes `name` field (required)
+  - Export TypeScript type: `EconomicActivityQuickCreateFormData`
+  - Validation: Minimal schema for inline creation
 
 #### Quality Checklist:
 
-- [ ] TypeScript types defined (no `any`)
-- [ ] Zod validation for mutation parameters
-- [ ] Clean code principles followed
-- [ ] Proper error handling and validation
-- [ ] Database updates are atomic
-- [ ] Activity logging updated to include filled fields info
+- [x] Full TypeScript type coverage
+- [x] No `any` types
+- [x] Zod validation for all external data
+- [x] Proper error messages for validation failures
+- [x] Follows established validation patterns from `companies.ts`
 
-### 5. Add Internationalization Keys
+### 4. Internationalization (i18n)
 
-**Objective**: Add all necessary i18n keys for the new feature
+**Objective**: Add all user-facing strings to translation files
 
 #### Sub-tasks:
 
-- [ ] 5.1: Add English translations in `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Validation: All new UI text has English translations
-  - Dependencies: None
-  - Implementation:
-    - Add "IndividualProcesses.customFields" key
-    - Add "IndividualProcesses.customFieldsDescription" key
-    - Add "IndividualProcesses.fillCustomFields" key
-    - Add "IndividualProcesses.noCustomFields" key
-    - Add "IndividualProcesses.loadingCustomFields" key
+- [x] 4.1: Add English translations
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Add `EconomicActivities` namespace:
+    - `title`, `description`, `createTitle`, `editTitle`, `quickCreateTitle`, `quickCreateDescription`
+    - `name`, `code`, `description`, `isActive`
+    - `selectEconomicActivity`, `searchEconomicActivities`, `noEconomicActivityFound`
+    - `createdSuccess`, `updatedSuccess`, `companyCreated`
+    - `errorCreate`, `errorUpdate`, `errorDelete`
+    - `deleteConfirmation`, `inUseCannotDelete`
+  - Add to `Navigation` namespace:
+    - `economicActivities: "Economic Activities"`
+  - Validation: All strings properly formatted, no typos
 
-- [ ] 5.2: Add Portuguese translations in `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Validation: All new UI text has Portuguese translations
-  - Dependencies: None
-  - Implementation:
-    - Mirror all keys from Task 5.1
-    - Provide accurate Portuguese translations
+- [x] 4.2: Add Portuguese translations
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Add `EconomicActivities` namespace (Portuguese equivalents):
+    - `title: "Atividades Econômicas"`
+    - `name: "Nome"`, `code: "Código"`, `description: "Descrição"`
+    - All other keys translated to Portuguese
+  - Add to `Navigation` namespace:
+    - `economicActivities: "Atividades Econômicas"`
+  - Validation: Proper Portuguese translations, consistent terminology
 
 #### Quality Checklist:
 
-- [ ] All user-facing strings use i18n
-- [ ] Translations are accurate and professional
-- [ ] Key naming follows existing conventions
-- [ ] Both languages have complete coverage
+- [x] All user-facing strings use i18n
+- [x] No hardcoded strings in components
+- [x] Both English and Portuguese translations complete
+- [x] Translation keys follow naming conventions
+- [x] Pluralization and interpolation handled where needed
 
-### 6. Testing and Refinement
+### 5. Economic Activity Management Page
 
-**Objective**: Thoroughly test the feature and ensure it works seamlessly
+**Objective**: Create full CRUD interface for managing economic activities in Support Data section
 
 #### Sub-tasks:
 
-- [ ] 6.1: Test with status that has no fillable fields
-  - Validation: Modal shows only standard fields (status, date, notes)
-  - Dependencies: All previous tasks completed
-  - Output: No dynamic fields section appears
+- [x] 5.1: Create server page component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/economic-activities/page.tsx`
+  - Import translations and metadata generation
+  - Render `EconomicActivitiesClient` component
+  - Generate metadata with i18n title and description
+  - Validation: Page renders correctly, metadata appears in browser tab
 
-- [ ] 6.2: Test with status that has fillable fields
-  - Validation: Dynamic fields render correctly below standard fields
-  - Dependencies: All previous tasks completed
-  - Output: Fields appear with proper labels and input types
+- [x] 5.2: Create client component with data table
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/economic-activities/economic-activities-client.tsx`
+  - Use Tanstack Table for data display
+  - Columns: name, code, description, isActive (badge), actions
+  - Features:
+    - Search across name, code, description
+    - Filter by active/inactive status
+    - Column sorting
+    - Pagination
+    - Row selection for bulk operations
+    - Mobile responsive table (stack columns on small screens)
+  - Actions dropdown:
+    - Edit (opens dialog)
+    - Delete (with confirmation)
+  - Bulk actions:
+    - Bulk delete with confirmation
+  - Create button in page header
+  - Validation: Follows cities/states page patterns, fully responsive
 
-- [ ] 6.3: Test field value persistence
-  - Validation: Values entered are saved to both status record and individual process
-  - Dependencies: All previous tasks completed
-  - Output: Values appear in database and in FillFieldsModal when editing
+- [x] 5.3: Add real-time updates
+  - Use Convex `useQuery` for automatic reactivity
+  - Data updates instantly when changes occur
+  - Validation: Changes appear immediately without refresh
 
-- [ ] 6.4: Test status switching behavior
-  - Validation: Changing status clears previous dynamic fields and shows new ones
-  - Dependencies: All previous tasks completed
-  - Output: No stale data from previous status selection
-
-- [ ] 6.5: Test loading states
-  - Validation: Loading indicators appear while fetching fillable fields
-  - Dependencies: All previous tasks completed
-  - Output: Smooth loading experience, no layout shift
-
-- [ ] 6.6: Test mobile responsiveness
-  - Validation: Modal and fields work on mobile viewports
-  - Dependencies: All previous tasks completed
-  - Output: Touch-friendly, properly sized, no overflow issues
-
-- [ ] 6.7: Test error scenarios
-  - Validation: Proper error messages for invalid data, network errors, etc.
-  - Dependencies: All previous tasks completed
-  - Output: User-friendly error messages, no crashes
+- [x] 5.4: Add loading and error states
+  - Loading skeleton while data fetches
+  - Error boundary for query failures
+  - Empty state when no economic activities exist
+  - Validation: User experience is smooth, errors handled gracefully
 
 #### Quality Checklist:
 
-- [ ] All test cases pass
-- [ ] No console errors or warnings
-- [ ] Performance is acceptable (no noticeable lag)
-- [ ] UX is smooth and intuitive
-- [ ] Mobile experience is excellent
-- [ ] Error handling is comprehensive
+- [x] TypeScript types fully defined
+- [x] Clean code principles followed
+- [x] Mobile responsive design (sm, md, lg breakpoints)
+- [x] Touch-friendly UI (min 44x44px tap targets)
+- [x] Reusable components utilized (Button, Table, Badge, etc.)
+- [x] Proper error handling
+- [x] Loading states implemented
+
+### 6. Economic Activity Form Dialog
+
+**Objective**: Create form dialog for creating and editing economic activities
+
+#### Sub-tasks:
+
+- [x] 6.1: Create form dialog component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/economic-activities/economic-activity-form-dialog.tsx`
+  - Props: `open`, `onOpenChange`, `economicActivityId` (optional), `onSuccess`
+  - Use React Hook Form with Zod resolver
+  - Form fields:
+    - Name (Input, required)
+    - Code (Input, optional)
+    - Description (Textarea, optional)
+    - Is Active (Switch)
+  - Validation: Form validates input, shows error messages
+
+- [x] 6.2: Implement form submission logic
+  - Call `create` or `update` mutation based on `economicActivityId`
+  - Show success toast on completion
+  - Show error toast on failure
+  - Reset form and close dialog on success
+  - Call `onSuccess` callback
+  - Validation: Form submits correctly, toasts appear
+
+- [x] 6.3: Implement form state management
+  - Load existing data when editing
+  - Reset form when dialog closes
+  - Handle loading states during submission
+  - Validation: Form state managed correctly
+
+#### Quality Checklist:
+
+- [x] TypeScript types defined (no `any`)
+- [x] Zod validation on all inputs
+- [x] i18n keys for all labels and messages
+- [x] Clean code principles
+- [x] Error handling
+- [x] Mobile responsive form layout
+
+### 7. Economic Activity Quick-Create Dialog
+
+**Objective**: Create simplified dialog for inline creation from company forms
+
+#### Sub-tasks:
+
+- [x] 7.1: Create quick-create dialog component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/economic-activities/economic-activity-quick-create-dialog.tsx`
+  - Props: `open`, `onOpenChange`, `onSuccess` (returns created ID)
+  - Minimal form with only name field
+  - Use `economicActivityQuickCreateSchema` for validation
+  - Auto-close and return ID on success
+  - Validation: Minimal, fast creation flow
+
+- [x] 7.2: Implement creation logic
+  - Call `create` mutation with only name
+  - Set isActive to true by default
+  - Return created ID via `onSuccess` callback
+  - Show toast on success/error
+  - Validation: Creates economic activity and returns ID
+
+#### Quality Checklist:
+
+- [x] TypeScript types defined
+- [x] Zod validation
+- [x] i18n strings
+- [x] Follows `CompanyQuickCreateDialog` pattern exactly
+- [x] Clean code principles
+
+### 8. Company Form Integration - Multiple Selection
+
+**Objective**: Add Economic Activities field to company forms with multi-select and inline creation
+
+#### Sub-tasks:
+
+- [x] 8.1: Update company form dialog to include economic activities
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/companies/company-form-dialog.tsx`
+  - Add economic activities section after city field
+  - Use Combobox with `multiple={true}` for multi-select
+  - Implement `onCreateNew` callback:
+    - Open quick-create dialog
+    - On success, add new activity to selection
+  - Load existing economic activities when editing company
+  - Validation: Multi-select works, inline creation works
+
+- [x] 8.2: Update company form page component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/companies/company-form-page.tsx`
+  - Add same economic activities field as in dialog
+  - Ensure consistency between dialog and page forms
+  - Validation: Both forms have identical functionality
+
+- [x] 8.3: Update company form submission
+  - Save selected economic activities to junction table
+  - Remove old links and add new links (replace all)
+  - Handle errors gracefully
+  - Validation: Economic activities saved correctly with company
+
+- [x] 8.4: Update company view/display to show economic activities
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/companies/company-view-modal.tsx`
+  - Display list of economic activities as badges
+  - Show empty state if no activities
+  - Validation: Economic activities display correctly
+
+- [x] 8.5: Update company validation schema
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/companies.ts`
+  - Add `economicActivityIds` field:
+    - `economicActivityIds: z.array(z.custom<Id<"economicActivities">>()).optional()`
+  - Validation: Schema accepts array of IDs
+
+#### Quality Checklist:
+
+- [x] TypeScript types fully defined
+- [x] Zod validation for economic activity IDs
+- [x] i18n keys for labels
+- [x] Combobox with multiple selection works correctly
+- [x] Quick-create integration works seamlessly
+- [x] Clean code principles
+- [x] Mobile responsive (forms work on mobile devices)
+- [x] Error handling implemented
+
+### 9. Update Sidebar Navigation
+
+**Objective**: Add Economic Activities link to "Dados de Suporte" menu
+
+#### Sub-tasks:
+
+- [x] 9.1: Add navigation item to sidebar
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx`
+  - Add to `supportData` items array (after cboCodes, before consulates):
+    ```typescript
+    {
+      title: t('economicActivities'),
+      url: "/economic-activities",
+    }
+    ```
+  - Validation: Link appears in sidebar under "Dados de Suporte"
+
+- [x] 9.2: Verify navigation works
+  - Click link navigates to economic activities page
+  - Active state highlights correctly
+  - Validation: Navigation functional
+
+#### Quality Checklist:
+
+- [x] Navigation item uses i18n translation
+- [x] URL matches page route
+- [x] Alphabetically or logically ordered in menu
+- [x] Active state works correctly
+
+### 10. Testing and Validation
+
+**Objective**: Ensure all functionality works correctly end-to-end
+
+#### Sub-tasks:
+
+- [x] 10.1: Test Economic Activities CRUD operations
+  - Create new economic activity from dedicated page
+  - Edit existing economic activity
+  - Delete economic activity (verify cascade prevention)
+  - Search and filter economic activities
+  - Verify admin-only restrictions work
+  - Validation: All CRUD operations work correctly
+
+- [x] 10.2: Test company integration
+  - Create new company with economic activities
+  - Add economic activities to existing company
+  - Remove economic activities from company
+  - Quick-create economic activity from company form
+  - View economic activities in company details
+  - Validation: Company-activity relationship works perfectly
+
+- [x] 10.3: Test multi-select functionality
+  - Select multiple economic activities
+  - Deselect individual activities
+  - Clear all selections
+  - Search while multi-selecting
+  - Validation: Multi-select UX is smooth
+
+- [x] 10.4: Test mobile responsiveness
+  - Test on mobile viewport (< 640px)
+  - Verify forms work on mobile
+  - Verify tables are responsive
+  - Verify combobox works on touch devices
+  - Validation: All features work on mobile
+
+- [x] 10.5: Test data validation
+  - Try to create economic activity without name (should fail)
+  - Try to delete economic activity in use (should fail)
+  - Try to create duplicate junction table entries (should fail)
+  - Verify all error messages display correctly
+  - Validation: Data integrity enforced
+
+- [x] 10.6: Test internationalization
+  - Switch between English and Portuguese
+  - Verify all labels, messages, errors are translated
+  - Validation: Both languages work correctly
+
+- [x] 10.7: Test real-time updates
+  - Open economic activities page in two browser tabs
+  - Create/update/delete in one tab
+  - Verify changes appear in other tab immediately
+  - Validation: Convex real-time reactivity works
+
+#### Quality Checklist:
+
+- [x] All CRUD operations tested
+- [x] All user flows tested
+- [x] Mobile testing completed
+- [x] Error handling verified
+- [x] Real-time updates confirmed
+- [x] i18n tested in both languages
+- [x] No TypeScript errors
+- [x] No console errors or warnings
 
 ## Implementation Notes
 
-### Technical Considerations
+### Many-to-Many Relationship Pattern
+The relationship between companies and economic activities is implemented using a junction table (`companiesEconomicActivities`), following the exact pattern used for `processTypesLegalFrameworks`. This provides:
+- Clean separation of concerns
+- Easy querying of relationships
+- Audit trail (createdAt, createdBy)
+- Prevention of duplicate links
 
-1. **Query Optimization**: The `getFillableFieldsForCaseStatus` query should use "skip" pattern when no status is selected to avoid unnecessary database calls
+### Combobox with Inline Creation
+The Economic Activities combobox in the company form uses the `onCreateNew` prop pattern established in the Combobox component. When a user types a search query that doesn't match any existing economic activities, they can click "Create new..." to open a quick-create dialog. On success, the newly created economic activity is automatically selected.
 
-2. **State Management**: Use React's `useEffect` to reset `formData` when `selectedStatusId` changes, preventing stale data
+### Access Control Pattern
+Following the cities pattern:
+- **Any authenticated user** can create economic activities (for inline quick-create)
+- **Only admins** can update or delete economic activities
+- **Any authenticated user** can view economic activities
 
-3. **Field Validation**: Leverage existing field metadata from `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts` for consistent validation
-
-4. **Loading States**: Show skeleton loaders for dynamic fields section to prevent layout shift
-
-5. **Mobile Considerations**:
-   - Ensure modal is scrollable on small screens
-   - Use responsive grid layouts for fields
-   - Maintain minimum 44x44px touch targets
-
-### Architecture Decisions
-
-1. **Component Extraction**: Creating `DynamicFieldRenderer` promotes reusability and maintains DRY principle
-
-2. **Backend Consistency**: Using same field saving logic as `saveFilledFields` ensures data consistency
-
-3. **Progressive Enhancement**: The feature gracefully handles statuses without fillable fields (shows nothing extra)
-
-### Edge Cases to Handle
-
-1. Status with empty fillableFields array
-2. Status with fillableFields but user doesn't fill them (optional fields)
-3. Network errors while fetching fillable fields
-4. Switching between statuses rapidly (race conditions)
-5. Reference fields with no available options
+### Mobile Considerations
+All components must be fully responsive:
+- Use Tailwind responsive breakpoints (sm, md, lg)
+- Ensure combobox works on touch devices
+- Make buttons and interactive elements at least 44x44px
+- Optimize table layout for mobile (consider card view or horizontal scroll)
 
 ## Definition of Done
 
-- [ ] All tasks completed
-- [ ] All quality checklists passed
-- [ ] Code reviewed
-- [ ] Feature tested in development environment
-- [ ] No regressions in existing functionality
-- [ ] Documentation updated (if needed)
-- [ ] Both Portuguese and English translations complete
-- [ ] Mobile and desktop experiences are excellent
+- [x] All sub-tasks completed
+- [x] Database schema includes `economicActivities` and `companiesEconomicActivities` tables
+- [x] Full CRUD operations working via Convex
+- [x] Economic Activities management page functional under Support Data menu
+- [x] Company forms include multi-select economic activities field
+- [x] Inline quick-create from company form works
+- [x] All strings internationalized (English and Portuguese)
+- [x] Mobile responsive design implemented
+- [x] All validation working correctly
+- [x] No TypeScript errors
+- [x] All quality checklists passed
+- [x] End-to-end testing completed successfully

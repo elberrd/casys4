@@ -10,7 +10,9 @@ import {
   createRelationshipField,
   createBadgeField,
 } from "@/lib/entity-view-helpers"
-import { Building2, Mail, Phone, MapPin, User, Globe, FileText } from "lucide-react"
+import { formatDate } from "@/lib/format-field-value"
+import { Building2, Mail, Phone, MapPin, User, Globe, FileText, Calendar, Briefcase } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 interface CompanyViewModalProps {
   companyId: Id<"companies">
@@ -29,6 +31,7 @@ export function CompanyViewModal({
   const tCommon = useTranslations("Common")
 
   const company = useQuery(api.companies.get, { id: companyId })
+  const economicActivities = useQuery(api.companies.getEconomicActivities, { companyId })
 
   if (!company) {
     return (
@@ -44,6 +47,34 @@ export function CompanyViewModal({
     )
   }
 
+  // Format address from separated fields or fallback to old address field
+  const formattedAddress = (() => {
+    const parts = []
+    if (company.addressStreet) {
+      parts.push(company.addressStreet)
+      if (company.addressNumber) {
+        parts[0] += `, ${company.addressNumber}`
+      }
+    }
+    if (company.addressComplement) {
+      parts.push(company.addressComplement)
+    }
+    if (company.addressNeighborhood) {
+      parts.push(company.addressNeighborhood)
+    }
+    if (company.addressPostalCode) {
+      parts.push(company.addressPostalCode)
+    }
+
+    // If we have any separated address fields, use them
+    if (parts.length > 0) {
+      return parts.join(" - ")
+    }
+
+    // Otherwise fallback to old address field
+    return company.address || "-"
+  })()
+
   const sections: ViewSection[] = [
     {
       title: t("basicInformation"),
@@ -51,6 +82,9 @@ export function CompanyViewModal({
       fields: [
         createField(t("name"), company.name),
         createField(t("taxId"), company.taxId || "-"),
+        ...(company.openingDate ? [createField(t("openingDate"), formatDate(company.openingDate), undefined, {
+          icon: <Calendar className="h-4 w-4" />,
+        })] : []),
         createField(t("website"), company.website, "url", {
           icon: <Globe className="h-4 w-4" />,
         }),
@@ -71,7 +105,7 @@ export function CompanyViewModal({
         createField(t("phoneNumber"), company.phoneNumber, "phone", {
           icon: <Phone className="h-4 w-4" />,
         }),
-        createField(t("address"), company.address || "-", undefined, {
+        createField(t("address"), formattedAddress, undefined, {
           fullWidth: true,
           icon: <MapPin className="h-4 w-4" />,
         }),
@@ -104,6 +138,32 @@ export function CompanyViewModal({
       ],
     })
   }
+
+  // Add economic activities section
+  sections.push({
+    title: t("economicActivities"),
+    icon: <Briefcase className="h-5 w-5" />,
+    fields: [
+      {
+        label: t("economicActivities"),
+        value: economicActivities && economicActivities.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {economicActivities.map((activity) => (
+              <Badge key={activity._id} variant="secondary">
+                {activity.name}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            {t("noEconomicActivitiesSelected")}
+          </span>
+        ),
+        icon: <Briefcase className="h-4 w-4" />,
+        fullWidth: true,
+      },
+    ],
+  })
 
   // Add notes section if exists
   if (company.notes) {

@@ -122,10 +122,10 @@ export function IndividualProcessFormPage({
     selectedPersonId ? { personId: selectedPersonId as Id<"people"> } : "skip"
   ) ?? []
 
-  // Watch process type for cascading legal framework filtering
+  // Watch authorization type for cascading legal framework filtering
   const selectedProcessTypeId = form.watch("processTypeId")
 
-  // Get filtered legal frameworks based on selected process type
+  // Get filtered legal frameworks based on selected authorization type
   const filteredLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
     selectedProcessTypeId && selectedProcessTypeId !== ""
@@ -133,7 +133,7 @@ export function IndividualProcessFormPage({
       : "skip"
   )
 
-  // Fallback to all legal frameworks if no process type selected
+  // Fallback to all legal frameworks if no authorization type selected
   const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
 
   // Use filtered or all legal frameworks
@@ -322,17 +322,17 @@ export function IndividualProcessFormPage({
     }
   }, [selectedPersonId, personPassports, individualProcessId, individualProcess, form])
 
-  // Clear legal framework when process type changes (but not on initial load)
+  // Clear legal framework when authorization type changes (but not on initial load)
   useEffect(() => {
-    // Only clear if process type actually changed (not on initial load)
+    // Only clear if authorization type actually changed (not on initial load)
     if (previousProcessTypeId && previousProcessTypeId !== selectedProcessTypeId) {
       const currentLegalFrameworkId = form.getValues("legalFrameworkId")
       if (currentLegalFrameworkId) {
-        // Reset legal framework when process type changes
+        // Reset legal framework when authorization type changes
         form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
       }
     }
-    // Update the previous process type
+    // Update the previous authorization type
     setPreviousProcessTypeId(selectedProcessTypeId || "")
   }, [selectedProcessTypeId, previousProcessTypeId, form])
 

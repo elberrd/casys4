@@ -2,13 +2,16 @@
  * Document Masks Utility Functions
  *
  * This module provides utilities for formatting, cleaning, and validating
- * Brazilian tax document numbers (CPF and CNPJ).
+ * Brazilian tax document numbers (CPF and CNPJ) and postal codes (CEP).
  *
  * CPF (Cadastro de Pessoas Físicas): Individual Tax ID - 11 digits
  * Format: 000.000.000-00
  *
  * CNPJ (Cadastro Nacional de Pessoas Jurídicas): Company Tax ID - 14 digits
  * Format: 00.000.000/0000-00
+ *
+ * CEP (Código de Endereçamento Postal): Postal Code - 8 digits
+ * Format: 00000-000
  */
 
 /**
@@ -196,4 +199,39 @@ export function isValidCNPJ(cnpj: string): boolean {
   if (checkDigit2 !== parseInt(cleaned.charAt(13))) return false;
 
   return true;
+}
+
+/**
+ * Formats a CEP (Brazilian postal code) string with standard formatting
+ *
+ * @param value - The CEP string (can be formatted or unformatted)
+ * @returns Formatted CEP string (00000-000) or original value if invalid
+ *
+ * @example
+ * formatCEP("12345678") // "12345-678"
+ * formatCEP("12345-678") // "12345-678"
+ * formatCEP("123") // "123" (incomplete, returns as-is)
+ */
+export function formatCEP(value: string): string {
+  if (!value) return "";
+
+  const cleaned = cleanDocumentNumber(value);
+
+  // Return as-is if not enough digits
+  if (cleaned.length < 8) return value;
+
+  // Format: 00000-000
+  return cleaned
+    .slice(0, 8)
+    .replace(/(\d{5})(\d{3})/, "$1-$2");
+}
+
+/**
+ * Returns the input mask pattern for CEP
+ * Compatible with react-input-mask library
+ *
+ * @returns CEP mask pattern string
+ */
+export function getCEPMask(): string {
+  return "99999-999";
 }

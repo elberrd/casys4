@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -116,7 +116,8 @@ export const getWithFederalPolice = query({
 });
 
 /**
- * Mutation to create city (admin only)
+ * Mutation to create city
+ * Allows any authenticated user to create a city (for quick creation from forms)
  */
 export const create = mutation({
   args: {
@@ -126,7 +127,8 @@ export const create = mutation({
     hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    // Allow any authenticated user to create cities
+    await getCurrentUserProfile(ctx);
 
     // Check if state exists (when provided)
     if (args.stateId) {

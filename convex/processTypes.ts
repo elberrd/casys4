@@ -5,7 +5,7 @@ import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
- * Query to list all process types with optional isActive filter
+ * Query to list all authorization types with optional isActive filter
  */
 export const list = query({
   args: {
@@ -42,7 +42,7 @@ export const list = query({
 });
 
 /**
- * Query to list only active process types
+ * Query to list only active authorization types
  */
 export const listActive = query({
   args: {},
@@ -56,7 +56,7 @@ export const listActive = query({
 });
 
 /**
- * Query to get process type by ID
+ * Query to get authorization type by ID
  */
 export const get = query({
   args: { id: v.id("processTypes") },
@@ -66,7 +66,7 @@ export const get = query({
 });
 
 /**
- * Query to get legal frameworks for a process type
+ * Query to get legal frameworks for an authorization type
  */
 export const getLegalFrameworks = query({
   args: { processTypeId: v.id("processTypes") },
@@ -91,7 +91,7 @@ export const getLegalFrameworks = query({
 });
 
 /**
- * Query to list process types with their legal frameworks
+ * Query to list authorization types with their legal frameworks
  */
 export const listWithLegalFrameworks = query({
   args: {
@@ -123,7 +123,7 @@ export const listWithLegalFrameworks = query({
       });
     }
 
-    // Load legal frameworks for each process type
+    // Load legal frameworks for each authorization type
     const processTypesWithLegalFrameworks = await Promise.all(
       results.map(async (processType) => {
         const links = await ctx.db
@@ -151,7 +151,7 @@ export const listWithLegalFrameworks = query({
 
 
 /**
- * Mutation to create process type (admin only)
+ * Mutation to create authorization type (admin only)
  */
 export const create = mutation({
   args: {
@@ -201,7 +201,7 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update process type (admin only)
+ * Mutation to update authorization type (admin only)
  */
 export const update = mutation({
   args: {
@@ -219,7 +219,7 @@ export const update = mutation({
 
     const current = await ctx.db.get(id);
     if (!current) {
-      throw new Error("Process type not found");
+      throw new Error("Authorization type not found");
     }
 
     const updates: any = {
@@ -264,7 +264,7 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete process type (admin only)
+ * Mutation to delete authorization type (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("processTypes") },
@@ -282,13 +282,13 @@ export const remove = mutation({
       await ctx.db.delete(link._id);
     }
 
-    // Delete the process type
+    // Delete the authorization type
     await ctx.db.delete(id);
   },
 });
 
 /**
- * Mutation to reorder process types (admin only)
+ * Mutation to reorder authorization types (admin only)
  */
 export const reorder = mutation({
   args: {

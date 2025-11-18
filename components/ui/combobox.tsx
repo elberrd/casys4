@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
 
 import { cn, normalizeString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,16 @@ export interface ComboboxProps<T = string> {
    * @default "Clear selection"
    */
   clearButtonAriaLabel?: string;
+  /**
+   * Callback to create a new item when it doesn't exist
+   * Receives the search query and should return the created item's ID
+   */
+  onCreateNew?: (searchQuery: string) => Promise<T>;
+  /**
+   * Text to display on the create new item button
+   * @default "Create new..."
+   */
+  createNewText?: string;
 }
 
 /**
@@ -104,11 +114,15 @@ function ComboboxSingle<T extends string = string>({
   contentClassName,
   showClearButton = true,
   clearButtonAriaLabel = "Clear selection",
+  onCreateNew,
+  createNewText = "Create new...",
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T | undefined>(
     defaultValue,
   );
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isCreating, setIsCreating] = React.useState(false);
 
   // Use controlled value if provided, otherwise use internal state
   const selectedValue = value !== undefined ? value : internalValue;
@@ -159,8 +173,37 @@ function ComboboxSingle<T extends string = string>({
     onValueChange?.(undefined);
   };
 
+  const handleCreateNew = async () => {
+    if (!onCreateNew || !searchQuery.trim()) return;
+
+    setIsCreating(true);
+    try {
+      const newId = await onCreateNew(searchQuery.trim());
+
+      if (value === undefined) {
+        setInternalValue(newId);
+      }
+
+      onValueChange?.(newId);
+      setSearchQuery("");
+      setOpen(false);
+    } catch (error) {
+      console.error("Failed to create new item:", error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    // Clear search query when closing
+    if (!newOpen) {
+      setSearchQuery("");
+    }
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -219,9 +262,31 @@ function ComboboxSingle<T extends string = string>({
             return labelNormalized.includes(searchNormalized) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            onValueChange={setSearchQuery}
+          />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>
+              {onCreateNew && searchQuery.trim() ? (
+                <div className="flex flex-col items-center gap-2 p-4">
+                  <p className="text-sm text-muted-foreground">{emptyText}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCreateNew}
+                    disabled={isCreating}
+                    className="w-full"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isCreating ? "Creating..." : `${createNewText} "${searchQuery}"`}
+                  </Button>
+                </div>
+              ) : (
+                emptyText
+              )}
+            </CommandEmpty>
 
             {/* Ungrouped options */}
             {groupedOptions.ungrouped.length > 0 && (
@@ -310,11 +375,44 @@ function ComboboxMultiple<T extends string = string>({
   maxSelected,
   showClearButton = true,
   clearButtonAriaLabel = "Clear all selections",
+  onCreateNew,
+  createNewText = "Create new...",
 }: ComboboxMultipleProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T[]>(
     defaultValue || [],
   );
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [showCreateButton, setShowCreateButton] = React.useState(false);
+
+  // Monitor the cmdk input for real-time search updates
+  React.useEffect(() => {
+    if (!open) {
+      setShowCreateButton(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
+      if (cmdkInput) {
+        const currentValue = cmdkInput.value;
+        console.log('[Combobox Debug] Input value:', currentValue, 'onCreateNew:', !!onCreateNew, 'showCreateButton:', showCreateButton);
+        if (currentValue !== searchQuery) {
+          console.log('[Combobox Debug] Updating searchQuery from', searchQuery, 'to', currentValue);
+          setSearchQuery(currentValue);
+        }
+        // Show create button if there's text in the input and onCreateNew is available
+        const shouldShow = !!currentValue.trim() && !!onCreateNew;
+        if (shouldShow !== showCreateButton) {
+          console.log('[Combobox Debug] Updating showCreateButton to', shouldShow);
+          setShowCreateButton(shouldShow);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [open, searchQuery, onCreateNew, showCreateButton]);
 
   // Use controlled value if provided, otherwise use internal state
   const selectedValues = value !== undefined ? value : internalValue;
@@ -379,8 +477,42 @@ function ComboboxMultiple<T extends string = string>({
     onValueChange?.(newValues);
   };
 
+  const handleCreateNew = async () => {
+    // Get the current search value from the input element
+    const commandInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
+    const currentSearchValue = commandInput?.value || searchQuery;
+
+    if (!onCreateNew || !currentSearchValue.trim()) return;
+
+    setIsCreating(true);
+    try {
+      const newId = await onCreateNew(currentSearchValue.trim());
+      const newValues = [...selectedValues, newId];
+
+      if (value === undefined) {
+        setInternalValue(newValues);
+      }
+
+      onValueChange?.(newValues);
+      setSearchQuery("");
+      setOpen(false);
+    } catch (error) {
+      console.error("Failed to create new item:", error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    // Clear search query when closing
+    if (!newOpen) {
+      setSearchQuery("");
+    }
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -444,6 +576,9 @@ function ComboboxMultiple<T extends string = string>({
       >
         <Command
           filter={(value, search) => {
+            // Always show the "create new" item
+            if (value === '__create_new_item__') return 1;
+
             // Custom filter: accent-insensitive and case-insensitive substring match on label
             const option = options.find((opt) => String(opt.value) === value);
             if (!option) return 0;
@@ -455,9 +590,18 @@ function ComboboxMultiple<T extends string = string>({
             return labelNormalized.includes(searchNormalized) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            onValueChange={(value) => {
+              console.log('[Multi-Select CommandInput] onValueChange called with:', value);
+              setSearchQuery(value);
+              setShowCreateButton(!!value.trim() && !!onCreateNew);
+            }}
+          />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>
+              {emptyText}
+            </CommandEmpty>
 
             {/* Ungrouped options */}
             {groupedOptions.ungrouped.length > 0 && (
@@ -521,6 +665,54 @@ function ComboboxMultiple<T extends string = string>({
                   ))}
                 </CommandGroup>
               ),
+            )}
+
+            {/* Create new option - always shown when onCreateNew is provided */}
+            {onCreateNew && (
+              <CommandGroup>
+                <CommandItem
+                  value="__create_new_item__"
+                  onSelect={() => {
+                    const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
+                    const currentSearch = cmdkInput?.value || '';
+
+                    if (!onCreateNew) return;
+
+                    setIsCreating(true);
+                    // Pass empty string if no search query, let the handler deal with it
+                    onCreateNew(currentSearch.trim())
+                      .then((newId) => {
+                        const newValues = [...selectedValues, newId];
+                        if (value === undefined) {
+                          setInternalValue(newValues);
+                        }
+                        onValueChange?.(newValues);
+                        setSearchQuery("");
+                        setOpen(false);
+                      })
+                      .catch((error) => {
+                        console.error("Failed to create new item:", error);
+                      })
+                      .finally(() => {
+                        setIsCreating(false);
+                      });
+                  }}
+                  disabled={isCreating}
+                  className="cursor-pointer"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      {createNewText}
+                    </>
+                  )}
+                </CommandItem>
+              </CommandGroup>
             )}
           </CommandList>
         </Command>

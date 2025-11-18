@@ -39,7 +39,7 @@ export const list = query({
       });
     }
 
-    // Get process types for each legal framework
+    // Get authorization types for each legal framework
     const resultsWithProcessTypes = await Promise.all(
       results.map(async (legalFramework) => {
         const links = await ctx.db
@@ -87,7 +87,7 @@ export const get = query({
     const legalFramework = await ctx.db.get(id);
     if (!legalFramework) return null;
 
-    // Get process types for this legal framework
+    // Get authorization types for this legal framework
     const links = await ctx.db
       .query("processTypesLegalFrameworks")
       .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
@@ -108,7 +108,7 @@ export const get = query({
 });
 
 /**
- * Query to get process types for a legal framework
+ * Query to get authorization types for a legal framework
  */
 export const getProcessTypes = query({
   args: { legalFrameworkId: v.id("legalFrameworks") },
@@ -149,7 +149,7 @@ export const create = mutation({
       isActive: args.isActive ?? true,
     });
 
-    // Create junction table records for process types
+    // Create junction table records for authorization types
     if (args.processTypeIds && args.processTypeIds.length > 0 && userProfile.userId) {
       for (const processTypeId of args.processTypeIds) {
         await ctx.db.insert("processTypesLegalFrameworks", {
@@ -189,7 +189,7 @@ export const update = mutation({
 
     await ctx.db.patch(id, updates);
 
-    // Update junction table records for process types
+    // Update junction table records for authorization types
     if (args.processTypeIds !== undefined && userProfile.userId) {
       // Delete all existing links
       const existingLinks = await ctx.db

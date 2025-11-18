@@ -119,10 +119,10 @@ export function IndividualProcessFormDialog({
     },
   })
 
-  // Watch process type for cascading legal framework filtering
+  // Watch authorization type for cascading legal framework filtering
   const selectedProcessTypeId = form.watch("processTypeId")
 
-  // Get filtered legal frameworks based on selected process type
+  // Get filtered legal frameworks based on selected authorization type
   const filteredLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
     selectedProcessTypeId && selectedProcessTypeId !== ""
@@ -130,7 +130,7 @@ export function IndividualProcessFormDialog({
       : "skip"
   )
 
-  // Fallback to all legal frameworks if no process type selected
+  // Fallback to all legal frameworks if no authorization type selected
   const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
 
   // Use filtered or all legal frameworks
@@ -201,12 +201,12 @@ export function IndividualProcessFormDialog({
     }
   }, [individualProcess, individualProcessId, form])
 
-  // Clear legal framework when process type changes
+  // Clear legal framework when authorization type changes
   useEffect(() => {
-    // Clear legal framework when process type changes or is cleared
+    // Clear legal framework when authorization type changes or is cleared
     const currentLegalFrameworkId = form.getValues("legalFrameworkId")
     if (currentLegalFrameworkId) {
-      // Reset legal framework when process type changes
+      // Reset legal framework when authorization type changes
       form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
     }
   }, [selectedProcessTypeId])

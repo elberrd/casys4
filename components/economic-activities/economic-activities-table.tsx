@@ -14,83 +14,67 @@ import { DataGrid, DataGridContainer } from "@/components/ui/data-grid"
 import { DataGridTable } from "@/components/ui/data-grid-table"
 import { DataGridPagination } from "@/components/ui/data-grid-pagination"
 import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header"
-import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility"
 import { DataGridFilter } from "@/components/ui/data-grid-filter"
+import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility"
 import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
 import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Edit, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
 import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
-import { formatCNPJ } from "@/lib/utils/document-masks"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
-interface Company {
-  _id: Id<"companies">
+interface EconomicActivity {
+  _id: Id<"economicActivities">
   name: string
-  taxId?: string
-  website?: string
-  address?: string
-  cityId?: Id<"cities">
-  phoneNumber?: string
-  email?: string
-  contactPersonId?: Id<"people">
-  isActive?: boolean
-  notes?: string
-  createdAt: number
-  updatedAt: number
-  city: {
-    name: string
-    state?: {
-      name: string
-      code?: string
-    }
-  } | null
-  contactPerson: {
-    fullName: string
-  } | null
+  code?: string
+  description?: string
+  isActive: boolean
 }
 
-interface CompaniesTableProps {
-  companies: Company[]
-  onEdit: (id: Id<"companies">) => void
-  onDelete: (id: Id<"companies">) => void
-  onView?: (id: Id<"companies">) => void
+interface EconomicActivitiesTableProps {
+  economicActivities: EconomicActivity[]
+  onEdit: (id: Id<"economicActivities">) => void
+  onDelete: (id: Id<"economicActivities">) => void
 }
 
-export function CompaniesTable({ companies, onEdit, onDelete, onView }: CompaniesTableProps) {
-  const t = useTranslations('Companies')
+export function EconomicActivitiesTable({
+  economicActivities,
+  onEdit,
+  onDelete,
+}: EconomicActivitiesTableProps) {
+  const t = useTranslations('EconomicActivities')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
-    onDelete: async (id: Id<"companies">) => {
+    onDelete: async (id: Id<"economicActivities">) => {
       if (onDelete) await onDelete(id)
     },
-    entityName: "company",
+    entityName: "economic activity",
   })
 
   // Bulk delete confirmation for multiple items
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
-    onDelete: async (item: Company) => {
-      if (onDelete) await onDelete(item._id)
+    onDelete: async (activity: EconomicActivity) => {
+      await onDelete(activity._id)
     },
     onSuccess: () => {
       setRowSelection({})
     },
   })
 
-  const columns = useMemo<ColumnDef<Company>[]>(
+  const columns = useMemo<ColumnDef<EconomicActivity>[]>(
     () => [
-      createSelectColumn<Company>(),
+      createSelectColumn<EconomicActivity>(),
       {
         accessorKey: "name",
         header: ({ column }) => (
@@ -101,45 +85,34 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         ),
       },
       {
-        accessorKey: "taxId",
+        accessorKey: "code",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('taxId')} />
+          <DataGridColumnHeader column={column} title={t('code')} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {row.original.taxId ? formatCNPJ(row.original.taxId) : '-'}
-          </span>
+          <DataGridHighlightedCell text={row.original.code || "-"} />
         ),
       },
       {
-        id: "city",
-        accessorFn: (row) => row.city ? `${row.city.name}${row.city.state ? ` - ${row.city.state.code}` : ''}` : '-',
+        accessorKey: "description",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('city')} />
+          <DataGridColumnHeader column={column} title={t('description')} />
         ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {row.original.city ? `${row.original.city.name}${row.original.city.state ? ` - ${row.original.city.state.code}` : ''}` : '-'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "phoneNumber",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('phoneNumber')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.phoneNumber}</span>
-        ),
-      },
-      {
-        accessorKey: "website",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('website')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.website || '-'}</span>
-        ),
+        cell: ({ row }) => {
+          const description = row.original.description
+          if (!description) return <span className="text-muted-foreground">-</span>
+
+          // Truncate long descriptions
+          const truncated = description.length > 60
+            ? `${description.substring(0, 60)}...`
+            : description
+
+          return (
+            <div title={description}>
+              <DataGridHighlightedCell text={truncated} />
+            </div>
+          )
+        },
       },
       {
         accessorKey: "isActive",
@@ -151,9 +124,6 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
             {row.original.isActive ? tCommon('active') : tCommon('inactive')}
           </Badge>
         ),
-        filterFn: (row, id, value) => {
-          return value.includes(row.getValue(id))
-        },
       },
       {
         id: "actions",
@@ -161,16 +131,6 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
-              ...(onView
-                ? [
-                    {
-                      label: tCommon('view'),
-                      icon: <Eye className="h-4 w-4" />,
-                      onClick: () => onView(row.original._id),
-                      variant: "default" as const,
-                    },
-                  ]
-                : []),
               {
                 label: tCommon('edit'),
                 icon: <Edit className="h-4 w-4" />,
@@ -192,11 +152,11 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete, onView, deleteConfirmation.confirmDelete]
+    [t, tCommon, onEdit, onDelete, deleteConfirmation]
   )
 
   const table = useReactTable({
-    data: companies,
+    data: economicActivities,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -209,6 +169,12 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
       pagination: {
         pageSize: 50,
       },
+      sorting: [
+        {
+          id: 'name',
+          desc: false,
+        },
+      ],
     },
     state: {
       rowSelection,
@@ -218,9 +184,8 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
   return (
     <DataGrid
       table={table}
-      recordCount={companies.length}
+      recordCount={economicActivities.length}
       emptyMessage={t('noResults')}
-      onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}
@@ -260,7 +225,7 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         open={deleteConfirmation.isOpen}
         onOpenChange={deleteConfirmation.handleCancel}
         onConfirm={deleteConfirmation.handleConfirm}
-        entityName="company"
+        entityName="economic activity"
         isDeleting={deleteConfirmation.isDeleting}
       />
 

@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { CNPJInput } from "@/components/ui/cnpj-input"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { Combobox } from "@/components/ui/combobox"
+import { DatePicker } from "@/components/ui/date-picker"
 import { useTranslations } from "next-intl"
 import { companyQuickCreateSchema, CompanyQuickCreateFormData } from "@/lib/validations/companies"
 import { Id } from "@/convex/_generated/dataModel"
@@ -57,6 +58,7 @@ export function CompanyQuickCreateDialog({
     defaultValues: {
       name: "",
       taxId: "",
+      openingDate: "",
       email: "",
       phoneNumber: "",
       cityId: "" as Id<"cities">,
@@ -69,6 +71,7 @@ export function CompanyQuickCreateDialog({
       const submitData = {
         name: data.name,
         taxId: data.taxId || undefined,
+        openingDate: data.openingDate || undefined,
         email: data.email || undefined,
         phoneNumber: data.phoneNumber || undefined,
         cityId: data.cityId === "" ? undefined : data.cityId,
@@ -131,6 +134,27 @@ export function CompanyQuickCreateDialog({
                   <FormLabel>{t('taxId')}</FormLabel>
                   <FormControl>
                     <CNPJInput {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="openingDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('openingDate')}</FormLabel>
+                  <FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder={t('selectOpeningDate')}
+                      showYearMonthDropdowns={true}
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

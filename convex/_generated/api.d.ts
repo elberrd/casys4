@@ -25,6 +25,7 @@ import type * as documentTemplates from "../documentTemplates.js";
 import type * as documentTypes from "../documentTypes.js";
 import type * as documents from "../documents.js";
 import type * as documentsDelivered from "../documentsDelivered.js";
+import type * as economicActivities from "../economicActivities.js";
 import type * as exports from "../exports.js";
 import type * as http from "../http.js";
 import type * as individualProcessStatuses from "../individualProcessStatuses.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   documentTypes: typeof documentTypes;
   documents: typeof documents;
   documentsDelivered: typeof documentsDelivered;
+  economicActivities: typeof economicActivities;
   exports: typeof exports;
   http: typeof http;
   individualProcessStatuses: typeof individualProcessStatuses;

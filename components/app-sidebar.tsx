@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  Briefcase,
   FileText,
   FolderKanban,
   GalleryVerticalEnd,
@@ -145,6 +146,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           title: t('cboCodes'),
           url: "/cbo-codes",
+        },
+        {
+          title: t('economicActivities'),
+          url: "/economic-activities",
+          icon: Briefcase,
         },
         {
           title: t('consulates'),
