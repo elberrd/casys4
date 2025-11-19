@@ -33,6 +33,8 @@ import { ApplicantSelector } from "@/components/individual-processes/applicant-s
 import { CompanyApplicantSelector } from "@/components/individual-processes/company-applicant-selector"
 import { UserApplicantSelector } from "@/components/individual-processes/user-applicant-selector"
 import { QuickPersonFormDialog } from "@/components/individual-processes/quick-person-form-dialog"
+import { QuickUserApplicantFormDialog } from "@/components/individual-processes/quick-user-applicant-form-dialog"
+import { QuickCompanyApplicantFormDialog } from "@/components/individual-processes/quick-company-applicant-form-dialog"
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form"
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
 import { useTranslations, useLocale } from "next-intl"
@@ -61,6 +63,8 @@ export function IndividualProcessFormPage({
   const router = useRouter()
 
   const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
+  const [quickUserApplicantDialogOpen, setQuickUserApplicantDialogOpen] = useState(false)
+  const [quickCompanyApplicantDialogOpen, setQuickCompanyApplicantDialogOpen] = useState(false)
   const [hasInitializedForm, setHasInitializedForm] = useState(false)
   const [previousProcessTypeId, setPreviousProcessTypeId] = useState<string>("")
 
@@ -411,6 +415,16 @@ export function IndividualProcessFormPage({
     setQuickPersonDialogOpen(false)
   }
 
+  const handleQuickUserApplicantSuccess = (personId: Id<"people">) => {
+    form.setValue("userApplicantId", personId)
+    setQuickUserApplicantDialogOpen(false)
+  }
+
+  const handleQuickCompanyApplicantSuccess = (companyId: Id<"companies">) => {
+    form.setValue("companyApplicantId", companyId)
+    setQuickCompanyApplicantDialogOpen(false)
+  }
+
   const mainProcessOptions = mainProcesses.map((process) => ({
     value: process._id,
     label: process.referenceNumber,
@@ -551,7 +565,19 @@ export function IndividualProcessFormPage({
                 name="companyApplicantId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("companyApplicant")}</FormLabel>
+                    <div className="flex items-start justify-between">
+                      <FormLabel>{t("companyApplicant")}</FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuickCompanyApplicantDialogOpen(true)}
+                        className="h-7"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("quickAddCompanyApplicant")}
+                      </Button>
+                    </div>
                     <FormControl>
                       <CompanyApplicantSelector
                         value={field.value || ""}
@@ -568,7 +594,19 @@ export function IndividualProcessFormPage({
                 name="userApplicantId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("userApplicant")}</FormLabel>
+                    <div className="flex items-start justify-between">
+                      <FormLabel>{t("userApplicant")}</FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuickUserApplicantDialogOpen(true)}
+                        className="h-7"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("quickAddUserApplicant")}
+                      </Button>
+                    </div>
                     <FormControl>
                       <UserApplicantSelector
                         value={field.value || ""}
@@ -943,6 +981,18 @@ export function IndividualProcessFormPage({
           open={quickPersonDialogOpen}
           onOpenChange={setQuickPersonDialogOpen}
           onSuccess={handleQuickPersonSuccess}
+        />
+
+        <QuickUserApplicantFormDialog
+          open={quickUserApplicantDialogOpen}
+          onOpenChange={setQuickUserApplicantDialogOpen}
+          onSuccess={handleQuickUserApplicantSuccess}
+        />
+
+        <QuickCompanyApplicantFormDialog
+          open={quickCompanyApplicantDialogOpen}
+          onOpenChange={setQuickCompanyApplicantDialogOpen}
+          onSuccess={handleQuickCompanyApplicantSuccess}
         />
       </div>
     </div>

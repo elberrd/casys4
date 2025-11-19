@@ -93,7 +93,7 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport] = await Promise.all([
+        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant] = await Promise.all([
           ctx.db.get(process.personId),
           process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -109,6 +109,12 @@ export const list = query({
           process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
           // Get passport details if passportId exists
           process.passportId ? ctx.db.get(process.passportId) : null,
+          // Get process type details if processTypeId exists
+          process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+          // Get company applicant details if companyApplicantId exists
+          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+          // Get user applicant details if userApplicantId exists
+          process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
         ]);
 
         // If passport exists, enrich it with issuing country
@@ -176,6 +182,9 @@ export const list = query({
           activeStatus: enrichedActiveStatus,
           caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
           passport: enrichedPassport,
+          processType, // Include process type details
+          companyApplicant, // Include company applicant details
+          userApplicant, // Include user applicant details
         };
       }),
     );

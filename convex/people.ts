@@ -68,6 +68,17 @@ export const list = query({
           ? await ctx.db.get(person.nationalityId)
           : null;
 
+        // Get current company for the person
+        const personCompany = await ctx.db
+          .query("peopleCompanies")
+          .withIndex("by_person", (q) => q.eq("personId", person._id))
+          .filter((q) => q.eq(q.field("isCurrent"), true))
+          .first();
+
+        const company = personCompany?.companyId
+          ? await ctx.db.get(personCompany.companyId)
+          : null;
+
         return {
           ...person,
           birthCity,
@@ -75,6 +86,7 @@ export const list = query({
           currentCity,
           currentState,
           nationality,
+          company,
         };
       })
     );

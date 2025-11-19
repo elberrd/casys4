@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import React, { useMemo, useState, useCallback } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -70,13 +70,18 @@ interface IndividualProcess {
     _id: Id<"legalFrameworks">
     name: string
   } | null
-  applicant?: {
+  processType?: {
+    _id: Id<"processTypes">
+    name: string
+    nameEn?: string
+  } | null
+  companyApplicant?: {
+    _id: Id<"companies">
+    name: string
+  } | null
+  userApplicant?: {
     _id: Id<"people">
     fullName: string
-    company?: {
-      _id: Id<"companies">
-      name: string
-    } | null
   } | null
   protocolNumber?: string
   rnmNumber?: string
@@ -108,6 +113,14 @@ export function IndividualProcessesTable({
   const tCommon = useTranslations('Common')
   const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  // Wrap setRowSelection to prevent state updates during render
+  const handleRowSelectionChange = useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+    // Defer state update to avoid updating during render
+    queueMicrotask(() => {
+      setRowSelection(updaterOrValue)
+    })
+  }, [])
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
@@ -146,30 +159,47 @@ export function IndividualProcessesTable({
         ),
       },
       {
-        accessorKey: "applicant.fullName",
+        accessorKey: "userApplicant.fullName",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('applicant')} className="hidden md:table-cell" />
         ),
         cell: ({ row }) => {
-          const applicant = row.original.applicant
-          if (!applicant || !applicant.company) {
+          const { companyApplicant, userApplicant } = row.original
+          if (!companyApplicant || !userApplicant) {
             return <span className="hidden md:table-cell text-sm text-muted-foreground">-</span>
           }
           return (
             <span className="hidden md:table-cell text-sm">
-              {`${applicant.fullName} - ${applicant.company.name}`}
+              {`${userApplicant.fullName} - ${companyApplicant.name}`}
             </span>
           )
         },
         enableHiding: true,
       },
       {
-        accessorKey: "mainProcess.referenceNumber",
+        accessorKey: "processType.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('referenceNumber')} />
+          <DataGridColumnHeader column={column} title={t('processType')} />
+        ),
+        cell: ({ row }) => {
+          const processType = row.original.processType
+          if (!processType) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+          // Use nameEn for English locale, otherwise use name (Portuguese)
+          const typeName = locale === "en" && processType.nameEn ? processType.nameEn : processType.name
+          return <span className="text-sm">{typeName}</span>
+        },
+      },
+      {
+        accessorKey: "legalFramework.name",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('legalFramework')} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.mainProcess?.referenceNumber || "-"} />
+          <span className="text-sm">
+            {row.original.legalFramework?.name || "-"}
+          </span>
         ),
       },
       {
@@ -254,39 +284,6 @@ export function IndividualProcessesTable({
         enableSorting: false,
       },
       {
-        accessorKey: "legalFramework.name",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('legalFramework')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.legalFramework?.name || "-"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "protocolNumber",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('protocolNumber')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-sm font-mono">
-            {row.original.protocolNumber || "-"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "rnmNumber",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('rnmNumber')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-sm font-mono">
-            {row.original.rnmNumber || "-"}
-          </span>
-        ),
-      },
-      {
         accessorKey: "isActive",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('isActive')} />
@@ -360,7 +357,7 @@ export function IndividualProcessesTable({
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: handleRowSelectionChange,
     initialState: {
       pagination: {
         pageSize: 50,

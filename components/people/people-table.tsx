@@ -53,6 +53,10 @@ interface Person {
   nationality: {
     name: string
   } | null
+  company: {
+    _id: Id<"companies">
+    name: string
+  } | null
 }
 
 interface PeopleTableProps {
@@ -123,13 +127,14 @@ export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTablePro
         },
       },
       {
-        accessorKey: "cpf",
+        id: "company",
+        accessorFn: (row) => row.company?.name || '-',
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('cpf')} />
+          <DataGridColumnHeader column={column} title={t('company')} />
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.cpf ? formatCPF(row.original.cpf) : '-'}
+            {row.original.company?.name || '-'}
           </span>
         ),
       },
@@ -152,15 +157,6 @@ export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTablePro
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">{row.original.profession || '-'}</span>
-        ),
-      },
-      {
-        accessorKey: "phoneNumber",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('phoneNumber')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.phoneNumber || '-'}</span>
         ),
       },
       {

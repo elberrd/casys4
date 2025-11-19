@@ -14,13 +14,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { CPFInput } from "@/components/ui/cpf-input"
 import { PhoneInput } from "@/components/ui/phone-input"
@@ -29,8 +22,10 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxWithCreate } from "@/components/ui/combobox-with-create"
 import { DatePicker } from "@/components/ui/date-picker"
 import { CompanyQuickCreateDialog } from "@/components/companies/company-quick-create-dialog"
+import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog"
 import { Separator } from "@/components/ui/separator"
 import { PassportsSubtable } from "@/components/people/passports-subtable"
+import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { personSchema, PersonFormData, maritalStatusOptions } from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
@@ -54,6 +49,7 @@ export function PersonFormPage({
   const { toast } = useToast()
   const router = useRouter()
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false)
+  const [quickCityDialogOpen, setQuickCityDialogOpen] = useState(false)
   const getCountryName = useCountryTranslation()
 
   const person = useQuery(
@@ -82,7 +78,7 @@ export function PersonFormPage({
       birthDate: "",
       birthCityId: "" as Id<"cities">,
       nationalityId: "" as Id<"countries">,
-      maritalStatus: "Single",
+      maritalStatus: "",
       profession: "",
       motherName: "",
       fatherName: "",
@@ -328,7 +324,19 @@ export function PersonFormPage({
                   name="birthCityId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('birthCity')}</FormLabel>
+                      <div className="flex items-start justify-between">
+                        <FormLabel>{t('birthCity')}</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setQuickCityDialogOpen(true)}
+                          className="h-7"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          {t('quickAddCity')}
+                        </Button>
+                      </div>
                       <FormControl>
                         <Combobox
                           options={cityOptions}
@@ -375,20 +383,18 @@ export function PersonFormPage({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('maritalStatus')}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('selectMaritalStatus')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {maritalStatusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {t(`maritalStatus${option.value}` as any)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        options={maritalStatusOptions.map((option) => ({
+                          value: option.value,
+                          label: t(`maritalStatus${option.value}` as any),
+                        }))}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t('selectMaritalStatus')}
+                        showClearButton={true}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -586,6 +592,16 @@ export function PersonFormPage({
         onSuccess={(companyId) => {
           form.setValue('companyId', companyId)
           setCompanyDialogOpen(false)
+        }}
+      />
+
+      {/* Quick City Form Dialog */}
+      <QuickCityFormDialog
+        open={quickCityDialogOpen}
+        onOpenChange={setQuickCityDialogOpen}
+        onSuccess={(cityId) => {
+          form.setValue('birthCityId', cityId)
+          setQuickCityDialogOpen(false)
         }}
       />
     </div>

@@ -27,7 +27,7 @@ export const personSchema = z.object({
   }).optional().or(z.literal("")),
   maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"], {
     message: "Please select a marital status",
-  }).optional(),
+  }).optional().or(z.literal("")),
   profession: z.string().min(1, "Profession must be valid").optional().or(z.literal("")),
   motherName: z.string().min(1, "Mother's name must be valid").optional().or(z.literal("")),
   fatherName: z.string().min(1, "Father's name must be valid").optional().or(z.literal("")),
