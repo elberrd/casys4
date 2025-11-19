@@ -391,7 +391,7 @@ export function IndividualProcessFormPage({
       if (onSuccess) {
         onSuccess()
       } else {
-        router.push('/individual-processes')
+        router.push(`/${locale}/individual-processes`)
       }
 
       if (!individualProcessId) {
@@ -407,7 +407,7 @@ export function IndividualProcessFormPage({
   }
 
   const handleCancel = () => {
-    router.push('/individual-processes')
+    router.push(`/${locale}/individual-processes`)
   }
 
   const handleQuickPersonSuccess = (personId: Id<"people">) => {

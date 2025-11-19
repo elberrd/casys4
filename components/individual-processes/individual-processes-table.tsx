@@ -9,6 +9,7 @@ import {
   getFilteredRowModel,
   ColumnDef,
   RowSelectionState,
+  VisibilityState,
 } from "@tanstack/react-table"
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid"
 import { DataGridTable } from "@/components/ui/data-grid-table"
@@ -113,6 +114,9 @@ export function IndividualProcessesTable({
   const tCommon = useTranslations('Common')
   const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    filledFields: false, // Hide the filledFields column by default
+  })
 
   // Wrap setRowSelection to prevent state updates during render
   const handleRowSelectionChange = useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
@@ -159,18 +163,18 @@ export function IndividualProcessesTable({
         ),
       },
       {
-        accessorKey: "userApplicant.fullName",
+        accessorKey: "companyApplicant.name",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('applicant')} className="hidden md:table-cell" />
         ),
         cell: ({ row }) => {
-          const { companyApplicant, userApplicant } = row.original
-          if (!companyApplicant || !userApplicant) {
+          const { companyApplicant } = row.original
+          if (!companyApplicant) {
             return <span className="hidden md:table-cell text-sm text-muted-foreground">-</span>
           }
           return (
             <span className="hidden md:table-cell text-sm">
-              {`${userApplicant.fullName} - ${companyApplicant.name}`}
+              {companyApplicant.name}
             </span>
           )
         },
@@ -209,6 +213,8 @@ export function IndividualProcessesTable({
         ),
         cell: ({ row }) => {
           const caseStatus = row.original.caseStatus
+          const activeStatus = row.original.activeStatus
+          
           if (!caseStatus) {
             return <span className="text-sm text-muted-foreground">-</span>
           }
@@ -216,14 +222,102 @@ export function IndividualProcessesTable({
           // Use nameEn for English locale, otherwise use name (Portuguese)
           const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
 
-          return (
-            <StatusBadge
-              status={statusName}
-              type="individual_process"
-              color={caseStatus.color}
-              category={caseStatus.category}
-            />
+          // Format the date from activeStatus.changedAt
+          let formattedDate = ""
+          if (activeStatus?.changedAt) {
+            const date = new Date(activeStatus.changedAt)
+            formattedDate = date.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric"
+            })
+          }
+
+          // Get filled fields data for tooltip
+          const filledFieldsData = activeStatus?.filledFieldsData
+          const fillableFields = caseStatus.fillableFields
+
+          // Check if there are filled fields to show in tooltip
+          const hasFilledFields = filledFieldsData && fillableFields && fillableFields.length > 0 && Object.keys(filledFieldsData).length > 0
+          
+          let tooltipContent = null
+          if (hasFilledFields) {
+            const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key))
+            
+            if (entries.length > 0) {
+              const summaryLines = entries.map(([fieldName, value]) => {
+                const metadata = getFieldMetadata(fieldName)
+                if (!metadata) return null
+
+                const label = t(`fields.${fieldName}` as any)
+                const formattedValue = formatFieldValue(value, metadata.fieldType, locale)
+
+                return `${label}: ${formattedValue}`
+              }).filter(Boolean)
+
+              if (summaryLines.length > 0) {
+                tooltipContent = summaryLines.join('\n')
+              }
+            }
+          }
+
+          const badgeElement = (
+            <div className="flex flex-col gap-1 items-start">
+              <StatusBadge
+                status={statusName}
+                type="individual_process"
+                color={caseStatus.color}
+                category={caseStatus.category}
+              />
+              {formattedDate && (
+                <span className="text-xs text-muted-foreground">
+                  {formattedDate}
+                </span>
+              )}
+            </div>
           )
+
+          // If there's tooltip content, wrap the badge with tooltip and indicator
+          if (tooltipContent) {
+            return (
+              <TooltipProvider>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help inline-block relative">
+                      {badgeElement}
+                      {/* Green indicator dot */}
+                      <span 
+                        className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                        aria-hidden="true"
+                      >
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent 
+                    side="right" 
+                    align="start"
+                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                  >
+                    <div className="space-y-1.5 text-sm">
+                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                        {t('filledFields')}
+                      </div>
+                      {tooltipContent.split('\n').map((line, idx) => (
+                        <div key={idx} className="flex flex-col">
+                          <span className="font-medium">{line.split(':')[0]}:</span>
+                          <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+
+          return badgeElement
         },
       },
       {
@@ -282,6 +376,7 @@ export function IndividualProcessesTable({
           )
         },
         enableSorting: false,
+        enableHiding: true,
       },
       {
         accessorKey: "isActive",
@@ -358,6 +453,7 @@ export function IndividualProcessesTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
+    onColumnVisibilityChange: setColumnVisibility,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -365,6 +461,7 @@ export function IndividualProcessesTable({
     },
     state: {
       rowSelection,
+      columnVisibility,
     },
   })
 

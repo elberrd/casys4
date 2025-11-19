@@ -249,6 +249,29 @@ export function AddStatusDialog({
               />
             </div>
 
+            {/* Dynamic Fields Section */}
+            {selectedStatusId && selectedStatusId !== "" && (
+              <>
+                {fillableFieldsData === undefined ? (
+                  // Show loading state while fetching fillable fields
+                  <DynamicFieldRenderer
+                    fieldsMetadata={[]}
+                    formData={formData}
+                    onFieldChange={handleFieldChange}
+                    isLoading={true}
+                  />
+                ) : fieldsMetadata.length > 0 ? (
+                  // Show dynamic fields if available
+                  <DynamicFieldRenderer
+                    fieldsMetadata={fieldsMetadata}
+                    formData={formData}
+                    onFieldChange={handleFieldChange}
+                    isLoading={false}
+                  />
+                ) : null}
+              </>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="notes">{t("notes")}</Label>
               <Textarea
@@ -259,46 +282,6 @@ export function AddStatusDialog({
                 rows={3}
               />
             </div>
-
-            {/* Dynamic Fields Section */}
-            {selectedStatusId && selectedStatusId !== "" && (
-              <>
-                {fillableFieldsData === undefined ? (
-                  // Show loading state while fetching fillable fields
-                  <>
-                    <Separator className="my-2" />
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium">{t("customFields")}</h3>
-                      <DynamicFieldRenderer
-                        fieldsMetadata={[]}
-                        formData={formData}
-                        onFieldChange={handleFieldChange}
-                        isLoading={true}
-                      />
-                    </div>
-                  </>
-                ) : fieldsMetadata.length > 0 ? (
-                  // Show dynamic fields if available
-                  <>
-                    <Separator className="my-2" />
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-medium">{t("customFields")}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          {t("customFieldsDescription")}
-                        </p>
-                      </div>
-                      <DynamicFieldRenderer
-                        fieldsMetadata={fieldsMetadata}
-                        formData={formData}
-                        onFieldChange={handleFieldChange}
-                        isLoading={false}
-                      />
-                    </div>
-                  </>
-                ) : null}
-              </>
-            )}
           </div>
 
           <DialogFooter>

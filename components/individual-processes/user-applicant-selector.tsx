@@ -37,7 +37,7 @@ export function UserApplicantSelector({
   // Map to ComboboxOption format
   const options: ComboboxOption[] = people.map((person) => ({
     value: person._id,
-    label: person.fullName,
+    label: `${person.fullName} - ${person.companyName}`,
   }))
 
   return (

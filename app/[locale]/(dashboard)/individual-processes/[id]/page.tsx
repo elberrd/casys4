@@ -167,10 +167,15 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
                 <div className="text-sm font-medium">{t('email')}</div>
                 <div className="text-sm">{individualProcess.person?.email || '-'}</div>
 
-                <div className="text-sm font-medium">{t('applicant')}</div>
+                <div className="text-sm font-medium">{t('companyApplicant')}</div>
                 <div className="text-sm">
-                  {individualProcess.applicant && individualProcess.applicant.company
-                    ? `${individualProcess.applicant.fullName} - ${individualProcess.applicant.company.name}`
+                  {individualProcess.companyApplicant?.name || '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('userApplicant')}</div>
+                <div className="text-sm">
+                  {individualProcess.userApplicant && individualProcess.userApplicant.company
+                    ? `${individualProcess.userApplicant.fullName} - ${individualProcess.userApplicant.company.name}`
                     : '-'}
                 </div>
 
