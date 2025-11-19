@@ -437,7 +437,9 @@
     "deadlineUnits": {
       "years": "Year(s)",
       "months": "Month(s)",
-      "days": "Day(s)"
+      "days": "Day(s)",
+      "prefixed": "Pre-fixed Date",
+      "indeterminate": "Indeterminate"
     },
     "isActive": "Active",
     "selectMainProcess": "Select a main process",

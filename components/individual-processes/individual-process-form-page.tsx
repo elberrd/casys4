@@ -129,6 +129,9 @@ export function IndividualProcessFormPage({
   // Watch authorization type for cascading legal framework filtering
   const selectedProcessTypeId = form.watch("processTypeId")
 
+  // Watch deadline unit for conditional field display
+  const selectedDeadlineUnit = form.watch("deadlineUnit")
+
   // Get filtered legal frameworks based on selected authorization type
   const filteredLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
@@ -507,7 +510,7 @@ export function IndividualProcessFormPage({
                 control={form.control}
                 name="mainProcessId"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="hidden">
                     <FormLabel>{t("mainProcess")}</FormLabel>
                     <FormControl>
                       <Combobox
@@ -515,6 +518,35 @@ export function IndividualProcessFormPage({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t("selectMainProcess")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="userApplicantId"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-start justify-between">
+                      <FormLabel>{t("userApplicant")}</FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuickUserApplicantDialogOpen(true)}
+                        className="h-7"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("quickAddUserApplicant")}
+                      </Button>
+                    </div>
+                    <FormControl>
+                      <UserApplicantSelector
+                        value={field.value || ""}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />
@@ -562,64 +594,6 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
-                name="companyApplicantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-start justify-between">
-                      <FormLabel>{t("companyApplicant")}</FormLabel>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setQuickCompanyApplicantDialogOpen(true)}
-                        className="h-7"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t("quickAddCompanyApplicant")}
-                      </Button>
-                    </div>
-                    <FormControl>
-                      <CompanyApplicantSelector
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="userApplicantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-start justify-between">
-                      <FormLabel>{t("userApplicant")}</FormLabel>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setQuickUserApplicantDialogOpen(true)}
-                        className="h-7"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t("quickAddUserApplicant")}
-                      </Button>
-                    </div>
-                    <FormControl>
-                      <UserApplicantSelector
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="personId"
                 render={({ field }) => (
                   <FormItem>
@@ -639,6 +613,35 @@ export function IndividualProcessFormPage({
                     <FormControl>
                       <PersonSelectorWithDetail
                         value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="companyApplicantId"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-start justify-between">
+                      <FormLabel>{t("companyApplicant")}</FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuickCompanyApplicantDialogOpen(true)}
+                        className="h-7"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("quickAddCompanyApplicant")}
+                      </Button>
+                    </div>
+                    <FormControl>
+                      <CompanyApplicantSelector
+                        value={field.value || ""}
                         onChange={field.onChange}
                       />
                     </FormControl>
@@ -687,6 +690,8 @@ export function IndividualProcessFormPage({
                           <SelectItem value="years">{t("deadlineUnits.years")}</SelectItem>
                           <SelectItem value="months">{t("deadlineUnits.months")}</SelectItem>
                           <SelectItem value="days">{t("deadlineUnits.days")}</SelectItem>
+                          <SelectItem value="prefixed">{t("deadlineUnits.prefixed")}</SelectItem>
+                          <SelectItem value="indeterminate">{t("deadlineUnits.indeterminate")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -694,40 +699,44 @@ export function IndividualProcessFormPage({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="deadlineQuantity"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>{t("deadlineQuantity")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder={t("enterDeadlineQuantity")}
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
-                          className="w-full"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {(selectedDeadlineUnit === "days" || selectedDeadlineUnit === "months" || selectedDeadlineUnit === "years") && (
+                  <FormField
+                    control={form.control}
+                    name="deadlineQuantity"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel>{t("deadlineQuantity")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder={t("enterDeadlineQuantity")}
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
+                            className="w-full"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                <FormField
-                  control={form.control}
-                  name="deadlineSpecificDate"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>{t("deadlineSpecificDate")}</FormLabel>
-                      <FormControl>
-                        <DatePicker value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {selectedDeadlineUnit === "prefixed" && (
+                  <FormField
+                    control={form.control}
+                    name="deadlineSpecificDate"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel>{t("deadlineSpecificDate")}</FormLabel>
+                        <FormControl>
+                          <DatePicker value={field.value} onChange={field.onChange} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             </div>
 

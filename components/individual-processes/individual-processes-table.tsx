@@ -263,17 +263,17 @@ export function IndividualProcessesTable({
 
           const badgeElement = (
             <div className="flex flex-col gap-1 items-start">
+              {formattedDate && (
+                <span className="text-xs text-muted-foreground">
+                  {formattedDate}
+                </span>
+              )}
               <StatusBadge
                 status={statusName}
                 type="individual_process"
                 color={caseStatus.color}
                 category={caseStatus.category}
               />
-              {formattedDate && (
-                <span className="text-xs text-muted-foreground">
-                  {formattedDate}
-                </span>
-              )}
             </div>
           )
 
@@ -283,16 +283,30 @@ export function IndividualProcessesTable({
               <TooltipProvider>
                 <Tooltip delayDuration={200}>
                   <TooltipTrigger asChild>
-                    <div className="cursor-help inline-block relative">
-                      {badgeElement}
-                      {/* Green indicator dot */}
-                      <span 
-                        className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
-                        aria-hidden="true"
-                      >
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
-                      </span>
+                    <div className="cursor-help inline-block">
+                      <div className="flex flex-col gap-1 items-start">
+                        {formattedDate && (
+                          <span className="text-xs text-muted-foreground">
+                            {formattedDate}
+                          </span>
+                        )}
+                        <div className="relative inline-block">
+                          <StatusBadge
+                            status={statusName}
+                            type="individual_process"
+                            color={caseStatus.color}
+                            category={caseStatus.category}
+                          />
+                          {/* Green indicator dot */}
+                          <span 
+                            className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                            aria-hidden="true"
+                          >
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent 
