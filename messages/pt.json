@@ -554,6 +554,7 @@
     },
     "requiredFields": "Campos Obrigatórios",
     "optionalFields": "Campos Opcionais",
+    "governmentProtocolInformation": "Informações do Protocolo Governamental",
     "douInformation": "Informações do DOU",
     "rnmInformation": "Informações do RNM",
     "createdSuccess": "Processo individual criado com sucesso",

@@ -795,20 +795,6 @@ export function IndividualProcessFormPage({
 
               <FormField
                 control={form.control}
-                name="protocolNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("protocolNumber")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="PROT-123456" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="deadlineDate"
                 render={({ field }) => (
                   <FormItem>
@@ -821,6 +807,27 @@ export function IndividualProcessFormPage({
                 )}
               />
 
+            </div>
+
+            <Separator />
+
+            {/* Government Protocol Information Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("governmentProtocolInformation")}</h3>
+
+              <FormField
+                control={form.control}
+                name="protocolNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("protocolNumber")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("protocolNumberPlaceholder")} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <Separator />
@@ -904,7 +911,7 @@ export function IndividualProcessFormPage({
                     <FormItem>
                       <FormLabel>{t("rnmNumber")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="RNM-123456" {...field} />
+                        <Input placeholder={t("rnmNumberPlaceholder")} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

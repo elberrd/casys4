@@ -554,6 +554,7 @@
     },
     "requiredFields": "Required Fields",
     "optionalFields": "Optional Fields",
+    "governmentProtocolInformation": "Government Protocol Information",
     "douInformation": "DOU Information",
     "rnmInformation": "RNM Information",
     "createdSuccess": "Individual process created successfully",
