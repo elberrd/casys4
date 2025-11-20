@@ -46,6 +46,7 @@ interface IndividualProcess {
     statusName: string
     isActive: boolean
     changedAt: number
+    date?: string
     filledFieldsData?: Record<string, any>
   } | null
   caseStatus?: {
@@ -222,15 +223,24 @@ export function IndividualProcessesTable({
           // Use nameEn for English locale, otherwise use name (Portuguese)
           const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
 
-          // Format the date from activeStatus.changedAt
+          // Format the date - prioritize user-editable date field, fallback to changedAt
           let formattedDate = ""
-          if (activeStatus?.changedAt) {
-            const date = new Date(activeStatus.changedAt)
-            formattedDate = date.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric"
-            })
+          if (activeStatus) {
+            // Use date field if available, otherwise fallback to changedAt formatted as ISO date
+            const displayDate = activeStatus.date || new Date(activeStatus.changedAt).toISOString().split('T')[0]
+
+            // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
+            const [year, month, day] = displayDate.split('-').map(Number)
+            if (year && month && day) {
+              const date = new Date(year, month - 1, day)
+              if (!isNaN(date.getTime())) {
+                formattedDate = date.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric"
+                })
+              }
+            }
           }
 
           // Get filled fields data for tooltip
