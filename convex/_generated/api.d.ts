@@ -46,6 +46,7 @@ import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.
 import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeopleToCompanies.js";
 import type * as migrations_migrateIndividualProcessStatuses from "../migrations/migrateIndividualProcessStatuses.js";
 import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToCaseStatuses.js";
+import type * as migrations_removeConsulateNameField from "../migrations/removeConsulateNameField.js";
 import type * as migrations_removeProcessTypeCodeCategory from "../migrations/removeProcessTypeCodeCategory.js";
 import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migrations/removeProcessTypeIdFromLegalFrameworks.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
@@ -120,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/linkPeopleToCompanies": typeof migrations_linkPeopleToCompanies;
   "migrations/migrateIndividualProcessStatuses": typeof migrations_migrateIndividualProcessStatuses;
   "migrations/migrateToCaseStatuses": typeof migrations_migrateToCaseStatuses;
+  "migrations/removeConsulateNameField": typeof migrations_removeConsulateNameField;
   "migrations/removeProcessTypeCodeCategory": typeof migrations_removeProcessTypeCodeCategory;
   "migrations/removeProcessTypeIdFromLegalFrameworks": typeof migrations_removeProcessTypeIdFromLegalFrameworks;
   "migrations/verifyImport": typeof migrations_verifyImport;
