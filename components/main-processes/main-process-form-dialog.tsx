@@ -354,7 +354,7 @@ export function MainProcessFormDialog({
                         onValueChange={field.onChange}
                         options={consulates.map((consulate) => ({
                           value: consulate._id,
-                          label: consulate.name,
+                          label: consulate.city?.name || "-",
                         }))}
                         placeholder={t("selectConsulate")}
                         searchPlaceholder={t("searchConsulates")}

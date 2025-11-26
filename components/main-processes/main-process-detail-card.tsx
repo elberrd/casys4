@@ -56,7 +56,10 @@ interface MainProcessDetailCardProps {
     } | null
     consulate?: {
       _id: Id<"consulates">
-      name: string
+      city?: {
+        _id: Id<"cities">
+        name: string
+      } | null
     } | null
     originRequest?: {
       _id: Id<"processRequests">
@@ -324,7 +327,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
                 <Globe2 className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('consulate')}</p>
-                  <p className="text-sm text-muted-foreground">{mainProcess.consulate.name}</p>
+                  <p className="text-sm text-muted-foreground">{mainProcess.consulate.city?.name || "-"}</p>
                 </div>
               </div>
             )}

@@ -39,7 +39,6 @@ import { toast } from "sonner";
 type Consulate = {
   _id: Id<"consulates">;
   _creationTime: number;
-  name: string;
   cityId?: Id<"cities">;
   address?: string;
   phoneNumber?: string;
@@ -103,15 +102,6 @@ export function ConsulatesTable() {
   const columns = useMemo<ColumnDef<Consulate>[]>(
     () => [
       createSelectColumn<Consulate>(),
-      {
-        accessorKey: "name",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("name")} />
-        ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.name} />
-        ),
-      },
       {
         id: "location",
         header: () => t("location"),

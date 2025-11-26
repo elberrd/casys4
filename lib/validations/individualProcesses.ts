@@ -36,6 +36,12 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  consulateId: z
+    .custom<Id<"consulates">>((val) => typeof val === "string", {
+      message: "Invalid consulate ID",
+    })
+    .optional()
+    .or(z.literal("")),
   caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
     message: "Case status is required",
   }),

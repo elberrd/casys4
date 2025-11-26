@@ -58,12 +58,12 @@ export const list = query({
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
       return consulatesWithLocation.filter((consulate) => {
-        const name = normalizeString(consulate.name);
+        const cityName = consulate.city?.name ? normalizeString(consulate.city.name) : "";
         const address = consulate.address ? normalizeString(consulate.address) : "";
         const email = consulate.email ? normalizeString(consulate.email) : "";
 
         return (
-          name.includes(searchNormalized) ||
+          cityName.includes(searchNormalized) ||
           address.includes(searchNormalized) ||
           email.includes(searchNormalized)
         );
@@ -121,7 +121,6 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    name: v.string(),
     cityId: v.optional(v.id("cities")),
     address: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -132,7 +131,6 @@ export const create = mutation({
     await requireAdmin(ctx);
 
     return await ctx.db.insert("consulates", {
-      name: args.name,
       cityId: args.cityId,
       address: args.address,
       phoneNumber: args.phoneNumber,
@@ -148,7 +146,6 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("consulates"),
-    name: v.string(),
     cityId: v.optional(v.id("cities")),
     address: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),

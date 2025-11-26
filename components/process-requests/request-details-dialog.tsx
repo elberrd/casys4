@@ -58,7 +58,9 @@ interface ProcessRequest {
     name: string;
   } | null;
   consulate: {
-    name: string;
+    city?: {
+      name: string;
+    } | null;
   } | null;
   reviewerProfile: {
     fullName: string;
@@ -179,7 +181,7 @@ export function RequestDetailsDialog({
                   <div className="flex-1">
                     <p className="text-sm font-medium">{t("consulate")}</p>
                     <p className="text-sm text-muted-foreground">
-                      {request.consulate.name}
+                      {request.consulate.city?.name || "-"}
                     </p>
                   </div>
                 </div>

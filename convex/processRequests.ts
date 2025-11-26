@@ -57,7 +57,7 @@ export const list = query({
     // Enrich with related data
     const enrichedResults = await Promise.all(
       results.map(async (request) => {
-        const [company, contactPerson, processType, workplaceCity, consulate, reviewer] =
+        const [company, contactPerson, processType, workplaceCity, consulateRaw, reviewer] =
           await Promise.all([
             ctx.db.get(request.companyId),
             ctx.db.get(request.contactPersonId),
@@ -66,6 +66,16 @@ export const list = query({
             request.consulateId ? ctx.db.get(request.consulateId) : null,
             request.reviewedBy ? ctx.db.get(request.reviewedBy) : null,
           ]);
+
+        // Enrich consulate with city data
+        let consulate = null;
+        if (consulateRaw) {
+          const consulateCity = consulateRaw.cityId ? await ctx.db.get(consulateRaw.cityId) : null;
+          consulate = {
+            ...consulateRaw,
+            city: consulateCity,
+          };
+        }
 
         // Get reviewer profile if exists
         let reviewerProfile = null;
@@ -121,7 +131,7 @@ export const get = query({
       }
     }
 
-    const [company, contactPerson, processType, workplaceCity, consulate, reviewer] =
+    const [company, contactPerson, processType, workplaceCity, consulateRaw, reviewer] =
       await Promise.all([
         ctx.db.get(request.companyId),
         ctx.db.get(request.contactPersonId),
@@ -130,6 +140,16 @@ export const get = query({
         request.consulateId ? ctx.db.get(request.consulateId) : null,
         request.reviewedBy ? ctx.db.get(request.reviewedBy) : null,
       ]);
+
+    // Enrich consulate with city data
+    let consulate = null;
+    if (consulateRaw) {
+      const consulateCity = consulateRaw.cityId ? await ctx.db.get(consulateRaw.cityId) : null;
+      consulate = {
+        ...consulateRaw,
+        city: consulateCity,
+      };
+    }
 
     // Get reviewer profile if exists
     let reviewerProfile = null;

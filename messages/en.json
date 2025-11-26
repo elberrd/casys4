@@ -468,6 +468,13 @@
     "quickAddPerson": "Quick Add Person",
     "quickAddUserApplicant": "Quick Add Applicant",
     "quickAddCompanyApplicant": "Quick Add Requesting Company",
+    "consulate": "Consulate",
+    "selectConsulate": "Select consulate",
+    "searchConsulates": "Search consulates...",
+    "noConsulatesFound": "No consulates found",
+    "consulateDescription": "Consulate responsible for this individual process (if applicable)",
+    "quickAddConsulate": "Quick Add Consulate",
+    "clearConsulate": "Clear consulate selection",
     "processType": "Authorization Type",
     "selectProcessType": "Select authorization type",
     "selectLegalFramework": "Select a legal framework",
@@ -1040,7 +1047,8 @@
     "noResults": "No consulates found",
     "consulateDetails": "Consulate Details",
     "basicInformation": "Basic Information",
-    "contactInformation": "Contact Information"
+    "contactInformation": "Contact Information",
+    "quickAddCity": "Quick Add City"
   },
   "CaseStatuses": {
     "title": "Case Statuses",

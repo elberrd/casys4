@@ -83,6 +83,7 @@ export function IndividualProcessFormDialog({
   const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
   const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
+  const consulates = useQuery(api.consulates.list, {}) ?? []
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
   const updateIndividualProcess = useMutation(api.individualProcesses.update)
@@ -97,6 +98,7 @@ export function IndividualProcessFormDialog({
       applicantId: "", // DEPRECATED: Kept for backward compatibility
       companyApplicantId: "",
       userApplicantId: "",
+      consulateId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
       processTypeId: "",
@@ -152,6 +154,7 @@ export function IndividualProcessFormDialog({
         applicantId: individualProcess.applicantId ?? "", // DEPRECATED
         companyApplicantId: individualProcess.companyApplicantId ?? "",
         userApplicantId: individualProcess.userApplicantId ?? "",
+        consulateId: individualProcess.consulateId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         processTypeId: individualProcess.processTypeId ?? "",
@@ -181,6 +184,7 @@ export function IndividualProcessFormDialog({
         applicantId: "", // DEPRECATED
         companyApplicantId: "",
         userApplicantId: "",
+        consulateId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
         processTypeId: "",
@@ -225,6 +229,7 @@ export function IndividualProcessFormDialog({
         applicantId: data.applicantId || undefined, // DEPRECATED
         companyApplicantId: data.companyApplicantId || undefined,
         userApplicantId: data.userApplicantId || undefined,
+        consulateId: data.consulateId || undefined,
         caseStatusId: data.caseStatusId,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
         processTypeId: data.processTypeId || undefined,
@@ -300,6 +305,18 @@ export function IndividualProcessFormDialog({
     color: status.color,
     category: status.category,
   }))
+
+  // Build consulate options with city and country info
+  const consulateOptions = consulates.map((consulate) => {
+    const cityName = consulate.city?.name ?? ""
+    const stateName = consulate.state?.name ?? ""
+    const countryName = consulate.country?.name ?? ""
+    const label = [cityName, stateName, countryName].filter(Boolean).join(", ") || consulate._id
+    return {
+      value: consulate._id,
+      label,
+    }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -439,6 +456,27 @@ export function IndividualProcessFormDialog({
                       <CompanyApplicantSelector
                         value={field.value || ""}
                         onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="consulateId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("consulate")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={consulateOptions}
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectConsulate")}
+                        searchPlaceholder={t("searchConsulates")}
+                        emptyText={t("noConsulatesFound")}
                       />
                     </FormControl>
                     <FormMessage />

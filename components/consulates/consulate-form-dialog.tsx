@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
@@ -9,6 +9,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl"
 import { useCountryTranslation } from "@/lib/i18n/countries";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 import {
   Dialog,
@@ -31,6 +32,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { consulateSchema, type ConsulateFormData } from "@/lib/validations/consulates";
+import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog";
 
 interface ConsulateFormDialogProps {
   open: boolean;
@@ -49,6 +51,7 @@ export function ConsulateFormDialog({
   const tCommon = useTranslations("Common");
   const getCountryName = useCountryTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quickCityDialogOpen, setQuickCityDialogOpen] = useState(false);
 
   const consulate = useQuery(
     api.consulates.get,
@@ -62,7 +65,6 @@ export function ConsulateFormDialog({
   const form = useForm<ConsulateFormData>({
     resolver: zodResolver(consulateSchema),
     defaultValues: {
-      name: consulate?.name ?? "",
       cityId: consulate?.cityId ?? "",
       address: consulate?.address ?? "",
       phoneNumber: consulate?.phoneNumber ?? "",
@@ -72,16 +74,17 @@ export function ConsulateFormDialog({
   });
 
   // Update form when consulate data loads
-  if (consulate && form.getValues().name === "" && consulateId) {
-    form.reset({
-      name: consulate.name,
-      cityId: consulate.cityId,
-      address: consulate.address,
-      phoneNumber: consulate.phoneNumber,
-      email: consulate.email,
-      website: consulate.website ?? "",
-    });
-  }
+  useEffect(() => {
+    if (consulate && consulateId) {
+      form.reset({
+        cityId: consulate.cityId,
+        address: consulate.address,
+        phoneNumber: consulate.phoneNumber,
+        email: consulate.email,
+        website: consulate.website ?? "",
+      });
+    }
+  }, [consulate, consulateId, form]);
 
   const onSubmit = async (data: ConsulateFormData) => {
     try {
@@ -90,7 +93,6 @@ export function ConsulateFormDialog({
       if (consulateId) {
         await updateConsulate({
           id: consulateId,
-          name: data.name,
           cityId: data.cityId as Id<"cities">,
           address: data.address,
           phoneNumber: data.phoneNumber,
@@ -100,7 +102,6 @@ export function ConsulateFormDialog({
         toast.success(t("updatedSuccess"));
       } else {
         await createConsulate({
-          name: data.name,
           cityId: data.cityId as Id<"cities">,
           address: data.address,
           phoneNumber: data.phoneNumber,
@@ -154,24 +155,22 @@ export function ConsulateFormDialog({
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("name")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="cityId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("city")}</FormLabel>
+                  <div className="flex items-start justify-between">
+                    <FormLabel>{t("city")}</FormLabel>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setQuickCityDialogOpen(true)}
+                      className="h-7"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      {t("quickAddCity")}
+                    </Button>
+                  </div>
                   <FormControl>
                     <Combobox
                       options={cityOptions}
@@ -261,6 +260,14 @@ export function ConsulateFormDialog({
           </form>
         </Form>
       </DialogContent>
+
+      <QuickCityFormDialog
+        open={quickCityDialogOpen}
+        onOpenChange={setQuickCityDialogOpen}
+        onSuccess={(cityId) => {
+          form.setValue("cityId", cityId);
+        }}
+      />
     </Dialog>
   );
 }

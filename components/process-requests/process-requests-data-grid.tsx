@@ -59,7 +59,9 @@ interface ProcessRequest {
     name: string;
   } | null;
   consulate: {
-    name: string;
+    city?: {
+      name: string;
+    } | null;
   } | null;
   reviewerProfile: {
     fullName: string;

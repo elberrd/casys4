@@ -185,15 +185,13 @@ export default defineSchema({
     .index("by_person_company", ["personId", "companyId"]),
 
   consulates: defineTable({
-    name: v.string(),
     cityId: v.optional(v.id("cities")),
     address: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     email: v.optional(v.string()),
     website: v.optional(v.string()),
   })
-    .index("by_city", ["cityId"])
-    .index("by_name", ["name"]),
+    .index("by_city", ["cityId"]),
 
   cboCodes: defineTable({
     code: v.optional(v.string()),
@@ -266,6 +264,7 @@ export default defineSchema({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Split into companyApplicantId and userApplicantId
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
     processTypeId: v.optional(v.id("processTypes")), // Authorization type for cascading legal framework filtering
@@ -300,6 +299,7 @@ export default defineSchema({
     .index("by_caseStatus", ["caseStatusId"]) // New index
     .index("by_processType", ["processTypeId"]) // Index for authorization type filtering
     .index("by_legalFramework", ["legalFrameworkId"])
+    .index("by_consulate", ["consulateId"])
     .index("by_active", ["isActive"]),
 
   // Status history tracking for individual processes (many-to-many)

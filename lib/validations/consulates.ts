@@ -2,7 +2,6 @@ import { z } from "zod";
 import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 
 export const consulateSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
   cityId: z.string().min(1, "City ID must be valid").optional().or(z.literal("")),
   address: z.string().min(5, "Address must be at least 5 characters").optional().or(z.literal("")),
   phoneNumber: optionalPhoneNumberSchema,

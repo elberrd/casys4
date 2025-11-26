@@ -468,6 +468,13 @@
     "quickAddPerson": "Adicionar Pessoa Rápido",
     "quickAddUserApplicant": "Adicionar Solicitante Rápido",
     "quickAddCompanyApplicant": "Adicionar Requerente Rápido",
+    "consulate": "Consulado",
+    "selectConsulate": "Selecionar consulado",
+    "searchConsulates": "Pesquisar consulados...",
+    "noConsulatesFound": "Nenhum consulado encontrado",
+    "consulateDescription": "Consulado responsável por este processo individual (se aplicável)",
+    "quickAddConsulate": "Adicionar Consulado Rápido",
+    "clearConsulate": "Limpar seleção de consulado",
     "processType": "Tipo de Autorização",
     "selectProcessType": "Selecione o tipo de autorização",
     "selectLegalFramework": "Selecione um amparo legal",
@@ -1039,7 +1046,8 @@
     "noResults": "Nenhum consulado encontrado",
     "consulateDetails": "Detalhes do Consulado",
     "basicInformation": "Informações Básicas",
-    "contactInformation": "Informações de Contato"
+    "contactInformation": "Informações de Contato",
+    "quickAddCity": "Adicionar Cidade Rápido"
   },
   "CaseStatuses": {
     "title": "Status Andamento",

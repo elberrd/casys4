@@ -93,7 +93,7 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant] = await Promise.all([
+        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate] = await Promise.all([
           ctx.db.get(process.personId),
           process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -115,6 +115,8 @@ export const list = query({
           process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
           // Get user applicant details if userApplicantId exists
           process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
+          // Get consulate details if consulateId exists
+          process.consulateId ? ctx.db.get(process.consulateId) : null,
         ]);
 
         // If passport exists, enrich it with issuing country
@@ -126,6 +128,24 @@ export const list = query({
           enrichedPassport = {
             ...passport,
             issuingCountry,
+          };
+        }
+
+        // If consulate exists, enrich it with city, state, and country
+        let enrichedConsulate = null;
+        if (consulate) {
+          const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
+          let state = null;
+          let country = null;
+          if (city) {
+            state = city.stateId ? await ctx.db.get(city.stateId) : null;
+            country = city.countryId ? await ctx.db.get(city.countryId) : null;
+          }
+          enrichedConsulate = {
+            ...consulate,
+            city,
+            state,
+            country,
           };
         }
 
@@ -185,6 +205,7 @@ export const list = query({
           processType, // Include process type details
           companyApplicant, // Include company applicant details
           userApplicant, // Include user applicant details
+          consulate: enrichedConsulate, // Include consulate with city, state, country
         };
       }),
     );
@@ -225,7 +246,7 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant] = await Promise.all([
+    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate] = await Promise.all([
       ctx.db.get(process.personId),
       process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -247,6 +268,8 @@ export const get = query({
       process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
       // Get user applicant details if userApplicantId exists
       process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
+      // Get consulate details if consulateId exists
+      process.consulateId ? ctx.db.get(process.consulateId) : null,
     ]);
 
     // Check access permissions for client users
@@ -312,6 +335,24 @@ export const get = query({
       };
     }
 
+    // If consulate exists, enrich it with city, state, and country
+    let enrichedConsulate = null;
+    if (consulate) {
+      const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
+      let state = null;
+      let country = null;
+      if (city) {
+        state = city.stateId ? await ctx.db.get(city.stateId) : null;
+        country = city.countryId ? await ctx.db.get(city.countryId) : null;
+      }
+      enrichedConsulate = {
+        ...consulate,
+        city,
+        state,
+        country,
+      };
+    }
+
     // Enrich activeStatus with resolved reference field names
     let enrichedActiveStatus = activeStatus;
     if (activeStatus?.filledFieldsData) {
@@ -368,6 +409,7 @@ export const get = query({
       applicant: enrichedApplicant, // DEPRECATED: Include applicant with company
       companyApplicant, // NEW: Include company applicant
       userApplicant: enrichedUserApplicant, // NEW: Include user applicant with company
+      consulate: enrichedConsulate, // Include consulate with city, state, country
     };
   },
 });
@@ -385,6 +427,7 @@ export const create = mutation({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Reference to applicant (person with company)
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     caseStatusId: v.optional(v.id("caseStatuses")), // Optional - defaults to "em_preparacao"
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
@@ -447,6 +490,7 @@ export const create = mutation({
       applicantId: args.applicantId, // DEPRECATED: Store applicant reference
       companyApplicantId: args.companyApplicantId, // Store company applicant reference
       userApplicantId: args.userApplicantId, // Store user applicant reference
+      consulateId: args.consulateId, // Store consulate reference
       caseStatusId: caseStatus._id, // Store case status ID (defaults to em_preparacao)
       status: statusString, // DEPRECATED: Keep for backward compatibility
       processTypeId: args.processTypeId, // Process type for cascading filtering
@@ -556,6 +600,7 @@ export const update = mutation({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Reference to applicant (person with company)
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     caseStatusId: v.optional(v.id("caseStatuses")), // NEW: Use case status ID
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
@@ -630,6 +675,7 @@ export const update = mutation({
     if (args.applicantId !== undefined) updates.applicantId = args.applicantId; // DEPRECATED
     if (args.companyApplicantId !== undefined) updates.companyApplicantId = args.companyApplicantId;
     if (args.userApplicantId !== undefined) updates.userApplicantId = args.userApplicantId;
+    if (args.consulateId !== undefined) updates.consulateId = args.consulateId;
     if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;

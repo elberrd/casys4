@@ -69,6 +69,11 @@ export const exportMainProcesses = query({
           ? await ctx.db.get(workplaceCity.stateId)
           : null;
 
+        // Get consulate city
+        const consulateCity = consulate?.cityId
+          ? await ctx.db.get(consulate.cityId)
+          : null;
+
         // Count individual processes
         const individualProcesses = await ctx.db
           .query("individualProcesses")
@@ -85,7 +90,7 @@ export const exportMainProcesses = query({
           processType: processType?.name || "",
           workplaceCity: workplaceCity?.name || "",
           workplaceState: workplaceState?.name || "",
-          consulateName: consulate?.name || "",
+          consulateName: consulateCity?.name || "",
           isUrgent: process.isUrgent ? "Yes" : "No",
           status: process.status,
           requestDate: process.requestDate,

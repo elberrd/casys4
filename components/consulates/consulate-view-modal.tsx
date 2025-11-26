@@ -49,7 +49,6 @@ export function ConsulateViewModal({
       title: t("basicInformation"),
       icon: <Building2 className="h-5 w-5" />,
       fields: [
-        createField(t("name"), consulate.name),
         createField(
           t("city"),
           city?.name,

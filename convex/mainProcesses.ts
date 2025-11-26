@@ -159,7 +159,7 @@ export const get = query({
       }
     }
 
-    const [company, contactPerson, processType, workplaceCity, consulate] =
+    const [company, contactPerson, processType, workplaceCity, consulateRaw] =
       await Promise.all([
         process.companyId ? ctx.db.get(process.companyId) : null,
         process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
@@ -167,6 +167,16 @@ export const get = query({
         process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
         process.consulateId ? ctx.db.get(process.consulateId) : null,
       ]);
+
+    // Enrich consulate with city data
+    let consulate = null;
+    if (consulateRaw) {
+      const consulateCity = consulateRaw.cityId ? await ctx.db.get(consulateRaw.cityId) : null;
+      consulate = {
+        ...consulateRaw,
+        city: consulateCity,
+      };
+    }
 
     // Get individual processes with their case statuses
     const individualProcessesRaw = await ctx.db
