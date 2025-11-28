@@ -1,6 +1,6 @@
 import {
   INDIVIDUAL_STATUS_TRANSITIONS,
-  MAIN_STATUS_TRANSITIONS,
+  COLLECTIVE_STATUS_TRANSITIONS,
   STATUS_COLORS,
   DEFAULT_STATUS_COLOR,
 } from "../constants/process-statuses";
@@ -31,12 +31,12 @@ export function isValidIndividualStatusTransition(
 }
 
 /**
- * Validates if a status transition is allowed for main processes
+ * Validates if a status transition is allowed for collective processes
  * @param currentStatus - The current status
  * @param newStatus - The desired new status
  * @returns true if transition is valid, false otherwise
  */
-export function isValidMainStatusTransition(
+export function isValidCollectiveStatusTransition(
   currentStatus: string,
   newStatus: string,
 ): boolean {
@@ -45,7 +45,7 @@ export function isValidMainStatusTransition(
     return true;
   }
 
-  const allowedTransitions = MAIN_STATUS_TRANSITIONS[currentStatus];
+  const allowedTransitions = COLLECTIVE_STATUS_TRANSITIONS[currentStatus];
 
   // If no transitions defined for current status, reject
   if (!allowedTransitions) {
@@ -59,16 +59,16 @@ export function isValidMainStatusTransition(
  * Generic status transition validator
  * @param currentStatus - The current status
  * @param newStatus - The desired new status
- * @param processType - Type of process ("main" or "individual")
+ * @param processType - Type of process ("collective" or "individual")
  * @returns true if transition is valid, false otherwise
  */
 export function isValidStatusTransition(
   currentStatus: string,
   newStatus: string,
-  processType: "main" | "individual",
+  processType: "collective" | "individual",
 ): boolean {
-  if (processType === "main") {
-    return isValidMainStatusTransition(currentStatus, newStatus);
+  if (processType === "collective") {
+    return isValidCollectiveStatusTransition(currentStatus, newStatus);
   } else {
     return isValidIndividualStatusTransition(currentStatus, newStatus);
   }
@@ -86,26 +86,26 @@ export function getNextAllowedIndividualStatuses(
 }
 
 /**
- * Gets the list of allowed next statuses from current status for main processes
+ * Gets the list of allowed next statuses from current status for collective processes
  * @param currentStatus - The current status
  * @returns Array of valid next statuses
  */
-export function getNextAllowedMainStatuses(currentStatus: string): string[] {
-  return MAIN_STATUS_TRANSITIONS[currentStatus] || [];
+export function getNextAllowedCollectiveStatuses(currentStatus: string): string[] {
+  return COLLECTIVE_STATUS_TRANSITIONS[currentStatus] || [];
 }
 
 /**
  * Generic next statuses getter
  * @param currentStatus - The current status
- * @param processType - Type of process ("main" or "individual")
+ * @param processType - Type of process ("collective" or "individual")
  * @returns Array of valid next statuses
  */
 export function getNextAllowedStatuses(
   currentStatus: string,
-  processType: "main" | "individual",
+  processType: "collective" | "individual",
 ): string[] {
-  if (processType === "main") {
-    return getNextAllowedMainStatuses(currentStatus);
+  if (processType === "collective") {
+    return getNextAllowedCollectiveStatuses(currentStatus);
   } else {
     return getNextAllowedIndividualStatuses(currentStatus);
   }

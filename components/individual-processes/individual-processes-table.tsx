@@ -64,8 +64,8 @@ interface IndividualProcess {
     fullName: string
     email?: string
   } | null
-  mainProcess?: {
-    _id: Id<"mainProcesses">
+  collectiveProcess?: {
+    _id: Id<"collectiveProcesses">
     referenceNumber: string
   } | null
   legalFramework?: {

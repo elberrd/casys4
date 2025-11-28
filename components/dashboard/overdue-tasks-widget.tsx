@@ -105,8 +105,8 @@ export function OverdueTasksWidget() {
                         {task.assignedToUser && (
                           <span>{task.assignedToUser.fullName}</span>
                         )}
-                        {task.mainProcess && (
-                          <span>{task.mainProcess.referenceNumber}</span>
+                        {task.collectiveProcess && (
+                          <span>{task.collectiveProcess.referenceNumber}</span>
                         )}
                         {task.person && <span>{task.person.fullName}</span>}
                       </div>

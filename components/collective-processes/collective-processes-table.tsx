@@ -38,8 +38,8 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 
-interface MainProcess {
-  _id: Id<"mainProcesses">
+interface CollectiveProcess {
+  _id: Id<"collectiveProcesses">
   referenceNumber: string
   status: string // DEPRECATED: Kept for backward compatibility
   isUrgent?: boolean
@@ -79,27 +79,27 @@ interface MainProcess {
   }
 }
 
-interface MainProcessesTableProps {
-  mainProcesses: MainProcess[]
-  onView?: (id: Id<"mainProcesses">) => void
-  onEdit?: (id: Id<"mainProcesses">) => void
-  onDelete?: (id: Id<"mainProcesses">) => void
+interface CollectiveProcessesTableProps {
+  collectiveProcesses: CollectiveProcess[]
+  onView?: (id: Id<"collectiveProcesses">) => void
+  onEdit?: (id: Id<"collectiveProcesses">) => void
+  onDelete?: (id: Id<"collectiveProcesses">) => void
 }
 
-export function MainProcessesTable({
-  mainProcesses,
+export function CollectiveProcessesTable({
+  collectiveProcesses,
   onView,
   onEdit,
   onDelete
-}: MainProcessesTableProps) {
-  const t = useTranslations('MainProcesses')
+}: CollectiveProcessesTableProps) {
+  const t = useTranslations('CollectiveProcesses')
   const tCommon = useTranslations('Common')
   const locale = useLocale()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
-    onDelete: async (id: Id<"mainProcesses">) => {
+    onDelete: async (id: Id<"collectiveProcesses">) => {
       if (onDelete) await onDelete(id)
     },
     entityName: "main process",
@@ -107,7 +107,7 @@ export function MainProcessesTable({
 
   // Bulk delete confirmation for multiple items
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
-    onDelete: async (item: MainProcess) => {
+    onDelete: async (item: CollectiveProcess) => {
       if (onDelete) await onDelete(item._id)
     },
     onSuccess: () => {
@@ -115,9 +115,9 @@ export function MainProcessesTable({
     },
   })
 
-  const columns = useMemo<ColumnDef<MainProcess>[]>(
+  const columns = useMemo<ColumnDef<CollectiveProcess>[]>(
     () => [
-      createSelectColumn<MainProcess>(),
+      createSelectColumn<CollectiveProcess>(),
       {
         accessorKey: "referenceNumber",
         header: ({ column }) => (
@@ -153,11 +153,11 @@ export function MainProcessesTable({
           <DataGridColumnHeader column={column} title={t('status')} />
         ),
         cell: ({ row }) => {
-          const mainProcess = row.original
+          const collectiveProcess = row.original
 
           // Display calculated status if available
-          if (mainProcess.calculatedStatus) {
-            const status = mainProcess.calculatedStatus
+          if (collectiveProcess.calculatedStatus) {
+            const status = collectiveProcess.calculatedStatus
             const displayText = locale === 'en'
               ? status.displayTextEn
               : status.displayText
@@ -230,7 +230,7 @@ export function MainProcessesTable({
           // Fallback to old status for backward compatibility
           return (
             <StatusBadge
-              status={mainProcess.status}
+              status={collectiveProcess.status}
               type="main_process"
             />
           )
@@ -366,7 +366,7 @@ export function MainProcessesTable({
   )
 
   const table = useReactTable({
-    data: mainProcesses,
+    data: collectiveProcesses,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -388,7 +388,7 @@ export function MainProcessesTable({
   return (
     <DataGrid
       table={table}
-      recordCount={mainProcesses.length}
+      recordCount={collectiveProcesses.length}
       emptyMessage={t('noResults')}
       onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{

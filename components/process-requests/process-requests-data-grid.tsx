@@ -42,7 +42,7 @@ interface ProcessRequest {
   reviewedBy?: Id<"users">;
   reviewedAt?: number;
   rejectionReason?: string;
-  approvedMainProcessId?: Id<"mainProcesses">;
+  approvedCollectiveProcessId?: Id<"collectiveProcesses">;
   createdBy: Id<"users">;
   createdAt: number;
   updatedAt: number;
@@ -66,7 +66,7 @@ interface ProcessRequest {
   reviewerProfile: {
     fullName: string;
   } | null;
-  approvedMainProcess: {
+  approvedCollectiveProcess: {
     referenceNumber: string;
   } | null;
 }

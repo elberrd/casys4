@@ -17,23 +17,23 @@ export async function generateDocumentChecklist(
   }
 
   // Get the main process to find the process type
-  if (!individualProcess.mainProcessId) {
+  if (!individualProcess.collectiveProcessId) {
     throw new Error("Individual process has no main process");
   }
 
-  const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-  if (!mainProcess) {
+  const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+  if (!collectiveProcess) {
     throw new Error("Main process not found");
   }
 
   // Find matching document template
   // Match by processType and legalFramework (if specified)
-  if (!mainProcess.processTypeId) {
+  if (!collectiveProcess.processTypeId) {
     // Cannot generate checklist without processTypeId
     return [];
   }
 
-  const processTypeId = mainProcess.processTypeId;
+  const processTypeId = collectiveProcess.processTypeId;
   const templates = await ctx.db
     .query("documentTemplates")
     .withIndex("by_processType", (q) =>
@@ -51,7 +51,7 @@ export async function generateDocumentChecklist(
   if (matchingTemplates.length === 0) {
     // No template found - this is okay, just return empty array
     console.log(
-      `No matching document template found for processType ${mainProcess.processTypeId} and legalFramework ${individualProcess.legalFrameworkId}`,
+      `No matching document template found for processType ${collectiveProcess.processTypeId} and legalFramework ${individualProcess.legalFrameworkId}`,
     );
     return [];
   }
@@ -80,7 +80,7 @@ export async function generateDocumentChecklist(
       documentTypeId: requirement.documentTypeId,
       documentRequirementId: requirement._id,
       personId: individualProcess.personId,
-      companyId: mainProcess.companyId,
+      companyId: collectiveProcess.companyId,
       fileName: "",
       fileUrl: "",
       fileSize: 0,

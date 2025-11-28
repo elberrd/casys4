@@ -4,33 +4,33 @@ import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { MainProcessesTable } from "@/components/main-processes/main-processes-table"
+import { CollectiveProcessesTable } from "@/components/collective-processes/collective-processes-table"
 import { Button } from "@/components/ui/button"
 import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Plus } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
 
-export function MainProcessesClient() {
-  const t = useTranslations('MainProcesses')
+export function CollectiveProcessesClient() {
+  const t = useTranslations('CollectiveProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const router = useRouter()
 
-  const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
+  const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('mainProcesses') }
+    { label: tBreadcrumbs('collectiveProcesses') }
   ]
 
-  const handleView = (id: Id<"mainProcesses">) => {
-    router.push(`/main-processes/${id}`)
+  const handleView = (id: Id<"collectiveProcesses">) => {
+    router.push(`/collective-processes/${id}`)
   }
 
-  const handleEdit = (id: Id<"mainProcesses">) => {
-    router.push(`/main-processes/${id}/edit`)
+  const handleEdit = (id: Id<"collectiveProcesses">) => {
+    router.push(`/collective-processes/${id}/edit`)
   }
 
   return (
@@ -45,16 +45,16 @@ export function MainProcessesClient() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <ExportDataDialog defaultExportType="mainProcesses" />
-            <Button onClick={() => router.push('/main-processes/new')}>
+            <ExportDataDialog defaultExportType="collectiveProcesses" />
+            <Button onClick={() => router.push('/collective-processes/new')}>
               <Plus className="mr-2 h-4 w-4" />
               {tCommon('create')}
             </Button>
           </div>
         </div>
 
-        <MainProcessesTable
-          mainProcesses={mainProcesses}
+        <CollectiveProcessesTable
+          collectiveProcesses={collectiveProcesses}
           onView={handleView}
           onEdit={handleEdit}
         />

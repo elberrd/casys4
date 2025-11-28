@@ -47,8 +47,8 @@ interface Task {
       fullName: string
     } | null
   } | null
-  mainProcess?: {
-    _id: Id<"mainProcesses">
+  collectiveProcess?: {
+    _id: Id<"collectiveProcesses">
     referenceNumber: string
     status: string
   } | null
@@ -215,13 +215,13 @@ export function TasksTable({
         ),
       },
       {
-        accessorKey: "mainProcess.referenceNumber",
+        accessorKey: "collectiveProcess.referenceNumber",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('mainProcess')} />
+          <DataGridColumnHeader column={column} title={t('collectiveProcess')} />
         ),
         cell: ({ row }) => (
           <span className="text-sm font-mono">
-            {row.original.mainProcess?.referenceNumber || "-"}
+            {row.original.collectiveProcess?.referenceNumber || "-"}
           </span>
         ),
       },

@@ -8,9 +8,9 @@ import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
-  mainProcessSchema,
-  type MainProcessFormData,
-} from "@/lib/validations/main-processes";
+  collectiveProcessSchema,
+  type CollectiveProcessFormData,
+} from "@/lib/validations/collective-processes";
 import {
   Dialog,
   DialogContent,
@@ -37,24 +37,24 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 
-interface MainProcessFormDialogProps {
+interface CollectiveProcessFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
-  processId?: Id<"mainProcesses">;
-  defaultValues?: Partial<MainProcessFormData>;
+  processId?: Id<"collectiveProcesses">;
+  defaultValues?: Partial<CollectiveProcessFormData>;
   onSuccess?: () => void;
 }
 
-export function MainProcessFormDialog({
+export function CollectiveProcessFormDialog({
   open,
   onOpenChange,
   mode,
   processId,
   defaultValues,
   onSuccess,
-}: MainProcessFormDialogProps) {
-  const t = useTranslations("MainProcesses");
+}: CollectiveProcessFormDialogProps) {
+  const t = useTranslations("CollectiveProcesses");
   const tCommon = useTranslations("Common");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,17 +67,17 @@ export function MainProcessFormDialog({
 
   // Get existing process data if editing
   const existingProcess = useQuery(
-    api.mainProcesses.get,
+    api.collectiveProcesses.get,
     processId ? { id: processId } : "skip"
   );
 
   // Mutations
-  const createProcess = useMutation(api.mainProcesses.create);
-  const updateProcess = useMutation(api.mainProcesses.update);
+  const createProcess = useMutation(api.collectiveProcesses.create);
+  const updateProcess = useMutation(api.collectiveProcesses.update);
 
   // Form setup
-  const form = useForm<MainProcessFormData>({
-    resolver: zodResolver(mainProcessSchema),
+  const form = useForm<CollectiveProcessFormData>({
+    resolver: zodResolver(collectiveProcessSchema),
     defaultValues: {
       referenceNumber: "",
       companyId: "" as Id<"companies">,
@@ -117,7 +117,7 @@ export function MainProcessFormDialog({
     form.setValue("referenceNumber", referenceNumber);
   };
 
-  const onSubmit = async (data: MainProcessFormData) => {
+  const onSubmit = async (data: CollectiveProcessFormData) => {
     try {
       setIsSubmitting(true);
 
@@ -186,12 +186,12 @@ export function MainProcessFormDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? t("createMainProcess") : t("editMainProcess")}
+            {mode === "create" ? t("createCollectiveProcess") : t("editCollectiveProcess")}
           </DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? t("createMainProcessDescription")
-              : t("editMainProcessDescription")}
+              ? t("createCollectiveProcessDescription")
+              : t("editCollectiveProcessDescription")}
           </DialogDescription>
         </DialogHeader>
 

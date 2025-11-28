@@ -83,9 +83,9 @@ export function DocumentReviewWidget() {
                       <p className="text-xs text-muted-foreground truncate">
                         {doc.person?.fullName || tCommon("notApplicable")}
                       </p>
-                      {doc.mainProcess && (
+                      {doc.collectiveProcess && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          {doc.mainProcess.referenceNumber}
+                          {doc.collectiveProcess.referenceNumber}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">{timeAgo}</p>

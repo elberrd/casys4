@@ -11,9 +11,9 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 
 /**
- * Export main processes with related data
+ * Export collective processes with related data
  */
-export const exportMainProcesses = query({
+export const exportCollectiveProcesses = query({
   args: {
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
@@ -24,8 +24,8 @@ export const exportMainProcesses = query({
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Get all main processes
-    let processes = await ctx.db.query("mainProcesses").collect();
+    // Get all collective processes
+    let processes = await ctx.db.query("collectiveProcesses").collect();
 
     // Apply role-based filtering
     if (userProfile.role === "client") {
@@ -77,7 +77,7 @@ export const exportMainProcesses = query({
         // Count individual processes
         const individualProcesses = await ctx.db
           .query("individualProcesses")
-          .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", process._id))
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", process._id))
           .collect();
 
         return {
@@ -116,7 +116,7 @@ export const exportIndividualProcesses = query({
     dateTo: v.optional(v.string()),
     statusFilter: v.optional(v.string()),
     companyId: v.optional(v.id("companies")),
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     includeInactive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -125,18 +125,18 @@ export const exportIndividualProcesses = query({
     // Get all individual processes
     let processes = await ctx.db.query("individualProcesses").collect();
 
-    // Apply role-based filtering via main process company
+    // Apply role-based filtering via collective process company
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter by company through mainProcess
+      // Filter by company through collectiveProcess
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
-          if (!process.mainProcessId) return null;
-          const mainProcess = await ctx.db.get(process.mainProcessId);
-          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return process;
           }
           return null;
@@ -147,9 +147,9 @@ export const exportIndividualProcesses = query({
       // Admin can filter by specific company
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
-          if (!process.mainProcessId) return null;
-          const mainProcess = await ctx.db.get(process.mainProcessId);
-          if (mainProcess && mainProcess.companyId === args.companyId) {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === args.companyId) {
             return process;
           }
           return null;
@@ -158,10 +158,10 @@ export const exportIndividualProcesses = query({
       processes = filteredProcesses.filter((p) => p !== null) as typeof processes;
     }
 
-    // Filter by main process if specified
-    if (args.mainProcessId) {
+    // Filter by collective process if specified
+    if (args.collectiveProcessId) {
       processes = processes.filter(
-        (p) => p.mainProcessId === args.mainProcessId
+        (p) => p.collectiveProcessId === args.collectiveProcessId
       );
     }
 
@@ -178,9 +178,9 @@ export const exportIndividualProcesses = query({
     // Enrich with related data
     const enrichedProcesses = await Promise.all(
       processes.map(async (process) => {
-        const [person, mainProcess, legalFramework, cbo] = await Promise.all([
+        const [person, collectiveProcess, legalFramework, cbo] = await Promise.all([
           ctx.db.get(process.personId),
-          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
         ]);
@@ -195,13 +195,13 @@ export const exportIndividualProcesses = query({
           : [null, null, null];
 
         // Get company
-        const company = mainProcess && mainProcess.companyId
-          ? await ctx.db.get(mainProcess.companyId)
+        const company = collectiveProcess && collectiveProcess.companyId
+          ? await ctx.db.get(collectiveProcess.companyId)
           : null;
 
         return {
           id: process._id,
-          mainProcessReference: mainProcess?.referenceNumber || "",
+          collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
           personFullName: person?.fullName || "",
           personEmail: person?.email || "",
@@ -392,9 +392,9 @@ export const exportDocuments = query({
             doc.reviewedBy ? ctx.db.get(doc.reviewedBy) : null,
           ]);
 
-        // Get main process
-        const mainProcess = individualProcess && individualProcess.mainProcessId
-          ? await ctx.db.get(individualProcess.mainProcessId)
+        // Get collective process
+        const collectiveProcess = individualProcess && individualProcess.collectiveProcessId
+          ? await ctx.db.get(individualProcess.collectiveProcessId)
           : null;
 
         // Get uploader and reviewer profiles
@@ -417,7 +417,7 @@ export const exportDocuments = query({
 
         return {
           id: doc._id,
-          mainProcessReference: mainProcess?.referenceNumber || "",
+          collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
           personName: person?.fullName || "",
           documentType: documentType?.name || "",
@@ -460,18 +460,18 @@ export const exportTasks = query({
     // Get all tasks
     let tasks = await ctx.db.query("tasks").collect();
 
-    // Apply role-based filtering via main process company
+    // Apply role-based filtering via collective process company
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter by company through mainProcess
+      // Filter by company through collectiveProcess
       const filteredTasks = await Promise.all(
         tasks.map(async (task) => {
-          if (task.mainProcessId) {
-            const mainProcess = await ctx.db.get(task.mainProcessId);
-            if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (task.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
               return task;
             }
           }
@@ -483,9 +483,9 @@ export const exportTasks = query({
       // Admin can filter by specific company
       const filteredTasks = await Promise.all(
         tasks.map(async (task) => {
-          if (task.mainProcessId) {
-            const mainProcess = await ctx.db.get(task.mainProcessId);
-            if (mainProcess && mainProcess.companyId === args.companyId) {
+          if (task.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            if (collectiveProcess && collectiveProcess.companyId === args.companyId) {
               return task;
             }
           }
@@ -519,15 +519,15 @@ export const exportTasks = query({
     // Enrich with related data
     const enrichedTasks = await Promise.all(
       tasks.map(async (task) => {
-        const [individualProcess, mainProcess] = await Promise.all([
+        const [individualProcess, collectiveProcess] = await Promise.all([
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
         ]);
 
         // Get person and company
         const [person, company] = await Promise.all([
           individualProcess ? ctx.db.get(individualProcess.personId) : null,
-          mainProcess && mainProcess.companyId ? ctx.db.get(mainProcess.companyId) : null,
+          collectiveProcess && collectiveProcess.companyId ? ctx.db.get(collectiveProcess.companyId) : null,
         ]);
 
         // Get assignee and creator profiles
@@ -551,7 +551,7 @@ export const exportTasks = query({
 
         return {
           id: task._id,
-          mainProcessReference: mainProcess?.referenceNumber || "",
+          collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
           personName: person?.fullName || "",
           title: task.title,

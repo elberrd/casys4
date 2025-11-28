@@ -1,18 +1,18 @@
 /**
- * Status constants for main and individual processes
+ * Status constants for collective and individual processes
  * Provides type-safe status values, transition rules, and UI color mappings
  */
 
-// Main Process Statuses
-export const MAIN_PROCESS_STATUSES = {
+// Collective Process Statuses
+export const COLLECTIVE_PROCESS_STATUSES = {
   DRAFT: "main_draft",
   IN_PROGRESS: "main_in_progress",
   COMPLETED: "main_completed",
   CANCELLED: "main_cancelled",
 } as const;
 
-export type MainProcessStatus =
-  (typeof MAIN_PROCESS_STATUSES)[keyof typeof MAIN_PROCESS_STATUSES];
+export type CollectiveProcessStatus =
+  (typeof COLLECTIVE_PROCESS_STATUSES)[keyof typeof COLLECTIVE_PROCESS_STATUSES];
 
 // Individual Process Statuses
 export const INDIVIDUAL_PROCESS_STATUSES = {
@@ -92,24 +92,24 @@ export const INDIVIDUAL_STATUS_TRANSITIONS: Record<
 };
 
 /**
- * Status Transition Rules for Main Processes
+ * Status Transition Rules for Collective Processes
  * Maps each status to an array of valid next statuses
  */
-export const MAIN_STATUS_TRANSITIONS: Record<string, string[]> = {
+export const COLLECTIVE_STATUS_TRANSITIONS: Record<string, string[]> = {
   // From draft
-  [MAIN_PROCESS_STATUSES.DRAFT]: [
-    MAIN_PROCESS_STATUSES.IN_PROGRESS,
-    MAIN_PROCESS_STATUSES.CANCELLED,
+  [COLLECTIVE_PROCESS_STATUSES.DRAFT]: [
+    COLLECTIVE_PROCESS_STATUSES.IN_PROGRESS,
+    COLLECTIVE_PROCESS_STATUSES.CANCELLED,
   ],
   // From in progress
-  [MAIN_PROCESS_STATUSES.IN_PROGRESS]: [
-    MAIN_PROCESS_STATUSES.COMPLETED,
-    MAIN_PROCESS_STATUSES.CANCELLED,
+  [COLLECTIVE_PROCESS_STATUSES.IN_PROGRESS]: [
+    COLLECTIVE_PROCESS_STATUSES.COMPLETED,
+    COLLECTIVE_PROCESS_STATUSES.CANCELLED,
   ],
   // From completed (can reopen)
-  [MAIN_PROCESS_STATUSES.COMPLETED]: [MAIN_PROCESS_STATUSES.IN_PROGRESS],
+  [COLLECTIVE_PROCESS_STATUSES.COMPLETED]: [COLLECTIVE_PROCESS_STATUSES.IN_PROGRESS],
   // From cancelled (can reopen)
-  [MAIN_PROCESS_STATUSES.CANCELLED]: [MAIN_PROCESS_STATUSES.IN_PROGRESS],
+  [COLLECTIVE_PROCESS_STATUSES.CANCELLED]: [COLLECTIVE_PROCESS_STATUSES.IN_PROGRESS],
 };
 
 /**
@@ -117,13 +117,13 @@ export const MAIN_STATUS_TRANSITIONS: Record<string, string[]> = {
  * Uses semantic colors for status indication
  */
 export const STATUS_COLORS: Record<string, string> = {
-  // Main process statuses
-  [MAIN_PROCESS_STATUSES.DRAFT]: "bg-gray-100 text-gray-800 border-gray-300",
-  [MAIN_PROCESS_STATUSES.IN_PROGRESS]:
+  // Collective process statuses
+  [COLLECTIVE_PROCESS_STATUSES.DRAFT]: "bg-gray-100 text-gray-800 border-gray-300",
+  [COLLECTIVE_PROCESS_STATUSES.IN_PROGRESS]:
     "bg-blue-100 text-blue-800 border-blue-300",
-  [MAIN_PROCESS_STATUSES.COMPLETED]:
+  [COLLECTIVE_PROCESS_STATUSES.COMPLETED]:
     "bg-green-100 text-green-800 border-green-300",
-  [MAIN_PROCESS_STATUSES.CANCELLED]: "bg-red-100 text-red-800 border-red-300",
+  [COLLECTIVE_PROCESS_STATUSES.CANCELLED]: "bg-red-100 text-red-800 border-red-300",
 
   // Individual process statuses
   [INDIVIDUAL_PROCESS_STATUSES.PENDING_DOCUMENTS]:

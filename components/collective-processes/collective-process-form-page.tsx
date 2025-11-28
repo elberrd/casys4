@@ -9,9 +9,9 @@ import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
-  mainProcessSchema,
-  type MainProcessFormData,
-} from "@/lib/validations/main-processes";
+  collectiveProcessSchema,
+  type CollectiveProcessFormData,
+} from "@/lib/validations/collective-processes";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -30,18 +30,18 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 
-interface MainProcessFormPageProps {
+interface CollectiveProcessFormPageProps {
   mode: "create" | "edit";
-  processId?: Id<"mainProcesses">;
+  processId?: Id<"collectiveProcesses">;
   onSuccess?: () => void;
 }
 
-export function MainProcessFormPage({
+export function CollectiveProcessFormPage({
   mode,
   processId,
   onSuccess,
-}: MainProcessFormPageProps) {
-  const t = useTranslations("MainProcesses");
+}: CollectiveProcessFormPageProps) {
+  const t = useTranslations("CollectiveProcesses");
   const tCommon = useTranslations("Common");
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,17 +55,17 @@ export function MainProcessFormPage({
 
   // Get existing process data if editing
   const existingProcess = useQuery(
-    api.mainProcesses.get,
+    api.collectiveProcesses.get,
     processId ? { id: processId } : "skip"
   );
 
   // Mutations
-  const createProcess = useMutation(api.mainProcesses.create);
-  const updateProcess = useMutation(api.mainProcesses.update);
+  const createProcess = useMutation(api.collectiveProcesses.create);
+  const updateProcess = useMutation(api.collectiveProcesses.update);
 
   // Form setup
-  const form = useForm<MainProcessFormData>({
-    resolver: zodResolver(mainProcessSchema),
+  const form = useForm<CollectiveProcessFormData>({
+    resolver: zodResolver(collectiveProcessSchema),
     defaultValues:
       mode === "edit" && existingProcess
         ? {
@@ -96,7 +96,7 @@ export function MainProcessFormPage({
   const generateReferenceNumber = () => {
     const timestamp = Date.now().toString().slice(-8);
     const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const referenceNumber = `MP-${timestamp}-${random}`;
+    const referenceNumber = `CP-${timestamp}-${random}`;
     form.setValue("referenceNumber", referenceNumber);
   };
 
@@ -116,7 +116,7 @@ export function MainProcessFormPage({
     );
   }
 
-  const onSubmit = async (data: MainProcessFormData) => {
+  const onSubmit = async (data: CollectiveProcessFormData) => {
     try {
       setIsSubmitting(true);
 
@@ -152,7 +152,7 @@ export function MainProcessFormPage({
         if (onSuccess) {
           onSuccess();
         } else {
-          router.push(`/main-processes/${newProcessId}`);
+          router.push(`/collective-processes/${newProcessId}`);
         }
       } else if (mode === "edit" && processId) {
         await updateProcess({
@@ -173,7 +173,7 @@ export function MainProcessFormPage({
         if (onSuccess) {
           onSuccess();
         } else {
-          router.push(`/main-processes/${processId}`);
+          router.push(`/collective-processes/${processId}`);
         }
       }
     } catch (error) {
@@ -409,7 +409,7 @@ export function MainProcessFormPage({
         <div className="flex gap-4">
           <Button type="submit" disabled={isSubmitting} className="flex-1">
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === "create" ? t("createMainProcess") : t("saveChanges")}
+            {mode === "create" ? t("createCollectiveProcess") : t("saveChanges")}
           </Button>
           <Button
             type="button"

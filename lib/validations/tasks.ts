@@ -3,7 +3,7 @@ import { Id } from "@/convex/_generated/dataModel"
 
 export const taskSchema = z.object({
   individualProcessId: z.custom<Id<"individualProcesses">>().optional(),
-  mainProcessId: z.custom<Id<"mainProcesses">>().optional(),
+  collectiveProcessId: z.custom<Id<"collectiveProcesses">>().optional(),
   title: z.string().min(1, "Title is required").max(200, "Title is too long"),
   description: z.string().min(1, "Description is required"),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),

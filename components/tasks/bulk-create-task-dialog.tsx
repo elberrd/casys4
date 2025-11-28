@@ -43,7 +43,7 @@ interface BulkCreateTaskDialogProps {
   selectedProcesses: Array<{
     _id: Id<"individualProcesses">
     person?: { fullName: string }
-    mainProcess?: { name: string }
+    collectiveProcess?: { name: string }
   }>
   onSuccess?: () => void
 }

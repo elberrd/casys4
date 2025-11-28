@@ -19,12 +19,12 @@ export const getProcessStats = query({
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter by company through mainProcess
+      // Filter by company through collectiveProcess
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
-          if (!process.mainProcessId) return null;
-          const mainProcess = await ctx.db.get(process.mainProcessId);
-          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return process;
           }
           return null;
@@ -97,19 +97,19 @@ export const getDocumentReviewQueue = query({
           doc.personId ? ctx.db.get(doc.personId) : null,
         ]);
 
-        let mainProcess = null;
-        if (individualProcess && individualProcess.mainProcessId) {
-          mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+        let collectiveProcess = null;
+        if (individualProcess && individualProcess.collectiveProcessId) {
+          collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
         }
 
         return {
           ...doc,
           documentType: documentType ? { _id: documentType._id, name: documentType.name } : null,
           person: person ? { _id: person._id, fullName: person.fullName } : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
               }
             : null,
         };
@@ -148,9 +148,9 @@ export const getOverdueTasks = query({
     // Enrich with related data
     const enrichedTasks = await Promise.all(
       tasks.map(async (task) => {
-        const [assignedToUser, mainProcess, individualProcess] = await Promise.all([
+        const [assignedToUser, collectiveProcess, individualProcess] = await Promise.all([
           task.assignedTo ? ctx.db.get(task.assignedTo) : null,
-          task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
         ]);
 
@@ -174,10 +174,10 @@ export const getOverdueTasks = query({
                 fullName: assignedToProfile.fullName,
               }
             : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
               }
             : null,
           person: person
@@ -250,9 +250,9 @@ export const getUpcomingDeadlines = query({
 
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
-          if (!process.mainProcessId) return null;
-          const mainProcess = await ctx.db.get(process.mainProcessId);
-          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return process;
           }
           return null;
@@ -265,14 +265,14 @@ export const getUpcomingDeadlines = query({
     // Enrich with related data
     const enrichedProcesses = await Promise.all(
       processes.map(async (process) => {
-        const [person, mainProcess, processType] = await Promise.all([
+        const [person, collectiveProcess, processType] = await Promise.all([
           ctx.db.get(process.personId),
-          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
         ]);
 
-        const processTypeData = mainProcess && mainProcess.processTypeId
-          ? await ctx.db.get(mainProcess.processTypeId)
+        const processTypeData = collectiveProcess && collectiveProcess.processTypeId
+          ? await ctx.db.get(collectiveProcess.processTypeId)
           : null;
 
         // Calculate days remaining
@@ -284,10 +284,10 @@ export const getUpcomingDeadlines = query({
         return {
           ...process,
           person: person ? { _id: person._id, fullName: person.fullName } : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
               }
             : null,
           processType: processTypeData
@@ -383,9 +383,9 @@ export const getRecentActivity = query({
       const filtered = await Promise.all(
         historyEntries.map(async (entry) => {
           const individualProcess = await ctx.db.get(entry.individualProcessId);
-          if (individualProcess && individualProcess.mainProcessId) {
-            const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-            if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (individualProcess && individualProcess.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
               return entry;
             }
           }
@@ -412,11 +412,11 @@ export const getRecentActivity = query({
           : null;
 
         let person = null;
-        let mainProcess = null;
+        let collectiveProcess = null;
         if (individualProcess) {
           person = await ctx.db.get(individualProcess.personId);
-          if (individualProcess.mainProcessId) {
-            mainProcess = await ctx.db.get(individualProcess.mainProcessId);
+          if (individualProcess.collectiveProcessId) {
+            collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
           }
         }
 
@@ -429,10 +429,10 @@ export const getRecentActivity = query({
               }
             : null,
           person: person ? { _id: person._id, fullName: person.fullName } : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
               }
             : null,
         };
@@ -459,18 +459,18 @@ export const getCompanyDocumentStatus = query({
     const companyId = userProfile.role === "admin" ? null : userProfile.companyId;
 
     // Get all main processes for the company
-    let mainProcesses = await ctx.db.query("mainProcesses").collect();
+    let collectiveProcesses = await ctx.db.query("collectiveProcesses").collect();
 
     if (companyId) {
-      mainProcesses = mainProcesses.filter((mp) => mp.companyId === companyId);
+      collectiveProcesses = collectiveProcesses.filter((mp) => mp.companyId === companyId);
     }
 
     // Get all individual processes for these main processes
     const individualProcesses = await Promise.all(
-      mainProcesses.map(async (mp) => {
+      collectiveProcesses.map(async (mp) => {
         return await ctx.db
           .query("individualProcesses")
-          .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", mp._id))
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", mp._id))
           .collect();
       })
     );

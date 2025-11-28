@@ -87,9 +87,9 @@ export const list = query({
         }
 
         // Get approved main process if exists
-        let approvedMainProcess = null;
-        if (request.approvedMainProcessId) {
-          approvedMainProcess = await ctx.db.get(request.approvedMainProcessId);
+        let approvedCollectiveProcess = null;
+        if (request.approvedCollectiveProcessId) {
+          approvedCollectiveProcess = await ctx.db.get(request.approvedCollectiveProcessId);
         }
 
         return {
@@ -100,7 +100,7 @@ export const list = query({
           workplaceCity,
           consulate,
           reviewerProfile,
-          approvedMainProcess,
+          approvedCollectiveProcess,
         };
       }),
     );
@@ -161,9 +161,9 @@ export const get = query({
     }
 
     // Get approved main process if exists
-    let approvedMainProcess = null;
-    if (request.approvedMainProcessId) {
-      approvedMainProcess = await ctx.db.get(request.approvedMainProcessId);
+    let approvedCollectiveProcess = null;
+    if (request.approvedCollectiveProcessId) {
+      approvedCollectiveProcess = await ctx.db.get(request.approvedCollectiveProcessId);
     }
 
     return {
@@ -174,7 +174,7 @@ export const get = query({
       workplaceCity,
       consulate,
       reviewerProfile,
-      approvedMainProcess,
+      approvedCollectiveProcess,
     };
   },
 });
@@ -241,12 +241,12 @@ export const approve = mutation({
 
     // Generate unique reference number for main process
     const year = new Date().getFullYear();
-    const allProcesses = await ctx.db.query("mainProcesses").collect();
+    const allProcesses = await ctx.db.query("collectiveProcesses").collect();
     const sequenceNumber = allProcesses.length + 1;
     const referenceNumber = `PR-${year}-${sequenceNumber.toString().padStart(4, "0")}`;
 
     // Create main process from request
-    const mainProcessId = await ctx.db.insert("mainProcesses", {
+    const collectiveProcessId = await ctx.db.insert("collectiveProcesses", {
       referenceNumber,
       companyId: request.companyId,
       contactPersonId: request.contactPersonId,
@@ -266,11 +266,11 @@ export const approve = mutation({
       status: "approved",
       reviewedBy: adminProfile.userId,
       reviewedAt: now,
-      approvedMainProcessId: mainProcessId,
+      approvedCollectiveProcessId: collectiveProcessId,
       updatedAt: now,
     });
 
-    return mainProcessId;
+    return collectiveProcessId;
   },
 });
 
@@ -376,7 +376,7 @@ export const remove = mutation({
       throw new Error("Process request not found");
     }
 
-    if (request.status === "approved" && request.approvedMainProcessId) {
+    if (request.status === "approved" && request.approvedCollectiveProcessId) {
       throw new Error(
         "Cannot delete approved request that created a main process. Delete the main process first or use admin override."
       );

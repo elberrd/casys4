@@ -15,6 +15,7 @@ import type * as bulkOperations from "../bulkOperations.js";
 import type * as caseStatuses from "../caseStatuses.js";
 import type * as cboCodes from "../cboCodes.js";
 import type * as cities from "../cities.js";
+import type * as collectiveProcesses from "../collectiveProcesses.js";
 import type * as companies from "../companies.js";
 import type * as consulates from "../consulates.js";
 import type * as countries from "../countries.js";
@@ -38,7 +39,6 @@ import type * as lib_statusCalculation from "../lib/statusCalculation.js";
 import type * as lib_statusManagement from "../lib/statusManagement.js";
 import type * as lib_statusValidation from "../lib/statusValidation.js";
 import type * as lib_stringUtils from "../lib/stringUtils.js";
-import type * as mainProcesses from "../mainProcesses.js";
 import type * as migrations_addDateToIndividualProcessStatuses from "../migrations/addDateToIndividualProcessStatuses.js";
 import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/addOrderNumberToCaseStatuses.js";
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
@@ -49,6 +49,7 @@ import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToC
 import type * as migrations_removeConsulateNameField from "../migrations/removeConsulateNameField.js";
 import type * as migrations_removeProcessTypeCodeCategory from "../migrations/removeProcessTypeCodeCategory.js";
 import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migrations/removeProcessTypeIdFromLegalFrameworks.js";
+import type * as migrations_renameMainProcessesToCollectiveProcesses from "../migrations/renameMainProcessesToCollectiveProcesses.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as notifications from "../notifications.js";
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   caseStatuses: typeof caseStatuses;
   cboCodes: typeof cboCodes;
   cities: typeof cities;
+  collectiveProcesses: typeof collectiveProcesses;
   companies: typeof companies;
   consulates: typeof consulates;
   countries: typeof countries;
@@ -113,7 +115,6 @@ declare const fullApi: ApiFromModules<{
   "lib/statusManagement": typeof lib_statusManagement;
   "lib/statusValidation": typeof lib_statusValidation;
   "lib/stringUtils": typeof lib_stringUtils;
-  mainProcesses: typeof mainProcesses;
   "migrations/addDateToIndividualProcessStatuses": typeof migrations_addDateToIndividualProcessStatuses;
   "migrations/addOrderNumberToCaseStatuses": typeof migrations_addOrderNumberToCaseStatuses;
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
@@ -124,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/removeConsulateNameField": typeof migrations_removeConsulateNameField;
   "migrations/removeProcessTypeCodeCategory": typeof migrations_removeProcessTypeCodeCategory;
   "migrations/removeProcessTypeIdFromLegalFrameworks": typeof migrations_removeProcessTypeIdFromLegalFrameworks;
+  "migrations/renameMainProcessesToCollectiveProcesses": typeof migrations_renameMainProcessesToCollectiveProcesses;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;
   notifications: typeof notifications;

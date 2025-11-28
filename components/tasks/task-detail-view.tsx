@@ -29,8 +29,8 @@ interface TaskDetailViewProps {
         fullName: string
       } | null
     } | null
-    mainProcess?: {
-      _id: Id<"mainProcesses">
+    collectiveProcess?: {
+      _id: Id<"collectiveProcesses">
       referenceNumber: string
       status: string
     } | null
@@ -224,24 +224,24 @@ export function TaskDetailView({
           <CardHeader>
             <CardTitle>{t('processInformation')}</CardTitle>
             <CardDescription>
-              {task.mainProcess ? t('mainProcess') : t('individualProcess')}
+              {task.collectiveProcess ? t('collectiveProcess') : t('individualProcess')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {task.mainProcess && (
+            {task.collectiveProcess && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t('mainProcess')}
+                  {t('collectiveProcess')}
                 </h4>
                 <Link
-                  href={`/main-processes/${task.mainProcess._id}`}
+                  href={`/collective-processes/${task.collectiveProcess._id}`}
                   className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                 >
-                  <span className="font-mono">{task.mainProcess.referenceNumber}</span>
+                  <span className="font-mono">{task.collectiveProcess.referenceNumber}</span>
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {t('status')}: {task.mainProcess.status}
+                  {t('status')}: {task.collectiveProcess.status}
                 </p>
               </div>
             )}
@@ -266,7 +266,7 @@ export function TaskDetailView({
               </div>
             )}
 
-            {!task.mainProcess && !task.individualProcess && (
+            {!task.collectiveProcess && !task.individualProcess && (
               <p className="text-sm text-muted-foreground">
                 {tCommon('notApplicable')}
               </p>

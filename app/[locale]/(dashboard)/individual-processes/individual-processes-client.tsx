@@ -76,7 +76,7 @@ export function IndividualProcessesClient() {
           </div>
           <div className="flex items-center gap-2">
             <ExportDataDialog defaultExportType="individualProcesses" />
-            <Button onClick={() => router.push('/individual-processes/new')}>
+            <Button onClick={() => router.push('/process-wizard')}>
               <Plus className="mr-2 h-4 w-4" />
               {tCommon('create')}
             </Button>

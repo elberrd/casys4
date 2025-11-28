@@ -63,9 +63,9 @@ export function ClientUpdatesWidget() {
                         <h4 className="text-sm font-medium leading-none line-clamp-1">
                           {activity.person?.fullName || t("unknownPerson")}
                         </h4>
-                        {activity.mainProcess && (
+                        {activity.collectiveProcess && (
                           <span className="text-xs text-muted-foreground">
-                            {activity.mainProcess.referenceNumber}
+                            {activity.collectiveProcess.referenceNumber}
                           </span>
                         )}
                       </div>

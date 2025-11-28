@@ -48,7 +48,7 @@ export function ApproveRequestDialog({
     try {
       setIsApproving(true);
 
-      const mainProcessId = await approve({ id: requestId });
+      const collectiveProcessId = await approve({ id: requestId });
 
       toast.success(t("approvedSuccess"));
 

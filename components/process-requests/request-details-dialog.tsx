@@ -41,7 +41,7 @@ interface ProcessRequest {
   reviewedBy?: Id<"users">;
   reviewedAt?: number;
   rejectionReason?: string;
-  approvedMainProcessId?: Id<"mainProcesses">;
+  approvedCollectiveProcessId?: Id<"collectiveProcesses">;
   createdBy: Id<"users">;
   createdAt: number;
   updatedAt: number;
@@ -65,7 +65,7 @@ interface ProcessRequest {
   reviewerProfile: {
     fullName: string;
   } | null;
-  approvedMainProcess: {
+  approvedCollectiveProcess: {
     referenceNumber: string;
   } | null;
 }
@@ -255,18 +255,18 @@ export function RequestDetailsDialog({
           )}
 
           {/* Approved Main Process Link */}
-          {request.status === "approved" && request.approvedMainProcess && (
+          {request.status === "approved" && request.approvedCollectiveProcess && (
             <>
               <Separator />
               <div className="space-y-3">
-                <h3 className="font-semibold text-sm">{t("approvedMainProcess")}</h3>
+                <h3 className="font-semibold text-sm">{t("approvedCollectiveProcess")}</h3>
                 <div className="flex items-center justify-between bg-muted p-3 rounded-md">
                   <div>
                     <p className="text-sm font-medium">
-                      {request.approvedMainProcess.referenceNumber}
+                      {request.approvedCollectiveProcess.referenceNumber}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {t("mainProcessCreated")}
+                      {t("collectiveProcessCreated")}
                     </p>
                   </div>
                   <Button
@@ -274,7 +274,7 @@ export function RequestDetailsDialog({
                     size="sm"
                     onClick={() => {
                       router.push(
-                        `/dashboard/main-processes?id=${request.approvedMainProcessId}`
+                        `/collective-processes?id=${request.approvedCollectiveProcessId}`
                       );
                       onOpenChange(false);
                     }}

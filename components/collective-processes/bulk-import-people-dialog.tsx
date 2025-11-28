@@ -36,7 +36,7 @@ import { bulkImportPeopleSchema } from "@/lib/validations/bulk-operations";
 interface BulkImportPeopleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mainProcessId?: Id<"mainProcesses">;
+  collectiveProcessId?: Id<"collectiveProcesses">;
   onSuccess?: () => void;
 }
 
@@ -51,7 +51,7 @@ interface ImportResult {
 export function BulkImportPeopleDialog({
   open,
   onOpenChange,
-  mainProcessId,
+  collectiveProcessId,
   onSuccess,
 }: BulkImportPeopleDialogProps) {
   const t = useTranslations("BulkImport");
@@ -119,7 +119,7 @@ export function BulkImportPeopleDialog({
       // Validate with Zod schema
       const validation = bulkImportPeopleSchema.safeParse({
         people,
-        mainProcessId,
+        collectiveProcessId,
       });
 
       if (!validation.success) {

@@ -13,10 +13,16 @@ import { ClientUpdatesWidget } from "@/components/dashboard/client-updates-widge
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { useLocale } from "next-intl"
 
 export function DashboardClient() {
   const t = useTranslations("Dashboard")
+  const tProcessWizard = useTranslations("ProcessWizard")
+  const router = useRouter()
+  const locale = useLocale()
   const currentUser = useQuery(api.userProfiles.getCurrentUser, {})
 
   const breadcrumbs = [
@@ -54,11 +60,19 @@ export function DashboardClient() {
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div>
-          <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("description")}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
+            <p className="text-sm text-muted-foreground">
+              {t("description")}
+            </p>
+          </div>
+          {isAdmin && (
+            <Button onClick={() => router.push(`/${locale}/process-wizard`)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {tProcessWizard("addProcess")}
+            </Button>
+          )}
         </div>
 
         {/* Admin Dashboard */}

@@ -26,9 +26,9 @@ import { useToast } from "@/hooks/use-toast"
 import { Edit, AlertCircle, Building2, User, MapPin, Globe2, Calendar, CheckCircle, XCircle, RotateCcw } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 
-interface MainProcessDetailCardProps {
-  mainProcess: {
-    _id: Id<"mainProcesses">
+interface CollectiveProcessDetailCardProps {
+  collectiveProcess: {
+    _id: Id<"collectiveProcesses">
     referenceNumber: string
     status: string // DEPRECATED: Kept for backward compatibility
     isUrgent?: boolean
@@ -87,8 +87,8 @@ interface MainProcessDetailCardProps {
   }
 }
 
-export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProps) {
-  const t = useTranslations('MainProcesses')
+export function CollectiveProcessDetailCard({ collectiveProcess }: CollectiveProcessDetailCardProps) {
+  const t = useTranslations('CollectiveProcesses')
   const tCommon = useTranslations('Common')
   const router = useRouter()
   const { toast } = useToast()
@@ -102,12 +102,12 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   const [isLoading, setIsLoading] = useState(false)
 
   // TODO: Remove these - status is now calculated from individual processes
-  // const completeProcess = useMutation(api.mainProcesses.complete)
-  // const cancelProcess = useMutation(api.mainProcesses.cancel)
-  // const reopenProcess = useMutation(api.mainProcesses.reopen)
+  // const completeProcess = useMutation(api.collectiveProcesses.complete)
+  // const cancelProcess = useMutation(api.collectiveProcesses.cancel)
+  // const reopenProcess = useMutation(api.collectiveProcesses.reopen)
 
   const handleEdit = () => {
-    router.push(`/main-processes/${mainProcess._id}/edit`)
+    router.push(`/collective-processes/${collectiveProcess._id}/edit`)
   }
 
   const formatTimestamp = (timestamp: number) => {
@@ -115,15 +115,15 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   }
 
   // Check if all individuals are completed or cancelled
-  const allIndividualsComplete = (mainProcess.individualProcesses || []).every(
+  const allIndividualsComplete = (collectiveProcess.individualProcesses || []).every(
     (ip) => ip.status === "completed" || ip.status === "cancelled"
-  ) && (mainProcess.individualProcesses?.length ?? 0) > 0
+  ) && (collectiveProcess.individualProcesses?.length ?? 0) > 0
 
   // TODO: Remove these handlers - status is now calculated automatically
   // const handleComplete = async () => {
   //   setIsLoading(true)
   //   try {
-  //     await completeProcess({ id: mainProcess._id })
+  //     await completeProcess({ id: collectiveProcess._id })
   //     toast({
   //       title: t('completeSuccess'),
   //       description: t('completeSuccessDescription'),
@@ -154,7 +154,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   //   setIsLoading(true)
   //   try {
   //     await cancelProcess({
-  //       id: mainProcess._id,
+  //       id: collectiveProcess._id,
   //       notes: cancelNotes,
   //       cancelIndividuals,
   //     })
@@ -180,7 +180,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
   // const handleReopen = async () => {
   //   setIsLoading(true)
   //   try {
-  //     await reopenProcess({ id: mainProcess._id })
+  //     await reopenProcess({ id: collectiveProcess._id })
   //     toast({
   //       title: t('reopenSuccess'),
   //       description: t('reopenSuccessDescription'),
@@ -205,9 +205,9 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <CardTitle className="text-3xl font-bold">
-                {mainProcess.referenceNumber}
+                {collectiveProcess.referenceNumber}
               </CardTitle>
-              {mainProcess.isUrgent && (
+              {collectiveProcess.isUrgent && (
                 <Badge variant="destructive" className="gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {tCommon('urgent')}
@@ -216,7 +216,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {/* Display calculated status if available */}
-              {mainProcess.calculatedStatus ? (
+              {collectiveProcess.calculatedStatus ? (
                 <div className="flex flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">
@@ -224,14 +224,14 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
                     </span>
                     <span className="text-sm font-semibold">
                       {locale === 'en'
-                        ? mainProcess.calculatedStatus.displayTextEn
-                        : mainProcess.calculatedStatus.displayText}
+                        ? collectiveProcess.calculatedStatus.displayTextEn
+                        : collectiveProcess.calculatedStatus.displayText}
                     </span>
                   </div>
                   {/* Show breakdown if multiple statuses */}
-                  {mainProcess.calculatedStatus.hasMultipleStatuses && (
+                  {collectiveProcess.calculatedStatus.hasMultipleStatuses && (
                     <div className="flex flex-wrap gap-1">
-                      {mainProcess.calculatedStatus.breakdown.map((item, idx) => (
+                      {collectiveProcess.calculatedStatus.breakdown.map((item, idx) => (
                         <Badge key={idx} variant="secondary" className="text-xs">
                           {item.count} {locale === 'en' && item.caseStatusNameEn ? item.caseStatusNameEn : item.caseStatusName}
                         </Badge>
@@ -241,10 +241,10 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
                 </div>
               ) : (
                 // Fallback to old status for backward compatibility
-                <StatusBadge status={mainProcess.status} type="main_process" />
+                <StatusBadge status={collectiveProcess.status} type="main_process" />
               )}
-              {mainProcess.processType && (
-                <Badge variant="outline">{mainProcess.processType.name}</Badge>
+              {collectiveProcess.processType && (
+                <Badge variant="outline">{collectiveProcess.processType.name}</Badge>
               )}
             </div>
           </div>
@@ -256,7 +256,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
 
             {/* TODO: Status action buttons deprecated - main process status is now calculated automatically */}
             {/* Mark Complete Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {mainProcess.status === "in_progress" && allIndividualsComplete && (
+            {/* {collectiveProcess.status === "in_progress" && allIndividualsComplete && (
               <Button onClick={() => setCompleteDialogOpen(true)} variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 {t('markComplete')}
@@ -264,7 +264,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             )} */}
 
             {/* Cancel Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {mainProcess.status !== "cancelled" && mainProcess.status !== "completed" && (
+            {/* {collectiveProcess.status !== "cancelled" && collectiveProcess.status !== "completed" && (
               <Button onClick={() => setCancelDialogOpen(true)} variant="destructive">
                 <XCircle className="mr-2 h-4 w-4" />
                 {t('cancelProcess')}
@@ -272,7 +272,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
             )} */}
 
             {/* Reopen Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {(mainProcess.status === "completed" || mainProcess.status === "cancelled") && (
+            {/* {(collectiveProcess.status === "completed" || collectiveProcess.status === "cancelled") && (
               <Button onClick={() => setReopenDialogOpen(true)} variant="outline">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 {t('reopenProcess')}
@@ -289,45 +289,45 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
               {t('companyInformation')}
             </h3>
 
-            {mainProcess.company && (
+            {collectiveProcess.company && (
               <div className="flex items-start gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('company')}</p>
-                  <p className="text-sm text-muted-foreground">{mainProcess.company.name}</p>
+                  <p className="text-sm text-muted-foreground">{collectiveProcess.company.name}</p>
                 </div>
               </div>
             )}
 
-            {mainProcess.contactPerson && (
+            {collectiveProcess.contactPerson && (
               <div className="flex items-start gap-2">
                 <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('contactPerson')}</p>
-                  <p className="text-sm text-muted-foreground">{mainProcess.contactPerson.fullName}</p>
-                  {mainProcess.contactPerson.email && (
-                    <p className="text-xs text-muted-foreground">{mainProcess.contactPerson.email}</p>
+                  <p className="text-sm text-muted-foreground">{collectiveProcess.contactPerson.fullName}</p>
+                  {collectiveProcess.contactPerson.email && (
+                    <p className="text-xs text-muted-foreground">{collectiveProcess.contactPerson.email}</p>
                   )}
                 </div>
               </div>
             )}
 
-            {mainProcess.workplaceCity && (
+            {collectiveProcess.workplaceCity && (
               <div className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('workplaceCity')}</p>
-                  <p className="text-sm text-muted-foreground">{mainProcess.workplaceCity.name}</p>
+                  <p className="text-sm text-muted-foreground">{collectiveProcess.workplaceCity.name}</p>
                 </div>
               </div>
             )}
 
-            {mainProcess.consulate && (
+            {collectiveProcess.consulate && (
               <div className="flex items-start gap-2">
                 <Globe2 className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('consulate')}</p>
-                  <p className="text-sm text-muted-foreground">{mainProcess.consulate.city?.name || "-"}</p>
+                  <p className="text-sm text-muted-foreground">{collectiveProcess.consulate.city?.name || "-"}</p>
                 </div>
               </div>
             )}
@@ -343,7 +343,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
               <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">{t('requestDate')}</p>
-                <p className="text-sm text-muted-foreground">{mainProcess.requestDate}</p>
+                <p className="text-sm text-muted-foreground">{collectiveProcess.requestDate}</p>
               </div>
             </div>
 
@@ -351,7 +351,7 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
               <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">{t('createdAt')}</p>
-                <p className="text-sm text-muted-foreground">{formatTimestamp(mainProcess.createdAt)}</p>
+                <p className="text-sm text-muted-foreground">{formatTimestamp(collectiveProcess.createdAt)}</p>
               </div>
             </div>
 
@@ -359,27 +359,27 @@ export function MainProcessDetailCard({ mainProcess }: MainProcessDetailCardProp
               <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">{t('updatedAt')}</p>
-                <p className="text-sm text-muted-foreground">{formatTimestamp(mainProcess.updatedAt)}</p>
+                <p className="text-sm text-muted-foreground">{formatTimestamp(collectiveProcess.updatedAt)}</p>
               </div>
             </div>
 
-            {mainProcess.completedAt && (
+            {collectiveProcess.completedAt && (
               <div className="flex items-start gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">{t('completedAt')}</p>
-                  <p className="text-sm text-muted-foreground">{formatTimestamp(mainProcess.completedAt)}</p>
+                  <p className="text-sm text-muted-foreground">{formatTimestamp(collectiveProcess.completedAt)}</p>
                 </div>
               </div>
             )}
 
             {/* Origin Request Info */}
-            {mainProcess.originRequest && (
+            {collectiveProcess.originRequest && (
               <div className="flex items-start gap-2">
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t('createdFromRequest')}</p>
                   <Badge variant="secondary" className="text-xs">
-                    {t('requestDate')}: {mainProcess.originRequest.requestDate}
+                    {t('requestDate')}: {collectiveProcess.originRequest.requestDate}
                   </Badge>
                 </div>
               </div>

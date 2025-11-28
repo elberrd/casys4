@@ -38,21 +38,21 @@ import {
   generateExportFilename,
 } from "@/lib/utils/export-helpers"
 
-export type ExportType = "mainProcesses" | "individualProcesses" | "people" | "documents" | "tasks"
+export type ExportType = "collectiveProcesses" | "individualProcesses" | "people" | "documents" | "tasks"
 
 export interface ExportDataDialogProps {
   children?: React.ReactNode
   defaultExportType?: ExportType
   defaultFilters?: {
     companyId?: Id<"companies">
-    mainProcessId?: Id<"mainProcesses">
+    collectiveProcessId?: Id<"collectiveProcesses">
     statusFilter?: string
   }
 }
 
 export function ExportDataDialog({
   children,
-  defaultExportType = "mainProcesses",
+  defaultExportType = "collectiveProcesses",
   defaultFilters = {},
 }: ExportDataDialogProps) {
   const t = useTranslations("Export")
@@ -103,15 +103,15 @@ export function ExportDataDialog({
       let filename = ""
 
       switch (exportType) {
-        case "mainProcesses": {
-          data = await convex.query(api.exports.exportMainProcesses, baseArgs)
-          filename = generateExportFilename("main_processes")
+        case "collectiveProcesses": {
+          data = await convex.query(api.exports.exportCollectiveProcesses, baseArgs)
+          filename = generateExportFilename("collective_processes")
           break
         }
         case "individualProcesses": {
           data = await convex.query(api.exports.exportIndividualProcesses, {
             ...baseArgs,
-            mainProcessId: defaultFilters.mainProcessId,
+            collectiveProcessId: defaultFilters.collectiveProcessId,
           })
           filename = generateExportFilename("individual_processes")
           break
@@ -186,7 +186,7 @@ export function ExportDataDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="mainProcesses">{t("mainProcesses")}</SelectItem>
+                <SelectItem value="collectiveProcesses">{t("collectiveProcesses")}</SelectItem>
                 <SelectItem value="individualProcesses">{t("individualProcesses")}</SelectItem>
                 <SelectItem value="people">{t("people")}</SelectItem>
                 <SelectItem value="documents">{t("documents")}</SelectItem>
@@ -251,7 +251,7 @@ export function ExportDataDialog({
           </div>
 
           {/* Status Filter (for applicable types) */}
-          {(exportType === "mainProcesses" ||
+          {(exportType === "collectiveProcesses" ||
             exportType === "individualProcesses" ||
             exportType === "documents" ||
             exportType === "tasks") && (
@@ -264,7 +264,7 @@ export function ExportDataDialog({
                 <SelectContent>
                   <SelectItem value="all">{t("allStatuses")}</SelectItem>
                   {/* Add status options based on export type */}
-                  {exportType === "mainProcesses" && (
+                  {exportType === "collectiveProcesses" && (
                     <>
                       <SelectItem value="pending">{tCommon("pending")}</SelectItem>
                       <SelectItem value="in_progress">{tCommon("inProgress")}</SelectItem>

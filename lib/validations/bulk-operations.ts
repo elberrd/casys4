@@ -40,8 +40,8 @@ export type BulkImportPersonData = z.infer<typeof bulkImportPersonSchema>;
  */
 export const bulkImportPeopleSchema = z.object({
   people: z.array(bulkImportPersonSchema).min(1, "At least one person is required"),
-  mainProcessId: z.custom<Id<"mainProcesses">>((val) => typeof val === "string", {
-    message: "Main process is required",
+  collectiveProcessId: z.custom<Id<"collectiveProcesses">>((val) => typeof val === "string", {
+    message: "Collective process is required",
   }).optional(),
 });
 
@@ -51,8 +51,8 @@ export type BulkImportPeopleInput = z.infer<typeof bulkImportPeopleSchema>;
  * Schema for bulk individual process creation
  */
 export const bulkCreateIndividualProcessesSchema = z.object({
-  mainProcessId: z.custom<Id<"mainProcesses">>((val) => typeof val === "string", {
-    message: "Main process is required",
+  collectiveProcessId: z.custom<Id<"collectiveProcesses">>((val) => typeof val === "string", {
+    message: "Collective process is required",
   }),
   personIds: z.array(
     z.custom<Id<"people">>((val) => typeof val === "string", {
@@ -190,7 +190,7 @@ export type BulkUpdateTaskStatusInput = z.infer<typeof bulkUpdateTaskStatusSchem
  * Schema for export data request
  */
 export const exportDataSchema = z.object({
-  exportType: z.enum(["mainProcesses", "individualProcesses", "people", "documents", "tasks"]),
+  exportType: z.enum(["collectiveProcesses", "individualProcesses", "people", "documents", "tasks"]),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   statusFilter: z.string().optional(),

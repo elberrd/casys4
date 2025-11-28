@@ -234,7 +234,7 @@ export default defineSchema({
     .index("by_active", ["isActive"]),
 
   // Process management tables
-  mainProcesses: defineTable({
+  collectiveProcesses: defineTable({
     referenceNumber: v.string(),
     companyId: v.optional(v.id("companies")),
     contactPersonId: v.optional(v.id("people")),
@@ -257,7 +257,7 @@ export default defineSchema({
     .index("by_referenceNumber", ["referenceNumber"]),
 
   individualProcesses: defineTable({
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     dateProcess: v.optional(v.string()), // ISO date format YYYY-MM-DD - Process date
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport used for this process
@@ -289,7 +289,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_mainProcess", ["mainProcessId"])
+    .index("by_collectiveProcess", ["collectiveProcessId"])
     .index("by_person", ["personId"])
     .index("by_passport", ["passportId"]) // Index for passport lookups
     .index("by_applicant", ["applicantId"]) // DEPRECATED: Index for applicant lookups
@@ -359,7 +359,7 @@ export default defineSchema({
     reviewedBy: v.optional(v.id("users")),
     reviewedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
-    approvedMainProcessId: v.optional(v.id("mainProcesses")),
+    approvedCollectiveProcessId: v.optional(v.id("collectiveProcesses")),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -368,7 +368,7 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_createdBy", ["createdBy"])
     .index("by_reviewedBy", ["reviewedBy"])
-    .index("by_approvedMainProcess", ["approvedMainProcessId"]),
+    .index("by_approvedCollectiveProcess", ["approvedCollectiveProcessId"]),
 
   // Document Template System - Admin-created templates for authorization types
   documentTemplates: defineTable({
@@ -437,7 +437,7 @@ export default defineSchema({
   // Task management - Automates workflow and deadline tracking
   tasks: defineTable({
     individualProcessId: v.optional(v.id("individualProcesses")),
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     title: v.string(),
     description: v.optional(v.string()),
     dueDate: v.optional(v.string()),
@@ -451,7 +451,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_individualProcess", ["individualProcessId"])
-    .index("by_mainProcess", ["mainProcessId"])
+    .index("by_collectiveProcess", ["collectiveProcessId"])
     .index("by_assignedTo", ["assignedTo"])
     .index("by_status", ["status"])
     .index("by_priority", ["priority"])
@@ -513,7 +513,7 @@ export default defineSchema({
   activityLogs: defineTable({
     userId: v.id("users"),
     action: v.string(), // "created", "updated", "deleted", "status_changed", etc.
-    entityType: v.string(), // "mainProcess", "document", "task", etc.
+    entityType: v.string(), // "collectiveProcess", "individualProcess", "document", "task", etc.
     entityId: v.string(),
     details: v.optional(v.any()),
     ipAddress: v.optional(v.string()),

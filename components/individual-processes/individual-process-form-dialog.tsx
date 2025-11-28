@@ -78,7 +78,7 @@ export function IndividualProcessFormDialog({
     individualProcessId ? { id: individualProcessId } : "skip"
   )
 
-  const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
+  const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
   const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
   const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
@@ -91,7 +91,7 @@ export function IndividualProcessFormDialog({
   const form = useForm<IndividualProcessFormData>({
     resolver: zodResolver(individualProcessSchema) as any,
     defaultValues: {
-      mainProcessId: "" as Id<"mainProcesses">,
+      collectiveProcessId: "" as Id<"collectiveProcesses">,
       dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
       personId: "" as Id<"people">,
       passportId: "",
@@ -147,7 +147,7 @@ export function IndividualProcessFormDialog({
   useEffect(() => {
     if (individualProcess) {
       form.reset({
-        mainProcessId: individualProcess.mainProcessId,
+        collectiveProcessId: individualProcess.collectiveProcessId,
         dateProcess: individualProcess.dateProcess ?? "",
         personId: individualProcess.personId,
         passportId: individualProcess.passportId ?? "",
@@ -177,7 +177,7 @@ export function IndividualProcessFormDialog({
       })
     } else if (!individualProcessId) {
       form.reset({
-        mainProcessId: "" as Id<"mainProcesses">,
+        collectiveProcessId: "" as Id<"collectiveProcesses">,
         dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
         personId: "" as Id<"people">,
         passportId: "",
@@ -223,7 +223,7 @@ export function IndividualProcessFormDialog({
       // Clean optional fields - convert empty strings to undefined
       const submitData = {
         ...data,
-        mainProcessId: data.mainProcessId || undefined,
+        collectiveProcessId: data.collectiveProcessId || undefined,
         dateProcess: data.dateProcess || undefined,
         passportId: data.passportId || undefined,
         applicantId: data.applicantId || undefined, // DEPRECATED
@@ -271,7 +271,7 @@ export function IndividualProcessFormDialog({
     }
   }
 
-  const mainProcessOptions = mainProcesses.map((process) => ({
+  const collectiveProcessOptions = collectiveProcesses.map((process) => ({
     value: process._id,
     label: process.referenceNumber,
   }))
@@ -355,16 +355,16 @@ export function IndividualProcessFormDialog({
 
               <FormField
                 control={form.control}
-                name="mainProcessId"
+                name="collectiveProcessId"
                 render={({ field }) => (
                   <FormItem className="hidden">
-                    <FormLabel>{t("mainProcess")}</FormLabel>
+                    <FormLabel>{t("collectiveProcess")}</FormLabel>
                     <FormControl>
                       <Combobox
-                        options={mainProcessOptions}
+                        options={collectiveProcessOptions}
                         value={field.value}
                         onValueChange={field.onChange}
-                        placeholder={t("selectMainProcess")}
+                        placeholder={t("selectCollectiveProcess")}
                       />
                     </FormControl>
                     <FormMessage />

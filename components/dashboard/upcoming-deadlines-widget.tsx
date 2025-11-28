@@ -85,8 +85,8 @@ export function UpcomingDeadlinesWidget() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {deadline.mainProcess && (
-                          <span>{deadline.mainProcess.referenceNumber}</span>
+                        {deadline.collectiveProcess && (
+                          <span>{deadline.collectiveProcess.referenceNumber}</span>
                         )}
                         {deadline.processType && (
                           <span>{deadline.processType.name}</span>

@@ -62,7 +62,7 @@ export function NotificationItem({ notification, compact = false, onClick }: Not
     // Navigate to entity if available
     if (notification.entityType && notification.entityId) {
       const entityRoutes: Record<string, string> = {
-        mainProcess: `/main-processes/${notification.entityId}`,
+        collectiveProcess: `/collective-processes/${notification.entityId}`,
         individualProcess: `/individual-processes/${notification.entityId}`,
         task: `/tasks/${notification.entityId}`,
         document: `/individual-processes/${notification.entityId}`,

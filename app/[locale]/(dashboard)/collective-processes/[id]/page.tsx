@@ -7,39 +7,37 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
-import { MainProcessDetailCard } from "@/components/main-processes/main-process-detail-card"
+import { CollectiveProcessDetailCard } from "@/components/collective-processes/collective-process-detail-card"
 import { IndividualProcessesTable } from "@/components/individual-processes/individual-processes-table"
-import { BulkStatusUpdateDialog } from "@/components/main-processes/bulk-status-update-dialog"
-import { BulkCreateIndividualProcessDialog } from "@/components/main-processes/bulk-create-individual-process-dialog"
+import { BulkStatusUpdateDialog } from "@/components/collective-processes/bulk-status-update-dialog"
+import { BulkCreateIndividualProcessDialog } from "@/components/collective-processes/bulk-create-individual-process-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Plus, UserPlus } from "lucide-react"
 
-export default function MainProcessDetailPage() {
+export default function CollectiveProcessDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const t = useTranslations('MainProcesses')
+  const t = useTranslations('CollectiveProcesses')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
-  const mainProcessId = params.id as Id<"mainProcesses">
+  const collectiveProcessId = params.id as Id<"collectiveProcesses">
 
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false)
   const [bulkCreateDialogOpen, setBulkCreateDialogOpen] = useState(false)
   const [selectedProcesses, setSelectedProcesses] = useState<Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>>([])
 
-  const mainProcess = useQuery(api.mainProcesses.get, {
-    id: mainProcessId,
+  const collectiveProcess = useQuery(api.collectiveProcesses.get, {
+    id: collectiveProcessId,
   })
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('mainProcesses'), href: "/main-processes" },
-    { label: mainProcess?.referenceNumber || "..." }
+    { label: tBreadcrumbs('collectiveProcesses'), href: "/collective-processes" },
+    { label: collectiveProcess?.referenceNumber || "..." }
   ]
 
   const handleViewIndividual = (id: Id<"individualProcesses">) => {
@@ -51,7 +49,7 @@ export default function MainProcessDetailPage() {
   }
 
   const handleAddIndividual = () => {
-    router.push(`/individual-processes/new?mainProcessId=${mainProcessId}`)
+    router.push(`/individual-processes/new?collectiveProcessId=${collectiveProcessId}`)
   }
 
   const handleBulkAddPeople = () => {
@@ -71,7 +69,7 @@ export default function MainProcessDetailPage() {
     router.refresh()
   }
 
-  if (mainProcess === undefined) {
+  if (collectiveProcess === undefined) {
     return (
       <>
         <DashboardPageHeader breadcrumbs={breadcrumbs} />
@@ -84,7 +82,7 @@ export default function MainProcessDetailPage() {
     )
   }
 
-  if (mainProcess === null) {
+  if (collectiveProcess === null) {
     return (
       <>
         <DashboardPageHeader breadcrumbs={breadcrumbs} />
@@ -97,69 +95,14 @@ export default function MainProcessDetailPage() {
     )
   }
 
-  // Calculate aggregate status summary
-  const individualProcesses = mainProcess.individualProcesses || []
-  const statusCounts = individualProcesses.reduce((acc, ip) => {
-    const status = ip.status || "unknown"
-    acc[status] = (acc[status] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
-  const completedCount = statusCounts["completed"] || 0
-  const cancelledCount = statusCounts["cancelled"] || 0
-  const totalCount = individualProcesses.length
-  const completionPercentage = totalCount > 0
-    ? Math.round(((completedCount + cancelledCount) / totalCount) * 100)
-    : 0
+  const individualProcesses = collectiveProcess.individualProcesses || []
 
   return (
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        {/* Main Process Overview */}
-        <MainProcessDetailCard mainProcess={mainProcess} />
-
-        {/* Aggregate Status Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('statusSummary')}</CardTitle>
-            <CardDescription>
-              {t('statusSummaryDescription')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Progress bar */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{t('overallProgress')}</span>
-                  <span className="font-medium">{completionPercentage}%</span>
-                </div>
-                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500 transition-all"
-                    style={{ width: `${completionPercentage}%` }}
-                  />
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {completedCount} {t('completed')}, {cancelledCount} {t('cancelled')}, {totalCount - completedCount - cancelledCount} {t('inProgress')}
-                </div>
-              </div>
-
-              {/* Status breakdown */}
-              {Object.entries(statusCounts).length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(statusCounts).map(([status, count]) => (
-                    <div key={status} className="flex items-center gap-2">
-                      <StatusBadge status={status} type="individual_process" />
-                      <Badge variant="outline">{count}</Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Collective Process Overview */}
+        <CollectiveProcessDetailCard collectiveProcess={collectiveProcess} />
 
         {/* Individual Processes Table */}
         <Card>
@@ -200,21 +143,21 @@ export default function MainProcessDetailPage() {
         </Card>
 
         {/* Process Notes */}
-        {mainProcess.notes && (
+        {collectiveProcess.notes && (
           <Card>
             <CardHeader>
               <CardTitle>{t('notes')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm whitespace-pre-wrap">{mainProcess.notes}</p>
+              <p className="text-sm whitespace-pre-wrap">{collectiveProcess.notes}</p>
             </CardContent>
           </Card>
         )}
 
         {/* Activity History */}
         <EntityHistory
-          entityType="mainProcesses"
-          entityId={mainProcessId}
+          entityType="collectiveProcesses"
+          entityId={collectiveProcessId}
           title={t('activityHistory')}
         />
       </div>
@@ -231,7 +174,7 @@ export default function MainProcessDetailPage() {
       <BulkCreateIndividualProcessDialog
         open={bulkCreateDialogOpen}
         onOpenChange={setBulkCreateDialogOpen}
-        mainProcessId={mainProcessId}
+        collectiveProcessId={collectiveProcessId}
         onSuccess={handleBulkCreateSuccess}
       />
     </>

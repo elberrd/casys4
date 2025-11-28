@@ -61,7 +61,7 @@ export default internalMutation({
       individualProcessesSkipped: 0,
       statusHistoryUpdated: 0,
       statusHistorySkipped: 0,
-      mainProcessesArchived: 0,
+      collectiveProcessesArchived: 0,
       errors: [] as string[],
     };
 
@@ -206,40 +206,40 @@ export default internalMutation({
       console.log(`  ℹ Skipped ${results.statusHistorySkipped} (already migrated)`);
 
       // ========================================
-      // STEP 5: Archive Main Process Statuses
+      // STEP 5: Archive Collective Process Statuses
       // ========================================
-      console.log("\nStep 5: Archiving main process statuses to activity logs...");
+      console.log("\nStep 5: Archiving collective process statuses to activity logs...");
 
-      const mainProcesses = await ctx.db.query("mainProcesses").collect();
-      console.log(`  Found ${mainProcesses.length} main processes`);
+      const collectiveProcesses = await ctx.db.query("collectiveProcesses").collect();
+      console.log(`  Found ${collectiveProcesses.length} collective processes`);
 
-      for (const mainProcess of mainProcesses) {
-        if (mainProcess.status) {
+      for (const collectiveProcess of collectiveProcesses) {
+        if (collectiveProcess.status) {
           try {
             // Archive to activity logs for audit trail
             await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
               userId: "migration" as any, // System migration user
               action: "migration_archived",
-              entityType: "mainProcess",
-              entityId: mainProcess._id,
+              entityType: "collectiveProcess",
+              entityId: collectiveProcess._id,
               details: {
-                archivedStatus: mainProcess.status,
-                archivedCompletedAt: mainProcess.completedAt,
-                referenceNumber: mainProcess.referenceNumber,
+                archivedStatus: collectiveProcess.status,
+                archivedCompletedAt: collectiveProcess.completedAt,
+                referenceNumber: collectiveProcess.referenceNumber,
                 migratedAt: Date.now(),
-                note: "Main process status archived during migration to calculated status system",
+                note: "Collective process status archived during migration to calculated status system",
               },
             });
-            results.mainProcessesArchived++;
+            results.collectiveProcessesArchived++;
           } catch (error) {
-            const errorMsg = `Failed to archive main process ${mainProcess._id}: ${error}`;
+            const errorMsg = `Failed to archive collective process ${collectiveProcess._id}: ${error}`;
             results.errors.push(errorMsg);
             console.error(`  ✗ ${errorMsg}`);
           }
         }
       }
 
-      console.log(`  ✓ Archived ${results.mainProcessesArchived} main process statuses`);
+      console.log(`  ✓ Archived ${results.collectiveProcessesArchived} collective process statuses`);
 
       // ========================================
       // STEP 6: Optional - Clear Status Fields
@@ -263,7 +263,7 @@ export default internalMutation({
     console.log(`  Case Statuses: ${results.caseStatusesCreated} created, ${results.caseStatusesSkipped} existed`);
     console.log(`  Individual Processes: ${results.individualProcessesUpdated} updated, ${results.individualProcessesSkipped} skipped`);
     console.log(`  Status History: ${results.statusHistoryUpdated} updated, ${results.statusHistorySkipped} skipped`);
-    console.log(`  Main Processes: ${results.mainProcessesArchived} archived`);
+    console.log(`  Collective Processes: ${results.collectiveProcessesArchived} archived`);
 
     if (results.errors.length > 0) {
       console.log(`\n⚠ Errors: ${results.errors.length}`);

@@ -4,10 +4,10 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
-import { calculateMainProcessStatus } from "./lib/statusCalculation";
+import { calculateCollectiveProcessStatus } from "./lib/statusCalculation";
 
 /**
- * Query to list all main processes with optional filters
+ * Query to list all collective processes with optional filters
  * Access control: Admins see all processes, clients see only their company's processes
  */
 export const list = query({
@@ -36,13 +36,13 @@ export const list = query({
     if (effectiveCompanyId !== undefined) {
       const companyId = effectiveCompanyId;
       results = await ctx.db
-        .query("mainProcesses")
+        .query("collectiveProcesses")
         .withIndex("by_company", (q) => q.eq("companyId", companyId))
         .collect();
     } else if (args.processTypeId !== undefined) {
       const processTypeId = args.processTypeId;
       results = await ctx.db
-        .query("mainProcesses")
+        .query("collectiveProcesses")
         .withIndex("by_processType", (q) =>
           q.eq("processTypeId", processTypeId),
         )
@@ -50,11 +50,11 @@ export const list = query({
     } else if (args.status !== undefined) {
       const status = args.status;
       results = await ctx.db
-        .query("mainProcesses")
+        .query("collectiveProcesses")
         .withIndex("by_status", (q) => q.eq("status", status))
         .collect();
     } else {
-      results = await ctx.db.query("mainProcesses").collect();
+      results = await ctx.db.query("collectiveProcesses").collect();
     }
 
     // For client users, ensure all results are filtered by their company
@@ -86,26 +86,35 @@ export const list = query({
         // Get individual processes with case statuses
         const individualProcessesRaw = await ctx.db
           .query("individualProcesses")
-          .withIndex("by_mainProcess", (q) =>
-            q.eq("mainProcessId", process._id),
+          .withIndex("by_collectiveProcess", (q) =>
+            q.eq("collectiveProcessId", process._id),
           )
           .collect();
 
-        // Enrich individual processes with case status details
+        // Enrich individual processes with all related data
         const individualProcesses = await Promise.all(
           individualProcessesRaw.map(async (ip) => {
-            const caseStatus = ip.caseStatusId
-              ? await ctx.db.get(ip.caseStatusId)
-              : null;
+            const [caseStatus, person, activeStatus] = await Promise.all([
+              ip.caseStatusId ? ctx.db.get(ip.caseStatusId) : null,
+              ip.personId ? ctx.db.get(ip.personId) : null,
+              ctx.db
+                .query("individualProcessStatuses")
+                .withIndex("by_individualProcess_active", (q) =>
+                  q.eq("individualProcessId", ip._id).eq("isActive", true)
+                )
+                .first(),
+            ]);
             return {
               ...ip,
               caseStatus,
+              person,
+              activeStatus,
             };
           })
         );
 
-        // Calculate main process status
-        const calculatedStatus = calculateMainProcessStatus(individualProcesses, "pt");
+        // Calculate collective process status
+        const calculatedStatus = calculateCollectiveProcessStatus(individualProcesses, "pt");
 
         return {
           ...process,
@@ -138,11 +147,11 @@ export const list = query({
 });
 
 /**
- * Query to get main process by ID with related data
+ * Query to get collective process by ID with related data
  * Access control: Admins can view any process, clients can only view their company's processes
  */
 export const get = query({
-  args: { id: v.id("mainProcesses") },
+  args: { id: v.id("collectiveProcesses") },
   handler: async (ctx, { id }) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
@@ -181,31 +190,49 @@ export const get = query({
     // Get individual processes with their case statuses
     const individualProcessesRaw = await ctx.db
       .query("individualProcesses")
-      .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", process._id))
+      .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", process._id))
       .collect();
 
-    // Enrich individual processes with case status details
+    // Enrich individual processes with all related data for table display
     const individualProcesses = await Promise.all(
       individualProcessesRaw.map(async (ip) => {
-        const caseStatus = ip.caseStatusId
-          ? await ctx.db.get(ip.caseStatusId)
-          : null;
+        const [caseStatus, person, ipProcessType, legalFramework, companyApplicant, userApplicant, activeStatus] = await Promise.all([
+          ip.caseStatusId ? ctx.db.get(ip.caseStatusId) : null,
+          ip.personId ? ctx.db.get(ip.personId) : null,
+          ip.processTypeId ? ctx.db.get(ip.processTypeId) : null,
+          ip.legalFrameworkId ? ctx.db.get(ip.legalFrameworkId) : null,
+          ip.companyApplicantId ? ctx.db.get(ip.companyApplicantId) : null,
+          ip.userApplicantId ? ctx.db.get(ip.userApplicantId) : null,
+          // Get the active status with filled fields data
+          ctx.db
+            .query("individualProcessStatuses")
+            .withIndex("by_individualProcess_active", (q) =>
+              q.eq("individualProcessId", ip._id).eq("isActive", true)
+            )
+            .first(),
+        ]);
         return {
           ...ip,
           caseStatus,
+          person,
+          processType: ipProcessType,
+          legalFramework,
+          companyApplicant,
+          userApplicant,
+          activeStatus,
         };
       })
     );
 
-    // Calculate main process status from individual processes
-    const calculatedStatus = calculateMainProcessStatus(individualProcesses, "pt");
+    // Calculate collective process status from individual processes
+    const calculatedStatus = calculateCollectiveProcessStatus(individualProcesses, "pt");
 
-    // Check if this main process was created from a process request
+    // Check if this collective process was created from a process request
     let originRequest = null;
     const request = await ctx.db
       .query("processRequests")
-      .withIndex("by_approvedMainProcess", (q) =>
-        q.eq("approvedMainProcessId", process._id),
+      .withIndex("by_approvedCollectiveProcess", (q) =>
+        q.eq("approvedCollectiveProcessId", process._id),
       )
       .first();
 
@@ -249,7 +276,7 @@ export const get = query({
 });
 
 /**
- * Mutation to create main process (admin only)
+ * Mutation to create collective process (admin only)
  * NOTE: Status is now calculated from individual processes, but kept for backward compatibility
  */
 export const create = mutation({
@@ -258,7 +285,7 @@ export const create = mutation({
     companyId: v.id("companies"),
     contactPersonId: v.id("people"),
     processTypeId: v.id("processTypes"),
-    workplaceCityId: v.id("cities"),
+    workplaceCityId: v.optional(v.id("cities")),
     consulateId: v.optional(v.id("consulates")),
     isUrgent: v.optional(v.boolean()),
     requestDate: v.string(),
@@ -274,7 +301,7 @@ export const create = mutation({
 
     // Check if reference number already exists
     const existing = await ctx.db
-      .query("mainProcesses")
+      .query("collectiveProcesses")
       .withIndex("by_referenceNumber", (q) =>
         q.eq("referenceNumber", args.referenceNumber),
       )
@@ -282,11 +309,11 @@ export const create = mutation({
 
     if (existing) {
       throw new Error(
-        `Main process with reference number ${args.referenceNumber} already exists`,
+        `Collective process with reference number ${args.referenceNumber} already exists`,
       );
     }
 
-    const processId = await ctx.db.insert("mainProcesses", {
+    const processId = await ctx.db.insert("collectiveProcesses", {
       referenceNumber: args.referenceNumber,
       companyId: args.companyId,
       contactPersonId: args.contactPersonId,
@@ -307,7 +334,7 @@ export const create = mutation({
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: userProfile.userId!,
         action: "created",
-        entityType: "mainProcess",
+        entityType: "collectiveProcess",
         entityId: processId,
         details: {
           referenceNumber: args.referenceNumber,
@@ -323,12 +350,12 @@ export const create = mutation({
 });
 
 /**
- * Mutation to update main process (admin only)
+ * Mutation to update collective process (admin only)
  * NOTE: Status is now calculated from individual processes, but kept for backward compatibility
  */
 export const update = mutation({
   args: {
-    id: v.id("mainProcesses"),
+    id: v.id("collectiveProcesses"),
     referenceNumber: v.optional(v.string()),
     companyId: v.optional(v.id("companies")),
     contactPersonId: v.optional(v.id("people")),
@@ -347,14 +374,14 @@ export const update = mutation({
 
     const process = await ctx.db.get(id);
     if (!process) {
-      throw new Error("Main process not found");
+      throw new Error("Collective process not found");
     }
 
     // Check if another process with this reference number exists
     if (args.referenceNumber !== undefined) {
       const referenceNumber = args.referenceNumber;
       const existing = await ctx.db
-        .query("mainProcesses")
+        .query("collectiveProcesses")
         .withIndex("by_referenceNumber", (q) =>
           q.eq("referenceNumber", referenceNumber),
         )
@@ -362,7 +389,7 @@ export const update = mutation({
 
       if (existing && existing._id !== id) {
         throw new Error(
-          `Main process with reference number ${args.referenceNumber} already exists`,
+          `Collective process with reference number ${args.referenceNumber} already exists`,
         );
       }
     }
@@ -411,7 +438,7 @@ export const update = mutation({
         await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
           userId: userProfile.userId!,
           action: args.status && args.status !== process.status ? "status_changed" : "updated",
-          entityType: "mainProcess",
+          entityType: "collectiveProcess",
           entityId: id,
           details: {
             referenceNumber: process.referenceNumber,
@@ -428,42 +455,42 @@ export const update = mutation({
 });
 
 /**
- * Mutation to delete main process (admin only)
+ * Mutation to delete collective process (admin only)
  */
 export const remove = mutation({
-  args: { id: v.id("mainProcesses") },
+  args: { id: v.id("collectiveProcesses") },
   handler: async (ctx, { id }) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
 
     const process = await ctx.db.get(id);
     if (!process) {
-      throw new Error("Main process not found");
+      throw new Error("Collective process not found");
     }
 
     // Check if there are individual processes
     const individualProcesses = await ctx.db
       .query("individualProcesses")
-      .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", id))
+      .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", id))
       .collect();
 
     if (individualProcesses.length > 0) {
       throw new Error(
-        "Cannot delete main process with associated individual processes",
+        "Cannot delete collective process with associated individual processes",
       );
     }
 
     // Check if this process was created from an approved request
     const originRequest = await ctx.db
       .query("processRequests")
-      .withIndex("by_approvedMainProcess", (q) =>
-        q.eq("approvedMainProcessId", id),
+      .withIndex("by_approvedCollectiveProcess", (q) =>
+        q.eq("approvedCollectiveProcessId", id),
       )
       .first();
 
     if (originRequest) {
       throw new Error(
-        "Cannot delete main process created from an approved request. Please reject or unlink the request first.",
+        "Cannot delete collective process created from an approved request. Please reject or unlink the request first.",
       );
     }
 
@@ -474,7 +501,7 @@ export const remove = mutation({
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: userProfile.userId!,
         action: "deleted",
-        entityType: "mainProcess",
+        entityType: "collectiveProcess",
         entityId: id,
         details: {
           referenceNumber: process.referenceNumber,
@@ -491,7 +518,7 @@ export const remove = mutation({
 });
 
 /**
- * Query to get main process by reference number
+ * Query to get collective process by reference number
  * Access control: Admins can search any process, clients can only find their company's processes
  */
 export const getByReferenceNumber = query({
@@ -501,7 +528,7 @@ export const getByReferenceNumber = query({
     const userProfile = await getCurrentUserProfile(ctx);
 
     const process = await ctx.db
-      .query("mainProcesses")
+      .query("collectiveProcesses")
       .withIndex("by_referenceNumber", (q) =>
         q.eq("referenceNumber", referenceNumber),
       )
@@ -524,6 +551,6 @@ export const getByReferenceNumber = query({
 
 // REMOVED: complete(), cancel(), and reopen() mutations
 // These mutations are no longer needed because:
-// - Main process status is now calculated from individual process statuses
-// - Individual processes should be updated directly to change the main process status
+// - Collective process status is now calculated from individual process statuses
+// - Individual processes should be updated directly to change the collective process status
 // - This provides more accurate and automatic status tracking

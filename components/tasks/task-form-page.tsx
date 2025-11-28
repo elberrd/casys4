@@ -52,7 +52,7 @@ export function TaskFormPage({
     taskId ? { id: taskId } : "skip"
   )
 
-  const mainProcesses = useQuery(api.mainProcesses.list, {}) ?? []
+  const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const users = useQuery(api.userProfiles.list, { isActive: true }) ?? []
 
@@ -69,7 +69,7 @@ export function TaskFormPage({
       status: undefined,
       assignedTo: "" as Id<"users">,
       individualProcessId: undefined,
-      mainProcessId: undefined,
+      collectiveProcessId: undefined,
     },
   })
 
@@ -84,7 +84,7 @@ export function TaskFormPage({
         status: task.status as "todo" | "in_progress" | "completed" | "cancelled",
         assignedTo: task.assignedTo,
         individualProcessId: task.individualProcessId ?? undefined,
-        mainProcessId: task.mainProcessId ?? undefined,
+        collectiveProcessId: task.collectiveProcessId ?? undefined,
       })
     }
   }, [task, form])
@@ -112,7 +112,7 @@ export function TaskFormPage({
           priority: data.priority,
           assignedTo: data.assignedTo,
           individualProcessId: data.individualProcessId,
-          mainProcessId: data.mainProcessId,
+          collectiveProcessId: data.collectiveProcessId,
         })
         toast({
           title: t('createdSuccess'),
@@ -138,14 +138,14 @@ export function TaskFormPage({
     router.push('/tasks')
   }
 
-  const mainProcessOptions = mainProcesses.map((process) => ({
+  const collectiveProcessOptions = collectiveProcesses.map((process) => ({
     value: process._id,
     label: `${process.referenceNumber}${process.company ? ` - ${process.company.name}` : ''}`,
   }))
 
   const individualProcessOptions = individualProcesses.map((process) => ({
     value: process._id,
-    label: `${process.person?.fullName || 'Unknown'}${process.mainProcess ? ` (${process.mainProcess.referenceNumber})` : ''}`,
+    label: `${process.person?.fullName || 'Unknown'}${process.collectiveProcess ? ` (${process.collectiveProcess.referenceNumber})` : ''}`,
   }))
 
   const userOptions = users.map((user) => ({
@@ -215,13 +215,13 @@ export function TaskFormPage({
 
               <FormField
                 control={form.control}
-                name="mainProcessId"
+                name="collectiveProcessId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('mainProcess')}</FormLabel>
+                    <FormLabel>{t('collectiveProcess')}</FormLabel>
                     <FormControl>
                       <Combobox
-                        options={mainProcessOptions}
+                        options={collectiveProcessOptions}
                         value={field.value || ""}
                         onValueChange={(value) => {
                           field.onChange(value || undefined)
@@ -230,12 +230,12 @@ export function TaskFormPage({
                             form.setValue('individualProcessId', undefined)
                           }
                         }}
-                        placeholder={t('selectMainProcess')}
-                        emptyText={t('noMainProcesses')}
+                        placeholder={t('selectCollectiveProcess')}
+                        emptyText={t('noCollectiveProcesses')}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('mainProcessDescription')}
+                      {t('collectiveProcessDescription')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -260,7 +260,7 @@ export function TaskFormPage({
                           field.onChange(value || undefined)
                           // Clear main process if individual process is selected
                           if (value) {
-                            form.setValue('mainProcessId', undefined)
+                            form.setValue('collectiveProcessId', undefined)
                           }
                         }}
                         placeholder={t('selectIndividualProcess')}

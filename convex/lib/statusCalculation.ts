@@ -1,8 +1,8 @@
 /**
  * Status Calculation Logic
  *
- * This module provides utilities to calculate main process status from individual processes.
- * Main process status is now calculated, not stored, based on the linked individual processes.
+ * This module provides utilities to calculate collective process status from individual processes.
+ * Collective process status is now calculated, not stored, based on the linked individual processes.
  */
 
 import { Doc, Id } from "../_generated/dataModel";
@@ -23,13 +23,13 @@ export type CalculatedStatus = {
 };
 
 /**
- * Calculate main process status from individual processes
+ * Calculate collective process status from individual processes
  *
  * @param individualProcesses - Array of individual processes with their case status populated
  * @param locale - Current locale ('pt' or 'en')
  * @returns Calculated status object with display text and breakdown
  */
-export function calculateMainProcessStatus(
+export function calculateCollectiveProcessStatus(
   individualProcesses: Array<
     Doc<"individualProcesses"> & {
       caseStatus?: Doc<"caseStatuses"> | null;

@@ -268,7 +268,7 @@ export const bulkImportPeople = mutation({
  */
 export const bulkCreateIndividualProcesses = mutation({
   args: {
-    mainProcessId: v.id("mainProcesses"),
+    collectiveProcessId: v.id("collectiveProcesses"),
     personIds: v.array(v.id("people")),
     legalFrameworkId: v.id("legalFrameworks"),
     cboId: v.optional(v.id("cboCodes")),
@@ -281,8 +281,8 @@ export const bulkCreateIndividualProcesses = mutation({
     const admin = await requireAdmin(ctx);
 
     // Verify main process exists
-    const mainProcess = await ctx.db.get(args.mainProcessId);
-    if (!mainProcess) {
+    const collectiveProcess = await ctx.db.get(args.collectiveProcessId);
+    if (!collectiveProcess) {
       throw new Error("Main process not found");
     }
 
@@ -323,7 +323,7 @@ export const bulkCreateIndividualProcesses = mutation({
         // Check for duplicate (person already in this main process)
         const existing = await ctx.db
           .query("individualProcesses")
-          .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", args.mainProcessId))
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", args.collectiveProcessId))
           .collect();
 
         const duplicate = existing.find((ip) => ip.personId === personId);
@@ -337,7 +337,7 @@ export const bulkCreateIndividualProcesses = mutation({
 
         // Create individual process
         const individualProcessId = await ctx.db.insert("individualProcesses", {
-          mainProcessId: args.mainProcessId,
+          collectiveProcessId: args.collectiveProcessId,
           personId: personId,
           caseStatusId: args.caseStatusId, // NEW: Store case status ID
           status: statusString, // DEPRECATED: Keep for backward compatibility
@@ -374,7 +374,7 @@ export const bulkCreateIndividualProcesses = mutation({
             details: {
               personId,
               personName: person.fullName,
-              mainProcessId: args.mainProcessId,
+              collectiveProcessId: args.collectiveProcessId,
               caseStatusId: args.caseStatusId,
               caseStatusName: caseStatus.name,
               status: statusString, // DEPRECATED: Keep for backward compatibility
@@ -399,7 +399,7 @@ export const bulkCreateIndividualProcesses = mutation({
         entityType: "individualProcesses",
         entityId: "bulk",
         details: {
-          mainProcessId: args.mainProcessId,
+          collectiveProcessId: args.collectiveProcessId,
           totalProcessed: results.totalProcessed,
           successful: results.successful.length,
           failed: results.failed.length,

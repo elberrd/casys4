@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 
-export const mainProcessSchema = z.object({
+export const collectiveProcessSchema = z.object({
   referenceNumber: z
     .string()
     .min(1, "Reference number is required")
@@ -41,4 +41,4 @@ export const mainProcessSchema = z.object({
   notes: z.string().optional().or(z.literal("")),
 });
 
-export type MainProcessFormData = z.infer<typeof mainProcessSchema>;
+export type CollectiveProcessFormData = z.infer<typeof collectiveProcessSchema>;

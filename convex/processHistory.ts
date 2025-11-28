@@ -43,22 +43,22 @@ export const list = query({
         .collect();
     }
 
-    // Apply role-based access control via individualProcess.mainProcess.companyId
+    // Apply role-based access control via individualProcess.collectiveProcess.companyId
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter by company - fetch individualProcess and mainProcess for each result
+      // Filter by company - fetch individualProcess and collectiveProcess for each result
       const filteredByCompany = await Promise.all(
         results.map(async (historyRecord) => {
           const individualProcess = await ctx.db.get(
             historyRecord.individualProcessId,
           );
-          if (!individualProcess || !individualProcess.mainProcessId) return null;
+          if (!individualProcess || !individualProcess.collectiveProcessId) return null;
 
-          const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return historyRecord;
           }
           return null;
@@ -127,12 +127,12 @@ export const getByIndividualProcess = query({
         throw new Error("Client user must have a company assignment");
       }
 
-      if (!individualProcess.mainProcessId) {
+      if (!individualProcess.collectiveProcessId) {
         throw new Error("Individual process has no main process");
       }
 
-      const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-      if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
+      const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied to this process");
       }
     }

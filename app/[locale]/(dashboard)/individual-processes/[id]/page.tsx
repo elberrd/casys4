@@ -13,8 +13,8 @@ import { Edit, RefreshCcw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
 import { GovernmentProtocolCard } from "@/components/individual-processes/government-protocol-card"
-import { ProcessTimeline } from "@/components/main-processes/process-timeline"
-import { StatusUpdateDialog } from "@/components/main-processes/status-update-dialog"
+import { ProcessTimeline } from "@/components/collective-processes/process-timeline"
+import { StatusUpdateDialog } from "@/components/collective-processes/status-update-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusHistoryTimeline } from "@/components/individual-processes/status-history-timeline"
@@ -94,7 +94,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
           <div>
             <h1 className="text-2xl font-bold">{individualProcess.person?.fullName || t('details')}</h1>
             <p className="text-muted-foreground">
-              {t('referenceNumber')}: {individualProcess.mainProcess?.referenceNumber || '-'}
+              {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
             </p>
           </div>
           <div className="flex gap-2">

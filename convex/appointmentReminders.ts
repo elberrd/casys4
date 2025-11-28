@@ -30,15 +30,15 @@ export const sendAppointmentReminders = internalAction({
     for (const process of individualProcesses) {
       try {
         // Skip if no main process ID
-        if (!process.mainProcessId) continue;
+        if (!process.collectiveProcessId) continue;
 
         // Get the main process to find the company
-        const mainProcess = await ctx.runQuery(
-          internal.appointmentReminders.getMainProcessForNotification,
-          { mainProcessId: process.mainProcessId }
+        const collectiveProcess = await ctx.runQuery(
+          internal.appointmentReminders.getCollectiveProcessForNotification,
+          { collectiveProcessId: process.collectiveProcessId }
         );
 
-        if (!mainProcess) continue;
+        if (!collectiveProcess) continue;
 
         // Get person details
         const person = await ctx.runQuery(
@@ -49,11 +49,11 @@ export const sendAppointmentReminders = internalAction({
         if (!person) continue;
 
         // Create notification for company users
-        if (mainProcess.companyId) {
+        if (collectiveProcess.companyId) {
           await ctx.runMutation(
             internal.appointmentReminders.createAppointmentNotifications,
             {
-              companyId: mainProcess.companyId,
+              companyId: collectiveProcess.companyId,
               individualProcessId: process._id,
               personName: person.fullName,
               appointmentDateTime: process.appointmentDateTime!,
@@ -130,15 +130,15 @@ export const listUpcomingAppointments = query({
     const appointmentsWithDetails = await Promise.all(
       upcomingAppointments.map(async (process) => {
         const person = await ctx.db.get(process.personId);
-        const mainProcess = process.mainProcessId
-          ? await ctx.db.get(process.mainProcessId)
+        const collectiveProcess = process.collectiveProcessId
+          ? await ctx.db.get(process.collectiveProcessId)
           : null;
 
         return {
           individualProcess: process,
           person: person ? { _id: person._id, fullName: person.fullName } : null,
-          mainProcess: mainProcess
-            ? { _id: mainProcess._id, referenceNumber: mainProcess.referenceNumber }
+          collectiveProcess: collectiveProcess
+            ? { _id: collectiveProcess._id, referenceNumber: collectiveProcess.referenceNumber }
             : null,
         };
       })
@@ -149,14 +149,14 @@ export const listUpcomingAppointments = query({
 });
 
 /**
- * Internal query to get main process for notification
+ * Internal query to get collective process for notification
  */
-export const getMainProcessForNotification = internalQuery({
+export const getCollectiveProcessForNotification = internalQuery({
   args: {
-    mainProcessId: v.id("mainProcesses"),
+    collectiveProcessId: v.id("collectiveProcesses"),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.mainProcessId);
+    return await ctx.db.get(args.collectiveProcessId);
   },
 });
 

@@ -37,7 +37,7 @@ import { bulkCreateIndividualProcessesSchema } from "@/lib/validations/bulk-oper
 interface BulkCreateIndividualProcessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mainProcessId: Id<"mainProcesses">;
+  collectiveProcessId: Id<"collectiveProcesses">;
   onSuccess?: () => void;
 }
 
@@ -62,7 +62,7 @@ interface CreationResult {
 export function BulkCreateIndividualProcessDialog({
   open,
   onOpenChange,
-  mainProcessId,
+  collectiveProcessId,
   onSuccess,
 }: BulkCreateIndividualProcessDialogProps) {
   const t = useTranslations("BulkCreateProcess");
@@ -182,7 +182,7 @@ export function BulkCreateIndividualProcessDialog({
 
     // Validate with Zod
     const validation = bulkCreateIndividualProcessesSchema.safeParse({
-      mainProcessId,
+      collectiveProcessId,
       personIds: Array.from(selectedPeople),
       legalFrameworkId,
       cboId,

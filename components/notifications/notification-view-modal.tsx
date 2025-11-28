@@ -117,7 +117,7 @@ function getEntityPath(entityType: string | undefined, entityId: string): string
   if (!entityType) return null
 
   const entityTypeMap: Record<string, string> = {
-    mainProcess: "/main-processes",
+    collectiveProcess: "/collective-processes",
     individualProcess: "/individual-processes",
     task: "/tasks",
     document: "/documents",

@@ -22,14 +22,14 @@ export const list = query({
     }
 
     // Get main process to get company ID (if exists)
-    const mainProcess = individualProcess.mainProcessId
-      ? await ctx.db.get(individualProcess.mainProcessId)
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
     // Check access control
     const userProfile = await getCurrentUserProfile(ctx);
-    if (mainProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view these documents");
       }
@@ -100,17 +100,17 @@ export const get = query({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.mainProcessId) {
+    if (!individualProcess.collectiveProcessId) {
       throw new Error("Individual process has no main process");
     }
 
-    const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-    if (!mainProcess) {
+    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+    if (!collectiveProcess) {
       throw new Error("Main process not found");
     }
 
-    if (mainProcess.companyId) {
-      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+    if (collectiveProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view this document");
       }
@@ -160,18 +160,18 @@ export const upload = mutation({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.mainProcessId) {
+    if (!individualProcess.collectiveProcessId) {
       throw new Error("Individual process has no main process");
     }
 
-    const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-    if (!mainProcess) {
+    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+    if (!collectiveProcess) {
       throw new Error("Main process not found");
     }
 
     // Check access control
-    if (mainProcess.companyId) {
-      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+    if (collectiveProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to upload documents for this process");
       }
@@ -220,7 +220,7 @@ export const upload = mutation({
       documentTypeId: args.documentTypeId,
       documentRequirementId: args.documentRequirementId,
       personId: individualProcess.personId,
-      companyId: mainProcess.companyId,
+      companyId: collectiveProcess.companyId,
       fileName: args.fileName,
       fileUrl: fileUrl,
       fileSize: args.fileSize,
@@ -250,7 +250,7 @@ export const upload = mutation({
           fileSize: args.fileSize,
           documentType: documentType?.name,
           personName: person?.fullName,
-          mainProcessReference: mainProcess.referenceNumber,
+          collectiveProcessReference: collectiveProcess.referenceNumber,
           version,
           isReplacement: version > 1,
         },
@@ -430,17 +430,17 @@ export const getVersionHistory = query({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.mainProcessId) {
+    if (!individualProcess.collectiveProcessId) {
       throw new Error("Individual process has no main process");
     }
 
-    const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-    if (!mainProcess) {
+    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+    if (!collectiveProcess) {
       throw new Error("Main process not found");
     }
 
-    if (mainProcess.companyId) {
-      const hasAccess = await canAccessCompany(ctx, mainProcess.companyId);
+    if (collectiveProcess.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view this document history");
       }

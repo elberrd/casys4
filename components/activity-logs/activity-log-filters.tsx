@@ -46,7 +46,7 @@ export function ActivityLogFilters({
 
   // Common entity types in the system
   const entityTypes = [
-    "mainProcesses",
+    "collectiveProcesses",
     "individualProcesses",
     "tasks",
     "documents",

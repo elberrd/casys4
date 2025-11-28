@@ -13,11 +13,11 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
  * Query to list all individual processes with optional filters
- * Access control: Admins see all processes, clients see only their company's processes (via mainProcess.companyId)
+ * Access control: Admins see all processes, clients see only their company's processes (via collectiveProcess.companyId)
  */
 export const list = query({
   args: {
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     personId: v.optional(v.id("people")),
     status: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
@@ -30,12 +30,12 @@ export const list = query({
     let results;
 
     // Apply filters
-    if (args.mainProcessId !== undefined) {
-      const mainProcessId = args.mainProcessId;
+    if (args.collectiveProcessId !== undefined) {
+      const collectiveProcessId = args.collectiveProcessId;
       results = await ctx.db
         .query("individualProcesses")
-        .withIndex("by_mainProcess", (q) =>
-          q.eq("mainProcessId", mainProcessId),
+        .withIndex("by_collectiveProcess", (q) =>
+          q.eq("collectiveProcessId", collectiveProcessId),
         )
         .collect();
     } else if (args.personId !== undefined) {
@@ -62,25 +62,25 @@ export const list = query({
 
     // Filter by additional criteria if needed
     let filteredResults = results;
-    if (args.mainProcessId === undefined && args.isActive !== undefined) {
+    if (args.collectiveProcessId === undefined && args.isActive !== undefined) {
       filteredResults = results.filter((r) => r.isActive === args.isActive);
     }
     if (args.personId === undefined && args.status !== undefined) {
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
-    // Apply role-based access control via mainProcess.companyId
+    // Apply role-based access control via collectiveProcess.companyId
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter by mainProcess.companyId - fetch mainProcesses for each result
+      // Filter by collectiveProcess.companyId - fetch collectiveProcesses for each result
       const filteredByCompany = await Promise.all(
         filteredResults.map(async (process) => {
-          if (!process.mainProcessId) return null;
-          const mainProcess = await ctx.db.get(process.mainProcessId);
-          if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return process;
           }
           return null;
@@ -93,9 +93,9 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate] = await Promise.all([
+        const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate] = await Promise.all([
           ctx.db.get(process.personId),
-          process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
           // Get active status from new status system
@@ -196,7 +196,7 @@ export const list = query({
         return {
           ...process,
           person,
-          mainProcess,
+          collectiveProcess,
           legalFramework,
           cbo,
           activeStatus: enrichedActiveStatus,
@@ -246,9 +246,9 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, mainProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate] = await Promise.all([
+    const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate] = await Promise.all([
       ctx.db.get(process.personId),
-      process.mainProcessId ? ctx.db.get(process.mainProcessId) : null,
+      process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
       process.cboId ? ctx.db.get(process.cboId) : null,
       // Get active status from new status system
@@ -274,7 +274,7 @@ export const get = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || !mainProcess || mainProcess.companyId !== userProfile.companyId) {
+      if (!userProfile.companyId || !collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
         throw new Error(
           "Access denied: You do not have permission to view this individual process"
         );
@@ -400,7 +400,7 @@ export const get = query({
     return {
       ...process,
       person,
-      mainProcess,
+      collectiveProcess,
       legalFramework,
       cbo,
       activeStatus: enrichedActiveStatus,
@@ -420,7 +420,7 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     dateProcess: v.optional(v.string()), // ISO date format YYYY-MM-DD - Process date
     personId: v.id("people"),
     passportId: v.optional(v.id("passports")), // Reference to the person's passport
@@ -483,7 +483,7 @@ export const create = mutation({
     const statusString = args.status || caseStatus.code;
 
     const processId = await ctx.db.insert("individualProcesses", {
-      mainProcessId: args.mainProcessId,
+      collectiveProcessId: args.collectiveProcessId,
       dateProcess: args.dateProcess, // Process date (ISO format YYYY-MM-DD)
       personId: args.personId,
       passportId: args.passportId, // Store passport reference
@@ -562,9 +562,9 @@ export const create = mutation({
 
     // Log activity (non-blocking)
     try {
-      const [person, mainProcess] = await Promise.all([
+      const [person, collectiveProcess] = await Promise.all([
         ctx.db.get(args.personId),
-        args.mainProcessId ? ctx.db.get(args.mainProcessId) : Promise.resolve(null),
+        args.collectiveProcessId ? ctx.db.get(args.collectiveProcessId) : Promise.resolve(null),
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
@@ -574,7 +574,7 @@ export const create = mutation({
         entityId: processId,
         details: {
           personName: person?.fullName,
-          mainProcessReference: mainProcess?.referenceNumber,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
           caseStatusName: caseStatus.name, // Log case status name
           caseStatusId: caseStatus._id, // Log case status ID
           legalFrameworkId: args.legalFrameworkId,
@@ -775,15 +775,15 @@ export const update = mutation({
       try {
         // Get person and main process for notification details
         const person = await ctx.db.get(process.personId);
-        const mainProcess = process.mainProcessId
-          ? await ctx.db.get(process.mainProcessId)
+        const collectiveProcess = process.collectiveProcessId
+          ? await ctx.db.get(process.collectiveProcessId)
           : null;
 
-        if (person && mainProcess) {
+        if (person && collectiveProcess) {
           // Notify company contact person (client user)
           const companyUsers = await ctx.db
             .query("userProfiles")
-            .withIndex("by_company", (q) => q.eq("companyId", mainProcess.companyId))
+            .withIndex("by_company", (q) => q.eq("companyId", collectiveProcess.companyId))
             .collect();
 
           const personName = person.fullName;
@@ -821,9 +821,9 @@ export const update = mutation({
       });
 
       if (Object.keys(changedFields).length > 0) {
-        const [person, mainProcess] = await Promise.all([
+        const [person, collectiveProcess] = await Promise.all([
           ctx.db.get(process.personId),
-          process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
         ]);
 
     if (!userProfile.userId) throw new Error("User must be activated");
@@ -834,7 +834,7 @@ export const update = mutation({
           entityId: id,
           details: {
             personName: person?.fullName,
-            mainProcessReference: mainProcess?.referenceNumber,
+            collectiveProcessReference: collectiveProcess?.referenceNumber,
             changes: changedFields,
           },
         });
@@ -862,9 +862,9 @@ export const remove = mutation({
     }
 
     // Get person and main process data before deletion
-    const [person, mainProcess] = await Promise.all([
+    const [person, collectiveProcess] = await Promise.all([
       ctx.db.get(process.personId),
-      process.mainProcessId ? ctx.db.get(process.mainProcessId) : Promise.resolve(null),
+      process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
     ]);
 
     // CASCADE DELETE: Delete all related data
@@ -921,7 +921,7 @@ export const remove = mutation({
         entityId: id,
         details: {
           personName: person?.fullName,
-          mainProcessReference: mainProcess?.referenceNumber,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
           status: process.status,
           legalFrameworkId: process.legalFrameworkId,
           relatedDataDeleted: {
@@ -983,24 +983,24 @@ export const regenerateDocumentChecklist = mutation({
 });
 
 /**
- * Query to get individual processes by main process
+ * Query to get individual processes by collective process
  * Access control: Clients can only list individuals for their company's processes
  */
-export const listByMainProcess = query({
-  args: { mainProcessId: v.id("mainProcesses") },
-  handler: async (ctx, { mainProcessId }) => {
+export const listByCollectiveProcess = query({
+  args: { collectiveProcessId: v.id("collectiveProcesses") },
+  handler: async (ctx, { collectiveProcessId }) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Fetch the main process to check access
-    const mainProcess = await ctx.db.get(mainProcessId);
-    if (!mainProcess) {
-      throw new Error("Main process not found");
+    // Fetch the collective process to check access
+    const collectiveProcess = await ctx.db.get(collectiveProcessId);
+    if (!collectiveProcess) {
+      throw new Error("Collective process not found");
     }
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || mainProcess.companyId !== userProfile.companyId) {
+      if (!userProfile.companyId || collectiveProcess.companyId !== userProfile.companyId) {
         throw new Error(
           "Access denied: You do not have permission to view individual processes for this main process"
         );
@@ -1009,7 +1009,7 @@ export const listByMainProcess = query({
 
     const results = await ctx.db
       .query("individualProcesses")
-      .withIndex("by_mainProcess", (q) => q.eq("mainProcessId", mainProcessId))
+      .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", collectiveProcessId))
       .collect();
 
     // Enrich with person data

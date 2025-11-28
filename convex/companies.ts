@@ -345,12 +345,12 @@ export const remove = mutation({
     }
 
     // Check if there are main processes associated with this company
-    const mainProcesses = await ctx.db
-      .query("mainProcesses")
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
       .withIndex("by_company", (q) => q.eq("companyId", id))
       .first();
 
-    if (mainProcesses) {
+    if (collectiveProcesses) {
       throw new Error("Cannot delete company with associated main processes");
     }
 

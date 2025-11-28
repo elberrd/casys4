@@ -57,8 +57,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/process-requests",
         },
         {
-          title: t('mainProcesses'),
-          url: "/main-processes",
+          title: t('collectiveProcesses'),
+          url: "/collective-processes",
         },
         {
           title: t('individualProcesses'),

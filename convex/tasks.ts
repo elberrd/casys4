@@ -12,7 +12,7 @@ import { normalizeString } from "./lib/stringUtils";
 export const list = query({
   args: {
     individualProcessId: v.optional(v.id("individualProcesses")),
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     assignedTo: v.optional(v.id("users")),
     status: v.optional(v.string()),
     priority: v.optional(v.string()),
@@ -34,12 +34,12 @@ export const list = query({
           q.eq("individualProcessId", individualProcessId)
         )
         .collect();
-    } else if (args.mainProcessId !== undefined) {
-      const mainProcessId = args.mainProcessId;
+    } else if (args.collectiveProcessId !== undefined) {
+      const collectiveProcessId = args.collectiveProcessId;
       results = await ctx.db
         .query("tasks")
-        .withIndex("by_mainProcess", (q) =>
-          q.eq("mainProcessId", mainProcessId)
+        .withIndex("by_collectiveProcess", (q) =>
+          q.eq("collectiveProcessId", collectiveProcessId)
         )
         .collect();
     } else if (args.assignedTo !== undefined) {
@@ -75,11 +75,11 @@ export const list = query({
     // Apply additional filters
     let filteredResults = results;
 
-    if (args.status !== undefined && args.individualProcessId === undefined && args.mainProcessId === undefined && args.assignedTo === undefined) {
+    if (args.status !== undefined && args.individualProcessId === undefined && args.collectiveProcessId === undefined && args.assignedTo === undefined) {
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
-    if (args.priority !== undefined && args.individualProcessId === undefined && args.mainProcessId === undefined && args.assignedTo === undefined) {
+    if (args.priority !== undefined && args.individualProcessId === undefined && args.collectiveProcessId === undefined && args.assignedTo === undefined) {
       filteredResults = filteredResults.filter((r) => r.priority === args.priority);
     }
 
@@ -100,23 +100,23 @@ export const list = query({
         throw new Error("Client user must have a company assignment");
       }
 
-      // Filter tasks by company - check mainProcess.companyId or individualProcess.mainProcess.companyId
+      // Filter tasks by company - check collectiveProcess.companyId or individualProcess.collectiveProcess.companyId
       const filteredByCompany = await Promise.all(
         filteredResults.map(async (task) => {
-          // Check mainProcess directly
-          if (task.mainProcessId) {
-            const mainProcess = await ctx.db.get(task.mainProcessId);
-            if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+          // Check collectiveProcess directly
+          if (task.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
               return task;
             }
           }
 
-          // Check individualProcess's mainProcess
+          // Check individualProcess's collectiveProcess
           if (task.individualProcessId) {
             const individualProcess = await ctx.db.get(task.individualProcessId);
-            if (individualProcess && individualProcess.mainProcessId) {
-              const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-              if (mainProcess && mainProcess.companyId === userProfile.companyId) {
+            if (individualProcess && individualProcess.collectiveProcessId) {
+              const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+              if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
                 return task;
               }
             }
@@ -132,10 +132,10 @@ export const list = query({
     // Enrich with related data
     const enrichedResults = await Promise.all(
       filteredResults.map(async (task) => {
-        const [individualProcess, mainProcess, assignedToUser, createdByUser, completedByUser] =
+        const [individualProcess, collectiveProcess, assignedToUser, createdByUser, completedByUser] =
           await Promise.all([
             task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-            task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+            task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
             task.assignedTo ? ctx.db.get(task.assignedTo) : null,
             ctx.db.get(task.createdBy),
             task.completedBy ? ctx.db.get(task.completedBy) : null,
@@ -185,11 +185,11 @@ export const list = query({
                   : null,
               }
             : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
-                status: mainProcess.status,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
+                status: collectiveProcess.status,
               }
             : null,
           assignedToUser: assignedToProfile
@@ -257,20 +257,20 @@ export const get = query({
         throw new Error("Client user must have a company assignment");
       }
 
-      // Check mainProcess directly
-      if (task.mainProcessId) {
-        const mainProcess = await ctx.db.get(task.mainProcessId);
-        if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
+      // Check collectiveProcess directly
+      if (task.collectiveProcessId) {
+        const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+        if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
           throw new Error("Access denied: Task does not belong to your company");
         }
       }
 
-      // Check individualProcess's mainProcess
+      // Check individualProcess's collectiveProcess
       if (task.individualProcessId) {
         const individualProcess = await ctx.db.get(task.individualProcessId);
-        if (individualProcess && individualProcess.mainProcessId) {
-          const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-          if (!mainProcess || mainProcess.companyId !== userProfile.companyId) {
+        if (individualProcess && individualProcess.collectiveProcessId) {
+          const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+          if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
             throw new Error("Access denied: Task does not belong to your company");
           }
         }
@@ -278,10 +278,10 @@ export const get = query({
     }
 
     // Enrich with related data
-    const [individualProcess, mainProcess, assignedToUser, createdByUser, completedByUser] =
+    const [individualProcess, collectiveProcess, assignedToUser, createdByUser, completedByUser] =
       await Promise.all([
         task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-        task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+        task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
         task.assignedTo ? ctx.db.get(task.assignedTo) : null,
         ctx.db.get(task.createdBy),
         task.completedBy ? ctx.db.get(task.completedBy) : null,
@@ -329,11 +329,11 @@ export const get = query({
               : null,
           }
         : null,
-      mainProcess: mainProcess
+      collectiveProcess: collectiveProcess
         ? {
-            _id: mainProcess._id,
-            referenceNumber: mainProcess.referenceNumber,
-            status: mainProcess.status,
+            _id: collectiveProcess._id,
+            referenceNumber: collectiveProcess.referenceNumber,
+            status: collectiveProcess.status,
           }
         : null,
       assignedToUser: assignedToProfile
@@ -400,9 +400,9 @@ export const getMyTasks = query({
     // Enrich with related data
     const enrichedResults = await Promise.all(
       results.map(async (task) => {
-        const [individualProcess, mainProcess, createdByUser] = await Promise.all([
+        const [individualProcess, collectiveProcess, createdByUser] = await Promise.all([
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
           ctx.db.get(task.createdBy),
         ]);
 
@@ -433,11 +433,11 @@ export const getMyTasks = query({
                   : null,
               }
             : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
-                status: mainProcess.status,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
+                status: collectiveProcess.status,
               }
             : null,
           createdByUser: createdByProfile
@@ -480,9 +480,9 @@ export const getOverdueTasks = query({
     // Enrich with related data
     const enrichedResults = await Promise.all(
       overdueTasks.map(async (task) => {
-        const [individualProcess, mainProcess, assignedToUser] = await Promise.all([
+        const [individualProcess, collectiveProcess, assignedToUser] = await Promise.all([
           task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.mainProcessId ? ctx.db.get(task.mainProcessId) : null,
+          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
           task.assignedTo ? ctx.db.get(task.assignedTo) : null,
         ]);
 
@@ -513,11 +513,11 @@ export const getOverdueTasks = query({
                   : null,
               }
             : null,
-          mainProcess: mainProcess
+          collectiveProcess: collectiveProcess
             ? {
-                _id: mainProcess._id,
-                referenceNumber: mainProcess.referenceNumber,
-                status: mainProcess.status,
+                _id: collectiveProcess._id,
+                referenceNumber: collectiveProcess.referenceNumber,
+                status: collectiveProcess.status,
               }
             : null,
           assignedToUser: assignedToProfile
@@ -543,7 +543,7 @@ export const getOverdueTasks = query({
 export const create = mutation({
   args: {
     individualProcessId: v.optional(v.id("individualProcesses")),
-    mainProcessId: v.optional(v.id("mainProcesses")),
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     title: v.string(),
     description: v.string(),
     dueDate: v.string(),
@@ -554,8 +554,8 @@ export const create = mutation({
     const userProfile = await requireAdmin(ctx);
 
     // Validate that at least one process ID is provided
-    if (!args.individualProcessId && !args.mainProcessId) {
-      throw new Error("Either individualProcessId or mainProcessId must be provided");
+    if (!args.individualProcessId && !args.collectiveProcessId) {
+      throw new Error("Either individualProcessId or collectiveProcessId must be provided");
     }
 
     // Validate priority
@@ -574,7 +574,7 @@ export const create = mutation({
 
     const taskId = await ctx.db.insert("tasks", {
       individualProcessId: args.individualProcessId,
-      mainProcessId: args.mainProcessId,
+      collectiveProcessId: args.collectiveProcessId,
       title: args.title,
       description: args.description,
       dueDate: args.dueDate,
@@ -602,9 +602,9 @@ export const create = mutation({
 
     // Log activity (non-blocking)
     try {
-      const [individualProcess, mainProcess, assignedToUser] = await Promise.all([
+      const [individualProcess, collectiveProcess, assignedToUser] = await Promise.all([
         args.individualProcessId ? ctx.db.get(args.individualProcessId) : null,
-        args.mainProcessId ? ctx.db.get(args.mainProcessId) : null,
+        args.collectiveProcessId ? ctx.db.get(args.collectiveProcessId) : null,
         ctx.db.get(args.assignedTo),
       ]);
 
@@ -626,7 +626,7 @@ export const create = mutation({
           priority: args.priority,
           dueDate: args.dueDate,
           assignedTo: assignedToProfile?.fullName,
-          mainProcessReference: mainProcess?.referenceNumber,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
           individualProcessId: args.individualProcessId,
         },
       });
@@ -992,7 +992,7 @@ export const bulkCreateTasks = mutation({
         // Create task
         const taskId = await ctx.db.insert("tasks", {
           individualProcessId: processId,
-          mainProcessId: individualProcess.mainProcessId,
+          collectiveProcessId: individualProcess.collectiveProcessId,
           title: args.title,
           description: args.description,
           dueDate: args.dueDate,
@@ -1373,12 +1373,12 @@ export async function autoGenerateTasksOnStatusChange(
     return;
   }
 
-  if (!individualProcess.mainProcessId) {
+  if (!individualProcess.collectiveProcessId) {
     return;
   }
 
-  const mainProcess = await ctx.db.get(individualProcess.mainProcessId);
-  if (!mainProcess) {
+  const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+  if (!collectiveProcess) {
     return;
   }
 
@@ -1441,11 +1441,11 @@ export async function autoGenerateTasksOnStatusChange(
 
   // Create tasks for each template
   for (const template of templates) {
-    const dueDate = await calculateDueDate(ctx, mainProcess.processTypeId, template.daysOffset);
+    const dueDate = await calculateDueDate(ctx, collectiveProcess.processTypeId, template.daysOffset);
 
     await ctx.db.insert("tasks", {
       individualProcessId,
-      mainProcessId: mainProcess._id,
+      collectiveProcessId: collectiveProcess._id,
       title: template.title,
       description: template.description,
       dueDate,
