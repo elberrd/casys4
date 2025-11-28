@@ -1,5 +1,8 @@
 {
   "Common": {
+    "title": "Title",
+    "description": "Description",
+    "status": "Status",
     "loading": "Loading...",
     "save": "Save",
     "saving": "Saving...",
@@ -967,7 +970,21 @@
     "selectUser": "Select a user",
     "noUsers": "No users available",
     "createSuccess": "Task created successfully",
-    "createError": "Failed to create task"
+    "createError": "Failed to create task",
+    "editTask": "Edit Task",
+    "editTaskDescription": "Update the task details below",
+    "updateSuccess": "Task updated successfully",
+    "updateError": "Failed to update task",
+    "completeTask": "Complete Task",
+    "selectDueDate": "Select a due date",
+    "assignedToDescription": "Select a team member to assign this task",
+    "statuses": {
+      "todo": "To Do",
+      "in_progress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "selectStatus": "Select status"
   },
   "CboCodes": {
     "title": "CBO Function",
@@ -2431,10 +2448,40 @@
     "collectiveInitialStatusDescription": "All individual processes will be created with 'In Preparation' status and the progress date will be the request date.",
     "individualProcessCreated": "Individual Process Created",
     "individualProcessCreatedDescription": "The individual process was created successfully.",
+    "individualProcessesCreated": "Individual Processes Created",
+    "individualProcessesCreatedDescription": "{count} individual processes were created successfully.",
     "collectiveProcessCreated": "Collective Process Created",
     "collectiveProcessCreatedDescription": "{count} individual processes were created and linked to the collective process.",
     "errorCreatingProcess": "Error Creating Process",
     "createNewProcess": "Create New Process",
-    "addProcess": "Add Process"
+    "addProcess": "Add Process",
+    "candidatesIndividualDescription": "Add candidates. Each candidate will create a separate individual process.",
+    "candidateSingular": "candidate",
+    "candidatePlural": "candidates",
+    "confirmationIndividualMultipleDescription": "Review the individual process data before creating",
+    "individualMultipleStatusDescription": "Each candidate will have their own individual process created with 'In Preparation' status.",
+    "generalData": "General Data"
+  },
+  "Notes": {
+    "title": "Notes",
+    "addNote": "Add Note",
+    "editNote": "Edit Note",
+    "deleteNote": "Delete Note",
+    "addNoteDescription": "Fill in the details to create a new note.",
+    "editNoteDescription": "Update the note details below.",
+    "noteDate": "Date",
+    "noteTitle": "Title",
+    "noteContent": "Content",
+    "titlePlaceholder": "Enter note title...",
+    "contentPlaceholder": "Write your note here...",
+    "preview": "Preview",
+    "createdBy": "Created by",
+    "actions": "Actions",
+    "noNotes": "No notes yet. Add your first note to keep track of important information.",
+    "noteAdded": "Note added successfully",
+    "noteUpdated": "Note updated successfully",
+    "noteDeleted": "Note deleted successfully",
+    "noteError": "An error occurred",
+    "deleteNoteConfirm": "Are you sure you want to delete this note? This action cannot be undone."
   }
 }

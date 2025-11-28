@@ -18,6 +18,8 @@ import { StatusUpdateDialog } from "@/components/collective-processes/status-upd
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusHistoryTimeline } from "@/components/individual-processes/status-history-timeline"
+import { ProcessNotesSection } from "@/components/notes/process-notes-section"
+import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -37,6 +39,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
 
   const processId = resolvedParams.id as Id<"individualProcesses">
   const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
+  const currentUser = useQuery(api.userProfiles.getCurrentUser)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: `/${resolvedParams.locale}/dashboard` },
@@ -232,6 +235,20 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
         <GovernmentProtocolCard
           individualProcess={individualProcess}
           isAdmin={true}
+        />
+
+        {/* Notes Section */}
+        <ProcessNotesSection
+          individualProcessId={processId}
+          currentUserId={currentUser?.userId}
+          isAdmin={currentUser?.role === "admin"}
+        />
+
+        {/* Tasks Section */}
+        <ProcessTasksSection
+          individualProcessId={processId}
+          currentUserId={currentUser?.userId}
+          isAdmin={currentUser?.role === "admin"}
         />
 
         {/* Activity History */}

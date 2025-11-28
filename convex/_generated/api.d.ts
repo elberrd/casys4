@@ -52,6 +52,7 @@ import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migr
 import type * as migrations_renameMainProcessesToCollectiveProcesses from "../migrations/renameMainProcessesToCollectiveProcesses.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as notes from "../notes.js";
 import type * as notifications from "../notifications.js";
 import type * as passports from "../passports.js";
 import type * as people from "../people.js";
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/renameMainProcessesToCollectiveProcesses": typeof migrations_renameMainProcessesToCollectiveProcesses;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;
+  notes: typeof notes;
   notifications: typeof notifications;
   passports: typeof passports;
   people: typeof people;

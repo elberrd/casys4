@@ -144,26 +144,26 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
           <CardTitle className="text-sm">{t("processSummary")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-sm">
+            <div className="flex flex-col sm:flex-row sm:gap-1">
               <span className="text-muted-foreground">{t("requestDate")}: </span>
               <span className="font-medium">{formatDate(wizardData.requestDate)}</span>
             </div>
-            <div>
+            <div className="flex flex-col sm:flex-row sm:gap-1">
               <span className="text-muted-foreground">{t("userApplicant")}: </span>
-              <span className="font-medium">{userApplicant?.fullName || "-"}</span>
+              <span className="font-medium truncate">{userApplicant?.fullName || "-"}</span>
             </div>
-            <div>
+            <div className="flex flex-col sm:flex-row sm:gap-1">
               <span className="text-muted-foreground">{t("authorizationType")}: </span>
-              <span className="font-medium">{processType?.name || "-"}</span>
+              <span className="font-medium truncate">{processType?.name || "-"}</span>
             </div>
-            <div>
+            <div className="flex flex-col sm:flex-row sm:gap-1">
               <span className="text-muted-foreground">{t("legalFramework")}: </span>
-              <span className="font-medium">{legalFramework?.name || "-"}</span>
+              <span className="font-medium truncate">{legalFramework?.name || "-"}</span>
             </div>
-            <div>
+            <div className="flex flex-col sm:flex-row sm:gap-1">
               <span className="text-muted-foreground">{t("companyApplicant")}: </span>
-              <span className="font-medium">{companyApplicant?.name || "-"}</span>
+              <span className="font-medium truncate">{companyApplicant?.name || "-"}</span>
             </div>
           </div>
         </CardContent>
@@ -195,12 +195,11 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
+                      size="icon"
                       onClick={() => setQuickPersonDialogOpen(true)}
-                      className="h-7"
+                      className="h-7 w-7"
                     >
-                      <Plus className="h-4 w-4 mr-1" />
-                      {tIndividual("quickAddPerson")}
+                      <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   <PersonSelectorWithDetail
@@ -216,12 +215,11 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
+                      size="icon"
                       onClick={() => setQuickConsulateDialogOpen(true)}
-                      className="h-7"
+                      className="h-7 w-7"
                     >
-                      <Plus className="h-4 w-4 mr-1" />
-                      {tIndividual("quickAddConsulate")}
+                      <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   <Combobox
@@ -251,7 +249,7 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
 
         {/* Candidates Table */}
         {wizardData.candidates.length > 0 ? (
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

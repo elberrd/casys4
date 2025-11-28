@@ -136,7 +136,7 @@ export function Step2_2ProcessData({ wizard }: Step2_2ProcessDataProps) {
       <div className="space-y-4">
         <Label className="text-base font-semibold">{t("deadline")}</Label>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>{t("deadlineUnit")}</Label>
             <Select

@@ -546,7 +546,7 @@ export const create = mutation({
     collectiveProcessId: v.optional(v.id("collectiveProcesses")),
     title: v.string(),
     description: v.string(),
-    dueDate: v.string(),
+    dueDate: v.optional(v.string()),
     priority: v.string(),
     assignedTo: v.id("users"),
   },

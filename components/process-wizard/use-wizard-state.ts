@@ -7,6 +7,7 @@ import {
   validateStep1,
   validateStep2_1Individual,
   validateStep2_2,
+  validateStep2IndividualMerged,
   validateStep3_1Collective,
   validateStep3_2Collective,
   validateStep3_3Candidates,
@@ -30,11 +31,17 @@ export interface StepInfo {
   stepNumber: number
 }
 
+// Default steps shown before process type is selected
+const DEFAULT_STEPS: StepInfo[] = [
+  { id: "processType", title: "Tipo de Processo", description: "Selecione o tipo de processo", stepNumber: 1 },
+  { id: "processDataIndividual", title: "Dados do Processo", description: "Preencha os dados do processo", stepNumber: 2 },
+  { id: "confirmationIndividual", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 3 },
+]
+
 const INDIVIDUAL_STEPS: StepInfo[] = [
   { id: "processType", title: "Tipo de Processo", description: "Selecione o tipo de processo", stepNumber: 1 },
-  { id: "requestDetailsIndividual", title: "Detalhes da Solicitação", description: "Preencha os detalhes da solicitação", stepNumber: 2 },
-  { id: "processDataIndividual", title: "Dados do Processo", description: "Preencha os dados do processo", stepNumber: 3 },
-  { id: "confirmationIndividual", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 4 },
+  { id: "processDataIndividual", title: "Dados do Processo", description: "Preencha os dados do processo e adicione os candidatos", stepNumber: 2 },
+  { id: "confirmationIndividual", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 3 },
 ]
 
 const COLLECTIVE_STEPS: StepInfo[] = [
@@ -56,7 +63,8 @@ export function useWizardState() {
     } else if (wizardData.processType === "collective") {
       return COLLECTIVE_STEPS
     }
-    return [INDIVIDUAL_STEPS[0]] // Only show first step if no type selected
+    // Show default steps before type is selected (preview of individual flow)
+    return DEFAULT_STEPS
   }, [wizardData.processType])
 
   const currentStepInfo = useMemo(() => {
@@ -107,7 +115,8 @@ export function useWizardState() {
       case "requestDetailsIndividual":
         return validateStep2_1Individual(wizardData)
       case "processDataIndividual":
-        return validateStep2_2(wizardData)
+        // New merged step: validates shared fields + at least 1 candidate
+        return validateStep2IndividualMerged(wizardData)
       case "processDataCollective":
         return validateStep3_2Collective(wizardData) // Uses collective validation (company required)
       case "requestDetailsCollective":
@@ -172,8 +181,9 @@ export function useWizardState() {
 
     // Navigate to next step based on type
     if (type === "individual") {
-      setCurrentStep("requestDetailsIndividual")
-      setVisitedSteps(new Set(["processType", "requestDetailsIndividual"]))
+      // Individual now goes directly to merged process data step
+      setCurrentStep("processDataIndividual")
+      setVisitedSteps(new Set(["processType", "processDataIndividual"]))
     } else {
       setCurrentStep("requestDetailsCollective")
       setVisitedSteps(new Set(["processType", "requestDetailsCollective"]))

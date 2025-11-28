@@ -111,14 +111,14 @@ export function Step3_4ConfirmationCollective({ wizard }: Step3_4ConfirmationCol
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
               <span className="text-sm text-muted-foreground">{t("requestDate")}</span>
               <span className="text-sm font-medium">{formatDate(wizardData.requestDate)}</span>
             </div>
             <Separator />
-            <div className="flex justify-between">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
               <span className="text-sm text-muted-foreground">{t("userApplicant")}</span>
-              <span className="text-sm font-medium">{userApplicant?.fullName || "-"}</span>
+              <span className="text-sm font-medium truncate">{userApplicant?.fullName || "-"}</span>
             </div>
           </CardContent>
         </Card>
@@ -132,14 +132,14 @@ export function Step3_4ConfirmationCollective({ wizard }: Step3_4ConfirmationCol
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
               <span className="text-sm text-muted-foreground">{t("authorizationType")}</span>
-              <span className="text-sm font-medium">{processType?.name || "-"}</span>
+              <span className="text-sm font-medium truncate">{processType?.name || "-"}</span>
             </div>
             <Separator />
-            <div className="flex justify-between">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
               <span className="text-sm text-muted-foreground">{t("legalFramework")}</span>
-              <span className="text-sm font-medium">{legalFramework?.name || "-"}</span>
+              <span className="text-sm font-medium truncate">{legalFramework?.name || "-"}</span>
             </div>
           </CardContent>
         </Card>
@@ -153,12 +153,12 @@ export function Step3_4ConfirmationCollective({ wizard }: Step3_4ConfirmationCol
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-sm text-muted-foreground">{t("companyApplicant")}</span>
                 <span className="text-sm font-medium">{companyApplicant?.name || "-"}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-sm text-muted-foreground">{t("deadline")}</span>
                 <span className="text-sm font-medium">{getDeadlineText()}</span>
               </div>
@@ -179,7 +179,7 @@ export function Step3_4ConfirmationCollective({ wizard }: Step3_4ConfirmationCol
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

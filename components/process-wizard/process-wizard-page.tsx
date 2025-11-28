@@ -11,7 +11,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { useWizardState } from "./use-wizard-state"
 import { WizardLayout } from "./wizard-layout"
 import { Step1ProcessType } from "./step1-process-type"
-import { Step2_1RequestDetailsIndividual } from "./step2-1-request-details-individual"
+import { Step2ProcessDataIndividual } from "./step2-process-data-individual"
 import { Step2_2ProcessData } from "./step2-2-process-data"
 import { Step2_3ConfirmationIndividual } from "./step2-3-confirmation-individual"
 import { Step3_1RequestDetailsCollective } from "./step3-1-request-details-collective"
@@ -43,28 +43,38 @@ export function ProcessWizardPage() {
 
     try {
       if (wizardData.processType === "individual") {
-        // Create individual process
-        const processId = await createIndividualProcess({
-          dateProcess: wizardData.requestDate,
-          personId: wizardData.personId as Id<"people">,
-          userApplicantId: wizardData.userApplicantId ? (wizardData.userApplicantId as Id<"people">) : undefined,
-          consulateId: wizardData.consulateId ? (wizardData.consulateId as Id<"consulates">) : undefined,
-          processTypeId: wizardData.processTypeId ? (wizardData.processTypeId as Id<"processTypes">) : undefined,
-          legalFrameworkId: wizardData.legalFrameworkId ? (wizardData.legalFrameworkId as Id<"legalFrameworks">) : undefined,
-          companyApplicantId: wizardData.companyApplicantId ? (wizardData.companyApplicantId as Id<"companies">) : undefined,
-          deadlineUnit: wizardData.deadlineUnit || undefined,
-          deadlineQuantity: wizardData.deadlineQuantity,
-          deadlineSpecificDate: wizardData.deadlineSpecificDate || undefined,
-        })
+        // Create individual processes for each candidate (no collective process)
+        const createdProcessIds: Id<"individualProcesses">[] = []
+
+        for (const candidate of wizardData.candidates) {
+          const processId = await createIndividualProcess({
+            dateProcess: candidate.requestDate,
+            personId: candidate.personId as Id<"people">,
+            userApplicantId: wizardData.userApplicantId ? (wizardData.userApplicantId as Id<"people">) : undefined,
+            consulateId: candidate.consulateId ? (candidate.consulateId as Id<"consulates">) : undefined,
+            processTypeId: wizardData.processTypeId ? (wizardData.processTypeId as Id<"processTypes">) : undefined,
+            legalFrameworkId: wizardData.legalFrameworkId ? (wizardData.legalFrameworkId as Id<"legalFrameworks">) : undefined,
+            companyApplicantId: wizardData.companyApplicantId ? (wizardData.companyApplicantId as Id<"companies">) : undefined,
+            deadlineUnit: wizardData.deadlineUnit || undefined,
+            deadlineQuantity: wizardData.deadlineQuantity,
+            deadlineSpecificDate: wizardData.deadlineSpecificDate || undefined,
+          })
+          createdProcessIds.push(processId)
+        }
 
         toast({
-          title: t("individualProcessCreated"),
-          description: t("individualProcessCreatedDescription"),
+          title: t("individualProcessesCreated"),
+          description: t("individualProcessesCreatedDescription", { count: createdProcessIds.length }),
         })
 
         // Reset wizard and redirect
         reset()
-        router.push(`/${locale}/individual-processes/${processId}`)
+        // Redirect to list if multiple, or to detail if single
+        if (createdProcessIds.length === 1) {
+          router.push(`/${locale}/individual-processes/${createdProcessIds[0]}`)
+        } else {
+          router.push(`/${locale}/individual-processes`)
+        }
       } else if (wizardData.processType === "collective") {
         // Generate reference number for collective process
         const referenceNumber = `CP-${Date.now().toString(36).toUpperCase()}`
@@ -124,9 +134,9 @@ export function ProcessWizardPage() {
     switch (currentStep) {
       case "processType":
         return <Step1ProcessType wizard={wizard} />
-      case "requestDetailsIndividual":
-        return <Step2_1RequestDetailsIndividual wizard={wizard} />
       case "processDataIndividual":
+        // New merged step for individual processes (combines request details + process data + candidates)
+        return <Step2ProcessDataIndividual wizard={wizard} />
       case "processDataCollective":
         return <Step2_2ProcessData wizard={wizard} />
       case "confirmationIndividual":

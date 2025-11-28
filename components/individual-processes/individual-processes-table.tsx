@@ -127,6 +127,13 @@ export function IndividualProcessesTable({
     })
   }, [])
 
+  // Wrap setColumnVisibility to prevent state updates during render
+  const handleColumnVisibilityChange = useCallback((updaterOrValue: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+    queueMicrotask(() => {
+      setColumnVisibility(updaterOrValue)
+    })
+  }, [])
+
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: Id<"individualProcesses">) => {
@@ -477,7 +484,7 @@ export function IndividualProcessesTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     initialState: {
       pagination: {
         pageSize: 50,

@@ -525,4 +525,27 @@ export default defineSchema({
     .index("by_action", ["action"])
     .index("by_createdAt", ["createdAt"])
     .index("by_entity_createdAt", ["entityType", "entityId", "createdAt"]),
+
+  // Notes - Rich text notes attached to individual or collective processes
+  // A process can have many notes, but each note belongs to exactly one process
+  notes: defineTable({
+    title: v.string(), // Note title
+    content: v.string(), // Rich text content (stored as HTML)
+    date: v.string(), // ISO date format YYYY-MM-DD (auto-populated with current date)
+    individualProcessId: v.optional(v.id("individualProcesses")), // Link to individual process
+    collectiveProcessId: v.optional(v.id("collectiveProcesses")), // Link to collective process
+    createdBy: v.id("users"), // User who created the note
+    isActive: v.boolean(), // Soft delete flag
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_individualProcess", ["individualProcessId"])
+    .index("by_collectiveProcess", ["collectiveProcessId"])
+    .index("by_createdBy", ["createdBy"])
+    .index("by_date", ["date"])
+    .index("by_active", ["isActive"])
+    .index("by_individualProcess_date", ["individualProcessId", "date"])
+    .index("by_collectiveProcess_date", ["collectiveProcessId", "date"])
+    .index("by_individualProcess_active", ["individualProcessId", "isActive"])
+    .index("by_collectiveProcess_active", ["collectiveProcessId", "isActive"]),
 });

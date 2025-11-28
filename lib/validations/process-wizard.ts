@@ -98,15 +98,15 @@ export interface WizardState {
   // Step 1
   processType?: "individual" | "collective";
 
-  // Step 2.1 / 3.1 - Request Details
-  requestDate: string;
+  // Step 2.1 / 3.1 - Request Details (shared fields)
+  requestDate: string; // Used as default for new candidates in individual wizard
   userApplicantId: string;
-  consulateId: string;
+  consulateId: string; // Only used for collective at top level now
 
-  // Step 2.1 only - Individual candidate
+  // Step 2.1 only - Individual candidate (DEPRECATED - now uses candidates array)
   personId: string;
 
-  // Step 2.2 / 3.2 - Process Data
+  // Step 2.2 / 3.2 - Process Data (shared)
   processTypeId: string;
   legalFrameworkId: string;
   companyApplicantId: string;
@@ -114,7 +114,9 @@ export interface WizardState {
   deadlineQuantity?: number;
   deadlineSpecificDate: string;
 
-  // Step 3.3 - Collective candidates
+  // Candidates for both individual and collective processes
+  // For individual: each candidate will create a separate individual process
+  // For collective: candidates are linked to a single collective process
   candidates: CandidateData[];
 }
 
@@ -187,4 +189,20 @@ export function validateStep3_3Candidates(data: Partial<WizardState>): boolean {
     candidates: data.candidates,
   });
   return result.success;
+}
+
+// Step 2 Individual Merged: Validates shared process data + candidates
+// This is for the new merged individual wizard (combines old step 2.1 and 2.2)
+export function validateStep2IndividualMerged(data: Partial<WizardState>): boolean {
+  // Validate shared fields (user applicant, process type, legal framework)
+  const sharedFieldsValid = (
+    typeof data.userApplicantId === "string" && data.userApplicantId.length > 0 &&
+    typeof data.processTypeId === "string" && data.processTypeId.length > 0 &&
+    typeof data.legalFrameworkId === "string" && data.legalFrameworkId.length > 0
+  );
+
+  // Validate candidates (at least 1 required)
+  const candidatesValid = Array.isArray(data.candidates) && data.candidates.length > 0;
+
+  return sharedFieldsValid && candidatesValid;
 }

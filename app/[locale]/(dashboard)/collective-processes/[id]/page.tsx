@@ -15,6 +15,8 @@ import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, UserPlus } from "lucide-react"
+import { ProcessNotesSection } from "@/components/notes/process-notes-section"
+import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 
 export default function CollectiveProcessDetailPage() {
   const params = useParams()
@@ -32,6 +34,7 @@ export default function CollectiveProcessDetailPage() {
   const collectiveProcess = useQuery(api.collectiveProcesses.get, {
     id: collectiveProcessId,
   })
+  const currentUser = useQuery(api.userProfiles.getCurrentUser)
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -142,17 +145,19 @@ export default function CollectiveProcessDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Process Notes */}
-        {collectiveProcess.notes && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('notes')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-wrap">{collectiveProcess.notes}</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Notes Section */}
+        <ProcessNotesSection
+          collectiveProcessId={collectiveProcessId}
+          currentUserId={currentUser?.userId}
+          isAdmin={currentUser?.role === "admin"}
+        />
+
+        {/* Tasks Section */}
+        <ProcessTasksSection
+          collectiveProcessId={collectiveProcessId}
+          currentUserId={currentUser?.userId}
+          isAdmin={currentUser?.role === "admin"}
+        />
 
         {/* Activity History */}
         <EntityHistory

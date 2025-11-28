@@ -150,6 +150,7 @@ export const listAdminUsers = query({
 
     return adminUsers.map((user) => ({
       _id: user._id,
+      userId: user.userId,
       fullName: user.fullName,
       email: user.email,
       photoUrl: user.photoUrl,

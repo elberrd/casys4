@@ -1,5 +1,8 @@
 {
   "Common": {
+    "title": "Título",
+    "description": "Descrição",
+    "status": "Status",
     "loading": "Carregando...",
     "save": "Salvar",
     "saving": "Salvando...",
@@ -966,7 +969,21 @@
     "selectUser": "Selecione um usuário",
     "noUsers": "Nenhum usuário disponível",
     "createSuccess": "Tarefa criada com sucesso",
-    "createError": "Falha ao criar tarefa"
+    "createError": "Falha ao criar tarefa",
+    "editTask": "Editar Tarefa",
+    "editTaskDescription": "Atualize os detalhes da tarefa abaixo",
+    "updateSuccess": "Tarefa atualizada com sucesso",
+    "updateError": "Falha ao atualizar tarefa",
+    "completeTask": "Concluir Tarefa",
+    "selectDueDate": "Selecione uma data de vencimento",
+    "assignedToDescription": "Selecione um membro da equipe para atribuir esta tarefa",
+    "statuses": {
+      "todo": "A Fazer",
+      "in_progress": "Em Andamento",
+      "completed": "Concluída",
+      "cancelled": "Cancelada"
+    },
+    "selectStatus": "Selecione o status"
   },
   "CboCodes": {
     "title": "Função CBO",
@@ -2430,10 +2447,40 @@
     "collectiveInitialStatusDescription": "Todos os processos individuais serão criados com status 'Em Preparação' e a data de andamento será a data da solicitação.",
     "individualProcessCreated": "Processo Individual Criado",
     "individualProcessCreatedDescription": "O processo individual foi criado com sucesso.",
+    "individualProcessesCreated": "Processos Individuais Criados",
+    "individualProcessesCreatedDescription": "{count} processos individuais foram criados com sucesso.",
     "collectiveProcessCreated": "Processo Coletivo Criado",
     "collectiveProcessCreatedDescription": "{count} processos individuais foram criados e vinculados ao processo coletivo.",
     "errorCreatingProcess": "Erro ao Criar Processo",
     "createNewProcess": "Criar Novo Processo",
-    "addProcess": "Adicionar Processo"
+    "addProcess": "Adicionar Processo",
+    "candidatesIndividualDescription": "Adicione os candidatos. Cada candidato criará um processo individual separado.",
+    "candidateSingular": "candidato",
+    "candidatePlural": "candidatos",
+    "confirmationIndividualMultipleDescription": "Revise os dados dos processos individuais antes de criar",
+    "individualMultipleStatusDescription": "Cada candidato terá seu próprio processo individual criado com status 'Em Preparação'.",
+    "generalData": "Dados Gerais"
+  },
+  "Notes": {
+    "title": "Notas",
+    "addNote": "Adicionar Nota",
+    "editNote": "Editar Nota",
+    "deleteNote": "Excluir Nota",
+    "addNoteDescription": "Preencha os detalhes para criar uma nova nota.",
+    "editNoteDescription": "Atualize os detalhes da nota abaixo.",
+    "noteDate": "Data",
+    "noteTitle": "Título",
+    "noteContent": "Conteúdo",
+    "titlePlaceholder": "Digite o título da nota...",
+    "contentPlaceholder": "Escreva sua nota aqui...",
+    "preview": "Prévia",
+    "createdBy": "Criado por",
+    "actions": "Ações",
+    "noNotes": "Nenhuma nota ainda. Adicione sua primeira nota para acompanhar informações importantes.",
+    "noteAdded": "Nota adicionada com sucesso",
+    "noteUpdated": "Nota atualizada com sucesso",
+    "noteDeleted": "Nota excluída com sucesso",
+    "noteError": "Ocorreu um erro",
+    "deleteNoteConfirm": "Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita."
   }
 }
