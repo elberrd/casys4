@@ -25,6 +25,9 @@ import { ptBR, enUS } from "date-fns/locale";
 import { AddStatusDialog } from "./add-status-dialog";
 import { FillFieldsModal } from "./fill-fields-modal";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getFieldMetadata } from "@/lib/individual-process-fields";
+import { formatFieldValue } from "@/lib/format-field-value";
 
 interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
@@ -169,6 +172,44 @@ export function IndividualProcessStatusesSubtable({
     }
   };
 
+  /**
+   * Builds tooltip content from filled fields data
+   * @param filledFieldsData - Record of field names to values
+   * @param fillableFields - Array of field names that can be filled
+   * @returns Formatted string for tooltip or null if no fields to display
+   */
+  const buildTooltipContent = (
+    filledFieldsData: Record<string, any> | undefined,
+    fillableFields: string[] | undefined
+  ): string | null => {
+    // Check if there are filled fields to show in tooltip
+    if (!filledFieldsData || !fillableFields || fillableFields.length === 0 || Object.keys(filledFieldsData).length === 0) {
+      return null;
+    }
+
+    const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key));
+
+    if (entries.length === 0) {
+      return null;
+    }
+
+    const summaryLines = entries.map(([fieldName, value]) => {
+      const metadata = getFieldMetadata(fieldName);
+      if (!metadata) return null;
+
+      const label = t(`fields.${fieldName}` as any);
+      const formattedValue = formatFieldValue(value, metadata.fieldType, locale);
+
+      return `${label}: ${formattedValue}`;
+    }).filter(Boolean);
+
+    if (summaryLines.length === 0) {
+      return null;
+    }
+
+    return summaryLines.join('\n');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -259,19 +300,74 @@ export function IndividualProcessStatusesSubtable({
                           }
                         />
                       ) : (
-                        status.caseStatus ? (
-                          <StatusBadge
-                            status={caseStatusName || status.statusName}
-                            type="individual_process"
-                            color={status.caseStatus.color}
-                            category={status.caseStatus.category}
-                          />
-                        ) : (
-                          <StatusBadge
-                            status={status.statusName}
-                            type="individual_process"
-                          />
-                        )
+                        (() => {
+                          // Get filled fields data for tooltip
+                          const filledFieldsData = status.filledFieldsData;
+                          const fillableFields = status.caseStatus?.fillableFields || status.fillableFields;
+
+                          // Build tooltip content
+                          const tooltipContent = buildTooltipContent(filledFieldsData, fillableFields);
+
+                          // Base badge element
+                          const badgeElement = status.caseStatus ? (
+                            <StatusBadge
+                              status={caseStatusName || status.statusName}
+                              type="individual_process"
+                              color={status.caseStatus.color}
+                              category={status.caseStatus.category}
+                            />
+                          ) : (
+                            <StatusBadge
+                              status={status.statusName}
+                              type="individual_process"
+                            />
+                          );
+
+                          // If there's tooltip content, wrap with tooltip and add green dot
+                          if (tooltipContent) {
+                            return (
+                              <TooltipProvider>
+                                <Tooltip delayDuration={200}>
+                                  <TooltipTrigger asChild>
+                                    <div className="cursor-help inline-block">
+                                      <div className="relative inline-block">
+                                        {badgeElement}
+                                        {/* Green indicator dot */}
+                                        <span
+                                          className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                                          aria-hidden="true"
+                                        >
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="right"
+                                    align="start"
+                                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                                  >
+                                    <div className="space-y-1.5 text-sm">
+                                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                                        {t('filledFields')}
+                                      </div>
+                                      {tooltipContent.split('\n').map((line, idx) => (
+                                        <div key={idx} className="flex flex-col">
+                                          <span className="font-medium">{line.split(':')[0]}:</span>
+                                          <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          }
+
+                          // No tooltip content, return plain badge
+                          return badgeElement;
+                        })()
                       )}
                     </TableCell>
                     {isAdmin && (

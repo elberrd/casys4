@@ -829,6 +829,8 @@ export function IndividualProcessFormPage({
             <Separator />
 
             {/* Optional Fields Section */}
+            {false && (
+            <>
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("optionalFields")}</h3>
 
@@ -882,8 +884,12 @@ export function IndividualProcessFormPage({
             </div>
 
             <Separator />
+            </>
+            )}
 
             {/* Government Protocol Information Section */}
+            {false && (
+            <>
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("governmentProtocolInformation")}</h3>
 
@@ -903,8 +909,12 @@ export function IndividualProcessFormPage({
             </div>
 
             <Separator />
+            </>
+            )}
 
             {/* DOU Information Section */}
+            {false && (
+            <>
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("douInformation")}</h3>
 
@@ -970,8 +980,12 @@ export function IndividualProcessFormPage({
             </div>
 
             <Separator />
+            </>
+            )}
 
             {/* RNM Information Section */}
+            {false && (
+            <>
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("rnmInformation")}</h3>
 
@@ -1021,6 +1035,8 @@ export function IndividualProcessFormPage({
             </div>
 
             <Separator />
+            </>
+            )}
 
             {/* Active Status */}
             <FormField

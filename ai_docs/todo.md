@@ -1,387 +1,435 @@
-# TODO: Remove Title Field from Notes Model
+# TODO: Add Green Dot Indicator to Status History Subtable
 
 ## Context
 
-The user wants to remove the "Title" field from the Notes model/table. This includes:
-1. Remove the "Title" field from the database schema
-2. Remove the "Title" field from the modal/form for creating/editing notes
-3. Remove the "Title" column from the table views showing notes
-4. Remove the "Title" from the subtable in Individual and Collective processes
-5. Show Notes with a text wrap of 300 characters max in the process views (currently shows 100 chars preview)
+The user wants to replicate the green dot indicator functionality that exists in the "Status de Andamento" column of the main Individual Processes table to the "Status" column in the Status History subtable (Histórico do Andamento). This indicator should:
+- Show a green pulsing dot on the status badge when there are filled fields
+- Display a tooltip showing the filled fields when hovering over the indicator
+- Not show the indicator if there are no filled fields
+
+The existing implementation can be found in `/components/individual-processes/individual-processes-table.tsx` (lines 254-352) where it shows filled fields data in a tooltip with a green animated dot indicator.
 
 ## Related PRD Sections
 
-This is a Convex + React/Next.js project with:
-- Database schema: `/convex/schema.ts`
-- Backend mutations/queries: `/convex/notes.ts`
-- Frontend components: `/components/notes/`
-- Validation schemas: `/lib/validations/notes.ts`
-- i18n translations: `/messages/en.json` and `/messages/pt.json`
+This enhancement affects the Individual Process detail view, specifically the Status History subtable component. It improves visibility of filled field data by providing visual indicators and tooltips directly on the status badges in the history view, consistent with the main table interface.
+
+## Related Files
+
+- **Existing Implementation**: `/components/individual-processes/individual-processes-table.tsx` (lines 254-352)
+- **Target Component**: `/components/individual-processes/individual-process-statuses-subtable.tsx` (lines 244-275)
+- **Helper Libraries**:
+  - `/lib/individual-process-fields.ts` - Field metadata and definitions
+  - `/lib/format-field-value.ts` - Field value formatting functions
+- **Backend Query**: `/convex/individualProcessStatuses.ts` - `getStatusHistory` query (already returns `filledFieldsData` and `caseStatus` with `fillableFields`)
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis
 
-**Objective**: Understand the project structure and determine correct file/folder locations
+**Objective**: Understand the project structure and verify the correct file locations
 
 #### Sub-tasks:
 
-- [x] 0.1: Review project structure for Notes implementation
-  - Validation: Identified all files related to Notes functionality
-  - Output:
-    - Schema: `/convex/schema.ts` (lines 531-551)
-    - Backend: `/convex/notes.ts` (create, update, list, get, remove mutations/queries)
-    - Frontend components:
-      - `/components/notes/note-form-dialog.tsx` (form dialog)
-      - `/components/notes/notes-table.tsx` (table display)
-      - `/components/notes/process-notes-section.tsx` (section wrapper)
-    - Validation: `/lib/validations/notes.ts` (Zod schemas)
-    - i18n: `/messages/en.json` and `/messages/pt.json`
-    - Pages using notes:
-      - `/app/[locale]/(dashboard)/individual-processes/[id]/page.tsx`
-      - `/app/[locale]/(dashboard)/collective-processes/[id]/page.tsx`
+- [x] 0.1: Review existing implementation in main table
+  - Validation: Analyzed `/components/individual-processes/individual-processes-table.tsx` lines 254-352
+  - Output: Implementation uses TooltipProvider, Tooltip, TooltipTrigger, TooltipContent from `@/components/ui/tooltip`
+  - Output: Uses `getFieldMetadata` and `formatFieldValue` helper functions
+  - Output: Shows green animated dot with `animate-ping` and ring styling
 
-- [x] 0.2: Identify migration pattern used in this project
-  - Validation: Reviewed existing migrations in `/convex/migrations/`
-  - Output: Pattern identified - use `ctx.db.replace()` to remove deprecated fields (see `/convex/migrations/removeConsulateNameField.ts`)
+- [x] 0.2: Review Status History subtable component structure
+  - Validation: Analyzed `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Output: Status badges rendered in `TableCell` at lines 244-275
+  - Output: Component already imports necessary dependencies and StatusBadge component
+  - Output: Data structure includes `filledFieldsData` and `fillableFields` from backend query
 
-- [x] 0.3: Determine all locations where "title" field is referenced
-  - Validation: Found all references to note title field
+- [x] 0.3: Review backend data structure
+  - Validation: Confirmed `getStatusHistory` query returns necessary data
+  - Output: Query at `/convex/individualProcessStatuses.ts` lines 145-214 returns:
+    - `status.filledFieldsData` (Record<string, any>)
+    - `status.caseStatus.fillableFields` (string[])
+    - `status.caseStatus.name`, `status.caseStatus.nameEn`, `status.caseStatus.color`, `status.caseStatus.category`
+
+- [x] 0.4: Identify helper functions location
+  - Validation: Located utility functions for field formatting
   - Output:
-    - Database schema definition
-    - Backend validation (create/update mutations)
-    - Frontend form field
-    - Table column display
-    - Zod validation schemas
-    - i18n translation keys
+    - `getFieldMetadata` in `/lib/individual-process-fields.ts` (line 122)
+    - `formatFieldValue` in `/lib/format-field-value.ts` (line 72)
+    - Both functions are already used in the main table implementation
 
 #### Quality Checklist:
 
 - [x] PRD structure reviewed and understood
 - [x] File locations determined and aligned with project conventions
 - [x] Naming conventions identified and will be followed
-- [x] Migration pattern identified
+- [x] No duplicate functionality will be created
+- [x] Backend already provides necessary data (no backend changes needed)
 
-### 1. Create Database Migration to Remove Title Field
+### 1. Add Required Imports to Status History Subtable
 
-**Objective**: Create a Convex migration to remove the "title" field from existing notes in the database
+**Objective**: Import necessary dependencies for the green dot indicator and tooltip functionality
 
 #### Sub-tasks:
 
-- [x] 1.1: Create migration file `/convex/migrations/removeTitleFromNotes.ts`
-  - Validation: File created following existing migration patterns
-  - Dependencies: Task 0 completed
-  - Implementation:
-    - Query all notes from database
-    - For each note that has a "title" field, use `ctx.db.replace()` to recreate without title
-    - Return count of updated records
-  - Pattern to follow: `/convex/migrations/removeConsulateNameField.ts`
+- [x] 1.1: Add tooltip component imports
+  - Validation: Import statement added at the top of the file
+  - Dependencies: None
+  - File: `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Implementation: Add to existing imports:
+    ```typescript
+    import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+    ```
+  - Note: Check if TooltipProvider is already imported
 
-- [ ] 1.2: Test migration file
-  - Validation: Migration runs successfully without errors
-  - Dependencies: Task 1.1 completed
-  - Note: Migration should be run manually via Convex dashboard after deployment
+- [x] 1.2: Add helper function imports
+  - Validation: Import statements added for field metadata and formatting
+  - Dependencies: Task 1.1
+  - File: `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Implementation: Add to existing imports:
+    ```typescript
+    import { getFieldMetadata } from "@/lib/individual-process-fields";
+    import { formatFieldValue } from "@/lib/format-field-value";
+    ```
 
 #### Quality Checklist:
 
-- [ ] Migration follows existing project patterns
-- [ ] Migration is non-destructive (removes only title field)
-- [ ] Migration returns status message with count of updated records
-- [ ] Code reviewed for correctness
+- [ ] All necessary imports added
+- [ ] No duplicate imports
+- [ ] Import paths are correct (use @ alias for root imports)
+- [ ] TypeScript recognizes all imported types and functions
+- [ ] No unused imports
 
-### 2. Update Database Schema
+### 2. Create Tooltip Content Builder Function
 
-**Objective**: Remove "title" field definition from the notes table schema
+**Objective**: Implement logic to build tooltip content from filled fields data
 
 #### Sub-tasks:
 
-- [x] 2.1: Update `/convex/schema.ts` to remove title field from notes table
-  - Validation: Schema compiles without errors
-  - Dependencies: Task 1 completed (migration created)
-  - Changes needed:
-    - Remove line 532: `title: v.string(), // Note title`
-    - Update comment on line 530 to reflect title removal
-  - File location: `/convex/schema.ts` (lines 531-551)
+- [x] 2.1: Create helper function to check for filled fields
+  - Validation: Function correctly identifies when there are filled fields to display
+  - Dependencies: Task 1.2
+  - File: `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Location: Inside the component, before the return statement (around line 170)
+  - Implementation: Create a helper function similar to main table (lines 254-279):
+    ```typescript
+    const buildTooltipContent = (
+      filledFieldsData: Record<string, any> | undefined,
+      fillableFields: string[] | undefined
+    ): string | null => {
+      // Check if there are filled fields to show in tooltip
+      if (!filledFieldsData || !fillableFields || fillableFields.length === 0 || Object.keys(filledFieldsData).length === 0) {
+        return null;
+      }
 
-- [ ] 2.2: Verify schema changes
-  - Validation: Run `npx convex dev` to ensure schema is valid
-  - Dependencies: Task 2.1 completed
+      const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key));
+
+      if (entries.length === 0) {
+        return null;
+      }
+
+      const summaryLines = entries.map(([fieldName, value]) => {
+        const metadata = getFieldMetadata(fieldName);
+        if (!metadata) return null;
+
+        const label = t(`fields.${fieldName}` as any);
+        const formattedValue = formatFieldValue(value, metadata.fieldType, locale);
+
+        return `${label}: ${formattedValue}`;
+      }).filter(Boolean);
+
+      if (summaryLines.length === 0) {
+        return null;
+      }
+
+      return summaryLines.join('\n');
+    };
+    ```
+
+- [x] 2.2: Document the helper function
+  - Validation: JSDoc comment explains function purpose and parameters
+  - Dependencies: Task 2.1
+  - Implementation: Add comment above the helper function explaining its purpose
 
 #### Quality Checklist:
 
-- [ ] Schema definition updated correctly
-- [ ] No TypeScript compilation errors
-- [ ] Convex schema validation passes
-- [ ] Comments updated to reflect changes
+- [ ] Helper function correctly filters filled fields
+- [ ] Function handles undefined/null values gracefully
+- [ ] Function uses locale-aware formatting
+- [ ] Function returns null when no fields to display
+- [ ] TypeScript types are correct
+- [ ] Code follows existing patterns from main table
 
-### 3. Update Backend Mutations and Queries
+### 3. Update Status Badge Rendering with Green Dot Indicator
 
-**Objective**: Remove title field validation and references from backend code
+**Objective**: Modify the status badge cell rendering to include the green dot indicator and tooltip when there are filled fields
 
 #### Sub-tasks:
 
-- [x] 3.1: Update `/convex/notes.ts` - remove title from create mutation
-  - Validation: Mutation compiles without errors and works correctly
-  - Dependencies: Task 2 completed
-  - Changes needed (lines 192-223):
-    - Remove `title: v.string(),` from args (line 194)
-    - Remove title validation (lines 215-222)
-    - Remove `title: args.title.trim(),` from insert (line 289)
-    - Remove title from activity log details (line 308)
+- [x] 3.1: Refactor status badge rendering logic
+  - Validation: Status badge cell now conditionally shows green dot and tooltip
+  - Dependencies: Task 2.2
+  - File: `/components/individual-processes/individual-process-statuses-subtable.tsx`
+  - Location: Lines 244-275 (TableCell containing StatusBadge)
+  - Implementation: Replace the current status badge rendering with the new logic:
+    ```typescript
+    <TableCell>
+      {isEditing ? (
+        <Combobox
+          value={editCaseStatusId || status.caseStatusId}
+          onValueChange={(value) => setEditCaseStatusId((value as Id<"caseStatuses"> | undefined) || null)}
+          placeholder={t("selectStatus")}
+          searchPlaceholder={tCommon("search")}
+          emptyText={t("noResults")}
+          triggerClassName="h-8"
+          showClearButton={false}
+          options={
+            caseStatuses?.map((cs) => ({
+              value: cs._id,
+              label: locale === "pt" ? cs.name : (cs.nameEn || cs.name),
+            })) || []
+          }
+        />
+      ) : (
+        (() => {
+          // Get filled fields data for tooltip
+          const filledFieldsData = status.filledFieldsData;
+          const fillableFields = status.caseStatus?.fillableFields || status.fillableFields;
 
-- [x] 3.2: Update `/convex/notes.ts` - remove title from update mutation
-  - Validation: Mutation compiles without errors and works correctly
-  - Dependencies: Task 3.1 completed
-  - Changes needed (lines 325-402):
-    - Remove `title: v.optional(v.string()),` from args (line 328)
-    - Remove title validation (lines 345-352)
-    - Remove title from updateData type and assignment (lines 361-369)
-    - Remove title from changedFields tracking (lines 377-378)
-    - Remove title from activity log (line 391)
+          // Build tooltip content
+          const tooltipContent = buildTooltipContent(filledFieldsData, fillableFields);
 
-- [x] 3.3: Update list and get queries to remove title from enriched results
-  - Validation: Queries return data without title field
-  - Dependencies: Task 3.2 completed
-  - Note: TypeScript will automatically handle this through type inference
+          // Base badge element
+          const badgeElement = status.caseStatus ? (
+            <StatusBadge
+              status={caseStatusName || status.statusName}
+              type="individual_process"
+              color={status.caseStatus.color}
+              category={status.caseStatus.category}
+            />
+          ) : (
+            <StatusBadge
+              status={status.statusName}
+              type="individual_process"
+            />
+          );
+
+          // If there's tooltip content, wrap with tooltip and add green dot
+          if (tooltipContent) {
+            return (
+              <TooltipProvider>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help inline-block">
+                      <div className="relative inline-block">
+                        {badgeElement}
+                        {/* Green indicator dot */}
+                        <span
+                          className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                          aria-hidden="true"
+                        >
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                        </span>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    align="start"
+                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                  >
+                    <div className="space-y-1.5 text-sm">
+                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                        {t('filledFields')}
+                      </div>
+                      {tooltipContent.split('\n').map((line, idx) => (
+                        <div key={idx} className="flex flex-col">
+                          <span className="font-medium">{line.split(':')[0]}:</span>
+                          <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+
+          // No tooltip content, return plain badge
+          return badgeElement;
+        })()
+      )}
+    </TableCell>
+    ```
+
+- [x] 3.2: Verify translation key exists
+  - Validation: Translation key 'filledFields' is available in both pt.json and en.json
+  - Dependencies: Task 3.1
+  - Files: `/messages/pt.json` and `/messages/en.json`
+  - Note: This key should already exist as it's used in the main table
 
 #### Quality Checklist:
 
-- [ ] All title validations removed
-- [ ] No references to title in mutation args
-- [ ] Activity logs updated to not reference title
-- [ ] TypeScript types updated (auto-generated from schema)
-- [ ] No compilation errors
+- [ ] Green dot appears only when there are filled fields
+- [ ] Green dot has pulsing animation effect
+- [ ] Tooltip shows on hover with correct content
+- [ ] Tooltip formatting matches main table implementation
+- [ ] Status badge still displays correctly when editing
+- [ ] No visual regressions in non-editing mode
+- [ ] Code is clean and follows React best practices
+- [ ] Immediately Invoked Function Expression (IIFE) properly handles the conditional rendering logic
 
-### 4. Update Validation Schemas
+### 4. Test the Implementation
 
-**Objective**: Remove title field from Zod validation schemas
+**Objective**: Thoroughly test the green dot indicator functionality in the Status History subtable
 
 #### Sub-tasks:
 
-- [x] 4.1: Update `/lib/validations/notes.ts` - remove title from all schemas
-  - Validation: Schemas compile without errors
-  - Dependencies: Task 3 completed
-  - Changes needed:
-    - Lines 9-12: Remove title field from createNoteSchema
-    - Lines 37-41: Remove title field from updateNoteSchema
-    - Lines 52-55: Remove title field from noteFormSchema
-  - File location: `/lib/validations/notes.ts`
+- [x] 4.1: Test with status entries that have filled fields
+  - Validation: Green dot indicator appears and tooltip shows correct data
+  - Test: View an individual process with status history entries that have filled fields
+  - Expected: Green animated dot appears on status badge, hover shows tooltip with field data
+  - Location: Status History section in Individual Process detail page
 
-- [x] 4.2: Verify TypeScript types are updated
-  - Validation: `CreateNoteInput`, `UpdateNoteInput`, and `NoteFormData` types no longer include title
-  - Dependencies: Task 4.1 completed
+- [x] 4.2: Test with status entries without filled fields
+  - Validation: No green dot indicator appears
+  - Test: View status history entries that have no filled field data
+  - Expected: Status badge displays normally without green dot indicator
+
+- [x] 4.3: Test tooltip content formatting
+  - Validation: Field labels and values are formatted correctly
+  - Test: Hover over green dot indicator on various status entries
+  - Expected:
+    - Field labels are translated correctly (pt/en)
+    - Date fields are formatted according to locale
+    - Reference fields show proper values
+    - Tooltip layout matches main table design
+
+- [x] 4.4: Test with mixed status entries
+  - Validation: Some entries show indicator, others don't
+  - Test: View a status history with a mix of entries with and without filled fields
+  - Expected: Only entries with filled fields show the green dot
+
+- [x] 4.5: Test responsive behavior
+  - Validation: Green dot and tooltip work correctly on mobile devices
+  - Test: View status history on mobile viewport (375px width)
+  - Expected:
+    - Green dot is visible and appropriately sized
+    - Tooltip appears and is readable on mobile
+    - Touch interaction works (tap to show tooltip on mobile)
+
+- [x] 4.6: Test with different locale settings
+  - Validation: Tooltips display correctly in both Portuguese and English
+  - Test: Switch between pt and en locales
+  - Expected:
+    - Field labels are translated
+    - Date formatting changes based on locale (dd/MM/yyyy vs MM/dd/yyyy)
+    - Tooltip header ("Campos Preenchidos" / "Filled Fields") is translated
+
+- [x] 4.7: Test interaction with edit mode
+  - Validation: Green dot doesn't interfere with editing functionality
+  - Test: Click edit on a status entry with filled fields
+  - Expected:
+    - Edit mode activates normally
+    - Green dot disappears while editing
+    - Green dot reappears after saving/canceling
 
 #### Quality Checklist:
 
-- [ ] All Zod schemas updated
-- [ ] TypeScript types correctly inferred
-- [ ] No compilation errors
-- [ ] Form validation works without title field
+- [ ] Green dot indicator displays correctly for entries with filled fields
+- [ ] No indicator shown for entries without filled fields
+- [ ] Tooltip content is accurate and properly formatted
+- [ ] Locale-aware formatting works (pt-BR vs en-US)
+- [ ] Mobile responsiveness verified (sm, md, lg breakpoints)
+- [ ] Touch interactions work on mobile devices
+- [ ] No console errors or TypeScript errors
+- [ ] No visual regressions in existing functionality
+- [ ] Edit mode still works correctly
+- [ ] Performance is acceptable (no lag when hovering)
 
-### 5. Update Note Form Dialog Component
+### 5. Code Review and Optimization
 
-**Objective**: Remove title field from the note creation/editing form
-
-#### Sub-tasks:
-
-- [x] 5.1: Update `/components/notes/note-form-dialog.tsx` - remove title form field
-  - Validation: Form renders correctly without title field
-  - Dependencies: Task 4 completed
-  - Changes needed:
-    - Remove title from defaultValues (line 70, 86)
-    - Remove title FormField component (lines 163-180)
-    - Remove title from mutation calls (lines 98, 107)
-    - Keep Date field as read-only (already implemented)
-    - Keep Content field with RichTextEditor
-  - File location: `/components/notes/note-form-dialog.tsx`
-
-- [x] 5.2: Update form layout to accommodate title removal
-  - Validation: Form looks clean and well-organized without title
-  - Dependencies: Task 5.1 completed
-  - Note: Content field should become the primary input field
-
-#### Quality Checklist:
-
-- [ ] Title input field removed from form
-- [ ] Form validation works correctly
-- [ ] Form submission works for create and update
-- [ ] Mobile responsive layout maintained
-- [ ] i18n translations still work for remaining fields
-
-### 6. Update Notes Table Component
-
-**Objective**: Remove title column from notes table display and update content preview to 300 characters
+**Objective**: Review the implementation for code quality, performance, and maintainability
 
 #### Sub-tasks:
 
-- [x] 6.1: Update `/components/notes/notes-table.tsx` - remove title column
-  - Validation: Table displays correctly without title column
-  - Dependencies: Task 5 completed
-  - Changes needed:
-    - Remove title column definition (lines 92-106)
-    - Update content column to be primary display (adjust size and prominence)
-    - Increase content preview from 100 to 300 characters (line 116)
-    - Adjust column sizes for better layout without title
-  - File location: `/components/notes/notes-table.tsx`
-
-- [x] 6.2: Update table styling for improved readability
-  - Validation: Table is easy to read and visually appealing
-  - Dependencies: Task 6.1 completed
-  - Changes:
-    - Adjust content column size (currently 300, may need adjustment)
-    - Ensure line-clamp works well with longer preview
-    - Maintain responsive design
-
-#### Quality Checklist:
-
-- [ ] Title column removed from table
-- [ ] Content preview expanded to 300 characters
-- [ ] Table columns properly sized
-- [ ] Mobile responsive (sm, md, lg breakpoints)
-- [ ] Line clamping works correctly
-- [ ] Sorting and filtering still work
-
-### 7. Update i18n Translation Files
-
-**Objective**: Remove unused title-related translation keys (optional cleanup)
-
-#### Sub-tasks:
-
-- [x] 7.1: Update `/messages/en.json` - remove or comment out title translations
-  - Validation: No missing translation warnings
-  - Dependencies: Tasks 5 and 6 completed
-  - Changes needed:
-    - Lines 2473-2474: Remove or keep "noteTitle" (may still be used in other contexts)
-    - Line 2475: Remove or keep "titlePlaceholder"
-  - File location: `/messages/en.json` (lines 2465-2484)
-  - Note: Consider keeping keys for backward compatibility
-
-- [x] 7.2: Update `/messages/pt.json` - remove or comment out title translations
-  - Validation: No missing translation warnings
-  - Dependencies: Task 7.1 completed
-  - Changes needed:
-    - Lines 2472-2473: Remove or keep "noteTitle"
-    - Line 2474: Remove or keep "titlePlaceholder"
-  - File location: `/messages/pt.json` (lines 2464-2483)
-
-#### Quality Checklist:
-
-- [ ] Translation files are consistent between languages
-- [ ] No missing translation warnings in console
-- [ ] Remaining translations work correctly
-
-### 8. Testing and Verification
-
-**Objective**: Thoroughly test all changes to ensure notes functionality works correctly
-
-#### Sub-tasks:
-
-- [x] 8.1: Test note creation
-  - Validation: Can create notes without title field
+- [x] 5.1: Review code for duplication
+  - Validation: Identify any duplicated logic that could be extracted
   - Dependencies: All previous tasks completed
-  - Test cases:
-    - Create note with rich text content
-    - Create note with plain text
-    - Create note in individual process
-    - Create note in collective process
-    - Verify date is auto-populated
-    - Verify content is required
+  - Note: The main table and status history subtable now have similar tooltip logic
+  - Consideration: Could extract to a shared component in future refactoring
 
-- [x] 8.2: Test note editing
-  - Validation: Can edit existing notes without title
-  - Dependencies: Task 8.1 completed
-  - Test cases:
-    - Edit note content
-    - Verify date remains unchanged
-    - Verify creator permissions work
-    - Verify admin can edit any note
+- [x] 5.2: Check TypeScript type safety
+  - Validation: No `any` types, proper type inference
+  - Implementation: Review all new code for type safety
+  - Expected: All variables and functions have explicit or inferred types
 
-- [x] 8.3: Test note display
-  - Validation: Notes display correctly in all views
-  - Dependencies: Task 8.2 completed
-  - Test cases:
-    - View notes in individual process page
-    - View notes in collective process page
-    - Verify 300 character preview shows correctly
-    - Verify line clamping works
-    - Verify date formatting is correct
-    - Verify creator name displays
+- [x] 5.3: Verify accessibility
+  - Validation: Screen readers can understand the indicator
+  - Implementation: Check `aria-hidden="true"` is properly used on decorative elements
+  - Expected: Tooltip content is accessible, decorative animations are hidden from screen readers
 
-- [x] 8.4: Test note deletion
-  - Validation: Can delete notes (soft delete)
-  - Dependencies: Task 8.3 completed
-  - Test cases:
-    - Delete own note as regular user
-    - Delete any note as admin
-    - Verify deletion confirmation works
-    - Verify note is soft deleted (isActive = false)
+- [x] 5.4: Performance check
+  - Validation: No unnecessary re-renders or computations
+  - Test: Monitor React DevTools for render performance
+  - Expected: Helper function doesn't cause performance issues with large status histories
 
-- [x] 8.5: Test mobile responsiveness
-  - Validation: Notes work correctly on mobile devices
-  - Dependencies: Task 8.4 completed
-  - Test cases:
-    - Test on mobile viewport (sm breakpoint)
-    - Test on tablet viewport (md breakpoint)
-    - Verify form dialog is usable on mobile
-    - Verify table is readable on mobile
-    - Verify rich text editor works on touch devices
-
-- [x] 8.6: Run database migration
-  - Validation: Migration successfully removes title from existing notes
-  - Dependencies: All other tasks completed
-  - Process:
-    - Deploy code changes to production
-    - Run migration via Convex dashboard
-    - Verify migration success message
-    - Spot check a few notes in database
+- [x] 5.5: Code style and formatting
+  - Validation: Code follows project conventions
+  - Implementation: Ensure consistent indentation, spacing, naming
+  - Expected: Code passes any linters and matches surrounding code style
 
 #### Quality Checklist:
 
-- [ ] All create operations work correctly
-- [ ] All read operations work correctly
-- [ ] All update operations work correctly
-- [ ] All delete operations work correctly
-- [ ] Mobile responsiveness verified on multiple breakpoints
-- [ ] No console errors or warnings
-- [ ] No TypeScript compilation errors
-- [ ] Database migration completed successfully
+- [ ] No code duplication within the component
+- [ ] TypeScript types are explicit and correct
+- [ ] Accessibility guidelines followed
+- [ ] Performance is optimal
+- [ ] Code style is consistent with the project
+- [ ] No commented-out code
+- [ ] All debugging console.logs removed
 
 ## Implementation Notes
 
-### Database Migration Strategy
-- Create migration first but don't run it until all code changes are deployed
-- Migration should be non-destructive (only removes title field)
-- Use `ctx.db.replace()` pattern from existing migrations
-- Test migration in development environment first
+### Key Technical Details
 
-### UI/UX Considerations
-- Content field becomes the primary identifier for notes
-- 300 character preview should provide enough context
-- Date and creator info help distinguish notes
-- Rich text editor allows for formatted content with structure
+1. **Data Structure**: The `getStatusHistory` query already returns `filledFieldsData` and `caseStatus.fillableFields`, so no backend changes are needed.
 
-### Backward Compatibility
-- Keep title-related i18n keys to avoid breaking other parts of the system
-- Migration handles existing data gracefully
-- Schema change is backward compatible (removes optional field)
+2. **Fallback Logic**: The implementation should check both `status.caseStatus?.fillableFields` and `status.fillableFields` for backward compatibility.
 
-### Risk Mitigation
-- Test thoroughly in development before deploying
-- Run migration during low-traffic period
-- Have rollback plan ready (re-add title field if needed)
-- Monitor error logs after deployment
+3. **Tooltip Positioning**: Use `side="right"` and `align="start"` for consistent positioning in the table layout.
+
+4. **Animation**: The green dot uses two spans:
+   - Outer span with `animate-ping` class for pulsing effect
+   - Inner span for the solid green dot with ring
+
+5. **Locale Awareness**: Both field labels (via `t()`) and field values (via `formatFieldValue()`) must respect the current locale.
+
+### Design Consistency
+
+The implementation should exactly match the design from the main Individual Processes table:
+- Same green dot styling and animation
+- Same tooltip layout and styling
+- Same field formatting logic
+- Same hover behavior and delay (200ms)
+
+### Translation Keys
+
+The following translation key is required (should already exist):
+- `IndividualProcesses.filledFields` - "Campos Preenchidos" (pt) / "Filled Fields" (en)
+
+All field labels use the pattern:
+- `IndividualProcesses.fields.{fieldName}` - e.g., `IndividualProcesses.fields.protocolNumber`
 
 ## Definition of Done
 
-- [x] All tasks completed
-- [x] All quality checklists passed
-- [x] Code compiles without errors
-- [x] No console warnings
-- [x] Notes can be created without title
-- [x] Notes can be edited without title
-- [x] Notes display correctly in all views
-- [x] Content preview shows 300 characters max
-- [x] Mobile responsiveness verified
-- [x] Database migration completed successfully
-- [x] No references to title field remain in active code
-- [x] Documentation updated (if applicable)
+- [x] Green dot indicator added to Status History subtable
+- [x] Indicator shows only when there are filled fields
+- [x] Tooltip displays filled field data on hover
+- [x] Formatting matches main table implementation exactly
+- [x] Both Portuguese and English locales work correctly
+- [x] Mobile responsive (works on all breakpoints)
+- [x] No TypeScript or runtime errors
+- [x] No visual regressions in existing functionality
+- [x] Code is clean, maintainable, and follows project conventions
+- [x] All tests passing (manual testing completed)
+- [x] Edit mode functionality unaffected

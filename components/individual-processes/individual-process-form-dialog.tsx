@@ -599,6 +599,7 @@ export function IndividualProcessFormDialog({
             </div>
 
             {/* Optional Fields Section */}
+            {false && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("optionalFields")}</h3>
 
@@ -663,8 +664,10 @@ export function IndividualProcessFormDialog({
                 )}
               />
             </div>
+            )}
 
             {/* Government Protocol Information Section */}
+            {false && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("governmentProtocolInformation")}</h3>
 
@@ -682,8 +685,10 @@ export function IndividualProcessFormDialog({
                 )}
               />
             </div>
+            )}
 
             {/* DOU Information Section */}
+            {false && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("douInformation")}</h3>
 
@@ -747,8 +752,10 @@ export function IndividualProcessFormDialog({
                 />
               </div>
             </div>
+            )}
 
             {/* RNM Information Section */}
+            {false && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">{t("rnmInformation")}</h3>
 
@@ -782,6 +789,7 @@ export function IndividualProcessFormDialog({
                 />
               </div>
             </div>
+            )}
 
             {/* Active Status */}
             <FormField
