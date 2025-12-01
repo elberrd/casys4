@@ -529,7 +529,6 @@ export default defineSchema({
   // Notes - Rich text notes attached to individual or collective processes
   // A process can have many notes, but each note belongs to exactly one process
   notes: defineTable({
-    title: v.string(), // Note title
     content: v.string(), // Rich text content (stored as HTML)
     date: v.string(), // ISO date format YYYY-MM-DD (auto-populated with current date)
     individualProcessId: v.optional(v.id("individualProcesses")), // Link to individual process

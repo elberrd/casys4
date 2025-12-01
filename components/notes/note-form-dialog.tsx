@@ -31,6 +31,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 
+// Note: Input import kept for the date field display
+
 interface NoteFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,7 +69,6 @@ export function NoteFormDialog({
   const form = useForm<NoteFormData>({
     resolver: zodResolver(noteFormSchema),
     defaultValues: {
-      title: "",
       content: "",
     },
   });
@@ -77,12 +78,10 @@ export function NoteFormDialog({
     if (open) {
       if (existingNote && isEditing) {
         form.reset({
-          title: existingNote.title,
           content: existingNote.content,
         });
       } else if (!isEditing) {
         form.reset({
-          title: "",
           content: "",
         });
       }
@@ -95,7 +94,6 @@ export function NoteFormDialog({
       if (isEditing && noteId) {
         await updateNote({
           id: noteId,
-          title: data.title,
           content: data.content,
         });
         toast({
@@ -103,7 +101,6 @@ export function NoteFormDialog({
         });
       } else {
         await createNote({
-          title: data.title,
           content: data.content,
           individualProcessId,
           collectiveProcessId,
@@ -159,25 +156,6 @@ export function NoteFormDialog({
                 className="bg-muted"
               />
             </div>
-
-            {/* Title field */}
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("noteTitle")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t("titlePlaceholder")}
-                      {...field}
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {/* Content field - Rich Text Editor */}
             <FormField

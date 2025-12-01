@@ -25,7 +25,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface Note {
   _id: Id<"notes">;
-  title: string;
   content: string;
   date: string;
   createdAt: number;
@@ -42,6 +41,7 @@ interface NotesTableProps {
   notes: Note[];
   onEdit?: (noteId: Id<"notes">) => void;
   onDelete?: (noteId: Id<"notes">) => void;
+  onRowClick?: (noteId: Id<"notes">) => void;
   isLoading?: boolean;
   currentUserId?: Id<"users">;
   isAdmin?: boolean;
@@ -51,6 +51,7 @@ export function NotesTable({
   notes,
   onEdit,
   onDelete,
+  onRowClick,
   isLoading = false,
   currentUserId,
   isAdmin = false,
@@ -90,42 +91,27 @@ export function NotesTable({
         size: 120,
       },
       {
-        accessorKey: "title",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("noteTitle")} />
-        ),
-        cell: ({ row }) => {
-          const title = row.getValue("title") as string;
-          return (
-            <span className="font-medium line-clamp-1" title={title}>
-              {title}
-            </span>
-          );
-        },
-        size: 200,
-      },
-      {
         accessorKey: "content",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("preview")} />
+          <DataGridColumnHeader column={column} title={t("noteContent")} />
         ),
         cell: ({ row }) => {
           const content = row.getValue("content") as string;
           const plainText = stripHtmlTags(content);
           const preview =
-            plainText.length > 100
-              ? plainText.substring(0, 100) + "..."
+            plainText.length > 300
+              ? plainText.substring(0, 300) + "..."
               : plainText;
           return (
             <span
-              className="text-muted-foreground line-clamp-2"
+              className="text-muted-foreground line-clamp-3"
               title={plainText}
             >
               {preview || "-"}
             </span>
           );
         },
-        size: 300,
+        size: 450,
       },
       {
         accessorKey: "createdByUser",
@@ -215,9 +201,20 @@ export function NotesTable({
     );
   }
 
+  // Handle row click - only trigger if user can modify the note
+  const handleRowClick = (note: Note) => {
+    if (onRowClick && canModify(note)) {
+      onRowClick(note._id);
+    }
+  };
+
   return (
     <>
-      <DataGrid table={table} recordCount={notes.length}>
+      <DataGrid
+        table={table}
+        recordCount={notes.length}
+        onRowClick={onRowClick ? handleRowClick : undefined}
+      >
         <DataGridContainer>
           <DataGridTable />
         </DataGridContainer>

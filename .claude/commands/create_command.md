@@ -1,6 +1,6 @@
 description: Create a new Claude Code command with professional structure and best practices
 argument-hint: [command-name] [description]
-model: claude-sonnet-4-5-20250929
+
 ---
 
 # Purpose
@@ -45,10 +45,12 @@ Create a new, professionally structured Claude Code command following best pract
    - Extract or prompt for `[WORKFLOW_STEPS]`
    - Extract or prompt for `[REPORT_FORMAT]`
 3. Generate the command file with the following structure:
+
    ```markdown
    description: [DESCRIPTION]
    argument-hint: [VARIABLES]
    model: claude-sonnet-4-5-20250929
+
    ---
 
    # Purpose
@@ -73,6 +75,7 @@ Create a new, professionally structured Claude Code command following best pract
 
    [REPORT_FORMAT]
    ```
+
 4. Write the command file to `.claude/commands/[COMMAND_NAME].md`
 5. Validate the created file structure and formatting
 6. Finally, report the work done based on the `Report` section
@@ -91,6 +94,7 @@ You can now use this command by typing: /[COMMAND_NAME] [argument-hint]
 ```
 
 Include any additional notes about:
+
 - Variables the command expects
 - How to invoke the command
 - Whether it runs other commands in parallel

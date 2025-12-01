@@ -49,6 +49,7 @@ import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToC
 import type * as migrations_removeConsulateNameField from "../migrations/removeConsulateNameField.js";
 import type * as migrations_removeProcessTypeCodeCategory from "../migrations/removeProcessTypeCodeCategory.js";
 import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migrations/removeProcessTypeIdFromLegalFrameworks.js";
+import type * as migrations_removeTitleFromNotes from "../migrations/removeTitleFromNotes.js";
 import type * as migrations_renameMainProcessesToCollectiveProcesses from "../migrations/renameMainProcessesToCollectiveProcesses.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/removeConsulateNameField": typeof migrations_removeConsulateNameField;
   "migrations/removeProcessTypeCodeCategory": typeof migrations_removeProcessTypeCodeCategory;
   "migrations/removeProcessTypeIdFromLegalFrameworks": typeof migrations_removeProcessTypeIdFromLegalFrameworks;
+  "migrations/removeTitleFromNotes": typeof migrations_removeTitleFromNotes;
   "migrations/renameMainProcessesToCollectiveProcesses": typeof migrations_renameMainProcessesToCollectiveProcesses;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;

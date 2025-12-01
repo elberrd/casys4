@@ -191,7 +191,6 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    title: v.string(),
     content: v.string(),
     individualProcessId: v.optional(v.id("individualProcesses")),
     collectiveProcessId: v.optional(v.id("collectiveProcesses")),
@@ -210,15 +209,6 @@ export const create = mutation({
       throw new Error(
         "Only one of individualProcessId or collectiveProcessId should be provided"
       );
-    }
-
-    // Validate title
-    if (!args.title || args.title.trim().length === 0) {
-      throw new Error("Note title is required");
-    }
-
-    if (args.title.length > 200) {
-      throw new Error("Note title must be 200 characters or less");
     }
 
     // Validate content
@@ -286,7 +276,6 @@ export const create = mutation({
     const today = new Date().toISOString().split("T")[0];
 
     const noteId = await ctx.db.insert("notes", {
-      title: args.title.trim(),
       content: args.content,
       date: today,
       individualProcessId: args.individualProcessId,
@@ -305,7 +294,6 @@ export const create = mutation({
         entityType: "notes",
         entityId: noteId,
         details: {
-          title: args.title,
           individualProcessId: args.individualProcessId,
           collectiveProcessId: args.collectiveProcessId,
         },
@@ -325,7 +313,6 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("notes"),
-    title: v.optional(v.string()),
     content: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -341,16 +328,6 @@ export const update = mutation({
       throw new Error("Access denied: Only the note creator or an admin can update this note");
     }
 
-    // Validate title if provided
-    if (args.title !== undefined) {
-      if (!args.title || args.title.trim().length === 0) {
-        throw new Error("Note title is required");
-      }
-      if (args.title.length > 200) {
-        throw new Error("Note title must be 200 characters or less");
-      }
-    }
-
     // Validate content if provided
     if (args.content !== undefined) {
       if (!args.content || args.content.trim().length === 0) {
@@ -359,14 +336,12 @@ export const update = mutation({
     }
 
     const updateData: {
-      title?: string;
       content?: string;
       updatedAt: number;
     } = {
       updatedAt: Date.now(),
     };
 
-    if (args.title !== undefined) updateData.title = args.title.trim();
     if (args.content !== undefined) updateData.content = args.content;
 
     await ctx.db.patch(args.id, updateData);
@@ -374,9 +349,6 @@ export const update = mutation({
     // Log activity (non-blocking)
     try {
       const changedFields: Record<string, { before: string | undefined; after: string | undefined }> = {};
-      if (args.title !== undefined && args.title !== note.title) {
-        changedFields.title = { before: note.title, after: args.title };
-      }
       if (args.content !== undefined && args.content !== note.content) {
         changedFields.content = { before: "...", after: "..." }; // Don't log full content
       }
@@ -388,7 +360,6 @@ export const update = mutation({
           entityType: "notes",
           entityId: args.id,
           details: {
-            title: note.title,
             changes: changedFields,
           },
         });
@@ -434,7 +405,6 @@ export const remove = mutation({
         entityType: "notes",
         entityId: id,
         details: {
-          title: note.title,
           individualProcessId: note.individualProcessId,
           collectiveProcessId: note.collectiveProcessId,
         },

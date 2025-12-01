@@ -6,10 +6,6 @@ import { Id } from "@/convex/_generated/dataModel";
  */
 export const createNoteSchema = z
   .object({
-    title: z
-      .string()
-      .min(1, "Title is required")
-      .max(200, "Title must be 200 characters or less"),
     content: z.string().min(1, "Content is required"),
     individualProcessId: z.custom<Id<"individualProcesses">>().optional(),
     collectiveProcessId: z.custom<Id<"collectiveProcesses">>().optional(),
@@ -34,11 +30,6 @@ export type CreateNoteInput = z.infer<typeof createNoteSchema>;
  */
 export const updateNoteSchema = z.object({
   id: z.custom<Id<"notes">>(),
-  title: z
-    .string()
-    .min(1, "Title is required")
-    .max(200, "Title must be 200 characters or less")
-    .optional(),
   content: z.string().min(1, "Content is required").optional(),
 });
 
@@ -49,10 +40,6 @@ export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
  * Does not include process IDs as they are passed separately
  */
 export const noteFormSchema = z.object({
-  title: z
-    .string()
-    .min(1, "Title is required")
-    .max(200, "Title must be 200 characters or less"),
   content: z.string().min(1, "Content is required"),
 });
 

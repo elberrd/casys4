@@ -100,6 +100,7 @@ export function ProcessNotesSection({
               notes={notes || []}
               onEdit={handleEditNote}
               onDelete={handleDeleteNote}
+              onRowClick={handleEditNote}
               isLoading={isLoading}
               currentUserId={currentUserId}
               isAdmin={isAdmin}
