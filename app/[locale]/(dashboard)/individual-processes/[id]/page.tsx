@@ -17,7 +17,7 @@ import { ProcessTimeline } from "@/components/collective-processes/process-timel
 import { StatusUpdateDialog } from "@/components/collective-processes/status-update-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusHistoryTimeline } from "@/components/individual-processes/status-history-timeline"
+import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
 import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 
@@ -214,8 +214,17 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
           </Card>
         </div>
 
-        {/* Status History Timeline - New System */}
-        <StatusHistoryTimeline individualProcessId={processId} />
+        {/* Status History - Interactive Table */}
+        <Card>
+          <CardContent className="pt-6">
+            {currentUser && (
+              <IndividualProcessStatusesSubtable
+                individualProcessId={processId}
+                userRole={currentUser.role}
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Process History Timeline - Legacy */}
         <Card>
