@@ -32,11 +32,13 @@ import { formatFieldValue } from "@/lib/format-field-value";
 interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
   userRole: "admin" | "client";
+  showDescription?: boolean;
 }
 
 export function IndividualProcessStatusesSubtable({
   individualProcessId,
   userRole,
+  showDescription = true,
 }: IndividualProcessStatusesSubtableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -215,7 +217,9 @@ export function IndividualProcessStatusesSubtable({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">{t("statusHistory")}</h3>
-          <p className="text-sm text-muted-foreground">{t("statusHistoryDescription")}</p>
+          {showDescription && (
+            <p className="text-sm text-muted-foreground">{t("statusHistoryDescription")}</p>
+          )}
         </div>
         {isAdmin && (
           <Button onClick={() => setShowAddDialog(true)} size="sm">

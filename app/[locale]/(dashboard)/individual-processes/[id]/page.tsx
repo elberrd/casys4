@@ -215,12 +215,13 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
         </div>
 
         {/* Status History - Interactive Table */}
-        <Card>
+        <Card className="md:max-w-[50%]">
           <CardContent className="pt-6">
             {currentUser && (
               <IndividualProcessStatusesSubtable
                 individualProcessId={processId}
                 userRole={currentUser.role}
+                showDescription={false}
               />
             )}
           </CardContent>
