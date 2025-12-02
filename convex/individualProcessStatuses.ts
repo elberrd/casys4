@@ -517,7 +517,7 @@ export const updateStatus = mutation({
 
 /**
  * Mutation to delete a status record
- * Admin only - cannot delete the active status
+ * Admin only - can delete any status including active
  */
 export const deleteStatus = mutation({
   args: {
@@ -539,9 +539,13 @@ export const deleteStatus = mutation({
       throw new Error("Status record not found");
     }
 
-    // Cannot delete the active status
+    // If deleting the active status, update individualProcess to clear active status reference
     if (status.isActive) {
-      throw new Error("Cannot delete the active status. Please deactivate it first or set another status as active.");
+      await ctx.db.patch(status.individualProcessId, {
+        caseStatusId: undefined,
+        status: undefined,
+        updatedAt: Date.now(),
+      });
     }
 
     // Delete the status record

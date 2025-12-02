@@ -377,7 +377,7 @@ export function IndividualProcessStatusesSubtable({
                     {isAdmin && (
                       <TableCell>
                         {!isEditing && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 justify-end">
                             {/* Fill Fields button - shows when status has fillable fields */}
                             {((status.caseStatus?.fillableFields && status.caseStatus.fillableFields.length > 0) ||
                               (status.fillableFields && status.fillableFields.length > 0)) && (
@@ -402,19 +402,17 @@ export function IndividualProcessStatusesSubtable({
                               <Pencil className="h-4 w-4" />
                               <span className="sr-only">{t("editStatus")}</span>
                             </Button>
-                            {/* Delete button - only for inactive statuses */}
-                            {!status.isActive && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteClick(status._id, caseStatusName || status.statusName)}
-                                title={t("deleteStatus")}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">{t("deleteStatus")}</span>
-                              </Button>
-                            )}
+                            {/* Delete button - available for all statuses */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClick(status._id, caseStatusName || status.statusName)}
+                              title={t("deleteStatus")}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">{t("deleteStatus")}</span>
+                            </Button>
                           </div>
                         )}
                       </TableCell>
