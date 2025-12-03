@@ -755,7 +755,48 @@
     "suggestedStatus": "Sugerido",
     "nextInWorkflow": "Próximo no fluxo",
     "currentStatus": "Status Atual",
-    "basedOnCurrentStatus": "Com base no status atual, o próximo passo é sugerido abaixo"
+    "basedOnCurrentStatus": "Com base no status atual, o próximo passo é sugerido abaixo",
+    "filters": {
+      "addFilter": "Adicionar filtro",
+      "searchFields": "Pesquisar campos...",
+      "noFieldsFound": "Nenhum campo encontrado.",
+      "noResultsFound": "Nenhum resultado encontrado.",
+      "select": "Selecionar...",
+      "candidate": "Candidato",
+      "applicant": "Requerente",
+      "authorizationType": "Tipo de Autorização",
+      "legalFramework": "Amparo Legal",
+      "caseStatus": "Status de Andamento",
+      "requestDate": "Data da Solicitação",
+      "operators": {
+        "is": "é",
+        "isNot": "não é",
+        "isAnyOf": "é qualquer um de",
+        "isNotAnyOf": "não é nenhum de",
+        "contains": "contém",
+        "notContains": "não contém",
+        "startsWith": "começa com",
+        "endsWith": "termina com",
+        "before": "antes de",
+        "after": "depois de",
+        "between": "entre",
+        "notBetween": "não entre",
+        "empty": "está vazio",
+        "notEmpty": "não está vazio"
+      },
+      "placeholders": {
+        "enterCandidate": "Digite o nome do candidato...",
+        "selectApplicant": "Selecione o requerente...",
+        "selectAuthorizationType": "Selecione o tipo de autorização...",
+        "selectLegalFramework": "Selecione o amparo legal...",
+        "selectCaseStatus": "Selecione o status...",
+        "selectDate": "Selecione a data..."
+      },
+      "selectCandidates": "Filtrar por candidatos...",
+      "searchCandidates": "Pesquisar candidatos...",
+      "noCandidatesFound": "Nenhum candidato encontrado.",
+      "clearCandidates": "Limpar seleção de candidatos"
+    }
   },
   "ProcessTimeline": {
     "title": "Histórico do Processo",

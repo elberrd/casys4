@@ -1,148 +1,58 @@
-# TODO: Implementar Proteção contra Perda de Dados em Modais e Formulários
+# Todo List - Individual Processes Filters Implementation
 
-## Status: CONCLUÍDO
+## Completed Tasks
 
-## Resumo da Implementação
+### Phase 1: ReUI Filters Component (Hidden)
+- [x] Check if motion dependency is installed
+- [x] Create Filters component from ReUI
+- [x] Fetch filter options data (processTypes, legalFrameworks, etc.)
+- [x] Add i18n translation keys for filters (pt.json and en.json)
+- [x] Configure filter fields with types and options
+- [x] Implement filter state management
+- [x] Implement filtering logic
+- [x] Integrate Filters component into UI
+- [x] Test and validate implementation
 
-A funcionalidade de proteção contra perda de dados foi implementada com sucesso em todos os formulários e modais do aplicativo.
+### Phase 2: Candidate Multi-Select Filter
+- [x] Hide the ReUI Filters component (preserved for future use)
+- [x] Add candidate multi-select filter using existing Combobox component
+- [x] Position filter after the search bar (moved from before)
+- [x] Add i18n translation keys for candidate filter
+- [x] Implement filtering logic for selected candidates
+- [x] Verify TypeScript compilation
 
-### Arquivos Criados
+### Phase 3: UI Improvements
+- [x] Move filter position to after the search bar
+- [x] Replace check marks with actual checkboxes in multi-select dropdown
+- [x] Ensure empty selection shows all data (already working correctly)
+- [x] Clear button (X) removes all selections and shows all data
 
-1. `/hooks/use-unsaved-changes.ts` - Hook customizado para detectar mudanças não salvas
-2. `/components/ui/unsaved-changes-dialog.tsx` - Componente de dialog de confirmação profissional
+## Summary
 
-### Traduções Adicionadas
+### Current Implementation: Candidate Multi-Select Filter
+Added a simple multi-select filter for candidates before the search bar:
 
-- `/messages/pt.json` - Seção "UnsavedChanges" com textos em português
-- `/messages/en.json` - Seção "UnsavedChanges" com textos em inglês
+**Features:**
+- Uses existing `Combobox` component with `multiple` mode
+- Positioned before the search bar for easy access
+- Searchable dropdown with all unique candidates from the data
+- Clear all button (X) to reset selection
+- Sorted alphabetically for easy finding
+- Responsive width (280px on desktop, full width on mobile)
+- Full i18n support for Portuguese and English
 
-### Componentes Modificados
+### Hidden: Advanced Filters (ReUI Component)
+The full ReUI Filters component with advanced filter fields is preserved in the code (commented out) for future use. It includes:
+1. **Candidato (Candidate)** - Text filter with contains/starts with/ends with operators
+2. **Requerente (Applicant)** - Select filter with unique company applicants
+3. **Tipo de Autorização (Authorization Type)** - Select filter with active process types
+4. **Amparo Legal (Legal Framework)** - Select filter with active legal frameworks
+5. **Status de Andamento (Case Status)** - Select filter with active case statuses
+6. **Data da Solicitação (Request Date)** - Date filter with before/after/between operators
 
-#### Dialogs Críticos (Fase 1)
-- [x] `/components/people/person-form-dialog.tsx`
-- [x] `/components/companies/company-form-dialog.tsx`
-- [x] `/components/individual-processes/individual-process-form-dialog.tsx`
-
-#### Dialogs Secundários (Fase 2)
-- [x] `/components/countries/country-form-dialog.tsx`
-- [x] `/components/cbo-codes/cbo-code-form-dialog.tsx`
-- [x] `/components/document-types/document-type-form-dialog.tsx`
-- [x] `/components/states/state-form-dialog.tsx`
-- [x] `/components/cities/city-form-dialog.tsx`
-- [x] `/components/case-statuses/case-status-form-dialog.tsx`
-- [x] `/components/process-types/process-type-form-dialog.tsx`
-- [x] `/components/passports/passport-form-dialog.tsx`
-- [x] `/components/people-companies/person-company-form-dialog.tsx`
-- [x] `/components/documents/document-form-dialog.tsx`
-- [x] `/components/legal-frameworks/legal-framework-form-dialog.tsx`
-- [x] `/components/economic-activities/economic-activity-form-dialog.tsx`
-- [x] `/components/consulates/consulate-form-dialog.tsx`
-- [x] `/components/collective-processes/collective-process-form-dialog.tsx`
-
-#### Quick-Create Dialogs
-- [x] `/components/individual-processes/quick-person-form-dialog.tsx`
-- [x] `/components/cities/quick-city-form-dialog.tsx`
-- [x] `/components/individual-processes/quick-company-applicant-form-dialog.tsx`
-- [x] `/components/individual-processes/quick-user-applicant-form-dialog.tsx`
-- [x] `/components/individual-processes/quick-consulate-form-dialog.tsx`
-- [x] `/components/countries/country-quick-create-dialog.tsx`
-- [x] `/components/companies/company-quick-create-dialog.tsx`
-- [x] `/components/economic-activities/economic-activity-quick-create-dialog.tsx`
-
-#### Outros Dialogs
-- [x] `/components/tasks/task-form-dialog.tsx`
-- [x] `/components/notes/note-form-dialog.tsx`
-- [x] `/components/users/edit-user-dialog.tsx`
-- [x] `/components/users/create-user-dialog.tsx`
-
-#### Process Wizard
-- [x] `/components/process-wizard/wizard-layout.tsx` - Proteção contra navegação do browser (beforeunload) e navegação via menu
-- O wizard já tinha proteção nativa via `hasUnsavedChanges` no hook `useWizardState`
-
-#### Sistema de Bloqueio de Navegação (Novo)
-- [x] `/contexts/navigation-blocker-context.tsx` - Contexto para bloquear navegação em toda a aplicação
-- [x] `/components/ui/safe-link.tsx` - Componente Link que respeita o bloqueio de navegação
-- [x] `/app/[locale]/(dashboard)/layout.tsx` - Provider adicionado ao layout do dashboard
-- [x] `/components/nav-main.tsx` - Links substituídos por SafeLink
-- [x] `/components/nav-projects.tsx` - Links substituídos por SafeLink
-
-### Como Usar em Novos Componentes
-
-```typescript
-// 1. Importar o hook e o componente
-import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
-
-// 2. Usar o hook após definir o form
-const form = useForm<FormData>({...})
-
-const {
-  showUnsavedDialog,
-  setShowUnsavedDialog,
-  handleOpenChange,
-  handleConfirmClose,
-  handleCancelClose,
-} = useUnsavedChanges({
-  formState: form.formState,
-  onConfirmedClose: () => {
-    form.reset()
-    onOpenChange(false)
-  },
-  isSubmitting: form.formState.isSubmitting,
-})
-
-// 3. Usar handleOpenChange no Dialog
-return (
-  <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {/* Conteúdo do dialog */}
-    </Dialog>
-
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
-  </>
-)
-```
-
-### Funcionalidades
-
-- Detecta automaticamente quando o formulário tem mudanças não salvas via `formState.isDirty`
-- Intercepta tentativas de fechar o modal quando há mudanças
-- Mostra dialog de confirmação profissional com botões claros
-- Suporta i18n (português e inglês)
-- Mobile-friendly com botões touch-friendly
-- No Process Wizard, também protege contra navegação do browser (beforeunload event)
-- **Novo:** Sistema de bloqueio de navegação via menu sidebar
-
-### Como Usar em Páginas/Componentes Não-Dialog
-
-Para páginas ou componentes que precisam bloquear navegação (como o Process Wizard):
-
-```typescript
-import { useBlockNavigation } from "@/contexts/navigation-blocker-context"
-
-function MyPage() {
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-
-  // Callback executado quando o usuário confirma que quer sair
-  const handleConfirmLeave = useCallback(() => {
-    // Limpar estado, reset de form, etc.
-    setHasUnsavedChanges(false)
-  }, [])
-
-  // Isso bloqueará navegação via menu quando hasUnsavedChanges for true
-  useBlockNavigation(hasUnsavedChanges, handleConfirmLeave)
-
-  return <div>...</div>
-}
-```
-
-### Como Funciona o Sistema de Navegação
-
-1. `NavigationBlockerProvider` - Contexto que gerencia o estado de bloqueio
-2. `SafeLink` - Componente que substitui `Link` na navegação e verifica se está bloqueado
-3. `useBlockNavigation` - Hook que registra quando há mudanças não salvas
+### Files Modified
+- `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx` - Candidate filter state, options, and table props
+- `components/individual-processes/individual-processes-table.tsx` - Added Combobox multi-select before search bar
+- `messages/pt.json` - Portuguese translations for candidate filter
+- `messages/en.json` - English translations for candidate filter
+- `lib/utils.ts` - Added missing utility functions (normalizeString, date formatters)

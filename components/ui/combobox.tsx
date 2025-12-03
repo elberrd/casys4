@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { cn, normalizeString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -525,7 +526,10 @@ function ComboboxMultiple<T extends string = string>({
             triggerClassName,
           )}
         >
-          <div className="flex flex-wrap gap-1 flex-1">
+          <div className={cn(
+            "flex flex-wrap gap-1 flex-1",
+            selectedValues.length > 3 && "max-h-[72px] overflow-y-auto"
+          )}>
             {selectedValues.length === 0
               ? placeholder
               : selectedOptions.map((option) => (
@@ -618,13 +622,9 @@ function ComboboxMultiple<T extends string = string>({
                     }
                     onSelect={handleSelect}
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedValues.includes(option.value)
-                          ? "opacity-100"
-                          : "opacity-0",
-                      )}
+                    <Checkbox
+                      checked={selectedValues.includes(option.value)}
+                      className="mr-2 pointer-events-none"
                     />
                     {option.icon && <span className="mr-2">{option.icon}</span>}
                     {option.label}
@@ -649,13 +649,9 @@ function ComboboxMultiple<T extends string = string>({
                       }
                       onSelect={handleSelect}
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedValues.includes(option.value)
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
+                      <Checkbox
+                        checked={selectedValues.includes(option.value)}
+                        className="mr-2 pointer-events-none"
                       />
                       {option.icon && (
                         <span className="mr-2">{option.icon}</span>

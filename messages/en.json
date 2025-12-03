@@ -756,7 +756,48 @@
     "currentStatus": "Current Status",
     "basedOnCurrentStatus": "Based on the current status, the next step is suggested below",
     "initialStatus": "Initial Status",
-    "initialStatusDescription": "Select the initial status and date for this process. Defaults to 'In Preparation' with today's date."
+    "initialStatusDescription": "Select the initial status and date for this process. Defaults to 'In Preparation' with today's date.",
+    "filters": {
+      "addFilter": "Add filter",
+      "searchFields": "Search fields...",
+      "noFieldsFound": "No fields found.",
+      "noResultsFound": "No results found.",
+      "select": "Select...",
+      "candidate": "Candidate",
+      "applicant": "Applicant",
+      "authorizationType": "Authorization Type",
+      "legalFramework": "Legal Framework",
+      "caseStatus": "Case Status",
+      "requestDate": "Request Date",
+      "operators": {
+        "is": "is",
+        "isNot": "is not",
+        "isAnyOf": "is any of",
+        "isNotAnyOf": "is not any of",
+        "contains": "contains",
+        "notContains": "does not contain",
+        "startsWith": "starts with",
+        "endsWith": "ends with",
+        "before": "before",
+        "after": "after",
+        "between": "between",
+        "notBetween": "not between",
+        "empty": "is empty",
+        "notEmpty": "is not empty"
+      },
+      "placeholders": {
+        "enterCandidate": "Enter candidate name...",
+        "selectApplicant": "Select applicant...",
+        "selectAuthorizationType": "Select authorization type...",
+        "selectLegalFramework": "Select legal framework...",
+        "selectCaseStatus": "Select status...",
+        "selectDate": "Select date..."
+      },
+      "selectCandidates": "Filter by candidates...",
+      "searchCandidates": "Search candidates...",
+      "noCandidatesFound": "No candidates found.",
+      "clearCandidates": "Clear candidate selection"
+    }
   },
   "ProcessTimeline": {
     "title": "Process History",

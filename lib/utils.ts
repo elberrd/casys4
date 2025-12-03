@@ -1,10 +1,14 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-import { format, parse } from "date-fns"
-import { enUS, ptBR } from "date-fns/locale"
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+/**
+ * Merges Tailwind class names, resolving any conflicts.
+ *
+ * @param inputs - An array of class names to merge.
+ * @returns A string of merged and optimized class names.
+ */
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }
 
 /**
@@ -34,106 +38,64 @@ export function normalizeString(str: string): string {
 }
 
 /**
- * Returns the date format string for the given locale.
- *
- * @param locale - The locale string ('pt' or 'en')
- * @returns The date format string (e.g., "dd/MM/yyyy" for pt, "MM/dd/yyyy" for en)
- *
- * @example
- * getLocaleDateFormat("pt") // Returns "dd/MM/yyyy"
- * getLocaleDateFormat("en") // Returns "MM/dd/yyyy"
+ * Parses a date string (ISO format or locale format) into a Date object
+ * @param value - The date string to parse (ISO format yyyy-MM-dd or locale format)
+ * @returns A Date object if parsing succeeds, undefined otherwise
  */
-export function getLocaleDateFormat(locale: string): string {
-  return locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy";
+export function parseDateFromInput(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+
+  // Try parsing as ISO format (yyyy-MM-dd)
+  const isoDate = new Date(value);
+  if (!isNaN(isoDate.getTime())) {
+    return isoDate;
+  }
+
+  return undefined;
 }
 
 /**
- * Returns the date placeholder string for the given locale.
- *
+ * Gets the date placeholder text based on locale
  * @param locale - The locale string ('pt' or 'en')
- * @returns The placeholder string (e.g., "dd/mm/aaaa" for pt, "mm/dd/yyyy" for en)
- *
- * @example
- * getDatePlaceholder("pt") // Returns "dd/mm/aaaa"
- * getDatePlaceholder("en") // Returns "mm/dd/yyyy"
+ * @returns The placeholder text for the date input
  */
 export function getDatePlaceholder(locale: string): string {
   return locale === "pt" ? "dd/mm/aaaa" : "mm/dd/yyyy";
 }
 
 /**
- * Formats a Date object for display using the locale-specific format.
- *
- * @param date - The Date object to format (or undefined)
+ * Formats a Date object for display in locale-specific format
+ * @param date - The Date object to format
  * @param locale - The locale string ('pt' or 'en')
- * @returns The formatted date string or undefined if date is not provided
- *
- * @example
- * formatDateForDisplay(new Date(2024, 11, 25), "pt") // Returns "25/12/2024"
- * formatDateForDisplay(new Date(2024, 11, 25), "en") // Returns "12/25/2024"
- * formatDateForDisplay(undefined, "pt") // Returns undefined
+ * @returns The formatted date string (dd/MM/yyyy for pt, MM/dd/yyyy for en)
  */
 export function formatDateForDisplay(
   date: Date | undefined,
   locale: string
 ): string | undefined {
-  if (!date) return undefined;
+  if (!date || isNaN(date.getTime())) return undefined;
 
-  const dateLocale = locale === "pt" ? ptBR : enUS;
-  const dateFormat = getLocaleDateFormat(locale);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
 
-  return format(date, dateFormat, { locale: dateLocale });
-}
-
-/**
- * Parses a date string in YYYY-MM-DD format (ISO format from backend) into a Date object.
- * Uses local date parsing to avoid timezone offset issues.
- *
- * @param dateString - The date string in YYYY-MM-DD format
- * @returns The Date object or undefined if parsing fails
- *
- * @example
- * parseDateFromInput("2024-12-25") // Returns Date object for Dec 25, 2024
- * parseDateFromInput("") // Returns undefined
- * parseDateFromInput("invalid") // Returns undefined
- */
-export function parseDateFromInput(dateString: string): Date | undefined {
-  if (!dateString) return undefined;
-
-  try {
-    // Parse as local date to avoid timezone issues
-    const [year, month, day] = dateString.split("-").map(Number);
-
-    // Validate the parsed values
-    if (!year || !month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
-      return undefined;
-    }
-
-    const date = new Date(year, month - 1, day);
-
-    // Check if the date is valid
-    if (isNaN(date.getTime())) {
-      return undefined;
-    }
-
-    return date;
-  } catch {
-    return undefined;
+  if (locale === "pt") {
+    return `${day}/${month}/${year}`;
   }
+  return `${month}/${day}/${year}`;
 }
 
 /**
- * Formats a Date object to YYYY-MM-DD format (ISO format for backend storage).
- *
+ * Formats a Date object for storage in ISO format (yyyy-MM-dd)
  * @param date - The Date object to format
- * @returns The date string in YYYY-MM-DD format or undefined if date is not provided
- *
- * @example
- * formatDateForStorage(new Date(2024, 11, 25)) // Returns "2024-12-25"
- * formatDateForStorage(undefined) // Returns undefined
+ * @returns The ISO formatted date string, or undefined if date is invalid
  */
 export function formatDateForStorage(date: Date | undefined): string | undefined {
-  if (!date) return undefined;
+  if (!date || isNaN(date.getTime())) return undefined;
 
-  return format(date, "yyyy-MM-dd");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }

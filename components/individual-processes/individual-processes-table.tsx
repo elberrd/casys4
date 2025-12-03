@@ -35,6 +35,7 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 import { getFieldMetadata } from "@/lib/individual-process-fields"
 import { formatFieldValue, truncateString } from "@/lib/format-field-value"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">
@@ -90,6 +91,11 @@ interface IndividualProcess {
   deadlineDate?: string
 }
 
+interface CandidateFilterOption {
+  value: string
+  label: string
+}
+
 interface IndividualProcessesTableProps {
   individualProcesses: IndividualProcess[]
   onView?: (id: Id<"individualProcesses">) => void
@@ -100,6 +106,10 @@ interface IndividualProcessesTableProps {
   onBulkCreateTask?: (selected: IndividualProcess[]) => void
   onRowClick?: (id: Id<"individualProcesses">) => void
   onUpdateStatus?: (id: Id<"individualProcesses">) => void
+  // Candidate filter props
+  candidateOptions?: CandidateFilterOption[]
+  selectedCandidates?: string[]
+  onCandidateFilterChange?: (candidates: string[]) => void
 }
 
 export function IndividualProcessesTable({
@@ -111,7 +121,10 @@ export function IndividualProcessesTable({
   onBulkStatusUpdate,
   onBulkCreateTask,
   onRowClick,
-  onUpdateStatus
+  onUpdateStatus,
+  candidateOptions = [],
+  selectedCandidates = [],
+  onCandidateFilterChange,
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
@@ -542,7 +555,23 @@ export function IndividualProcessesTable({
     >
       <div className="w-full space-y-2.5">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-          <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+            <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+            {onCandidateFilterChange && candidateOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={candidateOptions as ComboboxOption<string>[]}
+                value={selectedCandidates}
+                onValueChange={onCandidateFilterChange}
+                placeholder={t('filters.selectCandidates')}
+                searchPlaceholder={t('filters.searchCandidates')}
+                emptyText={t('filters.noCandidatesFound')}
+                triggerClassName="w-full sm:w-[280px] min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t('filters.clearCandidates')}
+              />
+            )}
+          </div>
           <DataGridColumnVisibility
             table={table}
             trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
