@@ -34,6 +34,8 @@ import { processTypeSchema, ProcessTypeFormData } from "@/lib/validations/proces
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { LegalFrameworkFormDialog } from "@/components/legal-frameworks/legal-framework-form-dialog"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface ProcessTypeFormDialogProps {
   open: boolean
@@ -78,6 +80,22 @@ export function ProcessTypeFormDialog({
       isActive: true,
       legalFrameworkIds: [] as Id<"legalFrameworks">[],
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   // Reset form when process type data loads
@@ -128,7 +146,8 @@ export function ProcessTypeFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
@@ -299,19 +318,28 @@ export function ProcessTypeFormDialog({
           </form>
         </Form>
       </DialogContent>
-
-      <LegalFrameworkFormDialog
-        open={showLegalFrameworkDialog}
-        onOpenChange={setShowLegalFrameworkDialog}
-        onSuccess={(newLegalFrameworkId) => {
-          // Add the newly created legal framework to the selection
-          const currentIds = form.getValues('legalFrameworkIds') || []
-          if (newLegalFrameworkId && !currentIds.includes(newLegalFrameworkId)) {
-            form.setValue('legalFrameworkIds', [...currentIds, newLegalFrameworkId])
-          }
-          setShowLegalFrameworkDialog(false)
-        }}
-      />
     </Dialog>
+
+    <LegalFrameworkFormDialog
+      open={showLegalFrameworkDialog}
+      onOpenChange={setShowLegalFrameworkDialog}
+      onSuccess={(newLegalFrameworkId) => {
+        // Add the newly created legal framework to the selection
+        const currentIds = form.getValues('legalFrameworkIds') || []
+        if (newLegalFrameworkId && !currentIds.includes(newLegalFrameworkId)) {
+          form.setValue('legalFrameworkIds', [...currentIds, newLegalFrameworkId])
+        }
+        setShowLegalFrameworkDialog(false)
+      }}
+    />
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

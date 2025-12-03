@@ -36,6 +36,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 interface CollectiveProcessFormDialogProps {
   open: boolean;
@@ -91,6 +93,22 @@ export function CollectiveProcessFormDialog({
       ...defaultValues,
     },
   });
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: isSubmitting,
+  })
 
   // Update form when existing process data loads
   useEffect(() => {
@@ -182,7 +200,8 @@ export function CollectiveProcessFormDialog({
     !companies || !people || !processTypes || !cities || !consulates;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -448,5 +467,14 @@ export function CollectiveProcessFormDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   );
 }

@@ -30,6 +30,8 @@ import { Badge } from "@/components/ui/badge"
 import { DatePicker } from "@/components/ui/date-picker"
 import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
 import { toast } from "sonner"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface PassportFormDialogProps {
   open: boolean
@@ -99,6 +101,22 @@ export function PassportFormDialog({
     },
   })
 
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
+  })
+
   const expiryDate = form.watch("expiryDate")
   const status = expiryDate ? calculateStatus(expiryDate) : null
 
@@ -155,7 +173,8 @@ export function PassportFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -325,5 +344,14 @@ export function PassportFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

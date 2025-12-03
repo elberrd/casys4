@@ -201,3 +201,43 @@ export const exportDataSchema = z.object({
 });
 
 export type ExportDataInput = z.infer<typeof exportDataSchema>;
+
+/**
+ * Schema for adding people to a collective process
+ */
+export const addPeopleToCollectiveSchema = z.object({
+  collectiveProcessId: z.custom<Id<"collectiveProcesses">>((val) => typeof val === "string", {
+    message: "Collective process is required",
+  }),
+  personIds: z.array(
+    z.custom<Id<"people">>((val) => typeof val === "string", {
+      message: "Invalid person ID",
+    })
+  ).min(1, "At least one person must be selected"),
+  requestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+  consulateId: z.custom<Id<"consulates">>((val) => typeof val === "string", {
+    message: "Consulate is required",
+  }),
+  caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
+    message: "Initial case status is required",
+  }),
+});
+
+export type AddPeopleToCollectiveInput = z.infer<typeof addPeopleToCollectiveSchema>;
+
+/**
+ * Schema for updating collective process statuses
+ */
+export const updateCollectiveStatusSchema = z.object({
+  collectiveProcessId: z.custom<Id<"collectiveProcesses">>((val) => typeof val === "string", {
+    message: "Collective process is required",
+  }),
+  caseStatusId: z.custom<Id<"caseStatuses">>((val) => typeof val === "string", {
+    message: "Case status is required",
+  }),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+  notes: z.string().optional(),
+  filledFieldsData: z.record(z.string(), z.any()).optional(),
+});
+
+export type UpdateCollectiveStatusInput = z.infer<typeof updateCollectiveStatusSchema>;

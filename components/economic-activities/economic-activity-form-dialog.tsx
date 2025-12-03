@@ -29,6 +29,8 @@ import { useTranslations } from "next-intl"
 import { economicActivitySchema, EconomicActivityFormData } from "@/lib/validations/economic-activities"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface EconomicActivityFormDialogProps {
   open: boolean
@@ -63,6 +65,22 @@ export function EconomicActivityFormDialog({
       description: "",
       isActive: true,
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   // Reset form when economic activity data loads
@@ -117,7 +135,8 @@ export function EconomicActivityFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -213,5 +232,14 @@ export function EconomicActivityFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

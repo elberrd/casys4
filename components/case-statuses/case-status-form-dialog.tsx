@@ -37,6 +37,8 @@ import { caseStatusSchema, CaseStatusFormData, caseStatusCategories } from "@/li
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { FillableFieldsSelector } from "@/components/individual-processes/fillable-fields-selector"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface CaseStatusFormDialogProps {
   open: boolean
@@ -82,6 +84,22 @@ export function CaseStatusFormDialog({
       orderNumber: undefined,
       fillableFields: undefined,
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   // Reset form when case status data loads
@@ -148,7 +166,8 @@ export function CaseStatusFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -392,5 +411,14 @@ export function CaseStatusFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

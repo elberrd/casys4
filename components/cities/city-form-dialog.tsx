@@ -31,6 +31,8 @@ import { useCountryTranslation } from "@/lib/i18n/countries"
 import { citySchema, CityFormData } from "@/lib/validations/cities"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface CityFormDialogProps {
   open: boolean
@@ -68,6 +70,22 @@ export function CityFormDialog({
       countryId: "",
       hasFederalPolice: false,
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   // Reset form when city data loads
@@ -151,7 +169,8 @@ export function CityFormDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -258,5 +277,14 @@ export function CityFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

@@ -42,6 +42,8 @@ import {
   documentCategories,
   type DocumentTypeFormData,
 } from "@/lib/validations/documentTypes";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
@@ -77,6 +79,22 @@ export function DocumentTypeFormDialog({
       description: documentType?.description ?? "",
       isActive: documentType?.isActive ?? true,
     },
+  });
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange: handleUnsavedOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset();
+      onOpenChange(false);
+    },
+    isSubmitting: isSubmitting,
   });
 
   // Update form when documentType data loads
@@ -133,15 +151,9 @@ export function DocumentTypeFormDialog({
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      form.reset();
-    }
-    onOpenChange(newOpen);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
@@ -259,7 +271,7 @@ export function DocumentTypeFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleUnsavedOpenChange(false)}
                 disabled={isSubmitting}
               >
                 {tCommon("cancel")}
@@ -272,5 +284,14 @@ export function DocumentTypeFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   );
 }

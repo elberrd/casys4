@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { consulateSchema, ConsulateFormData } from "@/lib/validations/consulates"
 import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface QuickConsulateFormDialogProps {
   open: boolean
@@ -61,6 +63,22 @@ export function QuickConsulateFormDialog({
     },
   })
 
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
+  })
+
   const onSubmit = async (data: ConsulateFormData) => {
     try {
       // Clean optional fields and convert empty strings to undefined
@@ -89,7 +107,8 @@ export function QuickConsulateFormDialog({
   }))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{tIndividual("quickAddConsulate")}</DialogTitle>
@@ -210,5 +229,14 @@ export function QuickConsulateFormDialog({
         }}
       />
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

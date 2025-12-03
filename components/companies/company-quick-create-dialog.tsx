@@ -30,6 +30,8 @@ import { useTranslations } from "next-intl"
 import { companyQuickCreateSchema, CompanyQuickCreateFormData } from "@/lib/validations/companies"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface CompanyQuickCreateDialogProps {
   open: boolean
@@ -63,6 +65,22 @@ export function CompanyQuickCreateDialog({
       phoneNumber: "",
       cityId: "" as Id<"cities">,
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   const onSubmit = async (data: CompanyQuickCreateFormData) => {
@@ -101,7 +119,8 @@ export function CompanyQuickCreateDialog({
   }))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('quickCreateTitle')}</DialogTitle>
@@ -224,5 +243,14 @@ export function CompanyQuickCreateDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

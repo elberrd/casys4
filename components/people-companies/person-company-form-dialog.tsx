@@ -28,6 +28,8 @@ import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { personCompanySchema, type PersonCompanyFormData } from "@/lib/validations/peopleCompanies"
 import { toast } from "sonner"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface PersonCompanyFormDialogProps {
   open: boolean
@@ -69,6 +71,22 @@ export function PersonCompanyFormDialog({
       endDate: "",
       isCurrent: false,
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   const isCurrent = form.watch("isCurrent")
@@ -128,7 +146,8 @@ export function PersonCompanyFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -277,5 +296,14 @@ export function PersonCompanyFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

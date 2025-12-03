@@ -1,7 +1,7 @@
 "use client"
 
 import { ChevronRight, type LucideIcon } from "lucide-react"
-import { Link } from "@/i18n/routing"
+import { SafeLink } from "@/components/ui/safe-link"
 
 import {
   Collapsible,
@@ -47,11 +47,11 @@ export function NavMain({
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton tooltip={item.title} asChild>
-                  <Link href={item.url}>
+                  <SafeLink href={item.url}>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
                     <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  </Link>
+                  </SafeLink>
                 </SidebarMenuButton>
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -59,9 +59,9 @@ export function NavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild>
-                        <Link href={subItem.url}>
+                        <SafeLink href={subItem.url}>
                           <span>{subItem.title}</span>
-                        </Link>
+                        </SafeLink>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

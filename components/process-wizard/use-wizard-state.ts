@@ -8,8 +8,7 @@ import {
   validateStep2_1Individual,
   validateStep2_2,
   validateStep2IndividualMerged,
-  validateStep3_1Collective,
-  validateStep3_2Collective,
+  validateStep2CollectiveMerged,
   validateStep3_3Candidates,
   CandidateData,
 } from "@/lib/validations/process-wizard"
@@ -18,11 +17,8 @@ export type WizardStep =
   | "processType"
   | "requestDetailsIndividual"
   | "processDataIndividual"
-  | "confirmationIndividual"
-  | "requestDetailsCollective"
   | "processDataCollective"
   | "candidatesCollective"
-  | "confirmationCollective"
 
 export interface StepInfo {
   id: WizardStep
@@ -35,21 +31,17 @@ export interface StepInfo {
 const DEFAULT_STEPS: StepInfo[] = [
   { id: "processType", title: "Tipo de Processo", description: "Selecione o tipo de processo", stepNumber: 1 },
   { id: "processDataIndividual", title: "Dados do Processo", description: "Preencha os dados do processo", stepNumber: 2 },
-  { id: "confirmationIndividual", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 3 },
 ]
 
 const INDIVIDUAL_STEPS: StepInfo[] = [
   { id: "processType", title: "Tipo de Processo", description: "Selecione o tipo de processo", stepNumber: 1 },
   { id: "processDataIndividual", title: "Dados do Processo", description: "Preencha os dados do processo e adicione os candidatos", stepNumber: 2 },
-  { id: "confirmationIndividual", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 3 },
 ]
 
 const COLLECTIVE_STEPS: StepInfo[] = [
   { id: "processType", title: "Tipo de Processo", description: "Selecione o tipo de processo", stepNumber: 1 },
-  { id: "requestDetailsCollective", title: "Detalhes da Solicitação", description: "Preencha os detalhes da solicitação", stepNumber: 2 },
-  { id: "processDataCollective", title: "Dados do Processo", description: "Preencha os dados do processo", stepNumber: 3 },
-  { id: "candidatesCollective", title: "Candidatos", description: "Adicione os candidatos", stepNumber: 4 },
-  { id: "confirmationCollective", title: "Confirmação", description: "Confirme os dados do processo", stepNumber: 5 },
+  { id: "processDataCollective", title: "Dados do Processo", description: "Preencha os dados do processo", stepNumber: 2 },
+  { id: "candidatesCollective", title: "Candidatos", description: "Adicione os candidatos", stepNumber: 3 },
 ]
 
 export function useWizardState() {
@@ -118,14 +110,10 @@ export function useWizardState() {
         // New merged step: validates shared fields + at least 1 candidate
         return validateStep2IndividualMerged(wizardData)
       case "processDataCollective":
-        return validateStep3_2Collective(wizardData) // Uses collective validation (company required)
-      case "requestDetailsCollective":
-        return validateStep3_1Collective(wizardData)
+        // New merged step: validates userApplicant + process data (company required)
+        return validateStep2CollectiveMerged(wizardData)
       case "candidatesCollective":
         return validateStep3_3Candidates(wizardData)
-      case "confirmationIndividual":
-      case "confirmationCollective":
-        return true // Confirmation steps are always valid
       default:
         return false
     }
@@ -185,8 +173,9 @@ export function useWizardState() {
       setCurrentStep("processDataIndividual")
       setVisitedSteps(new Set(["processType", "processDataIndividual"]))
     } else {
-      setCurrentStep("requestDetailsCollective")
-      setVisitedSteps(new Set(["processType", "requestDetailsCollective"]))
+      // Collective now goes directly to merged process data step (no separate requestDetails step)
+      setCurrentStep("processDataCollective")
+      setVisitedSteps(new Set(["processType", "processDataCollective"]))
     }
   }, [])
 

@@ -328,29 +328,44 @@ export const getByOrderNumber = query({
 
 /**
  * Query to get the next case status in the workflow sequence
- * Returns the active status with orderNumber = currentOrderNumber + 1
+ * Returns the next active status with orderNumber > currentOrderNumber
+ *
+ * NOTE: Some statuses (like "Exigência" and "Juntada de documento") don't have
+ * an orderNumber because they can occur at any point in the workflow and are
+ * not part of the sequential order. This function skips those statuses and
+ * finds the next status with a valid orderNumber greater than the current one.
  */
 export const getNextStatusByOrderNumber = query({
   args: { currentOrderNumber: v.optional(v.number()) },
   handler: async (ctx, { currentOrderNumber }) => {
     // If no current orderNumber provided, return null
+    // This happens when current status doesn't have an orderNumber (like "Exigência")
     if (currentOrderNumber === undefined) {
       return null;
     }
 
-    // Find the next status in sequence
-    const nextOrderNumber = currentOrderNumber + 1;
-    const nextStatus = await ctx.db
+    // Get all statuses with orderNumber defined
+    // We need to filter in memory because we want the NEXT available orderNumber,
+    // not just currentOrderNumber + 1 (which might not exist if there are gaps)
+    const allStatuses = await ctx.db
       .query("caseStatuses")
-      .withIndex("by_orderNumber", (q) => q.eq("orderNumber", nextOrderNumber))
-      .first();
+      .collect();
 
-    // Only return if it's active
-    if (nextStatus && nextStatus.isActive) {
-      return nextStatus;
-    }
+    // Filter to find the next status:
+    // 1. Must have an orderNumber defined
+    // 2. orderNumber must be greater than current
+    // 3. Must be active
+    // Then sort by orderNumber and take the first one
+    const nextStatus = allStatuses
+      .filter(
+        (s) =>
+          s.isActive &&
+          s.orderNumber !== undefined &&
+          s.orderNumber > currentOrderNumber
+      )
+      .sort((a, b) => (a.orderNumber || 0) - (b.orderNumber || 0))[0];
 
-    return null;
+    return nextStatus || null;
   },
 });
 

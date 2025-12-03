@@ -353,7 +353,18 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Candidate selector */}
+                {/* Request Date - First field */}
+                <div className="space-y-2">
+                  <div className="flex items-center h-7">
+                    <Label>{t("requestDate")}</Label>
+                  </div>
+                  <DatePicker
+                    value={newCandidateRequestDate}
+                    onChange={(value) => setNewCandidateRequestDate(value || new Date().toISOString().split('T')[0])}
+                  />
+                </div>
+
+                {/* Candidate selector - Second field */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("selectCandidate")} *</Label>
@@ -373,7 +384,7 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                   />
                 </div>
 
-                {/* Consulate selector */}
+                {/* Consulate selector - Third field */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("consulate")}</Label>
@@ -394,17 +405,6 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                     placeholder={t("selectConsulate")}
                     searchPlaceholder={t("searchConsulates")}
                     emptyText={t("noConsulatesFound")}
-                  />
-                </div>
-
-                {/* Request Date */}
-                <div className="space-y-2">
-                  <div className="flex items-center h-7">
-                    <Label>{t("requestDate")}</Label>
-                  </div>
-                  <DatePicker
-                    value={newCandidateRequestDate}
-                    onChange={(value) => setNewCandidateRequestDate(value || new Date().toISOString().split('T')[0])}
                   />
                 </div>
               </div>
@@ -430,9 +430,9 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">#</TableHead>
+                  <TableHead>{t("requestDate")}</TableHead>
                   <TableHead>{t("candidate")}</TableHead>
                   <TableHead>{t("consulate")}</TableHead>
-                  <TableHead>{t("requestDate")}</TableHead>
                   <TableHead className="w-[80px]">{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -440,9 +440,9 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                 {wizardData.candidates.map((candidate, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
+                    <TableCell>{formatDate(candidate.requestDate)}</TableCell>
                     <TableCell>{getPersonName(candidate.personId as string)}</TableCell>
                     <TableCell>{getConsulateName(candidate.consulateId as string || "")}</TableCell>
-                    <TableCell>{formatDate(candidate.requestDate)}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"

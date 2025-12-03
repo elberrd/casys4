@@ -25,6 +25,14 @@ export const requestDetailsSchema = z.object({
     .or(z.literal("")),
 });
 
+// Step 2 Collective: Request Details without requestDate (requestDate is per candidate)
+export const requestDetailsCollectiveSchema = z.object({
+  userApplicantId: z
+    .custom<Id<"people">>((val) => typeof val === "string" && val.length > 0, {
+      message: "Solicitante é obrigatório",
+    }),
+});
+
 // Additional field for individual process - candidate
 export const requestDetailsIndividualSchema = requestDetailsSchema.extend({
   personId: z.custom<Id<"people">>((val) => typeof val === "string" && val.length > 0, {
@@ -99,7 +107,8 @@ export interface WizardState {
   processType?: "individual" | "collective";
 
   // Step 2.1 / 3.1 - Request Details (shared fields)
-  requestDate: string; // Used as default for new candidates in individual wizard
+  // NOTE: For collective processes, requestDate is per candidate (not at process level)
+  requestDate: string; // Used as default for new candidates (individual: top-level, collective: per candidate)
   userApplicantId: string;
   consulateId: string; // Only used for collective at top level now
 
@@ -205,4 +214,23 @@ export function validateStep2IndividualMerged(data: Partial<WizardState>): boole
   const candidatesValid = Array.isArray(data.candidates) && data.candidates.length > 0;
 
   return sharedFieldsValid && candidatesValid;
+}
+
+// Step 2 Collective Merged: Validates userApplicant + process data (without requestDate)
+// This combines the old step 3.1 (without requestDate) and step 3.2
+export function validateStep2CollectiveMerged(data: Partial<WizardState>): boolean {
+  // Validate user applicant (required)
+  const userApplicantValid = typeof data.userApplicantId === "string" && data.userApplicantId.length > 0;
+
+  // Validate process data fields with collective validation (company required)
+  const processDataResult = processDataCollectiveSchema.safeParse({
+    processTypeId: data.processTypeId,
+    legalFrameworkId: data.legalFrameworkId,
+    companyApplicantId: data.companyApplicantId,
+    deadlineUnit: data.deadlineUnit,
+    deadlineQuantity: data.deadlineQuantity,
+    deadlineSpecificDate: data.deadlineSpecificDate,
+  });
+
+  return userApplicantValid && processDataResult.success;
 }

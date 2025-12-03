@@ -12,11 +12,8 @@ import { useWizardState } from "./use-wizard-state"
 import { WizardLayout } from "./wizard-layout"
 import { Step1ProcessType } from "./step1-process-type"
 import { Step2ProcessDataIndividual } from "./step2-process-data-individual"
-import { Step2_2ProcessData } from "./step2-2-process-data"
-import { Step2_3ConfirmationIndividual } from "./step2-3-confirmation-individual"
-import { Step3_1RequestDetailsCollective } from "./step3-1-request-details-collective"
+import { Step2CollectiveMerged } from "./step2-collective-merged"
 import { Step3_3CandidatesCollective } from "./step3-3-candidates-collective"
-import { Step3_4ConfirmationCollective } from "./step3-4-confirmation-collective"
 
 export function ProcessWizardPage() {
   const t = useTranslations("ProcessWizard")
@@ -79,16 +76,22 @@ export function ProcessWizardPage() {
         // Generate reference number for collective process
         const referenceNumber = `CP-${Date.now().toString(36).toUpperCase()}`
 
+        // Use the first candidate's requestDate as the process date, or current date as fallback
+        const processRequestDate = wizardData.candidates.length > 0
+          ? wizardData.candidates[0].requestDate
+          : new Date().toISOString().split('T')[0]
+
         // Create collective process FIRST to get the ID
         // workplaceCityId is optional - use company's cityId if available
         // Note: consulateId is now per-candidate, not at collective level
+        // Note: requestDate is now per-candidate, using first candidate's date for the process
         const collectiveProcessId = await createCollectiveProcess({
           referenceNumber,
           companyId: wizardData.companyApplicantId as Id<"companies">,
           contactPersonId: wizardData.userApplicantId as Id<"people">,
           processTypeId: wizardData.processTypeId as Id<"processTypes">,
           workplaceCityId: companyApplicant?.cityId ? (companyApplicant.cityId as Id<"cities">) : undefined,
-          requestDate: wizardData.requestDate,
+          requestDate: processRequestDate,
         })
 
         // Now create all individual processes with the collectiveProcessId
@@ -135,18 +138,13 @@ export function ProcessWizardPage() {
       case "processType":
         return <Step1ProcessType wizard={wizard} />
       case "processDataIndividual":
-        // New merged step for individual processes (combines request details + process data + candidates)
+        // Merged step for individual processes (combines request details + process data + candidates)
         return <Step2ProcessDataIndividual wizard={wizard} />
       case "processDataCollective":
-        return <Step2_2ProcessData wizard={wizard} />
-      case "confirmationIndividual":
-        return <Step2_3ConfirmationIndividual wizard={wizard} />
-      case "requestDetailsCollective":
-        return <Step3_1RequestDetailsCollective wizard={wizard} />
+        // Merged step for collective processes (combines userApplicant + process data, without requestDate)
+        return <Step2CollectiveMerged wizard={wizard} />
       case "candidatesCollective":
         return <Step3_3CandidatesCollective wizard={wizard} />
-      case "confirmationCollective":
-        return <Step3_4ConfirmationCollective wizard={wizard} />
       default:
         return null
     }

@@ -33,6 +33,8 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { consulateSchema, type ConsulateFormData } from "@/lib/validations/consulates";
 import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 interface ConsulateFormDialogProps {
   open: boolean;
@@ -72,6 +74,22 @@ export function ConsulateFormDialog({
       website: consulate?.website ?? "",
     },
   });
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange: handleUnsavedOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: isSubmitting,
+  })
 
   // Update form when consulate data loads
   useEffect(() => {
@@ -122,12 +140,6 @@ export function ConsulateFormDialog({
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      form.reset();
-    }
-    onOpenChange(newOpen);
-  };
 
   const cityOptions = cities.map((city) => {
     const countryName = city.country ? (getCountryName(city.country.code) || city.country.name) : ""
@@ -138,7 +150,8 @@ export function ConsulateFormDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
@@ -248,7 +261,7 @@ export function ConsulateFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleUnsavedOpenChange(false)}
                 disabled={isSubmitting}
               >
                 {tCommon("cancel")}
@@ -269,5 +282,14 @@ export function ConsulateFormDialog({
         }}
       />
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   );
 }

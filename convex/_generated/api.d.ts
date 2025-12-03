@@ -51,6 +51,7 @@ import type * as migrations_removeProcessTypeCodeCategory from "../migrations/re
 import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migrations/removeProcessTypeIdFromLegalFrameworks.js";
 import type * as migrations_removeTitleFromNotes from "../migrations/removeTitleFromNotes.js";
 import type * as migrations_renameMainProcessesToCollectiveProcesses from "../migrations/renameMainProcessesToCollectiveProcesses.js";
+import type * as migrations_updateCaseStatusesOrderNumbers from "../migrations/updateCaseStatusesOrderNumbers.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as notes from "../notes.js";
@@ -129,6 +130,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/removeProcessTypeIdFromLegalFrameworks": typeof migrations_removeProcessTypeIdFromLegalFrameworks;
   "migrations/removeTitleFromNotes": typeof migrations_removeTitleFromNotes;
   "migrations/renameMainProcessesToCollectiveProcesses": typeof migrations_renameMainProcessesToCollectiveProcesses;
+  "migrations/updateCaseStatusesOrderNumbers": typeof migrations_updateCaseStatusesOrderNumbers;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;
   notes: typeof notes;

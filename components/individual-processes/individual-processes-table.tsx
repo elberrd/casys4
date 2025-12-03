@@ -23,7 +23,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo, FileEdit } from "lucide-react"
+import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw } from "lucide-react"
 import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -99,6 +99,7 @@ interface IndividualProcessesTableProps {
   onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => void
   onBulkCreateTask?: (selected: IndividualProcess[]) => void
   onRowClick?: (id: Id<"individualProcesses">) => void
+  onUpdateStatus?: (id: Id<"individualProcesses">) => void
 }
 
 export function IndividualProcessesTable({
@@ -109,7 +110,8 @@ export function IndividualProcessesTable({
   onFillFields,
   onBulkStatusUpdate,
   onBulkCreateTask,
-  onRowClick
+  onRowClick,
+  onUpdateStatus
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
@@ -279,72 +281,104 @@ export function IndividualProcessesTable({
           }
 
           const badgeElement = (
-            <div className="flex flex-col gap-1 items-start">
-              {formattedDate && (
-                <span className="text-xs text-muted-foreground">
-                  {formattedDate}
-                </span>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="flex flex-col gap-1 items-start">
+                {formattedDate && (
+                  <span className="text-xs text-muted-foreground">
+                    {formattedDate}
+                  </span>
+                )}
+                <StatusBadge
+                  status={statusName}
+                  type="individual_process"
+                  color={caseStatus.color}
+                  category={caseStatus.category}
+                />
+              </div>
+              {onUpdateStatus && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onUpdateStatus(row.original._id)
+                  }}
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  <span className="sr-only">{tCommon('updateStatus')}</span>
+                </Button>
               )}
-              <StatusBadge
-                status={statusName}
-                type="individual_process"
-                color={caseStatus.color}
-                category={caseStatus.category}
-              />
             </div>
           )
 
           // If there's tooltip content, wrap the badge with tooltip and indicator
           if (tooltipContent) {
             return (
-              <TooltipProvider>
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help inline-block">
-                      <div className="flex flex-col gap-1 items-start">
-                        {formattedDate && (
-                          <span className="text-xs text-muted-foreground">
-                            {formattedDate}
-                          </span>
-                        )}
-                        <div className="relative inline-block">
-                          <StatusBadge
-                            status={statusName}
-                            type="individual_process"
-                            color={caseStatus.color}
-                            category={caseStatus.category}
-                          />
-                          {/* Green indicator dot */}
-                          <span 
-                            className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
-                            aria-hidden="true"
-                          >
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
-                          </span>
+              <div className="flex items-center justify-between gap-2 w-full">
+                <TooltipProvider>
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <div className="cursor-help inline-block">
+                        <div className="flex flex-col gap-1 items-start">
+                          {formattedDate && (
+                            <span className="text-xs text-muted-foreground">
+                              {formattedDate}
+                            </span>
+                          )}
+                          <div className="relative inline-block">
+                            <StatusBadge
+                              status={statusName}
+                              type="individual_process"
+                              color={caseStatus.color}
+                              category={caseStatus.category}
+                            />
+                            {/* Green indicator dot */}
+                            <span
+                              className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                              aria-hidden="true"
+                            >
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent 
-                    side="right" 
-                    align="start"
-                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      align="start"
+                      className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                    >
+                      <div className="space-y-1.5 text-sm">
+                        <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                          {t('filledFields')}
+                        </div>
+                        {tooltipContent.split('\n').map((line, idx) => (
+                          <div key={idx} className="flex flex-col">
+                            <span className="font-medium">{line.split(':')[0]}:</span>
+                            <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {onUpdateStatus && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onUpdateStatus(row.original._id)
+                    }}
                   >
-                    <div className="space-y-1.5 text-sm">
-                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                        {t('filledFields')}
-                      </div>
-                      {tooltipContent.split('\n').map((line, idx) => (
-                        <div key={idx} className="flex flex-col">
-                          <span className="font-medium">{line.split(':')[0]}:</span>
-                          <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                    <RefreshCcw className="h-4 w-4" />
+                    <span className="sr-only">{tCommon('updateStatus')}</span>
+                  </Button>
+                )}
+              </div>
             )
           }
 
@@ -471,7 +505,7 @@ export function IndividualProcessesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, locale, onView, onEdit, onFillFields, onDelete, confirmDelete]
+    [t, tCommon, locale, onView, onEdit, onFillFields, onDelete, confirmDelete, onUpdateStatus]
   )
 
   const table = useReactTable({

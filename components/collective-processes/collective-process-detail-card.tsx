@@ -1,13 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { useTranslations, useLocale } from "next-intl"
+import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "@/components/ui/status-badge"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
@@ -92,7 +91,6 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
   const tCommon = useTranslations('Common')
   const router = useRouter()
   const { toast } = useToast()
-  const locale = useLocale()
 
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -214,39 +212,9 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
                 </Badge>
               )}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {/* Display calculated status if available */}
-              {collectiveProcess.calculatedStatus ? (
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {t('status')}:
-                    </span>
-                    <span className="text-sm font-semibold">
-                      {locale === 'en'
-                        ? collectiveProcess.calculatedStatus.displayTextEn
-                        : collectiveProcess.calculatedStatus.displayText}
-                    </span>
-                  </div>
-                  {/* Show breakdown if multiple statuses */}
-                  {collectiveProcess.calculatedStatus.hasMultipleStatuses && (
-                    <div className="flex flex-wrap gap-1">
-                      {collectiveProcess.calculatedStatus.breakdown.map((item, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
-                          {item.count} {locale === 'en' && item.caseStatusNameEn ? item.caseStatusNameEn : item.caseStatusName}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Fallback to old status for backward compatibility
-                <StatusBadge status={collectiveProcess.status} type="main_process" />
-              )}
-              {collectiveProcess.processType && (
-                <Badge variant="outline">{collectiveProcess.processType.name}</Badge>
-              )}
-            </div>
+            {collectiveProcess.processType && (
+              <Badge variant="outline">{collectiveProcess.processType.name}</Badge>
+            )}
           </div>
           <div className="flex gap-2">
             <Button onClick={handleEdit} variant="outline">

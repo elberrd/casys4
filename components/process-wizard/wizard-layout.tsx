@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useState } from "react"
+import { ReactNode, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useRouter } from "next/navigation"
 import { useLocale } from "next-intl"
+import { useBlockNavigation } from "@/contexts/navigation-blocker-context"
 
 interface WizardLayoutProps {
   wizard: UseWizardStateReturn
@@ -128,7 +129,15 @@ export function WizardLayout({
     goToNextStep,
     goToPreviousStep,
     goToStep,
+    reset,
   } = wizard
+
+  // Block navigation when there are unsaved changes
+  const handleConfirmLeave = useCallback(() => {
+    reset()
+  }, [reset])
+
+  useBlockNavigation(hasUnsavedChanges, handleConfirmLeave)
 
   const handleNext = () => {
     if (isLastStep && onSubmit) {
@@ -137,6 +146,21 @@ export function WizardLayout({
       goToNextStep()
     }
   }
+
+  // Protect against browser navigation (back button, close tab, refresh)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        // Standard for most browsers
+        e.returnValue = ''
+        return ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const handleCancel = () => {
     if (hasUnsavedChanges) {

@@ -7,7 +7,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react"
-import { Link } from "@/i18n/routing"
+import { SafeLink } from "@/components/ui/safe-link"
 
 import {
   DropdownMenu,
@@ -44,10 +44,10 @@ export function NavProjects({
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
-              <Link href={item.url}>
+              <SafeLink href={item.url}>
                 <item.icon />
                 <span>{item.name}</span>
-              </Link>
+              </SafeLink>
             </SidebarMenuButton>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

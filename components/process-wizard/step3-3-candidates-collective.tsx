@@ -40,6 +40,9 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
   const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
   const [quickConsulateDialogOpen, setQuickConsulateDialogOpen] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [newCandidateRequestDate, setNewCandidateRequestDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  )
   const [newCandidatePersonId, setNewCandidatePersonId] = useState<string>("")
   const [newCandidateConsulateId, setNewCandidateConsulateId] = useState<string>("")
 
@@ -113,11 +116,12 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
 
     const newCandidate: CandidateData = {
       personId: newCandidatePersonId as Id<"people">,
-      requestDate: wizardData.requestDate,
+      requestDate: newCandidateRequestDate,
       consulateId: newCandidateConsulateId ? (newCandidateConsulateId as Id<"consulates">) : undefined,
     }
 
     addCandidate(newCandidate)
+    setNewCandidateRequestDate(new Date().toISOString().split('T')[0])
     setNewCandidatePersonId("")
     setNewCandidateConsulateId("")
   }
@@ -144,26 +148,22 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
           <CardTitle className="text-sm">{t("processSummary")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-sm">
-            <div className="flex flex-col sm:flex-row sm:gap-1">
-              <span className="text-muted-foreground">{t("requestDate")}: </span>
-              <span className="font-medium">{formatDate(wizardData.requestDate)}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <span className="text-muted-foreground text-xs">{t("userApplicant")}</span>
+              <p className="font-medium">{userApplicant?.fullName || "-"}</p>
             </div>
-            <div className="flex flex-col sm:flex-row sm:gap-1">
-              <span className="text-muted-foreground">{t("userApplicant")}: </span>
-              <span className="font-medium truncate">{userApplicant?.fullName || "-"}</span>
+            <div className="space-y-1">
+              <span className="text-muted-foreground text-xs">{t("authorizationType")}</span>
+              <p className="font-medium">{processType?.name || "-"}</p>
             </div>
-            <div className="flex flex-col sm:flex-row sm:gap-1">
-              <span className="text-muted-foreground">{t("authorizationType")}: </span>
-              <span className="font-medium truncate">{processType?.name || "-"}</span>
+            <div className="space-y-1">
+              <span className="text-muted-foreground text-xs">{t("legalFramework")}</span>
+              <p className="font-medium">{legalFramework?.name || "-"}</p>
             </div>
-            <div className="flex flex-col sm:flex-row sm:gap-1">
-              <span className="text-muted-foreground">{t("legalFramework")}: </span>
-              <span className="font-medium truncate">{legalFramework?.name || "-"}</span>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:gap-1">
-              <span className="text-muted-foreground">{t("companyApplicant")}: </span>
-              <span className="font-medium truncate">{companyApplicant?.name || "-"}</span>
+            <div className="space-y-1">
+              <span className="text-muted-foreground text-xs">{t("companyApplicant")}</span>
+              <p className="font-medium">{companyApplicant?.name || "-"}</p>
             </div>
           </div>
         </CardContent>
@@ -187,8 +187,19 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Candidate selector */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Request Date - First field */}
+                <div className="space-y-2">
+                  <div className="flex items-center h-7">
+                    <Label>{t("requestDate")} *</Label>
+                  </div>
+                  <DatePicker
+                    value={newCandidateRequestDate}
+                    onChange={(value) => setNewCandidateRequestDate(value || new Date().toISOString().split('T')[0])}
+                  />
+                </div>
+
+                {/* Candidate selector - Second field */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("selectCandidate")} *</Label>
@@ -208,7 +219,7 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                   />
                 </div>
 
-                {/* Consulate selector */}
+                {/* Consulate selector - Third field */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("consulate")}</Label>
@@ -233,7 +244,7 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-2">
                 <Button
                   type="button"
                   onClick={handleAddCandidate}
@@ -253,10 +264,10 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>#</TableHead>
+                  <TableHead className="w-[50px]">#</TableHead>
+                  <TableHead>{t("requestDate")}</TableHead>
                   <TableHead>{t("candidate")}</TableHead>
                   <TableHead>{t("consulate")}</TableHead>
-                  <TableHead>{t("requestDate")}</TableHead>
                   <TableHead className="w-[80px]">{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -264,9 +275,9 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                 {wizardData.candidates.map((candidate, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
+                    <TableCell>{formatDate(candidate.requestDate)}</TableCell>
                     <TableCell>{getPersonName(candidate.personId as string)}</TableCell>
                     <TableCell>{getConsulateName(candidate.consulateId as string || "")}</TableCell>
-                    <TableCell>{formatDate(candidate.requestDate)}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"

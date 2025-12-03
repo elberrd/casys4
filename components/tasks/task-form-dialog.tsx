@@ -38,6 +38,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Loader2, CalendarIcon } from "lucide-react";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -107,6 +109,22 @@ export function TaskFormDialog({
       status: "todo",
       assignedTo: "",
     },
+  });
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange: handleUnsavedOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset();
+      onOpenChange(false);
+    },
+    isSubmitting: form.formState.isSubmitting,
   });
 
   // Reset form when dialog opens or task data loads
@@ -187,7 +205,8 @@ export function TaskFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -404,5 +423,14 @@ export function TaskFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   );
 }

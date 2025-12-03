@@ -28,6 +28,8 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { companyQuickCreateSchema, CompanyQuickCreateFormData } from "@/lib/validations/companies"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface QuickCompanyApplicantFormDialogProps {
   open: boolean
@@ -59,6 +61,22 @@ export function QuickCompanyApplicantFormDialog({
     },
   })
 
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
+  })
+
   const onSubmit = async (data: CompanyQuickCreateFormData) => {
     try {
       // Clean optional fields and convert empty strings to undefined
@@ -88,7 +106,8 @@ export function QuickCompanyApplicantFormDialog({
   }))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{tIndividual("quickAddCompanyApplicant")}</DialogTitle>
@@ -210,5 +229,14 @@ export function QuickCompanyApplicantFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

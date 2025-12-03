@@ -26,6 +26,8 @@ import { useTranslations } from "next-intl"
 import { economicActivityQuickCreateSchema, EconomicActivityQuickCreateFormData } from "@/lib/validations/economic-activities"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface EconomicActivityQuickCreateDialogProps {
   open: boolean
@@ -56,6 +58,22 @@ export function EconomicActivityQuickCreateDialog({
     },
   })
 
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
+  })
+
   const onSubmit = async (data: EconomicActivityQuickCreateFormData) => {
     try {
       const economicActivityId = await createEconomicActivity({
@@ -81,7 +99,8 @@ export function EconomicActivityQuickCreateDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('quickCreateTitle')}</DialogTitle>
@@ -143,5 +162,14 @@ export function EconomicActivityQuickCreateDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

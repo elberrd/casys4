@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cboCodeSchema, type CboCodeFormData } from "@/lib/validations/cboCodes";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
 interface CboCodeFormDialogProps {
   open: boolean;
@@ -63,6 +65,22 @@ export function CboCodeFormDialog({
       title: cboCode?.title ?? "",
       description: cboCode?.description ?? "",
     },
+  });
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange: handleUnsavedOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset();
+      onOpenChange(false);
+    },
+    isSubmitting: isSubmitting,
   });
 
   // Update form when cboCode data loads
@@ -111,15 +129,9 @@ export function CboCodeFormDialog({
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      form.reset();
-    }
-    onOpenChange(newOpen);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
@@ -186,7 +198,7 @@ export function CboCodeFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleUnsavedOpenChange(false)}
                 disabled={isSubmitting}
               >
                 {tCommon("cancel")}
@@ -199,5 +211,14 @@ export function CboCodeFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   );
 }

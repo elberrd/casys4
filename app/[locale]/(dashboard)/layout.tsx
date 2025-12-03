@@ -5,6 +5,7 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { NavigationBlockerProvider } from "@/contexts/navigation-blocker-context"
 import { useConvexAuth } from "convex/react"
 import { useRouter } from "@/i18n/routing"
 import { useEffect } from "react"
@@ -36,11 +37,13 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <NavigationBlockerProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </NavigationBlockerProvider>
   )
 }

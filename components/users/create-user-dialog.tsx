@@ -36,6 +36,8 @@ import { useTranslations } from "next-intl"
 import { userSchema, UserFormData } from "@/lib/validations/users"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 interface CreateUserDialogProps {
   open: boolean
@@ -60,6 +62,22 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
       companyId: "" as Id<"companies"> | "",
       phoneNumber: "",
     },
+  })
+
+  // Unsaved changes protection
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleOpenChange,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useUnsavedChanges({
+    formState: form.formState,
+    onConfirmedClose: () => {
+      form.reset()
+      onOpenChange(false)
+    },
+    isSubmitting: form.formState.isSubmitting,
   })
 
   const selectedRole = form.watch("role")
@@ -114,7 +132,8 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
   }))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('createUser')}</DialogTitle>
@@ -230,5 +249,14 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Unsaved Changes Confirmation Dialog */}
+    <UnsavedChangesDialog
+      open={showUnsavedDialog}
+      onOpenChange={setShowUnsavedDialog}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+    </>
   )
 }

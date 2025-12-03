@@ -47,7 +47,7 @@ const caseStatusesData = [
     category: "review",
     color: "#F97316", // orange
     sortOrder: 4,
-    orderNumber: 4, // Workflow order
+    // No orderNumber - can occur at any point in workflow, not part of sequential order
   },
   {
     name: "Juntada de documento",
@@ -57,7 +57,7 @@ const caseStatusesData = [
     category: "in_progress",
     color: "#FBBF24", // yellow
     sortOrder: 5,
-    orderNumber: 5, // Workflow order
+    // No orderNumber - can occur at any point in workflow, not part of sequential order
   },
   {
     name: "Proposta de Deferimento",
@@ -67,7 +67,7 @@ const caseStatusesData = [
     category: "review",
     color: "#F97316", // orange
     sortOrder: 6,
-    orderNumber: 6, // Workflow order
+    orderNumber: 4, // Workflow order (was 6, adjusted for removed orders)
   },
   {
     name: "Deferido",
@@ -77,7 +77,7 @@ const caseStatusesData = [
     category: "approved",
     color: "#10B981", // green
     sortOrder: 7,
-    orderNumber: 7, // Workflow order
+    orderNumber: 5, // Workflow order (was 7, adjusted for removed orders)
   },
   {
     name: "Publicado no DOU",
@@ -87,7 +87,7 @@ const caseStatusesData = [
     category: "completed",
     color: "#059669", // emerald
     sortOrder: 8,
-    orderNumber: 8, // Workflow order
+    orderNumber: 6, // Workflow order (was 8, adjusted for removed orders)
   },
   {
     name: "Emissão do VITEM",
@@ -97,7 +97,7 @@ const caseStatusesData = [
     category: "completed",
     color: "#059669", // emerald
     sortOrder: 9,
-    orderNumber: 9, // Workflow order
+    orderNumber: 7, // Workflow order (was 9, adjusted for removed orders)
   },
   {
     name: "Entrada no Brasil",
@@ -107,7 +107,7 @@ const caseStatusesData = [
     category: "completed",
     color: "#059669", // emerald
     sortOrder: 10,
-    orderNumber: 10, // Workflow order
+    orderNumber: 8, // Workflow order (was 10, adjusted for removed orders)
   },
   {
     name: "Registro Nacional Migratório (RNM)",
@@ -117,7 +117,7 @@ const caseStatusesData = [
     category: "completed",
     color: "#059669", // emerald
     sortOrder: 11,
-    orderNumber: 11, // Workflow order
+    orderNumber: 9, // Workflow order (was 11, adjusted for removed orders)
   },
   {
     name: "Em Renovação",
@@ -127,7 +127,7 @@ const caseStatusesData = [
     category: "in_progress",
     color: "#FBBF24", // yellow
     sortOrder: 12,
-    orderNumber: 12, // Workflow order
+    orderNumber: 10, // Workflow order (was 12, adjusted for removed orders)
   },
   {
     name: "Pedido de Cancelamento",
@@ -137,7 +137,7 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 13,
-    orderNumber: 13, // Workflow order
+    orderNumber: 11, // Workflow order (was 13, adjusted for removed orders)
   },
   {
     name: "Pedido de Arquivamento",
@@ -147,7 +147,7 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 14,
-    orderNumber: 14, // Workflow order
+    orderNumber: 12, // Workflow order (was 14, adjusted for removed orders)
   },
   {
     name: "Pedido cancelado",
@@ -157,7 +157,7 @@ const caseStatusesData = [
     category: "cancelled",
     color: "#EF4444", // red
     sortOrder: 15,
-    orderNumber: 15, // Workflow order
+    orderNumber: 13, // Workflow order (was 15, adjusted for removed orders)
   },
   {
     name: "Nova Solicitação de Visto",

@@ -554,3 +554,305 @@ export const getByReferenceNumber = query({
 // - Collective process status is now calculated from individual process statuses
 // - Individual processes should be updated directly to change the collective process status
 // - This provides more accurate and automatic status tracking
+
+/**
+ * Mutation to add multiple people to a collective process
+ * Creates individual processes for each person with data copied from collective process
+ */
+export const addPeopleToCollectiveProcess = mutation({
+  args: {
+    collectiveProcessId: v.id("collectiveProcesses"),
+    personIds: v.array(v.id("people")),
+    requestDate: v.string(),
+    consulateId: v.id("consulates"),
+    caseStatusId: v.id("caseStatuses"),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    // Verify collective process exists
+    const collectiveProcess = await ctx.db.get(args.collectiveProcessId);
+    if (!collectiveProcess) {
+      throw new Error("Collective process not found");
+    }
+
+    // Verify case status exists
+    const caseStatus = await ctx.db.get(args.caseStatusId);
+    if (!caseStatus) {
+      throw new Error("Case status not found");
+    }
+
+    // Get existing individual processes to check for duplicates
+    const existingProcesses = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_collectiveProcess", (q) =>
+        q.eq("collectiveProcessId", args.collectiveProcessId)
+      )
+      .collect();
+
+    const existingPersonIds = new Set(existingProcesses.map((p) => p.personId));
+
+    const results = {
+      successful: [] as Id<"individualProcesses">[],
+      failed: [] as { personId: Id<"people">; reason: string }[],
+      totalProcessed: args.personIds.length,
+    };
+
+    const now = Date.now();
+
+    // Process each person
+    for (const personId of args.personIds) {
+      try {
+        // Verify person exists
+        const person = await ctx.db.get(personId);
+        if (!person) {
+          results.failed.push({
+            personId,
+            reason: "Person not found",
+          });
+          continue;
+        }
+
+        // Check for duplicate
+        if (existingPersonIds.has(personId)) {
+          results.failed.push({
+            personId,
+            reason: `${person.fullName} is already in this collective process`,
+          });
+          continue;
+        }
+
+        // Create individual process with data from collective process
+        const individualProcessId = await ctx.db.insert("individualProcesses", {
+          collectiveProcessId: args.collectiveProcessId,
+          personId: personId,
+          companyApplicantId: collectiveProcess.companyId,
+          processTypeId: collectiveProcess.processTypeId,
+          consulateId: args.consulateId,
+          dateProcess: args.requestDate,
+          caseStatusId: args.caseStatusId,
+          status: caseStatus.code || "pending",
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Create initial status record
+        if (userProfile.userId) {
+          await ctx.db.insert("individualProcessStatuses", {
+            individualProcessId,
+            caseStatusId: args.caseStatusId,
+            statusName: caseStatus.name,
+            isActive: true,
+            createdAt: now,
+            changedAt: now,
+            changedBy: userProfile.userId,
+            notes: "Initial status on creation",
+          });
+        }
+
+        // Generate document checklist for this individual process
+        try {
+          // Import and call generateDocumentChecklist
+          const { generateDocumentChecklist } = await import("./lib/documentChecklist");
+          await generateDocumentChecklist(ctx, individualProcessId);
+        } catch (error) {
+          console.error("Failed to generate document checklist:", error);
+          // Continue even if document checklist fails
+        }
+
+        // Add to existing set to prevent duplicates in same batch
+        existingPersonIds.add(personId);
+
+        results.successful.push(individualProcessId);
+
+        // Log activity
+        if (userProfile.userId) {
+          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+            userId: userProfile.userId,
+            action: "add_person_to_collective",
+            entityType: "individualProcesses",
+            entityId: individualProcessId,
+            details: {
+              personId,
+              personName: person.fullName,
+              collectiveProcessId: args.collectiveProcessId,
+              caseStatusId: args.caseStatusId,
+              caseStatusName: caseStatus.name,
+            },
+          });
+        }
+      } catch (error) {
+        results.failed.push({
+          personId,
+          reason: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    // Log bulk operation summary
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "add_people_to_collective_completed",
+        entityType: "collectiveProcesses",
+        entityId: args.collectiveProcessId,
+        details: {
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
+
+    return results;
+  },
+});
+
+/**
+ * Mutation to update status of all individual processes in a collective process
+ * Applies the same status update to all individual processes at once
+ */
+export const updateCollectiveProcessStatuses = mutation({
+  args: {
+    collectiveProcessId: v.id("collectiveProcesses"),
+    caseStatusId: v.id("caseStatuses"),
+    date: v.string(),
+    notes: v.optional(v.string()),
+    filledFieldsData: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    // Verify collective process exists
+    const collectiveProcess = await ctx.db.get(args.collectiveProcessId);
+    if (!collectiveProcess) {
+      throw new Error("Collective process not found");
+    }
+
+    // Verify case status exists
+    const caseStatus = await ctx.db.get(args.caseStatusId);
+    if (!caseStatus) {
+      throw new Error("Case status not found");
+    }
+
+    // Get all individual processes for this collective
+    const individualProcesses = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_collectiveProcess", (q) =>
+        q.eq("collectiveProcessId", args.collectiveProcessId)
+      )
+      .collect();
+
+    if (individualProcesses.length === 0) {
+      throw new Error("No individual processes found in this collective process");
+    }
+
+    const results = {
+      successful: [] as Id<"individualProcesses">[],
+      failed: [] as { processId: Id<"individualProcesses">; reason: string }[],
+      totalProcessed: individualProcesses.length,
+    };
+
+    const now = Date.now();
+
+    // Process each individual process
+    for (const process of individualProcesses) {
+      try {
+        // Deactivate old status records
+        const oldStatuses = await ctx.db
+          .query("individualProcessStatuses")
+          .withIndex("by_individualProcess_active", (q) =>
+            q.eq("individualProcessId", process._id).eq("isActive", true)
+          )
+          .collect();
+
+        for (const oldStatus of oldStatuses) {
+          await ctx.db.patch(oldStatus._id, { isActive: false });
+        }
+
+        // Create new status record
+        if (userProfile.userId) {
+          await ctx.db.insert("individualProcessStatuses", {
+            individualProcessId: process._id,
+            caseStatusId: args.caseStatusId,
+            statusName: caseStatus.name,
+            isActive: true,
+            createdAt: now,
+            changedAt: now,
+            changedBy: userProfile.userId,
+            notes: args.notes || "Bulk status update from collective process",
+            date: args.date,
+            filledFieldsData: args.filledFieldsData,
+          });
+        }
+
+        // Update individual process with new case status
+        const updateData: Record<string, unknown> = {
+          caseStatusId: args.caseStatusId,
+          status: caseStatus.code || "pending",
+          updatedAt: now,
+        };
+
+        // Apply filled fields data to individual process if provided
+        if (args.filledFieldsData && typeof args.filledFieldsData === "object") {
+          Object.assign(updateData, args.filledFieldsData);
+        }
+
+        await ctx.db.patch(process._id, updateData);
+
+        results.successful.push(process._id);
+
+        // Log activity for each individual process update
+        if (userProfile.userId) {
+          const person = await ctx.db.get(process.personId);
+          const oldCaseStatus = process.caseStatusId
+            ? await ctx.db.get(process.caseStatusId)
+            : null;
+
+          await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+            userId: userProfile.userId,
+            action: "collective_status_update",
+            entityType: "individualProcesses",
+            entityId: process._id,
+            details: {
+              personName: person?.fullName,
+              previousCaseStatusId: process.caseStatusId,
+              previousCaseStatusName: oldCaseStatus?.name,
+              newCaseStatusId: args.caseStatusId,
+              newCaseStatusName: caseStatus.name,
+              collectiveProcessId: args.collectiveProcessId,
+              notes: args.notes,
+            },
+          });
+        }
+      } catch (error) {
+        results.failed.push({
+          processId: process._id,
+          reason: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    // Log bulk operation summary
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "collective_status_update_completed",
+        entityType: "collectiveProcesses",
+        entityId: args.collectiveProcessId,
+        details: {
+          newCaseStatusId: args.caseStatusId,
+          newCaseStatusName: caseStatus.name,
+          totalProcessed: results.totalProcessed,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        },
+      });
+    }
+
+    return results;
+  },
+});
