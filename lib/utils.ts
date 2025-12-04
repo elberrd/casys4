@@ -45,10 +45,23 @@ export function normalizeString(str: string): string {
 export function parseDateFromInput(value: string | undefined): Date | undefined {
   if (!value) return undefined;
 
-  // Try parsing as ISO format (yyyy-MM-dd)
-  const isoDate = new Date(value);
-  if (!isNaN(isoDate.getTime())) {
-    return isoDate;
+  // Check if it's ISO format (yyyy-MM-dd) and parse as local date to avoid timezone issues
+  // When using new Date("yyyy-MM-dd"), JavaScript interprets it as UTC midnight,
+  // which can result in the previous day when converted to local timezone
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    // Create date using local timezone (month is 0-indexed)
+    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (!isNaN(localDate.getTime())) {
+      return localDate;
+    }
+  }
+
+  // Fallback: try parsing as other format
+  const date = new Date(value);
+  if (!isNaN(date.getTime())) {
+    return date;
   }
 
   return undefined;
