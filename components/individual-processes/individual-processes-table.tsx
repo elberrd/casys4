@@ -559,7 +559,7 @@ export function IndividualProcessesTable({
           return (
             <div className="flex flex-col gap-1">
               <span className="text-sm">{formattedDate}</span>
-              <Badge variant={badgeVariant} className="text-xs w-fit">
+              <Badge variant={badgeVariant} className={`text-xs w-fit ${badgeVariant === "destructive" ? "text-white" : ""}`}>
                 {urgencyText}
               </Badge>
             </div>
