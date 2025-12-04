@@ -28,6 +28,7 @@ export function IndividualProcessesClient() {
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"individualProcessStatuses"> | undefined>(undefined)
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
+  const [isRnmModeActive, setIsRnmModeActive] = useState(false)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -367,6 +368,8 @@ export function IndividualProcessesClient() {
           candidateOptions={candidateOptions}
           selectedCandidates={selectedCandidates}
           onCandidateFilterChange={setSelectedCandidates}
+          isRnmModeActive={isRnmModeActive}
+          onRnmModeToggle={() => setIsRnmModeActive(!isRnmModeActive)}
         />
 
         <IndividualProcessFormDialog

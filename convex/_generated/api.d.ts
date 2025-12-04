@@ -47,6 +47,7 @@ import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeople
 import type * as migrations_migrateIndividualProcessStatuses from "../migrations/migrateIndividualProcessStatuses.js";
 import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToCaseStatuses.js";
 import type * as migrations_removeConsulateNameField from "../migrations/removeConsulateNameField.js";
+import type * as migrations_removeOrderNumberFromCaseStatuses from "../migrations/removeOrderNumberFromCaseStatuses.js";
 import type * as migrations_removeProcessTypeCodeCategory from "../migrations/removeProcessTypeCodeCategory.js";
 import type * as migrations_removeProcessTypeIdFromLegalFrameworks from "../migrations/removeProcessTypeIdFromLegalFrameworks.js";
 import type * as migrations_removeTitleFromNotes from "../migrations/removeTitleFromNotes.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/migrateIndividualProcessStatuses": typeof migrations_migrateIndividualProcessStatuses;
   "migrations/migrateToCaseStatuses": typeof migrations_migrateToCaseStatuses;
   "migrations/removeConsulateNameField": typeof migrations_removeConsulateNameField;
+  "migrations/removeOrderNumberFromCaseStatuses": typeof migrations_removeOrderNumberFromCaseStatuses;
   "migrations/removeProcessTypeCodeCategory": typeof migrations_removeProcessTypeCodeCategory;
   "migrations/removeProcessTypeIdFromLegalFrameworks": typeof migrations_removeProcessTypeIdFromLegalFrameworks;
   "migrations/removeTitleFromNotes": typeof migrations_removeTitleFromNotes;

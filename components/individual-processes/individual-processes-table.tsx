@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState, useCallback } from "react"
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +10,7 @@ import {
   ColumnDef,
   RowSelectionState,
   VisibilityState,
+  SortingState,
 } from "@tanstack/react-table"
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid"
 import { DataGridTable } from "@/components/ui/data-grid-table"
@@ -23,7 +24,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw } from "lucide-react"
+import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock } from "lucide-react"
 import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -88,6 +89,7 @@ interface IndividualProcess {
   } | null
   protocolNumber?: string
   rnmNumber?: string
+  rnmDeadline?: string
   deadlineDate?: string
 }
 
@@ -110,6 +112,9 @@ interface IndividualProcessesTableProps {
   candidateOptions?: CandidateFilterOption[]
   selectedCandidates?: string[]
   onCandidateFilterChange?: (candidates: string[]) => void
+  // RNM mode toggle props
+  isRnmModeActive?: boolean
+  onRnmModeToggle?: () => void
 }
 
 export function IndividualProcessesTable({
@@ -125,6 +130,8 @@ export function IndividualProcessesTable({
   candidateOptions = [],
   selectedCandidates = [],
   onCandidateFilterChange,
+  isRnmModeActive = false,
+  onRnmModeToggle,
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
@@ -132,7 +139,35 @@ export function IndividualProcessesTable({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     filledFields: false, // Hide the filledFields column by default
+    rnmDeadline: false, // Hide the rnmDeadline column by default (controlled by RNM toggle)
   })
+  const [sorting, setSorting] = useState<SortingState>([])
+
+  // Use ref to store previous sorting to avoid dependency issues
+  const previousSortingRef = useRef<SortingState | null>(null)
+
+  // Handle RNM mode toggle - show/hide column and apply sorting
+  useEffect(() => {
+    if (isRnmModeActive) {
+      // Save current sorting before switching to RNM mode
+      previousSortingRef.current = sorting
+      // Show rnmDeadline column
+      setColumnVisibility(prev => ({ ...prev, rnmDeadline: true }))
+      // Apply ascending sort on rnmDeadline (closest deadlines first)
+      setSorting([{ id: 'rnmDeadline', desc: false }])
+    } else {
+      // Hide rnmDeadline column
+      setColumnVisibility(prev => ({ ...prev, rnmDeadline: false }))
+      // Restore previous sorting
+      if (previousSortingRef.current !== null) {
+        setSorting(previousSortingRef.current)
+        previousSortingRef.current = null
+      } else {
+        setSorting([])
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRnmModeActive])
 
   // Wrap setRowSelection to prevent state updates during render
   const handleRowSelectionChange = useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
@@ -468,6 +503,83 @@ export function IndividualProcessesTable({
         ),
       },
       {
+        id: "rnmDeadline",
+        accessorKey: "rnmDeadline",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('fields.rnmDeadline')} />
+        ),
+        cell: ({ row }) => {
+          const deadline = row.original.rnmDeadline
+          if (!deadline) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+
+          // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
+          const [year, month, day] = deadline.split('-').map(Number)
+          if (!year || !month || !day) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+
+          const deadlineDate = new Date(year, month - 1, day)
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+
+          // Calculate days until deadline
+          const diffTime = deadlineDate.getTime() - today.getTime()
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+          // Format the date
+          const formattedDate = deadlineDate.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          })
+
+          // Determine the urgency color
+          let badgeVariant: "destructive" | "warning" | "default" | "secondary" = "secondary"
+          let urgencyText = ""
+
+          if (diffDays < 0) {
+            badgeVariant = "destructive"
+            urgencyText = t('rnmExpired')
+          } else if (diffDays === 0) {
+            badgeVariant = "destructive"
+            urgencyText = t('rnmToday')
+          } else if (diffDays <= 30) {
+            badgeVariant = "destructive"
+            urgencyText = `${diffDays} ${tCommon('days')}`
+          } else if (diffDays <= 90) {
+            badgeVariant = "warning"
+            urgencyText = `${diffDays} ${tCommon('days')}`
+          } else {
+            badgeVariant = "default"
+            urgencyText = `${diffDays} ${tCommon('days')}`
+          }
+
+          return (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm">{formattedDate}</span>
+              <Badge variant={badgeVariant} className="text-xs w-fit">
+                {urgencyText}
+              </Badge>
+            </div>
+          )
+        },
+        sortingFn: (rowA, rowB) => {
+          const dateA = rowA.original.rnmDeadline
+          const dateB = rowB.original.rnmDeadline
+
+          // Handle null/undefined cases - put them at the end
+          if (!dateA && !dateB) return 0
+          if (!dateA) return 1 // A goes after B
+          if (!dateB) return -1 // B goes after A
+
+          // Compare dates (ISO format allows string comparison)
+          return dateA.localeCompare(dateB)
+        },
+        enableHiding: true,
+      },
+      {
         id: "actions",
         header: () => <span className="sr-only">{tCommon('actions')}</span>,
         cell: ({ row }) => {
@@ -532,6 +644,7 @@ export function IndividualProcessesTable({
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
     onColumnVisibilityChange: handleColumnVisibilityChange,
+    onSortingChange: setSorting,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -540,6 +653,7 @@ export function IndividualProcessesTable({
     state: {
       rowSelection,
       columnVisibility,
+      sorting,
     },
   })
 
@@ -570,6 +684,33 @@ export function IndividualProcessesTable({
                 showClearButton={true}
                 clearButtonAriaLabel={t('filters.clearCandidates')}
               />
+            )}
+            {onRnmModeToggle && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={isRnmModeActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={onRnmModeToggle}
+                      className={`min-h-10 gap-2 transition-all duration-200 ${
+                        isRnmModeActive
+                          ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+                          : "hover:border-amber-500 hover:text-amber-600"
+                      }`}
+                    >
+                      <CalendarClock className={`h-4 w-4 ${isRnmModeActive ? "animate-pulse" : ""}`} />
+                      <span className="font-medium">RNM</span>
+                      {isRnmModeActive && (
+                        <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{isRnmModeActive ? t('rnmModeDisable') : t('rnmModeEnable')}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
           <DataGridColumnVisibility
