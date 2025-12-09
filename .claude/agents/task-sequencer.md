@@ -149,7 +149,6 @@ Format your tasks in `/ai_docs/todo.md` using this structure:
 - [ ] Error handling implemented
 - [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
 - [ ] Touch-friendly UI elements (min 44x44px)
-- [ ] Tests written
 
 ### 2. [Next Main Task]
 

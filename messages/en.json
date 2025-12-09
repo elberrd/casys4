@@ -516,6 +516,9 @@
     "selectDateProcess": "Select process date",
     "applicant": "Applicant",
     "selectApplicant": "Select applicant",
+    "processTypeIndicator": "I/C",
+    "collectiveProcessIndicator": "Part of a collective process - click to view collective process",
+    "individualProcessIndicator": "Individual process only",
     "searchApplicant": "Search applicant...",
     "noApplicantsFound": "No applicants found. Only people with associated companies can be selected.",
     "clearApplicant": "Clear applicant selection",
@@ -801,7 +804,19 @@
       "searchCandidates": "Search candidates...",
       "noCandidatesFound": "No candidates found.",
       "clearCandidates": "Clear candidate selection"
-    }
+    },
+    "createFromExisting": "New Process from this",
+    "createFromExistingTitle": "Create New Process?",
+    "createFromExistingDescription": "Do you want to create a new process based on {candidateName}?",
+    "createFromExistingWarning": "The original process will be marked as 'Previous'",
+    "createFromExistingConfirm": "Create Process",
+    "createFromExistingConfirming": "Creating...",
+    "createFromExistingSuccess": "New process created successfully",
+    "createFromExistingError": "Error creating new process",
+    "processStatus": "Process Status",
+    "processStatusCurrent": "Current",
+    "processStatusPrevious": "Previous",
+    "selectProcessStatus": "Select process status"
   },
   "ProcessTimeline": {
     "title": "Process History",

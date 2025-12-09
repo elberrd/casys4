@@ -80,7 +80,8 @@ export const individualProcessSchema = z.object({
   deadlineUnit: z.string().optional().or(z.literal("")),
   deadlineQuantity: z.coerce.number().optional(),
   deadlineSpecificDate: z.string().optional().or(z.literal("")),
-  isActive: z.boolean().optional(),
+  isActive: z.boolean().optional(), // DEPRECATED: Use processStatus instead
+  processStatus: z.enum(["Atual", "Anterior"]).optional().default("Atual"),
 });
 
 export type IndividualProcessFormData = z.infer<typeof individualProcessSchema>;

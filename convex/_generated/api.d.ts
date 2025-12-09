@@ -45,6 +45,7 @@ import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migr
 import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.js";
 import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeopleToCompanies.js";
 import type * as migrations_migrateIndividualProcessStatuses from "../migrations/migrateIndividualProcessStatuses.js";
+import type * as migrations_migrateProcessStatus from "../migrations/migrateProcessStatus.js";
 import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToCaseStatuses.js";
 import type * as migrations_removeConsulateNameField from "../migrations/removeConsulateNameField.js";
 import type * as migrations_removeOrderNumberFromCaseStatuses from "../migrations/removeOrderNumberFromCaseStatuses.js";
@@ -125,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/importPeopleCsv": typeof migrations_importPeopleCsv;
   "migrations/linkPeopleToCompanies": typeof migrations_linkPeopleToCompanies;
   "migrations/migrateIndividualProcessStatuses": typeof migrations_migrateIndividualProcessStatuses;
+  "migrations/migrateProcessStatus": typeof migrations_migrateProcessStatus;
   "migrations/migrateToCaseStatuses": typeof migrations_migrateToCaseStatuses;
   "migrations/removeConsulateNameField": typeof migrations_removeConsulateNameField;
   "migrations/removeOrderNumberFromCaseStatuses": typeof migrations_removeOrderNumberFromCaseStatuses;

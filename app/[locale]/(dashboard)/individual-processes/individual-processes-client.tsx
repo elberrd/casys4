@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { IndividualProcessesTable } from "@/components/individual-processes/individual-processes-table"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
 import { FillFieldsModal } from "@/components/individual-processes/fill-fields-modal"
+import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
 import { Button } from "@/components/ui/button"
 import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
@@ -26,12 +27,15 @@ export function IndividualProcessesClient() {
   const [selectedProcessId, setSelectedProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [fillFieldsModalOpen, setFillFieldsModalOpen] = useState(false)
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"individualProcessStatuses"> | undefined>(undefined)
+  const [createFromDialogOpen, setCreateFromDialogOpen] = useState(false)
+  const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
+  const createFromExisting = useMutation(api.individualProcesses.createFromExisting)
 
   // Fetch filter options
   const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
@@ -305,7 +309,14 @@ export function IndividualProcessesClient() {
   }
 
   const handleView = (id: Id<"individualProcesses">) => {
-    router.push(`/individual-processes/${id}`)
+    const process = individualProcesses.find(p => p._id === id)
+    if (process?.collectiveProcess) {
+      // Navigate to collective process if this is part of a collective
+      router.push(`/collective-processes/${process.collectiveProcess._id}`)
+    } else {
+      // Navigate to individual process view (current behavior)
+      router.push(`/individual-processes/${id}`)
+    }
   }
 
   const handleEdit = (id: Id<"individualProcesses">) => {
@@ -326,6 +337,29 @@ export function IndividualProcessesClient() {
     setSelectedProcessId(individualProcessId)
     setSelectedStatusId(statusId)
     setFillFieldsModalOpen(true)
+  }
+
+  const handleCreateFromExisting = (id: Id<"individualProcesses">) => {
+    setSourceProcessId(id)
+    setCreateFromDialogOpen(true)
+  }
+
+  const handleConfirmCreateFromExisting = async () => {
+    if (!sourceProcessId) return
+
+    try {
+      const newProcessId = await createFromExisting({ sourceProcessId })
+      setCreateFromDialogOpen(false)
+      setSourceProcessId(undefined)
+
+      // Open the newly created process in edit mode
+      if (newProcessId) {
+        router.push(`/individual-processes/${newProcessId}/edit`)
+      }
+    } catch (error) {
+      console.error("Error creating process from existing:", error)
+      // Keep dialog open on error so user can try again
+    }
   }
 
   return (
@@ -364,6 +398,7 @@ export function IndividualProcessesClient() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onFillFields={handleFillFields}
+          onCreateFromExisting={handleCreateFromExisting}
           onRowClick={handleView}
           candidateOptions={candidateOptions}
           selectedCandidates={selectedCandidates}
@@ -385,6 +420,15 @@ export function IndividualProcessesClient() {
             statusId={selectedStatusId}
             open={fillFieldsModalOpen}
             onOpenChange={setFillFieldsModalOpen}
+          />
+        )}
+
+        {sourceProcessId && (
+          <CreateFromExistingDialog
+            open={createFromDialogOpen}
+            onOpenChange={setCreateFromDialogOpen}
+            onConfirm={handleConfirmCreateFromExisting}
+            sourceProcess={individualProcesses.find(p => p._id === sourceProcessId)}
           />
         )}
       </div>

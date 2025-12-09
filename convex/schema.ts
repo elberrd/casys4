@@ -284,7 +284,8 @@ export default defineSchema({
     deadlineUnit: v.optional(v.string()), // "years", "months", or "days"
     deadlineQuantity: v.optional(v.number()), // Numeric quantity for the deadline unit
     deadlineSpecificDate: v.optional(v.string()), // ISO date format YYYY-MM-DD - Specific deadline date
-    isActive: v.optional(v.boolean()),
+    isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
+    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -300,7 +301,8 @@ export default defineSchema({
     .index("by_processType", ["processTypeId"]) // Index for authorization type filtering
     .index("by_legalFramework", ["legalFrameworkId"])
     .index("by_consulate", ["consulateId"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"]) // DEPRECATED: Use by_processStatus instead
+    .index("by_processStatus", ["processStatus"]),
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

@@ -446,7 +446,8 @@ export const create = mutation({
     deadlineUnit: v.optional(v.string()),
     deadlineQuantity: v.optional(v.number()),
     deadlineSpecificDate: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
+    isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
+    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -509,7 +510,8 @@ export const create = mutation({
       deadlineUnit: args.deadlineUnit,
       deadlineQuantity: args.deadlineQuantity,
       deadlineSpecificDate: args.deadlineSpecificDate,
-      isActive: args.isActive ?? true,
+      isActive: args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
+      processStatus: args.processStatus ?? "Atual", // Default to "Atual" for new processes
       createdAt: now,
       updatedAt: now,
     });
@@ -589,6 +591,160 @@ export const create = mutation({
 });
 
 /**
+ * Mutation to create a new individual process based on an existing one (admin only)
+ * This mutation duplicates an individual process, copying specific fields while resetting others
+ * The original process is marked as "Anterior" and the new process is marked as "Atual"
+ */
+export const createFromExisting = mutation({
+  args: {
+    sourceProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, args) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const now = Date.now();
+
+    // Get current user ID for status tracking
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get the source process
+    const sourceProcess = await ctx.db.get(args.sourceProcessId);
+    if (!sourceProcess) {
+      throw new Error("Source process not found");
+    }
+
+    // Get the "Em Preparação" case status for the new process
+    const emPreparacaoStatus = await ctx.db
+      .query("caseStatuses")
+      .filter((q) => q.eq(q.field("code"), "em_preparacao"))
+      .first();
+
+    if (!emPreparacaoStatus) {
+      throw new Error("Em Preparação status not found");
+    }
+
+    // Format current date as ISO date string (YYYY-MM-DD)
+    const currentDate = new Date(now).toISOString().split("T")[0];
+
+    // Create the new process with copied fields
+    const newProcessId = await ctx.db.insert("individualProcesses", {
+      // Fields to COPY from source process
+      personId: sourceProcess.personId, // Candidato
+      companyApplicantId: sourceProcess.companyApplicantId, // Empresa Requerente
+
+      // Fields to SET/RESET for new process
+      dateProcess: currentDate, // Current date
+      processStatus: "Atual", // New process is always "Atual"
+      isActive: true, // For backward compatibility
+      caseStatusId: emPreparacaoStatus._id, // Start with "Em Preparação"
+      status: emPreparacaoStatus.code, // DEPRECATED: Keep for backward compatibility
+
+      // Timestamps
+      createdAt: now,
+      updatedAt: now,
+
+      // DO NOT copy: All other fields start fresh
+      // - processTypeId (Tipo de Autorização)
+      // - legalFrameworkId (Amparo Legal)
+      // - userApplicantId (Solicitante)
+      // - consulateId (Consulado)
+      // - passportId (Passaporte)
+      // - collectiveProcessId
+      // - protocolNumber, rnmNumber, government docs, deadlines, appointments, etc.
+    });
+
+    // Create initial "Em Preparação" status record
+    try {
+      await ctx.db.insert("individualProcessStatuses", {
+        individualProcessId: newProcessId,
+        caseStatusId: emPreparacaoStatus._id,
+        statusName: emPreparacaoStatus.name, // DEPRECATED but keep for compatibility
+        date: currentDate,
+        isActive: true,
+        notes: `Initial status: ${emPreparacaoStatus.name} (created from existing process)`,
+        changedBy: userId,
+        changedAt: now,
+        createdAt: now,
+      });
+    } catch (error) {
+      console.error("Failed to create initial status record:", error);
+    }
+
+    // Log initial status to history
+    try {
+      await logStatusChange(
+        ctx,
+        newProcessId,
+        undefined,
+        emPreparacaoStatus.name,
+        `Individual process created from existing process (source: ${args.sourceProcessId})`
+      );
+    } catch (error) {
+      console.error("Failed to log initial status to history:", error);
+    }
+
+    // Auto-generate document checklist for new process
+    try {
+      await generateDocumentChecklist(ctx, newProcessId);
+    } catch (error) {
+      console.error("Failed to generate document checklist:", error);
+    }
+
+    // Update source process to mark it as "Anterior"
+    await ctx.db.patch(args.sourceProcessId, {
+      processStatus: "Anterior",
+      isActive: false, // For backward compatibility
+      updatedAt: now,
+    });
+
+    // Log activity for new process
+    try {
+      const person = await ctx.db.get(sourceProcess.personId);
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId!,
+        action: "created_from_existing",
+        entityType: "individualProcess",
+        entityId: newProcessId,
+        details: {
+          personName: person?.fullName,
+          sourceProcessId: args.sourceProcessId,
+          caseStatusName: emPreparacaoStatus.name,
+          caseStatusId: emPreparacaoStatus._id,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity for new process:", error);
+    }
+
+    // Log activity for source process (marked as previous)
+    try {
+      const person = await ctx.db.get(sourceProcess.personId);
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId!,
+        action: "marked_as_previous",
+        entityType: "individualProcess",
+        entityId: args.sourceProcessId,
+        details: {
+          personName: person?.fullName,
+          newProcessId: newProcessId,
+          reason: "New process created from this process",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity for source process:", error);
+    }
+
+    return newProcessId;
+  },
+});
+
+/**
  * Mutation to update individual process (admin only)
  * Updated to use caseStatusId instead of status string
  */
@@ -619,7 +775,8 @@ export const update = mutation({
     deadlineUnit: v.optional(v.string()),
     deadlineQuantity: v.optional(v.number()),
     deadlineSpecificDate: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
+    isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
+    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
@@ -701,6 +858,13 @@ export const update = mutation({
     if (args.deadlineSpecificDate !== undefined)
       updates.deadlineSpecificDate = args.deadlineSpecificDate;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
+
+    // Handle processStatus field with backward compatibility
+    if (args.processStatus !== undefined) {
+      updates.processStatus = args.processStatus;
+      // Keep isActive in sync with processStatus
+      updates.isActive = args.processStatus !== "Anterior";
+    }
 
     // Mark as completed if status is completed (backward compatibility)
     if ((args.status === "completed" || (newCaseStatus && newCaseStatus.code === "deferido")) && !process.completedAt) {

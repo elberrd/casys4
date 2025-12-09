@@ -119,7 +119,8 @@ export function IndividualProcessFormDialog({
       deadlineUnit: "",
       deadlineQuantity: undefined,
       deadlineSpecificDate: "",
-      isActive: true,
+      isActive: true, // DEPRECATED: Use processStatus instead
+      processStatus: "Atual" as const,
     },
   })
 
@@ -192,6 +193,7 @@ export function IndividualProcessFormDialog({
         deadlineQuantity: individualProcess.deadlineQuantity,
         deadlineSpecificDate: individualProcess.deadlineSpecificDate ?? "",
         isActive: individualProcess.isActive,
+        processStatus: individualProcess.processStatus ?? (individualProcess.isActive === false ? "Anterior" : "Atual"),
       })
     } else if (!individualProcessId) {
       form.reset({
@@ -222,6 +224,7 @@ export function IndividualProcessFormDialog({
         deadlineQuantity: undefined,
         deadlineSpecificDate: "",
         isActive: true,
+        processStatus: "Atual" as const,
       })
     }
   }, [individualProcess, individualProcessId, form])
@@ -830,21 +833,25 @@ export function IndividualProcessFormDialog({
             </div>
             )}
 
-            {/* Active Status */}
+            {/* Process Status */}
             <FormField
               control={form.control}
-              name="isActive"
+              name="processStatus"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>{t("isActive")}</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+                <FormItem>
+                  <FormLabel>{t("processStatus")}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("selectProcessStatus")} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Atual">{t("processStatusCurrent")}</SelectItem>
+                      <SelectItem value="Anterior">{t("processStatusPrevious")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
                 </FormItem>
               )}
             />

@@ -24,7 +24,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock } from "lucide-react"
+import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock, Copy } from "lucide-react"
 import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -43,6 +43,7 @@ interface IndividualProcess {
   status?: string
   caseStatusId?: Id<"caseStatuses">
   isActive?: boolean
+  processStatus?: "Atual" | "Anterior"
   activeStatus?: {
     _id: Id<"individualProcessStatuses">
     statusName: string
@@ -104,6 +105,7 @@ interface IndividualProcessesTableProps {
   onEdit?: (id: Id<"individualProcesses">) => void
   onDelete?: (id: Id<"individualProcesses">) => void
   onFillFields?: (individualProcessId: Id<"individualProcesses">, statusId: Id<"individualProcessStatuses">) => void
+  onCreateFromExisting?: (id: Id<"individualProcesses">) => void
   onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => void
   onBulkCreateTask?: (selected: IndividualProcess[]) => void
   onRowClick?: (id: Id<"individualProcesses">) => void
@@ -123,6 +125,7 @@ export function IndividualProcessesTable({
   onEdit,
   onDelete,
   onFillFields,
+  onCreateFromExisting,
   onBulkStatusUpdate,
   onBulkCreateTask,
   onRowClick,
@@ -219,6 +222,36 @@ export function IndividualProcessesTable({
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.person?.fullName || "-"} />
         ),
+      },
+      {
+        accessorKey: "processTypeIndicator",
+        id: "processTypeIndicator",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('processTypeIndicator')} />
+        ),
+        cell: ({ row }) => {
+          const isCollective = !!row.original.collectiveProcess
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant={isCollective ? "default" : "secondary"}
+                    className="w-6 h-6 flex items-center justify-center font-semibold cursor-help"
+                  >
+                    {isCollective ? "C" : "I"}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isCollective ? t('collectiveProcessIndicator') : t('individualProcessIndicator')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        size: 50,
+        enableSorting: true,
+        enableHiding: true,
       },
       {
         accessorKey: "companyApplicant.name",
@@ -492,15 +525,19 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
-        accessorKey: "isActive",
+        accessorKey: "processStatus",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('isActive')} />
+          <DataGridColumnHeader column={column} title={t('processStatus')} />
         ),
-        cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "default" : "secondary"}>
-            {row.original.isActive ? tCommon('active') : tCommon('inactive')}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          // Handle backward compatibility: use processStatus if available, otherwise derive from isActive
+          const processStatus = row.original.processStatus || (row.original.isActive === false ? "Anterior" : "Atual")
+          return (
+            <Badge variant={processStatus === "Atual" ? "default" : "secondary"}>
+              {processStatus === "Atual" ? t('processStatusCurrent') : t('processStatusPrevious')}
+            </Badge>
+          )
+        },
       },
       {
         id: "rnmDeadline",
@@ -613,6 +650,16 @@ export function IndividualProcessesTable({
             })
           }
 
+          // Add Create from Existing button
+          if (onCreateFromExisting) {
+            actions.push({
+              label: t('createFromExisting'),
+              icon: <Copy className="h-4 w-4" />,
+              onClick: () => onCreateFromExisting(row.original._id),
+              variant: "default" as const,
+            })
+          }
+
           if (onDelete) {
             actions.push({
               label: tCommon('delete'),
@@ -630,7 +677,7 @@ export function IndividualProcessesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, locale, onView, onEdit, onFillFields, onDelete, confirmDelete, onUpdateStatus]
+    [t, tCommon, locale, onView, onEdit, onFillFields, onCreateFromExisting, onDelete, confirmDelete, onUpdateStatus]
   )
 
   const table = useReactTable({
