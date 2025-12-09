@@ -433,6 +433,8 @@ export const create = mutation({
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
+    qualification: v.optional(v.string()),
+    professionalExperienceSince: v.optional(v.string()),
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
     douSection: v.optional(v.string()),
@@ -497,6 +499,8 @@ export const create = mutation({
       processTypeId: args.processTypeId, // Process type for cascading filtering
       legalFrameworkId: args.legalFrameworkId,
       cboId: args.cboId,
+      qualification: args.qualification,
+      professionalExperienceSince: args.professionalExperienceSince,
       mreOfficeNumber: args.mreOfficeNumber,
       douNumber: args.douNumber,
       douSection: args.douSection,
@@ -762,6 +766,8 @@ export const update = mutation({
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
+    qualification: v.optional(v.string()),
+    professionalExperienceSince: v.optional(v.string()),
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
     douSection: v.optional(v.string()),
@@ -837,6 +843,9 @@ export const update = mutation({
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;
     if (args.cboId !== undefined) updates.cboId = args.cboId;
+    if (args.qualification !== undefined) updates.qualification = args.qualification;
+    if (args.professionalExperienceSince !== undefined)
+      updates.professionalExperienceSince = args.professionalExperienceSince;
     if (args.mreOfficeNumber !== undefined)
       updates.mreOfficeNumber = args.mreOfficeNumber;
     if (args.douNumber !== undefined) updates.douNumber = args.douNumber;

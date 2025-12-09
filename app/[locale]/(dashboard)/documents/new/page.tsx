@@ -3,14 +3,17 @@
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { DocumentFormPage } from "@/components/documents/document-form-page"
 import { useTranslations } from "next-intl"
+import { useParams } from "next/navigation"
 
 export default function NewDocumentPage() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tDocuments = useTranslations('Documents')
+  const params = useParams()
+  const locale = params.locale as string
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
-    { label: tBreadcrumbs('documents'), href: "/documents" },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
+    { label: tBreadcrumbs('documents'), href: '/documents' },
     { label: tBreadcrumbs('newDocument') }
   ]
 

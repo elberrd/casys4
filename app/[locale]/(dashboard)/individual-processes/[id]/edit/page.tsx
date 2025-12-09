@@ -22,9 +22,9 @@ export default function EditIndividualProcessPage({ params }: EditIndividualProc
   const processId = resolvedParams.id as Id<"individualProcesses">
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: `/${resolvedParams.locale}/dashboard` },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('individualProcesses'), href: `/${resolvedParams.locale}/individual-processes` },
+    { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
     { label: tBreadcrumbs('editIndividualProcess') }
   ]
 

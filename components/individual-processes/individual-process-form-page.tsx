@@ -106,6 +106,8 @@ export function IndividualProcessFormPage({
       processTypeId: "",
       legalFrameworkId: "" as Id<"legalFrameworks">,
       cboId: "",
+      qualification: "",
+      professionalExperienceSince: "",
       mreOfficeNumber: "",
       douNumber: "",
       douSection: "",
@@ -175,6 +177,8 @@ export function IndividualProcessFormPage({
         processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
         cboId: individualProcess.cboId ?? "",
+        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui",
+        professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
         douNumber: individualProcess.douNumber ?? "",
         douSection: individualProcess.douSection ?? "",
@@ -224,6 +228,12 @@ export function IndividualProcessFormPage({
       }
       if (currentValues.cboId !== (individualProcess.cboId ?? "")) {
         updates.cboId = individualProcess.cboId ?? ""
+      }
+      if (currentValues.qualification !== (individualProcess.qualification ?? "")) {
+        updates.qualification = (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui"
+      }
+      if (currentValues.professionalExperienceSince !== (individualProcess.professionalExperienceSince ?? "")) {
+        updates.professionalExperienceSince = individualProcess.professionalExperienceSince ?? ""
       }
 
       // String fields
@@ -288,6 +298,8 @@ export function IndividualProcessFormPage({
         processTypeId: "",
         legalFrameworkId: "" as Id<"legalFrameworks">,
         cboId: "",
+        qualification: "",
+        professionalExperienceSince: "",
         mreOfficeNumber: "",
         douNumber: "",
         douSection: "",
@@ -369,6 +381,8 @@ export function IndividualProcessFormPage({
         processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
         cboId: data.cboId || undefined,
+        qualification: data.qualification || undefined,
+        professionalExperienceSince: data.professionalExperienceSince || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
         douNumber: data.douNumber || undefined,
         douSection: data.douSection || undefined,
@@ -647,6 +661,58 @@ export function IndividualProcessFormPage({
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="qualification"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("qualification")}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("selectQualification")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="medio">
+                            {t("qualificationOptions.medio")}
+                          </SelectItem>
+                          <SelectItem value="tecnico">
+                            {t("qualificationOptions.tecnico")}
+                          </SelectItem>
+                          <SelectItem value="superior">
+                            {t("qualificationOptions.superior")}
+                          </SelectItem>
+                          <SelectItem value="naoPossui">
+                            {t("qualificationOptions.naoPossui")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="professionalExperienceSince"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("professionalExperienceSince")}</FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder={t("professionalExperienceSinceLabel")}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}

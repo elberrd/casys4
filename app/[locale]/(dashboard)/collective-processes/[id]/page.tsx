@@ -27,6 +27,7 @@ export default function CollectiveProcessDetailPage() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
+  const locale = params.locale as string
   const collectiveProcessId = params.id as Id<"collectiveProcesses">
 
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false)
@@ -42,9 +43,9 @@ export default function CollectiveProcessDetailPage() {
   const currentUser = useQuery(api.userProfiles.getCurrentUser)
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('collectiveProcesses'), href: "/collective-processes" },
+    { label: tBreadcrumbs('collectiveProcesses'), href: '/collective-processes' },
     { label: collectiveProcess?.referenceNumber || "..." }
   ]
 

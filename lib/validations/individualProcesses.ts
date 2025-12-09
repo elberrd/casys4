@@ -67,6 +67,14 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  qualification: z
+    .enum(["medio", "tecnico", "superior", "naoPossui"])
+    .optional()
+    .or(z.literal("")),
+  professionalExperienceSince: z
+    .string()
+    .optional()
+    .or(z.literal("")),
   mreOfficeNumber: z.string().optional().or(z.literal("")),
   douNumber: z.string().optional().or(z.literal("")),
   douSection: z.string().optional().or(z.literal("")),

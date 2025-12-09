@@ -42,9 +42,9 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
   const currentUser = useQuery(api.userProfiles.getCurrentUser)
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: `/${resolvedParams.locale}/dashboard` },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('individualProcesses'), href: `/${resolvedParams.locale}/individual-processes` },
+    { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
     { label: individualProcess?.person?.fullName || t('details') }
   ]
 
@@ -72,7 +72,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
             <h2 className="text-2xl font-semibold">{t('notFound')}</h2>
             <p className="text-muted-foreground mt-2">{t('notFoundDescription')}</p>
             <Button
-              onClick={() => router.push(`/${resolvedParams.locale}/individual-processes`)}
+              onClick={() => router.push('/individual-processes')}
               className="mt-4"
             >
               {t('backToList')}
@@ -108,7 +108,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
               <RefreshCcw className="mr-2 h-4 w-4" />
               {t('updateStatus')}
             </Button>
-            <Button onClick={() => router.push(`/${resolvedParams.locale}/individual-processes/${processId}/edit`)}>
+            <Button onClick={() => router.push(`/individual-processes/${processId}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>

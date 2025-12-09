@@ -25,12 +25,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ params }: Props) {
+  const { locale } = await params
   const t = await getTranslations('Settings');
   const tBreadcrumbs = await getTranslations('Breadcrumbs');
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('settings') }
   ];
 

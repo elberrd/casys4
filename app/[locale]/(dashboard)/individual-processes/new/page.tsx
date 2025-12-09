@@ -3,15 +3,18 @@
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { IndividualProcessFormPage } from "@/components/individual-processes/individual-process-form-page"
 import { useTranslations } from "next-intl"
+import { useParams } from "next/navigation"
 
 export default function NewIndividualProcessPage() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tIndividualProcesses = useTranslations('IndividualProcesses')
+  const params = useParams()
+  const locale = params.locale as string
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('processes') },
-    { label: tBreadcrumbs('individualProcesses'), href: "/individual-processes" },
+    { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
     { label: tBreadcrumbs('newIndividualProcess') }
   ]
 

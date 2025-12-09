@@ -68,7 +68,7 @@ export function DashboardClient() {
             </p>
           </div>
           {isAdmin && (
-            <Button onClick={() => router.push(`/${locale}/process-wizard`)}>
+            <Button onClick={() => router.push('/process-wizard')}>
               <Plus className="mr-2 h-4 w-4" />
               {tProcessWizard("addProcess")}
             </Button>

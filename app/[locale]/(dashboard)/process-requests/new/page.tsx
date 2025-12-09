@@ -3,13 +3,16 @@
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { ProcessRequestFormPage } from "@/components/process-requests/process-request-form-page";
 import { useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 
 export default function NewProcessRequestPage() {
   const tBreadcrumbs = useTranslations("Breadcrumbs");
+  const params = useParams();
+  const locale = params.locale as string;
 
   const breadcrumbs = [
-    { label: tBreadcrumbs("dashboard"), href: "/dashboard" },
-    { label: tBreadcrumbs("processRequests"), href: "/process-requests" },
+    { label: tBreadcrumbs("dashboard"), href: '/dashboard' },
+    { label: tBreadcrumbs("processRequests"), href: '/process-requests' },
     { label: tBreadcrumbs("newProcessRequest") },
   ];
 

@@ -9,11 +9,12 @@ import { Id } from "@/convex/_generated/dataModel";
 export default function EditDocumentTemplatePage() {
   const tBreadcrumbs = useTranslations("Breadcrumbs");
   const params = useParams();
+  const locale = params.locale as string;
   const templateId = params.id as Id<"documentTemplates">;
 
   const breadcrumbs = [
-    { label: tBreadcrumbs("dashboard"), href: "/dashboard" },
-    { label: tBreadcrumbs("documentTemplates"), href: "/document-templates" },
+    { label: tBreadcrumbs("dashboard"), href: '/dashboard' },
+    { label: tBreadcrumbs("documentTemplates"), href: '/document-templates' },
     { label: tBreadcrumbs("editTemplate") },
   ];
 

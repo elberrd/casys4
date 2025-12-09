@@ -3,15 +3,18 @@
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { PersonCompanyFormPage } from "@/components/people-companies/person-company-form-page"
 import { useTranslations } from "next-intl"
+import { useParams } from "next/navigation"
 
 export default function NewPersonCompanyPage() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tPeopleCompanies = useTranslations('PeopleCompanies')
+  const params = useParams()
+  const locale = params.locale as string
 
   const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
+    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
     { label: tBreadcrumbs('peopleCompanies') },
-    { label: tBreadcrumbs('peopleCompaniesRelationships'), href: "/people-companies" },
+    { label: tBreadcrumbs('peopleCompaniesRelationships'), href: '/people-companies' },
     { label: tBreadcrumbs('newRelationship') }
   ]
 
