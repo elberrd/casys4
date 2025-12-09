@@ -5,6 +5,146 @@ import { getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth";
 import { internal } from "./_generated/api";
 
 /**
+ * Query to list ALL notes across all processes with enriched process/candidate information
+ * Used for the standalone Notes page
+ * Access control: Admins see all notes, clients see only notes for their company's processes
+ */
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get all active notes
+    let notes = await ctx.db
+      .query("notes")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    // Apply role-based access control for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Filter notes by company - check process ownership
+      const filteredByCompany: Doc<"notes">[] = [];
+      for (const note of notes) {
+        // Check individualProcess's collectiveProcess company
+        if (note.individualProcessId) {
+          const individualProcess = await ctx.db.get(note.individualProcessId);
+          if (individualProcess && individualProcess.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(
+              individualProcess.collectiveProcessId
+            );
+            if (
+              collectiveProcess &&
+              collectiveProcess.companyId === userProfile.companyId
+            ) {
+              filteredByCompany.push(note);
+              continue;
+            }
+          }
+        }
+
+        // Check collectiveProcess directly
+        if (note.collectiveProcessId) {
+          const collectiveProcess = await ctx.db.get(note.collectiveProcessId);
+          if (
+            collectiveProcess &&
+            collectiveProcess.companyId === userProfile.companyId
+          ) {
+            filteredByCompany.push(note);
+          }
+        }
+      }
+
+      notes = filteredByCompany;
+    }
+
+    // Enrich with process and candidate information
+    const enrichedResults = await Promise.all(
+      notes.map(async (note) => {
+        // Get creator user info
+        const createdByProfile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", note.createdBy))
+          .first();
+
+        let candidateName: string | null = null;
+        let processReference: string | null = null;
+        let individualProcess = null;
+        let collectiveProcess = null;
+
+        // Get individual process and candidate info
+        if (note.individualProcessId) {
+          individualProcess = await ctx.db.get(note.individualProcessId);
+          if (individualProcess) {
+            // Get person (candidate) information
+            if (individualProcess.personId) {
+              const person = await ctx.db.get(individualProcess.personId);
+              if (person) {
+                candidateName = person.fullName;
+              }
+            }
+
+            // Get collective process for reference
+            if (individualProcess.collectiveProcessId) {
+              collectiveProcess = await ctx.db.get(
+                individualProcess.collectiveProcessId
+              );
+              if (collectiveProcess) {
+                processReference = collectiveProcess.referenceNumber;
+              }
+            }
+          }
+        }
+
+        // Get collective process info if not already fetched
+        if (note.collectiveProcessId && !collectiveProcess) {
+          collectiveProcess = await ctx.db.get(note.collectiveProcessId);
+          if (collectiveProcess) {
+            processReference = collectiveProcess.referenceNumber;
+          }
+        }
+
+        return {
+          ...note,
+          candidateName,
+          processReference,
+          individualProcess: individualProcess
+            ? {
+                _id: individualProcess._id,
+                collectiveProcessId: individualProcess.collectiveProcessId,
+                personId: individualProcess.personId,
+                status: individualProcess.status,
+              }
+            : null,
+          collectiveProcess: collectiveProcess
+            ? {
+                _id: collectiveProcess._id,
+                reference: collectiveProcess.referenceNumber,
+                processTypeId: collectiveProcess.processTypeId,
+                companyId: collectiveProcess.companyId,
+              }
+            : null,
+          createdByUser: createdByProfile
+            ? {
+                _id: createdByProfile._id,
+                userId: createdByProfile.userId,
+                fullName: createdByProfile.fullName,
+                email: createdByProfile.email,
+              }
+            : null,
+        };
+      })
+    );
+
+    // Sort by createdAt descending (newest first)
+    return enrichedResults.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+/**
  * Query to list notes for a process (individual or collective)
  * Access control: Admins see all notes, clients see only notes for their company's processes
  */
