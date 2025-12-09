@@ -21,7 +21,7 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, CheckCircle, UserPlus, Calendar, RefreshCw } from "lucide-react"
+import { Edit, Trash2, CheckCircle, UserPlus, Calendar, RefreshCw } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -30,6 +30,7 @@ import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
+import { format } from "date-fns"
 
 interface Task {
   _id: Id<"tasks">
@@ -152,7 +153,7 @@ export function TasksTable({
       {
         accessorKey: "title",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('title')} />
+          <DataGridColumnHeader column={column} title={t('taskName')} />
         ),
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.title} />
@@ -215,6 +216,21 @@ export function TasksTable({
         ),
       },
       {
+        accessorKey: "createdAt",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('createdAt')} />
+        ),
+        cell: ({ row }) => {
+          const createdAt = row.original.createdAt
+          if (!createdAt) return <span className="text-sm text-muted-foreground">-</span>
+          return (
+            <span className="text-sm">
+              {format(new Date(createdAt), "dd/MM/yyyy")}
+            </span>
+          )
+        },
+      },
+      {
         accessorKey: "collectiveProcess.referenceNumber",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('collectiveProcess')} />
@@ -241,15 +257,6 @@ export function TasksTable({
         header: () => <span className="sr-only">{tCommon('actions')}</span>,
         cell: ({ row }) => {
           const actions = []
-
-          if (onView) {
-            actions.push({
-              label: tCommon('view'),
-              icon: <Eye className="h-4 w-4" />,
-              onClick: () => onView(row.original._id),
-              variant: "default" as const,
-            })
-          }
 
           if (onUpdateStatus) {
             actions.push({
@@ -341,7 +348,7 @@ export function TasksTable({
       table={table}
       recordCount={tasks.length}
       emptyMessage={t('noResults')}
-      onRowClick={onView ? (row) => onView(row._id) : undefined}
+      onRowClick={onEdit ? (row) => onEdit(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
       }}

@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { TasksTable } from "@/components/tasks/tasks-table"
+import { TaskFormDialog } from "@/components/tasks/task-form-dialog"
 import { ReassignTaskDialog } from "@/components/tasks/reassign-task-dialog"
 import { ExtendDeadlineDialog } from "@/components/tasks/extend-deadline-dialog"
 import { TaskStatusUpdateDialog } from "@/components/tasks/task-status-update-dialog"
@@ -27,6 +28,8 @@ export function TasksClient() {
   const tCommon = useTranslations('Common')
 
   const [activeTab, setActiveTab] = useState("my-tasks")
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<Id<"tasks"> | null>(null)
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false)
   const [selectedTaskForReassign, setSelectedTaskForReassign] = useState<Id<"tasks"> | null>(null)
   const [extendDeadlineDialogOpen, setExtendDeadlineDialogOpen] = useState(false)
@@ -54,12 +57,9 @@ export function TasksClient() {
     { label: tBreadcrumbs('tasks') }
   ]
 
-  const handleViewTask = (id: Id<"tasks">) => {
-    router.push(`/tasks/${id}`)
-  }
-
   const handleEditTask = (id: Id<"tasks">) => {
-    router.push(`/tasks/${id}/edit`)
+    setSelectedTaskForEdit(id)
+    setEditDialogOpen(true)
   }
 
   const handleCompleteTask = async (id: Id<"tasks">) => {
@@ -277,7 +277,6 @@ export function TasksClient() {
                 ) : (
                   <TasksTable
                     tasks={myTasks}
-                    onView={handleViewTask}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onComplete={handleCompleteTask}
@@ -302,7 +301,6 @@ export function TasksClient() {
                 ) : (
                   <TasksTable
                     tasks={myTasksOverdue}
-                    onView={handleViewTask}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onComplete={handleCompleteTask}
@@ -323,7 +321,6 @@ export function TasksClient() {
                 ) : (
                   <TasksTable
                     tasks={dueThisWeek}
-                    onView={handleViewTask}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onComplete={handleCompleteTask}
@@ -348,7 +345,6 @@ export function TasksClient() {
                 ) : (
                   <TasksTable
                     tasks={allTasks}
-                    onView={handleViewTask}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onComplete={handleCompleteTask}
@@ -433,6 +429,17 @@ export function TasksClient() {
       {/* Bulk Status Update Dialog - Using existing TaskStatusUpdateDialog approach */}
       {/* Note: For now we're only adding bulk reassign. Bulk status update would require */}
       {/* creating a new specialized dialog component for multiple tasks */}
+
+      {/* Edit Task Dialog */}
+      <TaskFormDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        taskId={selectedTaskForEdit || undefined}
+        onSuccess={() => {
+          setEditDialogOpen(false)
+          setSelectedTaskForEdit(null)
+        }}
+      />
     </>
   )
 }

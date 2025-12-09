@@ -124,7 +124,7 @@ export function ProcessTasksTable({
       {
         accessorKey: "title",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={tCommon("title")} />
+          <DataGridColumnHeader column={column} title={t("taskName")} />
         ),
         cell: ({ row }) => {
           const title = row.getValue("title") as string;

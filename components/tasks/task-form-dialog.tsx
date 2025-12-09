@@ -207,7 +207,7 @@ export function TaskFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-[800px] lg:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? t("editTask") : t("createTask")}
@@ -227,7 +227,7 @@ export function TaskFormDialog({
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{tCommon("title")}</FormLabel>
+                  <FormLabel>{t("taskName")}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder={t("titlePlaceholder")}
@@ -246,10 +246,10 @@ export function TaskFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{tCommon("description")}</FormLabel>
+                  <FormLabel>{t("notes")}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder={t("descriptionPlaceholder")}
+                      placeholder={t("notesPlaceholder")}
                       {...field}
                       disabled={isSubmitting}
                       rows={3}
@@ -366,6 +366,23 @@ export function TaskFormDialog({
                   </FormItem>
                 )}
               />
+            )}
+
+            {/* Creation Date field - only show when editing */}
+            {isEditing && existingTask && (
+              <FormItem>
+                <FormLabel>{t("createdAt")}</FormLabel>
+                <FormControl>
+                  <Input
+                    value={format(new Date(existingTask.createdAt), "dd/MM/yyyy 'às' HH:mm")}
+                    disabled
+                    className="bg-muted"
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t("createdAtDescription")}
+                </FormDescription>
+              </FormItem>
             )}
 
             {/* Assigned To field */}
