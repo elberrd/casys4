@@ -50,11 +50,11 @@ export default function CollectiveProcessDetailPage() {
   ]
 
   const handleViewIndividual = (id: Id<"individualProcesses">) => {
-    router.push(`/individual-processes/${id}`)
+    router.push(`/individual-processes/${id}?collectiveProcessId=${collectiveProcessId}`)
   }
 
   const handleEditIndividual = (id: Id<"individualProcesses">) => {
-    router.push(`/individual-processes/${id}/edit`)
+    router.push(`/individual-processes/${id}/edit?collectiveProcessId=${collectiveProcessId}`)
   }
 
   const handleAddPeople = () => {
@@ -150,6 +150,7 @@ export default function CollectiveProcessDetailPage() {
                 individualProcesses={individualProcesses}
                 onView={handleViewIndividual}
                 onEdit={handleEditIndividual}
+                onRowClick={handleViewIndividual}
                 onBulkStatusUpdate={handleBulkStatusUpdate}
                 onUpdateStatus={handleUpdateIndividualStatus}
               />

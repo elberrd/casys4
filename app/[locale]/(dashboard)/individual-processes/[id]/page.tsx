@@ -26,10 +26,14 @@ interface IndividualProcessDetailPageProps {
     id: string
     locale: string
   }>
+  searchParams: Promise<{
+    collectiveProcessId?: string
+  }>
 }
 
-export default function IndividualProcessDetailPage({ params }: IndividualProcessDetailPageProps) {
+export default function IndividualProcessDetailPage({ params, searchParams }: IndividualProcessDetailPageProps) {
   const resolvedParams = use(params)
+  const resolvedSearchParams = use(searchParams)
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
@@ -38,15 +42,32 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
 
   const processId = resolvedParams.id as Id<"individualProcesses">
+  const collectiveProcessId = resolvedSearchParams.collectiveProcessId as Id<"collectiveProcesses"> | undefined
+
   const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
   const currentUser = useQuery(api.userProfiles.getCurrentUser)
 
-  const breadcrumbs = [
-    { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
-    { label: tBreadcrumbs('processManagement') },
-    { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
-    { label: individualProcess?.person?.fullName || t('details') }
-  ]
+  // Fetch collective process data when coming from collective process context
+  const collectiveProcess = useQuery(
+    api.collectiveProcesses.get,
+    collectiveProcessId ? { id: collectiveProcessId } : "skip"
+  )
+
+  // Build breadcrumbs based on context
+  const breadcrumbs = collectiveProcessId && collectiveProcess
+    ? [
+        { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
+        { label: tBreadcrumbs('processManagement') },
+        { label: tBreadcrumbs('collectiveProcesses'), href: '/collective-processes' },
+        { label: collectiveProcess.referenceNumber || '...', href: `/collective-processes/${collectiveProcessId}` },
+        { label: individualProcess?.person?.fullName || t('details') }
+      ]
+    : [
+        { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
+        { label: tBreadcrumbs('processManagement') },
+        { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
+        { label: individualProcess?.person?.fullName || t('details') }
+      ]
 
   if (individualProcess === undefined) {
     return (
@@ -108,7 +129,7 @@ export default function IndividualProcessDetailPage({ params }: IndividualProces
               <RefreshCcw className="mr-2 h-4 w-4" />
               {t('updateStatus')}
             </Button>
-            <Button onClick={() => router.push(`/individual-processes/${processId}/edit`)}>
+            <Button onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}>
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>
