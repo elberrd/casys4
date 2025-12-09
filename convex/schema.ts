@@ -270,6 +270,8 @@ export default defineSchema({
     processTypeId: v.optional(v.id("processTypes")), // Authorization type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     cboId: v.optional(v.id("cboCodes")),
+    qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "superior", "naoPossui"
+    professionalExperienceSince: v.optional(v.string()), // ISO date format YYYY-MM-DD - Professional experience start date
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
     douSection: v.optional(v.string()),
@@ -302,7 +304,8 @@ export default defineSchema({
     .index("by_legalFramework", ["legalFrameworkId"])
     .index("by_consulate", ["consulateId"])
     .index("by_active", ["isActive"]) // DEPRECATED: Use by_processStatus instead
-    .index("by_processStatus", ["processStatus"]),
+    .index("by_processStatus", ["processStatus"])
+    .index("by_qualification", ["qualification"]),
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

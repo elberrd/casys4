@@ -71,7 +71,10 @@
       "selectFromCalendar": "Select from calendar",
       "invalidDay": "Invalid day for this month",
       "invalidMonth": "Month must be between 1 and 12"
-    }
+    },
+    "last7Days": "Last 7 days",
+    "currentMonth": "Current month",
+    "updated": "Updated"
   },
   "Navigation": {
     "dashboard": "Dashboard",
@@ -87,6 +90,7 @@
     "documents": "Documents",
     "documentsManagement": "Document Management",
     "tasks": "Tasks",
+    "notes": "Notes",
     "supportData": "Support Data",
     "caseStatuses": "Case Statuses",
     "countries": "Countries",
@@ -117,6 +121,7 @@
     "documents": "Documents",
     "documentTemplates": "Document Templates",
     "tasks": "Tasks",
+    "notes": "Notes",
     "supportData": "Support Data",
     "countries": "Countries",
     "states": "States",
@@ -816,7 +821,18 @@
     "processStatus": "Process Status",
     "processStatusCurrent": "Current",
     "processStatusPrevious": "Previous",
-    "selectProcessStatus": "Select process status"
+    "selectProcessStatus": "Select process status",
+    "qualification": "Qualification",
+    "selectQualification": "Select qualification",
+    "qualificationOptions": {
+      "medio": "High School",
+      "tecnico": "Technical",
+      "superior": "Higher Education",
+      "naoPossui": "None"
+    },
+    "professionalExperienceSince": "Professional Experience",
+    "professionalExperienceSinceLabel": "Since",
+    "selectProfessionalExperienceDate": "Select start date"
   },
   "ProcessTimeline": {
     "title": "Process History",
@@ -2611,9 +2627,21 @@
   },
   "Notes": {
     "title": "Notes",
+    "description": "View and manage notes across all processes with search functionality.",
     "addNote": "Add Note",
     "editNote": "Edit Note",
     "deleteNote": "Delete Note",
+    "createNote": "Create Note",
+    "allNotes": "All Notes",
+    "myNotes": "My Notes",
+    "searchNotes": "Search notes...",
+    "candidateName": "Candidate Name",
+    "processReference": "Process Reference",
+    "viewNote": "View Note",
+    "noteDetails": "Note Details",
+    "processInformation": "Process Information",
+    "individualProcess": "Individual Process",
+    "collectiveProcess": "Collective Process",
     "addNoteDescription": "Fill in the details to create a new note.",
     "editNoteDescription": "Update the note details below.",
     "noteDate": "Date",
@@ -2626,7 +2654,14 @@
     "noteUpdated": "Note updated successfully",
     "noteDeleted": "Note deleted successfully",
     "noteError": "An error occurred",
-    "deleteNoteConfirm": "Are you sure you want to delete this note? This action cannot be undone."
+    "deleteNoteConfirm": "Are you sure you want to delete this note? This action cannot be undone.",
+    "totalNotes": "Total Notes",
+    "recentNotes": "Recent Notes",
+    "notesThisMonth": "Notes This Month",
+    "editMode": "Edit Mode",
+    "viewMode": "View Mode",
+    "unsavedChanges": "You have unsaved changes. Are you sure you want to close?",
+    "goToProcess": "Go to Process"
   },
   "UnsavedChanges": {
     "title": "Unsaved Changes",

@@ -71,7 +71,10 @@
       "selectFromCalendar": "Selecione do calendário",
       "invalidDay": "Dia inválido para este mês",
       "invalidMonth": "Mês deve estar entre 1 e 12"
-    }
+    },
+    "last7Days": "Últimos 7 dias",
+    "currentMonth": "Mês atual",
+    "updated": "Atualizado"
   },
   "Navigation": {
     "dashboard": "Painel",
@@ -87,6 +90,7 @@
     "documents": "Documentos",
     "documentsManagement": "Gestão de Documentos",
     "tasks": "Tarefas",
+    "notes": "Notas",
     "supportData": "Dados de Suporte",
     "caseStatuses": "Status Andamento",
     "countries": "Países",
@@ -117,6 +121,7 @@
     "documents": "Documentos",
     "documentTemplates": "Modelos de Documentos",
     "tasks": "Tarefas",
+    "notes": "Notas",
     "supportData": "Dados de Suporte",
     "countries": "Países",
     "states": "Estados",
@@ -815,7 +820,18 @@
     "processStatus": "Status do Processo",
     "processStatusCurrent": "Atual",
     "processStatusPrevious": "Anterior",
-    "selectProcessStatus": "Selecione o status do processo"
+    "selectProcessStatus": "Selecione o status do processo",
+    "qualification": "Qualificação",
+    "selectQualification": "Selecionar qualificação",
+    "qualificationOptions": {
+      "medio": "Médio",
+      "tecnico": "Técnico",
+      "superior": "Superior",
+      "naoPossui": "Não possui"
+    },
+    "professionalExperienceSince": "Experiência profissional",
+    "professionalExperienceSinceLabel": "Desde",
+    "selectProfessionalExperienceDate": "Selecionar data de início"
   },
   "ProcessTimeline": {
     "title": "Histórico do Processo",
@@ -2640,9 +2656,21 @@
   },
   "Notes": {
     "title": "Notas",
+    "description": "Visualize e gerencie notas de todos os processos com funcionalidade de busca.",
     "addNote": "Adicionar Nota",
     "editNote": "Editar Nota",
     "deleteNote": "Excluir Nota",
+    "createNote": "Criar Nota",
+    "allNotes": "Todas as Notas",
+    "myNotes": "Minhas Notas",
+    "searchNotes": "Pesquisar notas...",
+    "candidateName": "Nome do Candidato",
+    "processReference": "Referência do Processo",
+    "viewNote": "Ver Nota",
+    "noteDetails": "Detalhes da Nota",
+    "processInformation": "Informações do Processo",
+    "individualProcess": "Processo Individual",
+    "collectiveProcess": "Processo Coletivo",
     "addNoteDescription": "Preencha os detalhes para criar uma nova nota.",
     "editNoteDescription": "Atualize os detalhes da nota abaixo.",
     "noteDate": "Data",
@@ -2655,7 +2683,14 @@
     "noteUpdated": "Nota atualizada com sucesso",
     "noteDeleted": "Nota excluída com sucesso",
     "noteError": "Ocorreu um erro",
-    "deleteNoteConfirm": "Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita."
+    "deleteNoteConfirm": "Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.",
+    "totalNotes": "Total de Notas",
+    "recentNotes": "Notas Recentes",
+    "notesThisMonth": "Notas deste Mês",
+    "editMode": "Modo de Edição",
+    "viewMode": "Modo de Visualização",
+    "unsavedChanges": "Você tem alterações não salvas. Tem certeza que deseja fechar?",
+    "goToProcess": "Ir para o Processo"
   },
   "UnsavedChanges": {
     "title": "Você ainda não salvou",

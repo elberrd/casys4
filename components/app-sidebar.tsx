@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   ListTodo,
   Settings2,
+  StickyNote,
   Users,
 } from "lucide-react"
 
@@ -112,6 +113,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: t('tasks'),
       url: "/tasks",
       icon: ListTodo,
+      items: [],
+    },
+    {
+      title: t('notes'),
+      url: "/notes",
+      icon: StickyNote,
       items: [],
     },
     {
