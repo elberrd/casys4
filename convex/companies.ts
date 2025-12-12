@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getCurrentUserProfile, requireAdmin, requireActiveUserProfile } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 
@@ -411,7 +411,7 @@ export const addEconomicActivity = mutation({
     economicActivityId: v.id("economicActivities"),
   },
   handler: async (ctx, { companyId, economicActivityId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await requireActiveUserProfile(ctx);
 
     // Verify company exists
     const company = await ctx.db.get(companyId);
@@ -443,7 +443,7 @@ export const addEconomicActivity = mutation({
       companyId,
       economicActivityId,
       createdAt: Date.now(),
-      createdBy: userProfile.userId as Id<"users">,
+      createdBy: userProfile.userId,
     });
 
     return linkId;
@@ -489,7 +489,7 @@ export const setEconomicActivities = mutation({
     economicActivityIds: v.array(v.id("economicActivities")),
   },
   handler: async (ctx, { companyId, economicActivityIds }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await requireActiveUserProfile(ctx);
 
     // Verify company exists
     const company = await ctx.db.get(companyId);
@@ -523,7 +523,7 @@ export const setEconomicActivities = mutation({
           companyId,
           economicActivityId: activityId,
           createdAt: now,
-          createdBy: userProfile.userId as Id<"users">,
+          createdBy: userProfile.userId,
         })
       )
     );

@@ -114,20 +114,23 @@ export function CompanyFormPage({
 
   const onSubmit = async (data: CompanyFormData) => {
     try {
+      // Separate economicActivityIds from company data
+      const { economicActivityIds, ...companyData } = data;
+
       // Clean optional fields and convert empty strings to undefined
       const submitData = {
-        ...data,
-        openingDate: data.openingDate || undefined,
-        website: data.website || undefined,
-        address: data.address || undefined,
-        addressStreet: data.addressStreet || undefined,
-        addressNumber: data.addressNumber || undefined,
-        addressComplement: data.addressComplement || undefined,
-        addressNeighborhood: data.addressNeighborhood || undefined,
-        addressPostalCode: data.addressPostalCode || undefined,
-        cityId: data.cityId === "" ? undefined : data.cityId,
-        contactPersonId: data.contactPersonId === "" ? undefined : data.contactPersonId,
-        notes: data.notes || undefined,
+        ...companyData,
+        openingDate: companyData.openingDate || undefined,
+        website: companyData.website || undefined,
+        address: companyData.address || undefined,
+        addressStreet: companyData.addressStreet || undefined,
+        addressNumber: companyData.addressNumber || undefined,
+        addressComplement: companyData.addressComplement || undefined,
+        addressNeighborhood: companyData.addressNeighborhood || undefined,
+        addressPostalCode: companyData.addressPostalCode || undefined,
+        cityId: companyData.cityId === "" ? undefined : companyData.cityId,
+        contactPersonId: companyData.contactPersonId === "" ? undefined : companyData.contactPersonId,
+        notes: companyData.notes || undefined,
       }
 
       let savedCompanyId: Id<"companies">
@@ -146,10 +149,10 @@ export function CompanyFormPage({
       }
 
       // Save economic activities
-      if (data.economicActivityIds && data.economicActivityIds.length > 0) {
+      if (economicActivityIds && economicActivityIds.length > 0) {
         await setEconomicActivities({
           companyId: savedCompanyId,
-          economicActivityIds: data.economicActivityIds,
+          economicActivityIds: economicActivityIds,
         })
       }
 

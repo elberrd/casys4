@@ -140,8 +140,13 @@ export const create = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Require admin role
-    const userProfile = await requireAdmin(ctx);
+    // Require admin role and active user (with valid userId)
+    const adminProfile = await requireAdmin(ctx);
+
+    // Ensure userId exists if we need to create junction table records
+    if (args.processTypeIds && args.processTypeIds.length > 0 && !adminProfile.userId) {
+      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+    }
 
     const legalFrameworkId = await ctx.db.insert("legalFrameworks", {
       name: args.name,
@@ -150,13 +155,13 @@ export const create = mutation({
     });
 
     // Create junction table records for authorization types
-    if (args.processTypeIds && args.processTypeIds.length > 0 && userProfile.userId) {
+    if (args.processTypeIds && args.processTypeIds.length > 0) {
       for (const processTypeId of args.processTypeIds) {
         await ctx.db.insert("processTypesLegalFrameworks", {
           processTypeId,
           legalFrameworkId,
           createdAt: Date.now(),
-          createdBy: userProfile.userId,
+          createdBy: adminProfile.userId!,
         });
       }
     }
@@ -178,7 +183,12 @@ export const update = mutation({
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
-    const userProfile = await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+
+    // Ensure userId exists if we need to update junction table records
+    if (args.processTypeIds !== undefined && args.processTypeIds.length > 0 && !adminProfile.userId) {
+      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+    }
 
     const updates: any = {
       name: args.name,
@@ -190,7 +200,7 @@ export const update = mutation({
     await ctx.db.patch(id, updates);
 
     // Update junction table records for authorization types
-    if (args.processTypeIds !== undefined && userProfile.userId) {
+    if (args.processTypeIds !== undefined) {
       // Delete all existing links
       const existingLinks = await ctx.db
         .query("processTypesLegalFrameworks")
@@ -208,7 +218,7 @@ export const update = mutation({
             processTypeId,
             legalFrameworkId: id,
             createdAt: Date.now(),
-            createdBy: userProfile.userId,
+            createdBy: adminProfile.userId!,
           });
         }
       }
