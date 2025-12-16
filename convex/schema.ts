@@ -288,6 +288,7 @@ export default defineSchema({
     deadlineSpecificDate: v.optional(v.string()), // ISO date format YYYY-MM-DD - Specific deadline date
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
+    urgent: v.optional(v.boolean()), // Flag to mark process as urgent
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -305,7 +306,8 @@ export default defineSchema({
     .index("by_consulate", ["consulateId"])
     .index("by_active", ["isActive"]) // DEPRECATED: Use by_processStatus instead
     .index("by_processStatus", ["processStatus"])
-    .index("by_qualification", ["qualification"]),
+    .index("by_qualification", ["qualification"])
+    .index("by_urgent", ["urgent"]),
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

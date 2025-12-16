@@ -450,6 +450,7 @@ export const create = mutation({
     deadlineSpecificDate: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
+    urgent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -516,6 +517,7 @@ export const create = mutation({
       deadlineSpecificDate: args.deadlineSpecificDate,
       isActive: args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
       processStatus: args.processStatus ?? "Atual", // Default to "Atual" for new processes
+      urgent: args.urgent,
       createdAt: now,
       updatedAt: now,
     });
@@ -783,6 +785,7 @@ export const update = mutation({
     deadlineSpecificDate: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
+    urgent: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
@@ -867,6 +870,7 @@ export const update = mutation({
     if (args.deadlineSpecificDate !== undefined)
       updates.deadlineSpecificDate = args.deadlineSpecificDate;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
+    if (args.urgent !== undefined) updates.urgent = args.urgent;
 
     // Handle processStatus field with backward compatibility
     if (args.processStatus !== undefined) {

@@ -24,7 +24,7 @@ import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-c
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock, Copy } from "lucide-react"
+import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock, Copy, Flag } from "lucide-react"
 import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -37,6 +37,10 @@ import { getFieldMetadata } from "@/lib/individual-process-fields"
 import { formatFieldValue, truncateString } from "@/lib/format-field-value"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">
@@ -92,6 +96,7 @@ interface IndividualProcess {
   rnmNumber?: string
   rnmDeadline?: string
   deadlineDate?: string
+  urgent?: boolean
 }
 
 interface CandidateFilterOption {
@@ -117,6 +122,9 @@ interface IndividualProcessesTableProps {
   // RNM mode toggle props
   isRnmModeActive?: boolean
   onRnmModeToggle?: () => void
+  // Urgent mode toggle props
+  isUrgentModeActive?: boolean
+  onUrgentModeToggle?: () => void
 }
 
 export function IndividualProcessesTable({
@@ -135,16 +143,21 @@ export function IndividualProcessesTable({
   onCandidateFilterChange,
   isRnmModeActive = false,
   onRnmModeToggle,
+  isUrgentModeActive = false,
+  onUrgentModeToggle,
 }: IndividualProcessesTableProps) {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const locale = useLocale()
+  const updateProcess = useMutation(api.individualProcesses.update)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     filledFields: false, // Hide the filledFields column by default
     rnmDeadline: false, // Hide the rnmDeadline column by default (controlled by RNM toggle)
   })
   const [sorting, setSorting] = useState<SortingState>([])
+  // Optimistic state for urgent flag toggles
+  const [optimisticUrgent, setOptimisticUrgent] = useState<Map<Id<"individualProcesses">, boolean>>(new Map())
 
   // Use ref to store previous sorting to avoid dependency issues
   const previousSortingRef = useRef<SortingState | null>(null)
@@ -244,6 +257,88 @@ export function IndividualProcessesTable({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{isCollective ? t('collectiveProcessIndicator') : t('individualProcessIndicator')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        size: 50,
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
+        accessorKey: "urgent",
+        id: "urgent",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title="">
+            <Flag className="h-4 w-4" />
+          </DataGridColumnHeader>
+        ),
+        cell: ({ row }) => {
+          const processId = row.original._id
+          // Use optimistic value if available, otherwise use actual value
+          const actualUrgent = row.original.urgent === true
+          const isUrgent = optimisticUrgent.has(processId)
+            ? optimisticUrgent.get(processId)!
+            : actualUrgent
+
+          const handleToggle = async (e: React.MouseEvent) => {
+            e.stopPropagation()
+            const newUrgentValue = !isUrgent
+
+            // Optimistic update - immediately update UI
+            setOptimisticUrgent(prev => {
+              const newMap = new Map(prev)
+              newMap.set(processId, newUrgentValue)
+              return newMap
+            })
+
+            try {
+              // Call backend mutation
+              await updateProcess({
+                id: processId,
+                urgent: newUrgentValue,
+              })
+
+              // Success - clear optimistic state (Convex will update the data)
+              setOptimisticUrgent(prev => {
+                const newMap = new Map(prev)
+                newMap.delete(processId)
+                return newMap
+              })
+            } catch (error) {
+              // Error - rollback optimistic update
+              setOptimisticUrgent(prev => {
+                const newMap = new Map(prev)
+                newMap.delete(processId)
+                return newMap
+              })
+
+              // Show error toast
+              toast.error(t('urgentToggleError') || 'Failed to update urgent status', {
+                description: error instanceof Error ? error.message : 'Please try again'
+              })
+            }
+          }
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleToggle}
+                    className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded p-1"
+                  >
+                    <Flag
+                      className={cn(
+                        "h-4 w-4 cursor-pointer transition-transform hover:scale-110",
+                        isUrgent ? "text-red-500 fill-red-500" : "text-muted-foreground"
+                      )}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -755,6 +850,33 @@ export function IndividualProcessesTable({
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     <p>{isRnmModeActive ? t('rnmModeDisable') : t('rnmModeEnable')}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {onUrgentModeToggle && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={isUrgentModeActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={onUrgentModeToggle}
+                      className={`min-h-10 gap-2 transition-all duration-200 ${
+                        isUrgentModeActive
+                          ? "bg-red-500 hover:bg-red-600 text-white border-red-500"
+                          : "hover:border-red-500 hover:text-red-600"
+                      }`}
+                    >
+                      <Flag className={`h-4 w-4 ${isUrgentModeActive ? "animate-pulse" : ""}`} />
+                      <span className="font-medium">Urgent</span>
+                      {isUrgentModeActive && (
+                        <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{isUrgentModeActive ? t('urgentModeDisable') : t('urgentModeEnable')}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

@@ -7,6 +7,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "../globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           <ConvexClientProvider>
             <NextIntlClientProvider messages={messages}>
               {children}
+              <Toaster richColors position="top-right" />
             </NextIntlClientProvider>
           </ConvexClientProvider>
         </body>

@@ -32,6 +32,7 @@ export function IndividualProcessesClient() {
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
+  const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -154,6 +155,11 @@ export function IndividualProcessesClient() {
         const personId = process.person?._id
         return personId && selectedCandidates.includes(personId)
       })
+    }
+
+    // Apply urgent filter
+    if (isUrgentModeActive) {
+      result = result.filter((process) => process.urgent === true)
     }
 
     // Apply advanced filters (hidden for now)
@@ -295,7 +301,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates])
+  }, [individualProcesses, filters, selectedCandidates, isUrgentModeActive])
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -405,6 +411,8 @@ export function IndividualProcessesClient() {
           onCandidateFilterChange={setSelectedCandidates}
           isRnmModeActive={isRnmModeActive}
           onRnmModeToggle={() => setIsRnmModeActive(!isRnmModeActive)}
+          isUrgentModeActive={isUrgentModeActive}
+          onUrgentModeToggle={() => setIsUrgentModeActive(!isUrgentModeActive)}
         />
 
         <IndividualProcessFormDialog
