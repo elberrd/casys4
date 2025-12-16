@@ -195,6 +195,7 @@ export function IndividualProcessesTable({
     filledFields: false, // Hide the filledFields column by default
     rnmDeadline: false, // Hide the rnmDeadline column by default (controlled by RNM toggle)
     protocolNumber: false, // Hide the protocolNumber column by default (controlled by Urgent toggle)
+    processStatus: true, // Show the processStatus column by default (hidden when Urgent toggle is active)
   });
   const [sorting, setSorting] = useState<SortingState>([]);
   // Optimistic state for urgent flag toggles
@@ -1148,7 +1149,7 @@ export function IndividualProcessesTable({
                       <AlertTriangle
                         className={`h-4 w-4 ${isUrgentModeActive ? "animate-pulse" : ""}`}
                       />
-                      <span className="font-medium">Urgent</span>
+                      <span className="font-medium">{t("alertsButton")}</span>
                       {isUrgentModeActive && (
                         <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
                       )}
@@ -1157,8 +1158,8 @@ export function IndividualProcessesTable({
                   <TooltipContent side="bottom">
                     <p>
                       {isUrgentModeActive
-                        ? t("urgentModeDisable")
-                        : t("urgentModeEnable")}
+                        ? t("alertsModeDisable")
+                        : t("alertsModeEnable")}
                     </p>
                   </TooltipContent>
                 </Tooltip>
