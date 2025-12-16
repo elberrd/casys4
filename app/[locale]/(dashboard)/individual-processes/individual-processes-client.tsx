@@ -31,6 +31,7 @@ export function IndividualProcessesClient() {
   const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
+  const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
 
@@ -72,6 +73,16 @@ export function IndividualProcessesClient() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [individualProcesses])
+
+  // Get progress status options from case statuses
+  const progressStatusOptions = useMemo(() => {
+    return caseStatuses
+      .map((cs) => ({
+        value: cs._id,
+        label: locale === "en" && cs.nameEn ? cs.nameEn : cs.name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [caseStatuses, locale])
 
   // Filter field configuration
   const filterFields: FilterFieldConfig<string>[] = useMemo(() => [
@@ -154,6 +165,14 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const personId = process.person?._id
         return personId && selectedCandidates.includes(personId)
+      })
+    }
+
+    // Apply progress status multi-select filter
+    if (selectedProgressStatuses.length > 0) {
+      result = result.filter((process) => {
+        const caseStatusId = process.caseStatus?._id
+        return caseStatusId && selectedProgressStatuses.includes(caseStatusId)
       })
     }
 
@@ -301,7 +320,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, isUrgentModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedProgressStatuses, isUrgentModeActive])
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -409,6 +428,9 @@ export function IndividualProcessesClient() {
           candidateOptions={candidateOptions}
           selectedCandidates={selectedCandidates}
           onCandidateFilterChange={setSelectedCandidates}
+          progressStatusOptions={progressStatusOptions}
+          selectedProgressStatuses={selectedProgressStatuses}
+          onProgressStatusFilterChange={setSelectedProgressStatuses}
           isRnmModeActive={isRnmModeActive}
           onRnmModeToggle={() => setIsRnmModeActive(!isRnmModeActive)}
           isUrgentModeActive={isUrgentModeActive}

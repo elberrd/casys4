@@ -1210,3 +1210,95 @@ export const listByCollectiveProcess = query({
     return enrichedResults.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
+
+/**
+ * Mutation to update urgent flag for an individual process and all other processes in the same collective group
+ * When a process is part of a collective process, all other individual processes in that collective will have the same urgent flag value
+ */
+export const updateUrgentForCollectiveGroup = mutation({
+  args: {
+    id: v.id("individualProcesses"),
+    urgent: v.boolean(),
+  },
+  handler: async (ctx, { id, urgent }) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const process = await ctx.db.get(id);
+    if (!process) {
+      throw new Error("Individual process not found");
+    }
+
+    const now = Date.now();
+
+    // Update the current process
+    await ctx.db.patch(id, {
+      urgent,
+      updatedAt: now,
+    });
+
+    // If this process is part of a collective process, update all other processes in the same collective
+    if (process.collectiveProcessId) {
+      // Get all individual processes from the same collective process
+      const relatedProcesses = await ctx.db
+        .query("individualProcesses")
+        .withIndex("by_collectiveProcess", (q) =>
+          q.eq("collectiveProcessId", process.collectiveProcessId)
+        )
+        .collect();
+
+      // Update all related processes (excluding the current one)
+      const updatePromises = relatedProcesses
+        .filter((p) => p._id !== id)
+        .map((p) =>
+          ctx.db.patch(p._id, {
+            urgent,
+            updatedAt: now,
+          })
+        );
+
+      await Promise.all(updatePromises);
+
+      // Log activity for bulk update
+      try {
+        const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+        if (!userProfile.userId) throw new Error("User must be activated");
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "bulk_urgent_update",
+          entityType: "individualProcess",
+          entityId: id,
+          details: {
+            collectiveProcessReference: collectiveProcess?.referenceNumber,
+            urgent,
+            affectedProcesses: relatedProcesses.length,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+    } else {
+      // If not part of a collective process, just log the individual update
+      try {
+        const person = await ctx.db.get(process.personId);
+        if (!userProfile.userId) throw new Error("User must be activated");
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "urgent_update",
+          entityType: "individualProcess",
+          entityId: id,
+          details: {
+            personName: person?.fullName,
+            urgent,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+    }
+
+    return id;
+  },
+});

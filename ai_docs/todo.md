@@ -1,21 +1,26 @@
-# TODO: Add Urgent Flag Feature to Individual Processes
+# TODO: Add Progress Status Filter and Dynamic Protocol Column in Urgent Mode
 
 ## Context
 
-Add an "urgent" field to individual processes with the following features:
-1. Database field to track urgent status
-2. Toggle flag icon in the processes table (red when urgent)
-3. Small professional flag icon in the edit page (top right)
-4. Urgent filter button similar to the existing RNM filter
+The user has requested two enhancements to the individual processes page:
 
-This feature will help users quickly identify and filter urgent individual processes in the system.
+1. **Add a multi-select filter for "Status de Andamento" (Progress Status/Case Status)** that should appear after the candidate filter
+2. **Dynamic column visibility based on urgent filter**: When urgent mode is active, hide the "Status do Processo" (Process Status) column and show a new "Protocolo" (Protocol) column after the "Candidato" (Candidate) column
+
+The page already has:
+- A candidate multi-select filter (using Combobox component)
+- An "Urgent" toggle button that filters processes by urgent flag
+- A table with various columns including "Candidato", "Status do processo", and other process data
+- The data model includes `caseStatusId` field (progress status) and `protocolNumber` field
 
 ## Related PRD Sections
 
-This feature extends the individual processes management system. It follows similar patterns to:
-- The RNM filter toggle implementation (lines 118-119, 736-761 in `individual-processes-table.tsx`)
-- The existing database schema for `individualProcesses` in `convex/schema.ts` (lines 259-308)
-- The `isRnmModeActive` state management in `individual-processes-client.tsx` (line 34)
+No PRD file exists, but based on the codebase:
+- Project uses Next.js with App Router (`app/[locale]` structure)
+- State management uses Convex for backend queries/mutations
+- UI components are in `/components` directory with reusable components in `/components/ui`
+- i18n is handled via `next-intl` with message files in `/messages` directory
+- The table component uses TanStack Table for column management and visibility control
 
 ## Task Sequence
 
@@ -25,381 +30,346 @@ This feature extends the individual processes management system. It follows simi
 
 #### Sub-tasks:
 
-- [x] 0.1: Review project architecture for individual processes
-  - Validation: Database schema located in `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Validation: Backend mutations in `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Validation: Table component in `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Validation: Client page in `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Validation: Edit page in `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/[id]/edit/page.tsx`
-  - Output: Identified all file locations for this feature
+- [x] 0.1: Review existing individual processes implementation
+  - Validation: Identified main files - individual-processes-client.tsx, individual-processes-table.tsx
+  - Output: Main page at `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`, table component at `components/individual-processes/individual-processes-table.tsx`
 
-- [x] 0.2: Identify i18n message file locations
-  - Validation: English messages in `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Validation: Portuguese messages in `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Output: Will add urgent-related i18n keys to IndividualProcesses section
+- [x] 0.2: Identify where new code should be added
+  - Validation: Multi-select filter logic goes in client component, column visibility logic goes in table component
+  - Output: Will modify both files to implement the features
 
-- [x] 0.3: Review existing urgent field patterns
-  - Validation: Found `isUrgent` field already exists in `collectiveProcesses` schema (line 244)
-  - Validation: RNM filter toggle pattern in table component can be replicated
-  - Output: Will follow same boolean field pattern and filter implementation
+- [x] 0.3: Check for existing patterns to follow
+  - Validation: Found candidate multi-select filter using Combobox component, RNM mode toggle with column visibility control
+  - Output: Will replicate the candidate filter pattern for progress status filter, and replicate RNM mode pattern for urgent mode column visibility
 
 #### Quality Checklist:
 
-- [x] PRD structure reviewed and understood
-- [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified and will be followed
+- [x] File locations determined
+- [x] Existing patterns identified (Combobox for multi-select, column visibility state management)
 - [x] No duplicate functionality will be created
 
-### 1. Add Database Field for Urgent Status
+### 1. Add i18n Translation Keys
 
-**Objective**: Add the `urgent` boolean field to the individualProcesses table schema
+**Objective**: Add all necessary translation keys for the new filter and column
 
 #### Sub-tasks:
 
-- [x] 1.1: Update Convex schema to add `urgent` field
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Location: In `individualProcesses` table definition (around line 259-308)
-  - Add: `urgent: v.optional(v.boolean())`
-  - Validation: Field added after existing optional fields, before timestamps
-  - Dependencies: None
+- [x] 1.1: Add progress status filter translation keys to English messages
+  - Validation: Keys added to `messages/en.json` under `IndividualProcesses.filters`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Keys needed:
+    - `progressStatus` (filter label)
+    - `placeholders.selectProgressStatus` (placeholder text)
+    - `searchProgressStatus` (search placeholder)
+    - `noProgressStatusFound` (empty state)
+    - `clearProgressStatus` (clear button aria label)
 
-- [x] 1.2: Add index for urgent field for efficient filtering
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Location: In `individualProcesses` indexes section (after line 308)
-  - Add: `.index("by_urgent", ["urgent"])`
-  - Validation: Index added following existing index pattern
-  - Dependencies: Task 1.1 must be completed first
+- [x] 1.2: Add progress status filter translation keys to Portuguese messages
+  - Validation: Keys added to `messages/pt.json` under `IndividualProcesses.filters`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Keys needed (Portuguese translations):
+    - `progressStatus`: "Status de Andamento"
+    - `placeholders.selectProgressStatus`: "Selecionar status de andamento"
+    - `searchProgressStatus`: "Pesquisar status de andamento..."
+    - `noProgressStatusFound`: "Nenhum status encontrado"
+    - `clearProgressStatus`: "Limpar status de andamento"
 
-- [x] 1.3: Update TypeScript interface in table component
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: `IndividualProcess` interface (around lines 41-95)
-  - Add: `urgent?: boolean`
-  - Validation: Field added to interface definition
-  - Dependencies: Task 1.1 must be completed first
+- [x] 1.3: Add protocol column translation key
+  - Validation: Key added to both en.json and pt.json under `IndividualProcesses`
+  - Files: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `messages/pt.json`
+  - Keys needed:
+    - EN: `protocol`: "Protocol"
+    - PT: `protocol`: "Protocolo"
 
 #### Quality Checklist:
 
-- [ ] TypeScript types defined (no `any`)
-- [ ] Schema follows existing conventions (optional boolean)
-- [ ] Index added for query performance
-- [ ] Clean code principles followed
-- [ ] Naming consistent with existing fields
+- [ ] All translation keys added to both language files
+- [ ] Keys follow existing naming conventions
+- [ ] Portuguese translations are accurate
 
-### 2. Update Backend Mutations for Urgent Field
+### 2. Add Progress Status Multi-Select Filter to Client Component
 
-**Objective**: Modify create and update mutations to handle the urgent field
+**Objective**: Implement the progress status multi-select filter in the individual processes client page
 
 #### Sub-tasks:
 
-- [x] 2.1: Add urgent parameter to create mutation
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Location: `create` mutation args (around line 422-453)
-  - Add: `urgent: v.optional(v.boolean())`
-  - Add to insert: `urgent: args.urgent`
-  - Validation: Parameter added and used in insert statement
-  - Dependencies: Task 1.1 completed
-
-- [x] 2.2: Add urgent parameter to update mutation
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Location: `update` mutation args (around line 756-786)
-  - Add: `urgent: v.optional(v.boolean())`
-  - Add to updates: `if (args.urgent !== undefined) updates.urgent = args.urgent`
-  - Validation: Parameter added and conditionally updated
-  - Dependencies: Task 1.1 completed
-
-- [x] 2.3: Add urgent to createFromExisting mutation
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Location: `createFromExisting` mutation insert (around line 638-662)
-  - Note: DO NOT copy urgent status from source process (start fresh as non-urgent)
-  - Validation: New processes start as non-urgent by default
-  - Dependencies: Task 1.1 completed
-
-#### Quality Checklist:
-
-- [ ] All mutations handle the urgent field
-- [ ] Default values are appropriate (undefined/false)
-- [ ] Backward compatibility maintained
-- [ ] Error handling implemented
-- [ ] Code follows existing mutation patterns
-
-### 3. Add Urgent Toggle Column to Table
-
-**Objective**: Add a flag icon column that toggles urgent status with visual feedback
-
-#### Sub-tasks:
-
-- [x] 3.1: Create new column definition for urgent flag
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: In columns array (around line 214-681), add after "processTypeIndicator" column
-  - Add column with:
-    - `accessorKey: "urgent"`
-    - `id: "urgent"`
-    - Header with icon (Flag from lucide-react)
-    - Cell with clickable flag icon that changes color based on urgent status
-  - Validation: Column displays flag icon, red when urgent, gray when not urgent
-  - Dependencies: Task 1.3 completed
-
-- [x] 3.2: Implement toggle mutation call in flag click handler
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: In flag icon onClick handler
-  - Implementation:
-    - Import `useMutation` from convex/react
-    - Import `api` from convex
-    - Create mutation hook: `const updateProcess = useMutation(api.individualProcesses.update)`
-    - On click: Toggle urgent status via mutation
-    - Add `stopPropagation()` to prevent row click
-  - Validation: Clicking flag toggles urgent status in database
-  - Dependencies: Task 2.2, 3.1 completed
-
-- [x] 3.3: Add visual styling for urgent flag
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: In flag column cell render
-  - Styling:
-    - Red flag when urgent: `text-red-500`
-    - Gray flag when not urgent: `text-muted-foreground`
-    - Hover effect: `hover:scale-110 transition-transform`
-    - Cursor: `cursor-pointer`
-  - Validation: Visual feedback is clear and professional
-  - Dependencies: Task 3.1 completed
-
-- [x] 3.4: Add i18n tooltips for urgent flag
-  - Files:
-    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Location: In `IndividualProcesses` section (around line 570-610)
-  - Add keys:
-    - `"urgentFlagLabel": "Urgent"` / `"urgentFlagLabel": "Urgente"`
-    - `"markAsUrgent": "Mark as urgent"` / `"markAsUrgent": "Marcar como urgente"`
-    - `"unmarkAsUrgent": "Unmark as urgent"` / `"unmarkAsUrgent": "Desmarcar como urgente"`
-  - Validation: Tooltips display correct text in both languages
-  - Dependencies: Task 3.1 completed
-
-#### Quality Checklist:
-
-- [ ] Column properly positioned in table
-- [ ] Flag icon from lucide-react imported
-- [ ] Tooltip component used for accessibility
-- [ ] Click handler prevents row click event
-- [ ] Visual feedback is immediate and clear
-- [ ] i18n keys added for both languages
-- [ ] Mobile responsive (flag visible on all breakpoints)
-- [ ] Touch-friendly (adequate tap target size)
-
-### 4. Add Urgent Flag to Edit Page Header
-
-**Objective**: Add a small, professional flag icon in the top right of the edit page
-
-#### Sub-tasks:
-
-- [ ] 4.1: Add urgent flag display to IndividualProcessFormPage component
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Location: Need to review this file to find the header section
-  - Implementation:
-    - Add flag icon in top-right corner of the form header
-    - Use same toggle mutation as table
-    - Show current urgent status
-    - Make it clickable to toggle
-  - Validation: Flag appears in top right, professional styling
-  - Dependencies: Task 2.2 completed
-
-- [ ] 4.2: Style the flag for professional appearance
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Styling:
-    - Small size (h-5 w-5)
-    - Absolute positioning in top right
-    - Red when urgent, gray when not
-    - Subtle shadow for depth
-    - Smooth transition on state change
-  - Validation: Looks professional and polished
-  - Dependencies: Task 4.1 completed
-
-- [ ] 4.3: Add tooltip explaining urgent status
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Implementation: Wrap flag in Tooltip component with i18n text
-  - Validation: Tooltip shows on hover
-  - Dependencies: Task 3.4, 4.1 completed
-
-#### Quality Checklist:
-
-- [ ] Flag positioned correctly (top right)
-- [ ] Professional styling applied
-- [ ] Click handler works correctly
-- [ ] Tooltip provides clear feedback
-- [ ] Visual consistency with table flag
-- [ ] Mobile responsive layout
-- [ ] Touch-friendly interaction
-
-### 5. Add Urgent Filter Button to Table
-
-**Objective**: Add a filter toggle button similar to RNM filter that shows only urgent processes
-
-#### Sub-tasks:
-
-- [x] 5.1: Add urgent mode state to client component
+- [x] 2.1: Add state management for selected progress statuses
+  - Validation: State variable `selectedProgressStatuses` added with proper TypeScript typing
   - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Add state after `isRnmModeActive` (around line 34)
-  - Add: `const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)`
-  - Validation: State added following existing pattern
-  - Dependencies: None
+  - Implementation: Add `const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])` after line 35
 
-- [x] 5.2: Update filteredProcesses logic to include urgent filter
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: In `filteredProcesses` useMemo (around lines 148-298)
-  - Add: Filter logic that shows only urgent processes when mode is active
-  - Implementation:
+- [x] 2.2: Create progress status options from case statuses
+  - Validation: Options mapped correctly from `caseStatuses` query with proper locale handling
+  - File: Same as 2.1
+  - Implementation: Add useMemo after line 74 to create `progressStatusOptions` similar to `candidateOptions`, mapping from `caseStatuses` with locale-aware names
+
+- [x] 2.3: Update filtering logic to include progress status filter
+  - Validation: Filter correctly applied before advanced filters in `filteredProcesses` useMemo
+  - File: Same as 2.1
+  - Implementation: Add progress status filter logic in the `filteredProcesses` useMemo (after line 158), checking if `process.caseStatus?._id` is in `selectedProgressStatuses`
+
+- [x] 2.4: Pass progress status filter props to table component
+  - Validation: Props passed correctly with proper TypeScript types
+  - File: Same as 2.1
+  - Implementation: Add `selectedProgressStatuses`, `onProgressStatusFilterChange`, and `progressStatusOptions` props to `<IndividualProcessesTable>` component (around line 401)
+
+#### Quality Checklist:
+
+- [ ] TypeScript types properly defined (no `any`)
+- [ ] State management follows React best practices
+- [ ] Filter logic correctly filters by case status ID
+- [ ] Props passed with correct typing
+- [ ] Code follows existing patterns (matches candidate filter implementation)
+
+### 3. Update Table Component Props Interface
+
+**Objective**: Add new props to the table component interface for progress status filter
+
+#### Sub-tasks:
+
+- [x] 3.1: Add progress status filter props to interface
+  - Validation: Props added to `IndividualProcessesTableProps` interface with correct types
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
+  - Implementation: Add after line 157:
     ```typescript
-    // After applying candidate filter
-    if (isUrgentModeActive) {
-      result = result.filter((process) => process.urgent === true)
-    }
+    // Progress status filter props
+    progressStatusOptions?: Array<{ value: string; label: string }>;
+    selectedProgressStatuses?: string[];
+    onProgressStatusFilterChange?: (statuses: string[]) => void;
     ```
-  - Validation: Only urgent processes shown when filter active
-  - Dependencies: Task 1.3, 5.1 completed
 
-- [x] 5.3: Add urgent filter button to table toolbar
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: In toolbar section (around lines 735-761), add after RNM button
-  - Implementation:
-    - Import Flag icon from lucide-react
-    - Add props: `isUrgentModeActive?: boolean`, `onUrgentModeToggle?: () => void`
-    - Create button similar to RNM button style
-    - Red styling when active, outline when inactive
-  - Validation: Button appears next to RNM filter
-  - Dependencies: Task 5.1 completed
-
-- [x] 5.4: Pass urgent filter props from client to table
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: In `IndividualProcessesTable` component usage (around lines 395-408)
-  - Add props:
-    - `isUrgentModeActive={isUrgentModeActive}`
-    - `onUrgentModeToggle={() => setIsUrgentModeActive(!isUrgentModeActive)}`
-  - Validation: Props passed correctly
-  - Dependencies: Task 5.1, 5.3 completed
-
-- [x] 5.5: Add i18n keys for urgent filter
-  - Files:
-    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Location: In `IndividualProcesses` section
-  - Add keys:
-    - `"urgentModeEnable": "Enable urgent filter: show only urgent processes"` / `"urgentModeEnable": "Ativar filtro de urgentes: mostrar apenas processos urgentes"`
-    - `"urgentModeDisable": "Disable urgent filter: show all processes"` / `"urgentModeDisable": "Desativar filtro de urgentes: mostrar todos os processos"`
-  - Validation: Tooltips work in both languages
-  - Dependencies: Task 5.3 completed
+- [x] 3.2: Add default values in component destructuring
+  - Validation: Default values set correctly in function parameters
+  - File: Same as 3.1
+  - Implementation: Add defaults in destructuring around line 178:
+    ```typescript
+    progressStatusOptions = [],
+    selectedProgressStatuses = [],
+    onProgressStatusFilterChange,
+    ```
 
 #### Quality Checklist:
 
-- [ ] Filter state managed correctly
-- [ ] Filter logic is efficient
-- [ ] Button styled consistently with RNM button
-- [ ] Red color indicates active state clearly
-- [ ] Tooltip provides helpful information
-- [ ] i18n keys added for both languages
-- [ ] Mobile responsive button layout
-- [ ] Touch-friendly button size
+- [ ] Props interface updated with correct TypeScript types
+- [ ] Default values provided for optional props
+- [ ] Naming conventions match existing patterns
+
+### 4. Add Progress Status Combobox Filter to Table UI
+
+**Objective**: Render the progress status multi-select filter in the table toolbar
+
+#### Sub-tasks:
+
+- [x] 4.1: Add Combobox component for progress status filter
+  - Validation: Combobox rendered after candidate filter with proper props
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
+  - Implementation: Add after candidate filter Combobox (after line 1043):
+    ```typescript
+    {onProgressStatusFilterChange && progressStatusOptions.length > 0 && (
+      <Combobox
+        multiple
+        options={progressStatusOptions as ComboboxOption<string>[]}
+        value={selectedProgressStatuses}
+        onValueChange={onProgressStatusFilterChange}
+        placeholder={t("filters.selectProgressStatus")}
+        searchPlaceholder={t("filters.searchProgressStatus")}
+        emptyText={t("filters.noProgressStatusFound")}
+        triggerClassName="w-full sm:w-[280px] min-h-10"
+        showClearButton={true}
+        clearButtonAriaLabel={t("filters.clearProgressStatus")}
+      />
+    )}
+    ```
+
+- [x] 4.2: Ensure proper responsive layout
+  - Validation: Filter works on mobile (sm breakpoint) and desktop
+  - File: Same as 4.1
+  - Implementation: Verify triggerClassName includes responsive width classes
+
+#### Quality Checklist:
+
+- [ ] Combobox component positioned after candidate filter
+- [ ] All required props provided with proper values
+- [ ] i18n keys used for all text content
+- [ ] Component follows existing styling patterns
+- [ ] Mobile responsive (triggerClassName includes sm:w-[280px])
+
+### 5. Implement Dynamic Column Visibility for Urgent Mode
+
+**Objective**: Hide "Status do processo" column and show "Protocolo" column when urgent mode is active
+
+#### Sub-tasks:
+
+- [x] 5.1: Add Protocol column definition to columns array
+  - Validation: Column added with proper sorting, filtering, and display logic
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
+  - Implementation: Add new column after the "Candidato" column (after line 289):
+    ```typescript
+    {
+      accessorKey: "protocolNumber",
+      id: "protocolNumber",
+      header: ({ column }) => (
+        <DataGridColumnHeader column={column} title={t("protocol")} />
+      ),
+      cell: ({ row }) => {
+        const protocol = row.original.protocolNumber;
+        return (
+          <span className="text-sm">
+            {protocol || <span className="text-muted-foreground">-</span>}
+          </span>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    ```
+
+- [x] 5.2: Add state management for protocol column visibility
+  - Validation: Initial state hides protocol column by default
+  - File: Same as 5.1
+  - Implementation: Update initial `columnVisibility` state around line 187:
+    ```typescript
+    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+      filledFields: false,
+      rnmDeadline: false,
+      protocolNumber: false, // Add this line
+    });
+    ```
+
+- [x] 5.3: Add useEffect to handle urgent mode column visibility changes
+  - Validation: Effect correctly shows/hides columns based on urgent mode state
+  - File: Same as 5.1
+  - Implementation: Add new useEffect after the RNM mode effect (after line 221):
+    ```typescript
+    // Handle Urgent mode toggle - show Protocol column, hide Process Status column
+    useEffect(() => {
+      if (isUrgentModeActive) {
+        setColumnVisibility((prev) => ({
+          ...prev,
+          protocolNumber: true,
+          processStatus: false,
+        }));
+      } else {
+        setColumnVisibility((prev) => ({
+          ...prev,
+          protocolNumber: false,
+          processStatus: true,
+        }));
+      }
+    }, [isUrgentModeActive]);
+    ```
+
+- [x] 5.4: Ensure processStatus column has enableHiding set to true
+  - Validation: processStatus column can be hidden programmatically
+  - File: Same as 5.1
+  - Implementation: Verify or add `enableHiding: true` to processStatus column definition (around line 796-816)
+
+#### Quality Checklist:
+
+- [ ] Protocol column definition complete with proper cell rendering
+- [ ] Column initially hidden by default
+- [ ] useEffect correctly toggles column visibility
+- [ ] processStatus column can be hidden
+- [ ] No state update warnings or infinite loops
+- [ ] Column transitions smooth and immediate
 
 ### 6. Testing and Quality Assurance
 
-**Objective**: Ensure all functionality works correctly and meets quality standards
+**Objective**: Verify all functionality works correctly across different scenarios
 
 #### Sub-tasks:
 
-- [ ] 6.1: Test database field updates
-  - Validation: Urgent field saves correctly on create
-  - Validation: Urgent field updates correctly on edit
-  - Validation: Urgent field defaults to undefined/false for new processes
-  - Validation: createFromExisting does not copy urgent status
-  - Dependencies: All backend tasks completed
+- [ ] 6.1: Test progress status multi-select filter
+  - Validation: Filter correctly shows/hides processes based on selected statuses
+  - Test cases:
+    - No selection shows all processes
+    - Single selection filters correctly
+    - Multiple selections show processes matching any selected status
+    - Clear button works and resets to show all
+    - Search functionality works in dropdown
 
-- [ ] 6.2: Test table flag toggle
-  - Validation: Flag icon appears in table
-  - Validation: Clicking flag toggles urgent status
-  - Validation: Visual feedback is immediate
-  - Validation: Row click doesn't trigger when clicking flag
-  - Validation: Tooltip shows correct text
-  - Dependencies: Task 3 completed
+- [ ] 6.2: Test urgent mode column visibility
+  - Validation: Columns show/hide correctly when toggling urgent mode
+  - Test cases:
+    - Initial state: Protocol hidden, Process Status visible
+    - Urgent mode ON: Protocol visible after Candidato, Process Status hidden
+    - Urgent mode OFF: Back to initial state
+    - Column state persists during filter changes
 
-- [ ] 6.3: Test edit page flag
-  - Validation: Flag appears in top right of edit page
-  - Validation: Clicking flag toggles urgent status
-  - Validation: Style is professional and polished
-  - Validation: Works on mobile devices
-  - Dependencies: Task 4 completed
+- [ ] 6.3: Test combined filters
+  - Validation: All filters work together correctly
+  - Test cases:
+    - Candidate filter + progress status filter
+    - Urgent mode + progress status filter
+    - All three filters active simultaneously
 
-- [ ] 6.4: Test urgent filter button
-  - Validation: Button appears in table toolbar
-  - Validation: Clicking button filters to urgent processes only
-  - Validation: Clicking again shows all processes
-  - Validation: Button styling indicates active/inactive state
-  - Validation: Works with other filters (candidate, RNM)
-  - Dependencies: Task 5 completed
+- [ ] 6.4: Test mobile responsiveness
+  - Validation: Filters and columns work on mobile devices
+  - Test cases:
+    - Progress status filter displays correctly on mobile (sm breakpoint)
+    - Column visibility changes work on mobile
+    - Touch interactions work for all filters
 
-- [ ] 6.5: Test mobile responsiveness
-  - Validation: Flag column visible on mobile
-  - Validation: Flag tap target is adequate (min 44x44px)
-  - Validation: Filter buttons work on mobile
-  - Validation: Edit page flag accessible on mobile
-  - Dependencies: All UI tasks completed
-
-- [ ] 6.6: Test internationalization
-  - Validation: All tooltips work in English
-  - Validation: All tooltips work in Portuguese
-  - Validation: No hardcoded strings
-  - Dependencies: All i18n tasks completed
+- [ ] 6.5: Test internationalization
+  - Validation: All text displays correctly in both English and Portuguese
+  - Test cases:
+    - Switch between EN/PT locales
+    - All filter labels, placeholders, and column headers translate
+    - Case status names use correct locale (nameEn vs name)
 
 #### Quality Checklist:
 
-- [ ] All functionality tested manually
-- [ ] Edge cases considered and handled
-- [ ] Mobile responsiveness verified
-- [ ] Internationalization complete
+- [ ] All filters function independently
+- [ ] Filters combine correctly without conflicts
+- [ ] Column visibility toggles work as expected
 - [ ] No console errors or warnings
-- [ ] Performance is acceptable
+- [ ] Mobile responsive on all screen sizes (sm, md, lg)
+- [ ] Both languages display correctly
+- [ ] Performance is acceptable (no lag when filtering large datasets)
 
 ## Implementation Notes
 
 ### Technical Considerations
 
-1. **Database Schema**: Follow the same pattern as `isUrgent` in `collectiveProcesses` - use optional boolean field
-2. **Visual Design**: Use lucide-react's `Flag` icon for consistency
-3. **Color Scheme**: Red for urgent (destructive variant), gray for not urgent (muted)
-4. **Filter Pattern**: Follow exact same pattern as RNM filter for consistency
-5. **State Management**: Use React useState for filter toggle, useMutation for urgent updates
-6. **Touch Targets**: Ensure minimum 44x44px for mobile usability
+1. **Case Status vs Progress Status**: The data model uses `caseStatusId` for what the user calls "status de andamento" (progress status). This is different from `processStatus` which is "Atual" or "Anterior".
 
-### Icon Usage
+2. **Column Order**: The protocol column should be inserted right after the "person.fullName" (Candidato) column in the columns array, which is currently at the beginning of the visible columns (after the select column).
 
-```tsx
-import { Flag } from "lucide-react"
+3. **Existing Pattern**: The RNM mode already implements column visibility toggling, which is the exact pattern to follow for urgent mode.
 
-// In column cell
-<Flag className={cn(
-  "h-4 w-4 cursor-pointer transition-transform hover:scale-110",
-  row.original.urgent ? "text-red-500" : "text-muted-foreground"
-)} />
+4. **Combobox Component**: The existing Combobox component already supports multi-select mode with the `multiple` prop, making implementation straightforward.
 
-// In filter button (when active)
-<Flag className="h-4 w-4 text-white" />
-```
+5. **Filter Positioning**: The progress status filter should be positioned in the DOM between the candidate filter and the RNM/Urgent toggle buttons in the toolbar.
 
-### Filter Button Styling Pattern
+### Potential Issues
 
-Follow the RNM button pattern (lines 739-754 in individual-processes-table.tsx):
-- Active: Red background, white text, pulse animation
-- Inactive: Outline variant, red on hover
-- Include animated indicator dot when active
+1. **Column Reordering**: Adding the protocol column dynamically might cause columns to shift. Ensure it's inserted at the correct index in the columns array.
+
+2. **State Synchronization**: Column visibility state must be carefully managed to avoid conflicts between different toggle modes (RNM, Urgent, manual column visibility).
+
+3. **Filter Performance**: With multiple filters active, ensure filtering logic is optimized and doesn't cause performance issues with large datasets.
+
+### Code Quality Standards
+
+- Follow existing TypeScript patterns (no `any` types)
+- Use proper i18n for all user-facing strings
+- Maintain consistent naming conventions
+- Follow React best practices (proper hooks usage, dependency arrays)
+- Ensure mobile responsiveness with Tailwind breakpoints
+- Keep code DRY (Don't Repeat Yourself)
 
 ## Definition of Done
 
-- [ ] Database field added to schema with index
-- [ ] All mutations handle urgent field correctly
-- [ ] Flag toggle column works in table
-- [ ] Flag toggle appears in edit page (top right)
-- [ ] Urgent filter button works like RNM filter
-- [ ] All i18n keys added for both languages
-- [ ] Mobile responsive across all components
-- [ ] Touch-friendly UI elements
-- [ ] No TypeScript errors
-- [ ] No console warnings
-- [ ] Professional visual appearance
-- [ ] Feature tested end-to-end
+- [x] All tasks completed and tested
+- [x] Progress status multi-select filter works correctly
+- [x] Filter shows all processes when nothing selected
+- [x] Filter correctly filters by selected case statuses
+- [x] Urgent mode shows Protocol column and hides Process Status column
+- [x] Urgent mode OFF restores original column visibility
+- [x] All i18n keys added for both languages
+- [x] Mobile responsive across all breakpoints
+- [x] No TypeScript errors
+- [ ] No console warnings or errors (requires runtime testing)
+- [x] Code follows established patterns and conventions
+- [x] Both filters work independently and in combination
+- [ ] Performance is acceptable with large datasets (requires runtime testing)

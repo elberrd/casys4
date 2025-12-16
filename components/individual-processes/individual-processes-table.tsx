@@ -1,6 +1,12 @@
-"use client"
+"use client";
 
-import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,120 +17,148 @@ import {
   RowSelectionState,
   VisibilityState,
   SortingState,
-} from "@tanstack/react-table"
-import { DataGrid, DataGridContainer } from "@/components/ui/data-grid"
-import { DataGridTable } from "@/components/ui/data-grid-table"
-import { DataGridPagination } from "@/components/ui/data-grid-pagination"
-import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header"
-import { DataGridFilter } from "@/components/ui/data-grid-filter"
-import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility"
-import { DataGridRowActions } from "@/components/ui/data-grid-row-actions"
-import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
-import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
-import { Badge } from "@/components/ui/badge"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { Button } from "@/components/ui/button"
-import { Edit, Trash2, Eye, ListTodo, FileEdit, RefreshCcw, CalendarClock, Copy, Flag } from "lucide-react"
-import { useTranslations, useLocale } from "next-intl"
-import { Id } from "@/convex/_generated/dataModel"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { createSelectColumn } from "@/lib/data-grid-utils"
-import { globalFuzzyFilter } from "@/lib/fuzzy-search"
-import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
-import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
-import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
-import { getFieldMetadata } from "@/lib/individual-process-fields"
-import { formatFieldValue, truncateString } from "@/lib/format-field-value"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
-import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+} from "@tanstack/react-table";
+import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
+import { DataGridTable } from "@/components/ui/data-grid-table";
+import { DataGridPagination } from "@/components/ui/data-grid-pagination";
+import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header";
+import { DataGridFilter } from "@/components/ui/data-grid-filter";
+import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility";
+import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
+import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
+import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
+import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import {
+  Edit,
+  Trash2,
+  Eye,
+  ListTodo,
+  FileEdit,
+  RefreshCcw,
+  CalendarClock,
+  Copy,
+  AlertTriangle,
+} from "lucide-react";
+import { useTranslations, useLocale } from "next-intl";
+import { Id } from "@/convex/_generated/dataModel";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { createSelectColumn } from "@/lib/data-grid-utils";
+import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
+import { getFieldMetadata } from "@/lib/individual-process-fields";
+import { formatFieldValue, truncateString } from "@/lib/format-field-value";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface IndividualProcess {
-  _id: Id<"individualProcesses">
-  status?: string
-  caseStatusId?: Id<"caseStatuses">
-  isActive?: boolean
-  processStatus?: "Atual" | "Anterior"
+  _id: Id<"individualProcesses">;
+  status?: string;
+  caseStatusId?: Id<"caseStatuses">;
+  isActive?: boolean;
+  processStatus?: "Atual" | "Anterior";
   activeStatus?: {
-    _id: Id<"individualProcessStatuses">
-    statusName: string
-    isActive: boolean
-    changedAt: number
-    date?: string
-    filledFieldsData?: Record<string, any>
-  } | null
+    _id: Id<"individualProcessStatuses">;
+    statusName: string;
+    isActive: boolean;
+    changedAt: number;
+    date?: string;
+    filledFieldsData?: Record<string, any>;
+  } | null;
   caseStatus?: {
-    _id: Id<"caseStatuses">
-    name: string
-    nameEn?: string
-    code: string
-    color?: string
-    category?: string
-    sortOrder: number
-    fillableFields?: string[]
-  } | null
+    _id: Id<"caseStatuses">;
+    name: string;
+    nameEn?: string;
+    code: string;
+    color?: string;
+    category?: string;
+    sortOrder: number;
+    fillableFields?: string[];
+  } | null;
   person?: {
-    _id: Id<"people">
-    fullName: string
-    email?: string
-  } | null
+    _id: Id<"people">;
+    fullName: string;
+    email?: string;
+  } | null;
   collectiveProcess?: {
-    _id: Id<"collectiveProcesses">
-    referenceNumber: string
-  } | null
+    _id: Id<"collectiveProcesses">;
+    referenceNumber: string;
+  } | null;
   legalFramework?: {
-    _id: Id<"legalFrameworks">
-    name: string
-  } | null
+    _id: Id<"legalFrameworks">;
+    name: string;
+  } | null;
   processType?: {
-    _id: Id<"processTypes">
-    name: string
-    nameEn?: string
-  } | null
+    _id: Id<"processTypes">;
+    name: string;
+    nameEn?: string;
+  } | null;
   companyApplicant?: {
-    _id: Id<"companies">
-    name: string
-  } | null
+    _id: Id<"companies">;
+    name: string;
+  } | null;
   userApplicant?: {
-    _id: Id<"people">
-    fullName: string
-  } | null
-  protocolNumber?: string
-  rnmNumber?: string
-  rnmDeadline?: string
-  deadlineDate?: string
-  urgent?: boolean
+    _id: Id<"people">;
+    fullName: string;
+  } | null;
+  protocolNumber?: string;
+  rnmNumber?: string;
+  rnmDeadline?: string;
+  deadlineDate?: string;
+  urgent?: boolean;
 }
 
 interface CandidateFilterOption {
-  value: string
-  label: string
+  value: string;
+  label: string;
 }
 
 interface IndividualProcessesTableProps {
-  individualProcesses: IndividualProcess[]
-  onView?: (id: Id<"individualProcesses">) => void
-  onEdit?: (id: Id<"individualProcesses">) => void
-  onDelete?: (id: Id<"individualProcesses">) => void
-  onFillFields?: (individualProcessId: Id<"individualProcesses">, statusId: Id<"individualProcessStatuses">) => void
-  onCreateFromExisting?: (id: Id<"individualProcesses">) => void
-  onBulkStatusUpdate?: (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => void
-  onBulkCreateTask?: (selected: IndividualProcess[]) => void
-  onRowClick?: (id: Id<"individualProcesses">) => void
-  onUpdateStatus?: (id: Id<"individualProcesses">) => void
+  individualProcesses: IndividualProcess[];
+  onView?: (id: Id<"individualProcesses">) => void;
+  onEdit?: (id: Id<"individualProcesses">) => void;
+  onDelete?: (id: Id<"individualProcesses">) => void;
+  onFillFields?: (
+    individualProcessId: Id<"individualProcesses">,
+    statusId: Id<"individualProcessStatuses">,
+  ) => void;
+  onCreateFromExisting?: (id: Id<"individualProcesses">) => void;
+  onBulkStatusUpdate?: (
+    selected: Array<{
+      _id: Id<"individualProcesses">;
+      personId: Id<"people">;
+      status?: string;
+    }>,
+  ) => void;
+  onBulkCreateTask?: (selected: IndividualProcess[]) => void;
+  onRowClick?: (id: Id<"individualProcesses">) => void;
+  onUpdateStatus?: (id: Id<"individualProcesses">) => void;
   // Candidate filter props
-  candidateOptions?: CandidateFilterOption[]
-  selectedCandidates?: string[]
-  onCandidateFilterChange?: (candidates: string[]) => void
+  candidateOptions?: CandidateFilterOption[];
+  selectedCandidates?: string[];
+  onCandidateFilterChange?: (candidates: string[]) => void;
+  // Progress status filter props
+  progressStatusOptions?: Array<{ value: string; label: string }>;
+  selectedProgressStatuses?: string[];
+  onProgressStatusFilterChange?: (statuses: string[]) => void;
   // RNM mode toggle props
-  isRnmModeActive?: boolean
-  onRnmModeToggle?: () => void
+  isRnmModeActive?: boolean;
+  onRnmModeToggle?: () => void;
   // Urgent mode toggle props
-  isUrgentModeActive?: boolean
-  onUrgentModeToggle?: () => void
+  isUrgentModeActive?: boolean;
+  onUrgentModeToggle?: () => void;
 }
 
 export function IndividualProcessesTable({
@@ -141,88 +175,128 @@ export function IndividualProcessesTable({
   candidateOptions = [],
   selectedCandidates = [],
   onCandidateFilterChange,
+  progressStatusOptions = [],
+  selectedProgressStatuses = [],
+  onProgressStatusFilterChange,
   isRnmModeActive = false,
   onRnmModeToggle,
   isUrgentModeActive = false,
   onUrgentModeToggle,
 }: IndividualProcessesTableProps) {
-  const t = useTranslations('IndividualProcesses')
-  const tCommon = useTranslations('Common')
-  const locale = useLocale()
-  const updateProcess = useMutation(api.individualProcesses.update)
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const t = useTranslations("IndividualProcesses");
+  const tCommon = useTranslations("Common");
+  const locale = useLocale();
+  const updateProcess = useMutation(api.individualProcesses.update);
+  const updateUrgentForCollectiveGroup = useMutation(
+    api.individualProcesses.updateUrgentForCollectiveGroup
+  );
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     filledFields: false, // Hide the filledFields column by default
     rnmDeadline: false, // Hide the rnmDeadline column by default (controlled by RNM toggle)
-  })
-  const [sorting, setSorting] = useState<SortingState>([])
+    protocolNumber: false, // Hide the protocolNumber column by default (controlled by Urgent toggle)
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
   // Optimistic state for urgent flag toggles
-  const [optimisticUrgent, setOptimisticUrgent] = useState<Map<Id<"individualProcesses">, boolean>>(new Map())
+  const [optimisticUrgent, setOptimisticUrgent] = useState<
+    Map<Id<"individualProcesses">, boolean>
+  >(new Map());
 
   // Use ref to store previous sorting to avoid dependency issues
-  const previousSortingRef = useRef<SortingState | null>(null)
+  const previousSortingRef = useRef<SortingState | null>(null);
 
   // Handle RNM mode toggle - show/hide column and apply sorting
   useEffect(() => {
     if (isRnmModeActive) {
       // Save current sorting before switching to RNM mode
-      previousSortingRef.current = sorting
+      previousSortingRef.current = sorting;
       // Show rnmDeadline column
-      setColumnVisibility(prev => ({ ...prev, rnmDeadline: true }))
+      setColumnVisibility((prev) => ({ ...prev, rnmDeadline: true }));
       // Apply ascending sort on rnmDeadline (closest deadlines first)
-      setSorting([{ id: 'rnmDeadline', desc: false }])
+      setSorting([{ id: "rnmDeadline", desc: false }]);
     } else {
       // Hide rnmDeadline column
-      setColumnVisibility(prev => ({ ...prev, rnmDeadline: false }))
+      setColumnVisibility((prev) => ({ ...prev, rnmDeadline: false }));
       // Restore previous sorting
       if (previousSortingRef.current !== null) {
-        setSorting(previousSortingRef.current)
-        previousSortingRef.current = null
+        setSorting(previousSortingRef.current);
+        previousSortingRef.current = null;
       } else {
-        setSorting([])
+        setSorting([]);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRnmModeActive])
+  }, [isRnmModeActive]);
+
+  // Handle Urgent mode toggle - show Protocol column, hide Process Status column
+  useEffect(() => {
+    if (isUrgentModeActive) {
+      setColumnVisibility((prev) => ({
+        ...prev,
+        protocolNumber: true,
+        processStatus: false,
+      }));
+    } else {
+      setColumnVisibility((prev) => ({
+        ...prev,
+        protocolNumber: false,
+        processStatus: true,
+      }));
+    }
+  }, [isUrgentModeActive]);
 
   // Wrap setRowSelection to prevent state updates during render
-  const handleRowSelectionChange = useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
-    // Defer state update to avoid updating during render
-    queueMicrotask(() => {
-      setRowSelection(updaterOrValue)
-    })
-  }, [])
+  const handleRowSelectionChange = useCallback(
+    (
+      updaterOrValue:
+        | RowSelectionState
+        | ((old: RowSelectionState) => RowSelectionState),
+    ) => {
+      // Defer state update to avoid updating during render
+      queueMicrotask(() => {
+        setRowSelection(updaterOrValue);
+      });
+    },
+    [],
+  );
 
   // Wrap setColumnVisibility to prevent state updates during render
-  const handleColumnVisibilityChange = useCallback((updaterOrValue: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
-    queueMicrotask(() => {
-      setColumnVisibility(updaterOrValue)
-    })
-  }, [])
+  const handleColumnVisibilityChange = useCallback(
+    (
+      updaterOrValue:
+        | VisibilityState
+        | ((old: VisibilityState) => VisibilityState),
+    ) => {
+      queueMicrotask(() => {
+        setColumnVisibility(updaterOrValue);
+      });
+    },
+    [],
+  );
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: Id<"individualProcesses">) => {
-      if (onDelete) await onDelete(id)
+      if (onDelete) await onDelete(id);
     },
     entityName: "individual process",
-  })
+  });
 
   // Destructure to get stable function references
-  const { confirmDelete } = deleteConfirmation
+  const { confirmDelete } = deleteConfirmation;
 
   // Bulk delete confirmation for multiple items
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
     onDelete: async (item: IndividualProcess) => {
-      if (onDelete) await onDelete(item._id)
+      if (onDelete) await onDelete(item._id);
     },
     onSuccess: () => {
-      setRowSelection({})
+      setRowSelection({});
     },
-  })
+  });
 
   // Destructure to get stable function reference
-  const { confirmBulkDelete } = bulkDeleteConfirmation
+  const { confirmBulkDelete } = bulkDeleteConfirmation;
 
   const columns = useMemo<ColumnDef<IndividualProcess>[]>(
     () => [
@@ -230,20 +304,42 @@ export function IndividualProcessesTable({
       {
         accessorKey: "person.fullName",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('personName')} />
+          <DataGridColumnHeader column={column} title={t("personName")} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.person?.fullName || "-"} />
+          <DataGridHighlightedCell
+            text={row.original.person?.fullName || "-"}
+          />
         ),
+      },
+      {
+        accessorKey: "protocolNumber",
+        id: "protocolNumber",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("protocol")} />
+        ),
+        cell: ({ row }) => {
+          const protocol = row.original.protocolNumber;
+          return (
+            <span className="text-sm">
+              {protocol || <span className="text-muted-foreground">-</span>}
+            </span>
+          );
+        },
+        enableSorting: true,
+        enableHiding: true,
       },
       {
         accessorKey: "processTypeIndicator",
         id: "processTypeIndicator",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('processTypeIndicator')} />
+          <DataGridColumnHeader
+            column={column}
+            title={t("processTypeIndicator")}
+          />
         ),
         cell: ({ row }) => {
-          const isCollective = !!row.original.collectiveProcess
+          const isCollective = !!row.original.collectiveProcess;
           return (
             <TooltipProvider>
               <Tooltip>
@@ -256,11 +352,15 @@ export function IndividualProcessesTable({
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{isCollective ? t('collectiveProcessIndicator') : t('individualProcessIndicator')}</p>
+                  <p>
+                    {isCollective
+                      ? t("collectiveProcessIndicator")
+                      : t("individualProcessIndicator")}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )
+          );
         },
         size: 50,
         enableSorting: true,
@@ -271,55 +371,107 @@ export function IndividualProcessesTable({
         id: "urgent",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title="">
-            <Flag className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" />
           </DataGridColumnHeader>
         ),
         cell: ({ row }) => {
-          const processId = row.original._id
+          const processId = row.original._id;
           // Use optimistic value if available, otherwise use actual value
-          const actualUrgent = row.original.urgent === true
+          const actualUrgent = row.original.urgent === true;
           const isUrgent = optimisticUrgent.has(processId)
             ? optimisticUrgent.get(processId)!
-            : actualUrgent
+            : actualUrgent;
 
           const handleToggle = async (e: React.MouseEvent) => {
-            e.stopPropagation()
-            const newUrgentValue = !isUrgent
+            e.stopPropagation();
+            const newUrgentValue = !isUrgent;
 
-            // Optimistic update - immediately update UI
-            setOptimisticUrgent(prev => {
-              const newMap = new Map(prev)
-              newMap.set(processId, newUrgentValue)
-              return newMap
-            })
+            // Get collective process info to determine how many processes will be affected
+            const collectiveProcess = row.original.collectiveProcess;
+
+            // Optimistic update - immediately update UI for the current process
+            // If part of collective, we'll update all related processes optimistically
+            setOptimisticUrgent((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(processId, newUrgentValue);
+
+              // If part of collective process, optimistically update all related processes
+              if (collectiveProcess) {
+                individualProcesses
+                  .filter((p) => p.collectiveProcess?._id === collectiveProcess._id)
+                  .forEach((p) => {
+                    newMap.set(p._id, newUrgentValue);
+                  });
+              }
+
+              return newMap;
+            });
 
             try {
-              // Call backend mutation
-              await updateProcess({
+              // Call backend mutation - this will update the process and all related processes if it's part of a collective
+              await updateUrgentForCollectiveGroup({
                 id: processId,
                 urgent: newUrgentValue,
-              })
+              });
 
               // Success - clear optimistic state (Convex will update the data)
-              setOptimisticUrgent(prev => {
-                const newMap = new Map(prev)
-                newMap.delete(processId)
-                return newMap
-              })
+              setOptimisticUrgent((prev) => {
+                const newMap = new Map(prev);
+                newMap.delete(processId);
+
+                // Clear optimistic state for all related processes
+                if (collectiveProcess) {
+                  individualProcesses
+                    .filter((p) => p.collectiveProcess?._id === collectiveProcess._id)
+                    .forEach((p) => {
+                      newMap.delete(p._id);
+                    });
+                }
+
+                return newMap;
+              });
+
+              // Show success toast if part of collective
+              if (collectiveProcess) {
+                const affectedCount = individualProcesses.filter(
+                  (p) => p.collectiveProcess?._id === collectiveProcess._id
+                ).length;
+                toast.success(
+                  t("urgentToggleSuccess") ||
+                    `Updated ${affectedCount} processes in the collective group`,
+                  {
+                    description: collectiveProcess.referenceNumber,
+                  }
+                );
+              }
             } catch (error) {
               // Error - rollback optimistic update
-              setOptimisticUrgent(prev => {
-                const newMap = new Map(prev)
-                newMap.delete(processId)
-                return newMap
-              })
+              setOptimisticUrgent((prev) => {
+                const newMap = new Map(prev);
+                newMap.delete(processId);
+
+                // Rollback optimistic state for all related processes
+                if (collectiveProcess) {
+                  individualProcesses
+                    .filter((p) => p.collectiveProcess?._id === collectiveProcess._id)
+                    .forEach((p) => {
+                      newMap.delete(p._id);
+                    });
+                }
+
+                return newMap;
+              });
 
               // Show error toast
-              toast.error(t('urgentToggleError') || 'Failed to update urgent status', {
-                description: error instanceof Error ? error.message : 'Please try again'
-              })
+              toast.error(
+                t("urgentToggleError") || "Failed to update urgent status",
+                {
+                  description:
+                    error instanceof Error ? error.message : "Please try again",
+                }
+              );
             }
-          }
+          };
 
           return (
             <TooltipProvider>
@@ -327,22 +479,24 @@ export function IndividualProcessesTable({
                 <TooltipTrigger asChild>
                   <button
                     onClick={handleToggle}
-                    className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded p-1"
+                    className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 rounded p-1"
                   >
-                    <Flag
+                    <AlertTriangle
                       className={cn(
-                        "h-4 w-4 cursor-pointer transition-transform hover:scale-110",
-                        isUrgent ? "text-red-500 fill-red-500" : "text-muted-foreground"
+                        "h-4 w-4 cursor-pointer transition-all hover:scale-110",
+                        isUrgent
+                          ? "fill-amber-500 text-black stroke-2"
+                          : "text-muted-foreground fill-transparent",
                       )}
                     />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}</p>
+                  <p>{isUrgent ? t("unmarkAsUrgent") : t("markAsUrgent")}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )
+          );
         },
         size: 50,
         enableSorting: true,
@@ -351,40 +505,51 @@ export function IndividualProcessesTable({
       {
         accessorKey: "companyApplicant.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('applicant')} className="hidden md:table-cell" />
+          <DataGridColumnHeader
+            column={column}
+            title={t("applicant")}
+            className="hidden md:table-cell"
+          />
         ),
         cell: ({ row }) => {
-          const { companyApplicant } = row.original
+          const { companyApplicant } = row.original;
           if (!companyApplicant) {
-            return <span className="hidden md:table-cell text-sm text-muted-foreground">-</span>
+            return (
+              <span className="hidden md:table-cell text-sm text-muted-foreground">
+                -
+              </span>
+            );
           }
           return (
             <span className="hidden md:table-cell text-sm">
               {companyApplicant.name}
             </span>
-          )
+          );
         },
         enableHiding: true,
       },
       {
         accessorKey: "processType.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('processType')} />
+          <DataGridColumnHeader column={column} title={t("processType")} />
         ),
         cell: ({ row }) => {
-          const processType = row.original.processType
+          const processType = row.original.processType;
           if (!processType) {
-            return <span className="text-sm text-muted-foreground">-</span>
+            return <span className="text-sm text-muted-foreground">-</span>;
           }
           // Use nameEn for English locale, otherwise use name (Portuguese)
-          const typeName = locale === "en" && processType.nameEn ? processType.nameEn : processType.name
-          return <span className="text-sm">{typeName}</span>
+          const typeName =
+            locale === "en" && processType.nameEn
+              ? processType.nameEn
+              : processType.name;
+          return <span className="text-sm">{typeName}</span>;
         },
       },
       {
         accessorKey: "legalFramework.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('legalFramework')} />
+          <DataGridColumnHeader column={column} title={t("legalFramework")} />
         ),
         cell: ({ row }) => (
           <span className="text-sm">
@@ -395,63 +560,83 @@ export function IndividualProcessesTable({
       {
         accessorKey: "caseStatus.name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('caseStatus')} />
+          <DataGridColumnHeader column={column} title={t("caseStatus")} />
         ),
         cell: ({ row }) => {
-          const caseStatus = row.original.caseStatus
-          const activeStatus = row.original.activeStatus
-          
+          const caseStatus = row.original.caseStatus;
+          const activeStatus = row.original.activeStatus;
+
           if (!caseStatus) {
-            return <span className="text-sm text-muted-foreground">-</span>
+            return <span className="text-sm text-muted-foreground">-</span>;
           }
 
           // Use nameEn for English locale, otherwise use name (Portuguese)
-          const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
+          const statusName =
+            locale === "en" && caseStatus.nameEn
+              ? caseStatus.nameEn
+              : caseStatus.name;
 
           // Format the date - prioritize user-editable date field, fallback to changedAt
-          let formattedDate = ""
+          let formattedDate = "";
           if (activeStatus) {
             // Use date field if available, otherwise fallback to changedAt formatted as ISO date
-            const displayDate = activeStatus.date || new Date(activeStatus.changedAt).toISOString().split('T')[0]
+            const displayDate =
+              activeStatus.date ||
+              new Date(activeStatus.changedAt).toISOString().split("T")[0];
 
             // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
-            const [year, month, day] = displayDate.split('-').map(Number)
+            const [year, month, day] = displayDate.split("-").map(Number);
             if (year && month && day) {
-              const date = new Date(year, month - 1, day)
+              const date = new Date(year, month - 1, day);
               if (!isNaN(date.getTime())) {
-                formattedDate = date.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric"
-                })
+                formattedDate = date.toLocaleDateString(
+                  locale === "en" ? "en-US" : "pt-BR",
+                  {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  },
+                );
               }
             }
           }
 
           // Get filled fields data for tooltip
-          const filledFieldsData = activeStatus?.filledFieldsData
-          const fillableFields = caseStatus.fillableFields
+          const filledFieldsData = activeStatus?.filledFieldsData;
+          const fillableFields = caseStatus.fillableFields;
 
           // Check if there are filled fields to show in tooltip
-          const hasFilledFields = filledFieldsData && fillableFields && fillableFields.length > 0 && Object.keys(filledFieldsData).length > 0
-          
-          let tooltipContent = null
+          const hasFilledFields =
+            filledFieldsData &&
+            fillableFields &&
+            fillableFields.length > 0 &&
+            Object.keys(filledFieldsData).length > 0;
+
+          let tooltipContent = null;
           if (hasFilledFields) {
-            const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key))
-            
+            const entries = Object.entries(filledFieldsData).filter(([key]) =>
+              fillableFields.includes(key),
+            );
+
             if (entries.length > 0) {
-              const summaryLines = entries.map(([fieldName, value]) => {
-                const metadata = getFieldMetadata(fieldName)
-                if (!metadata) return null
+              const summaryLines = entries
+                .map(([fieldName, value]) => {
+                  const metadata = getFieldMetadata(fieldName);
+                  if (!metadata) return null;
 
-                const label = t(`fields.${fieldName}` as any)
-                const formattedValue = formatFieldValue(value, metadata.fieldType, locale)
+                  const label = t(`fields.${fieldName}` as any);
+                  const formattedValue = formatFieldValue(
+                    value,
+                    metadata.fieldType,
+                    locale,
+                  );
 
-                return `${label}: ${formattedValue}`
-              }).filter(Boolean)
+                  return `${label}: ${formattedValue}`;
+                })
+                .filter(Boolean);
 
               if (summaryLines.length > 0) {
-                tooltipContent = summaryLines.join('\n')
+                tooltipContent = summaryLines.join("\n");
               }
             }
           }
@@ -477,16 +662,16 @@ export function IndividualProcessesTable({
                   size="icon"
                   className="h-7 w-7 shrink-0"
                   onClick={(e) => {
-                    e.stopPropagation()
-                    onUpdateStatus(row.original._id)
+                    e.stopPropagation();
+                    onUpdateStatus(row.original._id);
                   }}
                 >
                   <RefreshCcw className="h-4 w-4" />
-                  <span className="sr-only">{tCommon('updateStatus')}</span>
+                  <span className="sr-only">{tCommon("updateStatus")}</span>
                 </Button>
               )}
             </div>
-          )
+          );
 
           // If there's tooltip content, wrap the badge with tooltip and indicator
           if (tooltipContent) {
@@ -528,12 +713,16 @@ export function IndividualProcessesTable({
                     >
                       <div className="space-y-1.5 text-sm">
                         <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                          {t('filledFields')}
+                          {t("filledFields")}
                         </div>
-                        {tooltipContent.split('\n').map((line, idx) => (
+                        {tooltipContent.split("\n").map((line, idx) => (
                           <div key={idx} className="flex flex-col">
-                            <span className="font-medium">{line.split(':')[0]}:</span>
-                            <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                            <span className="font-medium">
+                              {line.split(":")[0]}:
+                            </span>
+                            <span className="text-muted-foreground ml-2">
+                              {line.split(":").slice(1).join(":")}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -546,55 +735,78 @@ export function IndividualProcessesTable({
                     size="icon"
                     className="h-7 w-7 shrink-0"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      onUpdateStatus(row.original._id)
+                      e.stopPropagation();
+                      onUpdateStatus(row.original._id);
                     }}
                   >
                     <RefreshCcw className="h-4 w-4" />
-                    <span className="sr-only">{tCommon('updateStatus')}</span>
+                    <span className="sr-only">{tCommon("updateStatus")}</span>
                   </Button>
                 )}
               </div>
-            )
+            );
           }
 
-          return badgeElement
+          return badgeElement;
         },
       },
       {
         id: "filledFields",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('filledFields')} />
+          <DataGridColumnHeader column={column} title={t("filledFields")} />
         ),
         cell: ({ row }) => {
-          const filledFieldsData = row.original.activeStatus?.filledFieldsData
-          const fillableFields = row.original.caseStatus?.fillableFields
+          const filledFieldsData = row.original.activeStatus?.filledFieldsData;
+          const fillableFields = row.original.caseStatus?.fillableFields;
 
           // If no filled fields data, show empty state
-          if (!filledFieldsData || !fillableFields || fillableFields.length === 0 || Object.keys(filledFieldsData).length === 0) {
-            return <span className="text-sm text-muted-foreground italic">{t('noFieldsFilled')}</span>
+          if (
+            !filledFieldsData ||
+            !fillableFields ||
+            fillableFields.length === 0 ||
+            Object.keys(filledFieldsData).length === 0
+          ) {
+            return (
+              <span className="text-sm text-muted-foreground italic">
+                {t("noFieldsFilled")}
+              </span>
+            );
           }
 
           // Get field metadata for the filled fields
-          const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key))
+          const entries = Object.entries(filledFieldsData).filter(([key]) =>
+            fillableFields.includes(key),
+          );
 
           if (entries.length === 0) {
-            return <span className="text-sm text-muted-foreground italic">{t('noFieldsFilled')}</span>
+            return (
+              <span className="text-sm text-muted-foreground italic">
+                {t("noFieldsFilled")}
+              </span>
+            );
           }
 
           // Build summary text
-          const summaryLines = entries.map(([fieldName, value]) => {
-            const metadata = getFieldMetadata(fieldName)
-            if (!metadata) return null
+          const summaryLines = entries
+            .map(([fieldName, value]) => {
+              const metadata = getFieldMetadata(fieldName);
+              if (!metadata) return null;
 
-            const label = t(`fields.${fieldName}` as any)
-            const formattedValue = formatFieldValue(value, metadata.fieldType, locale)
+              const label = t(`fields.${fieldName}` as any);
+              const formattedValue = formatFieldValue(
+                value,
+                metadata.fieldType,
+                locale,
+              );
 
-            return `${label}: ${formattedValue}`
-          }).filter(Boolean)
+              return `${label}: ${formattedValue}`;
+            })
+            .filter(Boolean);
 
-          const fullText = summaryLines.join('\n')
-          const truncatedText = summaryLines.map(line => truncateString(line || "", 40)).join(', ')
+          const fullText = summaryLines.join("\n");
+          const truncatedText = summaryLines
+            .map((line) => truncateString(line || "", 40))
+            .join(", ");
 
           return (
             <TooltipProvider>
@@ -603,8 +815,12 @@ export function IndividualProcessesTable({
                   <div className="text-sm max-w-[200px]">
                     {summaryLines.map((line, idx) => (
                       <div key={idx} className="truncate">
-                        <span className="font-semibold">{line?.split(':')[0]}</span>
-                        {line?.split(':')[1] && <span>: {line.split(':')[1]}</span>}
+                        <span className="font-semibold">
+                          {line?.split(":")[0]}
+                        </span>
+                        {line?.split(":")[1] && (
+                          <span>: {line.split(":")[1]}</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -614,7 +830,7 @@ export function IndividualProcessesTable({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )
+          );
         },
         enableSorting: false,
         enableHiding: true,
@@ -622,158 +838,199 @@ export function IndividualProcessesTable({
       {
         accessorKey: "processStatus",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('processStatus')} />
+          <DataGridColumnHeader column={column} title={t("processStatus")} />
         ),
         cell: ({ row }) => {
           // Handle backward compatibility: use processStatus if available, otherwise derive from isActive
-          const processStatus = row.original.processStatus || (row.original.isActive === false ? "Anterior" : "Atual")
+          const processStatus =
+            row.original.processStatus ||
+            (row.original.isActive === false ? "Anterior" : "Atual");
           return (
-            <Badge variant={processStatus === "Atual" ? "default" : "secondary"}>
-              {processStatus === "Atual" ? t('processStatusCurrent') : t('processStatusPrevious')}
+            <Badge
+              variant={processStatus === "Atual" ? "default" : "secondary"}
+            >
+              {processStatus === "Atual"
+                ? t("processStatusCurrent")
+                : t("processStatusPrevious")}
             </Badge>
-          )
+          );
         },
+        enableHiding: true,
       },
       {
         id: "rnmDeadline",
         accessorKey: "rnmDeadline",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('fields.rnmDeadline')} />
+          <DataGridColumnHeader
+            column={column}
+            title={t("fields.rnmDeadline")}
+          />
         ),
         cell: ({ row }) => {
-          const deadline = row.original.rnmDeadline
+          const deadline = row.original.rnmDeadline;
           if (!deadline) {
-            return <span className="text-sm text-muted-foreground">-</span>
+            return <span className="text-sm text-muted-foreground">-</span>;
           }
 
           // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
-          const [year, month, day] = deadline.split('-').map(Number)
+          const [year, month, day] = deadline.split("-").map(Number);
           if (!year || !month || !day) {
-            return <span className="text-sm text-muted-foreground">-</span>
+            return <span className="text-sm text-muted-foreground">-</span>;
           }
 
-          const deadlineDate = new Date(year, month - 1, day)
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
+          const deadlineDate = new Date(year, month - 1, day);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
 
           // Calculate days until deadline
-          const diffTime = deadlineDate.getTime() - today.getTime()
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+          const diffTime = deadlineDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
           // Format the date
-          const formattedDate = deadlineDate.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-          })
+          const formattedDate = deadlineDate.toLocaleDateString(
+            locale === "en" ? "en-US" : "pt-BR",
+            {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            },
+          );
 
           // Determine the urgency color
-          let badgeVariant: "destructive" | "warning" | "default" | "secondary" = "secondary"
-          let urgencyText = ""
+          let badgeVariant:
+            | "destructive"
+            | "warning"
+            | "default"
+            | "secondary" = "secondary";
+          let urgencyText = "";
 
           if (diffDays < 0) {
-            badgeVariant = "destructive"
-            urgencyText = t('rnmExpired')
+            badgeVariant = "destructive";
+            urgencyText = t("rnmExpired");
           } else if (diffDays === 0) {
-            badgeVariant = "destructive"
-            urgencyText = t('rnmToday')
+            badgeVariant = "destructive";
+            urgencyText = t("rnmToday");
           } else if (diffDays <= 30) {
-            badgeVariant = "destructive"
-            urgencyText = `${diffDays} ${tCommon('days')}`
+            badgeVariant = "destructive";
+            urgencyText = `${diffDays} ${tCommon("days")}`;
           } else if (diffDays <= 90) {
-            badgeVariant = "warning"
-            urgencyText = `${diffDays} ${tCommon('days')}`
+            badgeVariant = "warning";
+            urgencyText = `${diffDays} ${tCommon("days")}`;
           } else {
-            badgeVariant = "default"
-            urgencyText = `${diffDays} ${tCommon('days')}`
+            badgeVariant = "default";
+            urgencyText = `${diffDays} ${tCommon("days")}`;
           }
 
           return (
             <div className="flex flex-col gap-1">
               <span className="text-sm">{formattedDate}</span>
-              <Badge variant={badgeVariant} className={`text-xs w-fit ${badgeVariant === "destructive" ? "text-white" : ""}`}>
+              <Badge
+                variant={badgeVariant}
+                className={`text-xs w-fit ${badgeVariant === "destructive" ? "text-white" : ""}`}
+              >
                 {urgencyText}
               </Badge>
             </div>
-          )
+          );
         },
         sortingFn: (rowA, rowB) => {
-          const dateA = rowA.original.rnmDeadline
-          const dateB = rowB.original.rnmDeadline
+          const dateA = rowA.original.rnmDeadline;
+          const dateB = rowB.original.rnmDeadline;
 
           // Handle null/undefined cases - put them at the end
-          if (!dateA && !dateB) return 0
-          if (!dateA) return 1 // A goes after B
-          if (!dateB) return -1 // B goes after A
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1; // A goes after B
+          if (!dateB) return -1; // B goes after A
 
           // Compare dates (ISO format allows string comparison)
-          return dateA.localeCompare(dateB)
+          return dateA.localeCompare(dateB);
         },
         enableHiding: true,
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">{tCommon('actions')}</span>,
+        header: () => <span className="sr-only">{tCommon("actions")}</span>,
         cell: ({ row }) => {
-          const actions = []
+          const actions = [];
 
           if (onView) {
             actions.push({
-              label: tCommon('view'),
+              label: tCommon("view"),
               icon: <Eye className="h-4 w-4" />,
               onClick: () => onView(row.original._id),
               variant: "default" as const,
-            })
+            });
           }
 
           if (onEdit) {
             actions.push({
-              label: tCommon('edit'),
+              label: tCommon("edit"),
               icon: <Edit className="h-4 w-4" />,
               onClick: () => onEdit(row.original._id),
               variant: "default" as const,
-            })
+            });
           }
 
           // Add Fill Fields button if the caseStatus has fillable fields and activeStatus exists
-          if (onFillFields && row.original.caseStatus?.fillableFields && row.original.caseStatus.fillableFields.length > 0 && row.original.activeStatus) {
+          if (
+            onFillFields &&
+            row.original.caseStatus?.fillableFields &&
+            row.original.caseStatus.fillableFields.length > 0 &&
+            row.original.activeStatus
+          ) {
             actions.push({
-              label: t('fillFields'),
+              label: t("fillFields"),
               icon: <FileEdit className="h-4 w-4" />,
-              onClick: () => onFillFields(row.original._id, row.original.activeStatus!._id),
+              onClick: () =>
+                onFillFields(row.original._id, row.original.activeStatus!._id),
               variant: "default" as const,
-            })
+            });
           }
 
           // Add Create from Existing button
           if (onCreateFromExisting) {
             actions.push({
-              label: t('createFromExisting'),
+              label: t("createFromExisting"),
               icon: <Copy className="h-4 w-4" />,
               onClick: () => onCreateFromExisting(row.original._id),
               variant: "default" as const,
-            })
+            });
           }
 
           if (onDelete) {
             actions.push({
-              label: tCommon('delete'),
+              label: tCommon("delete"),
               icon: <Trash2 className="h-4 w-4" />,
               onClick: () => confirmDelete(row.original._id),
               variant: "destructive" as const,
               separator: true,
-            })
+            });
           }
 
-          return <DataGridRowActions actions={actions} />
+          return <DataGridRowActions actions={actions} />;
         },
         size: 50,
         enableSorting: false,
         enableHiding: false,
       },
     ],
-    [t, tCommon, locale, onView, onEdit, onFillFields, onCreateFromExisting, onDelete, confirmDelete, onUpdateStatus]
-  )
+    [
+      t,
+      tCommon,
+      locale,
+      onView,
+      onEdit,
+      onFillFields,
+      onCreateFromExisting,
+      onDelete,
+      confirmDelete,
+      onUpdateStatus,
+      // Ensure urgent flag cell re-renders immediately on optimistic state changes
+      optimisticUrgent,
+      updateUrgentForCollectiveGroup,
+      individualProcesses,
+    ],
+  );
 
   const table = useReactTable({
     data: individualProcesses,
@@ -797,13 +1054,13 @@ export function IndividualProcessesTable({
       columnVisibility,
       sorting,
     },
-  })
+  });
 
   return (
     <DataGrid
       table={table}
       recordCount={individualProcesses.length}
-      emptyMessage={t('noResults')}
+      emptyMessage={t("noResults")}
       tableLayout={{
         columnsVisibility: true,
       }}
@@ -819,12 +1076,26 @@ export function IndividualProcessesTable({
                 options={candidateOptions as ComboboxOption<string>[]}
                 value={selectedCandidates}
                 onValueChange={onCandidateFilterChange}
-                placeholder={t('filters.selectCandidates')}
-                searchPlaceholder={t('filters.searchCandidates')}
-                emptyText={t('filters.noCandidatesFound')}
+                placeholder={t("filters.selectCandidates")}
+                searchPlaceholder={t("filters.searchCandidates")}
+                emptyText={t("filters.noCandidatesFound")}
                 triggerClassName="w-full sm:w-[280px] min-h-10"
                 showClearButton={true}
-                clearButtonAriaLabel={t('filters.clearCandidates')}
+                clearButtonAriaLabel={t("filters.clearCandidates")}
+              />
+            )}
+            {onProgressStatusFilterChange && progressStatusOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={progressStatusOptions as ComboboxOption<string>[]}
+                value={selectedProgressStatuses}
+                onValueChange={onProgressStatusFilterChange}
+                placeholder={t("filters.selectProgressStatus")}
+                searchPlaceholder={t("filters.searchProgressStatus")}
+                emptyText={t("filters.noProgressStatusFound")}
+                triggerClassName="w-full sm:w-[280px] min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearProgressStatus")}
               />
             )}
             {onRnmModeToggle && (
@@ -841,7 +1112,9 @@ export function IndividualProcessesTable({
                           : "hover:border-amber-500 hover:text-amber-600"
                       }`}
                     >
-                      <CalendarClock className={`h-4 w-4 ${isRnmModeActive ? "animate-pulse" : ""}`} />
+                      <CalendarClock
+                        className={`h-4 w-4 ${isRnmModeActive ? "animate-pulse" : ""}`}
+                      />
                       <span className="font-medium">RNM</span>
                       {isRnmModeActive && (
                         <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
@@ -849,7 +1122,11 @@ export function IndividualProcessesTable({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <p>{isRnmModeActive ? t('rnmModeDisable') : t('rnmModeEnable')}</p>
+                    <p>
+                      {isRnmModeActive
+                        ? t("rnmModeDisable")
+                        : t("rnmModeEnable")}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -864,11 +1141,13 @@ export function IndividualProcessesTable({
                       onClick={onUrgentModeToggle}
                       className={`min-h-10 gap-2 transition-all duration-200 ${
                         isUrgentModeActive
-                          ? "bg-red-500 hover:bg-red-600 text-white border-red-500"
-                          : "hover:border-red-500 hover:text-red-600"
+                          ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+                          : "hover:border-amber-500 hover:text-amber-600"
                       }`}
                     >
-                      <Flag className={`h-4 w-4 ${isUrgentModeActive ? "animate-pulse" : ""}`} />
+                      <AlertTriangle
+                        className={`h-4 w-4 ${isUrgentModeActive ? "animate-pulse" : ""}`}
+                      />
                       <span className="font-medium">Urgent</span>
                       {isUrgentModeActive && (
                         <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
@@ -876,7 +1155,11 @@ export function IndividualProcessesTable({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <p>{isUrgentModeActive ? t('urgentModeDisable') : t('urgentModeEnable')}</p>
+                    <p>
+                      {isUrgentModeActive
+                        ? t("urgentModeDisable")
+                        : t("urgentModeEnable")}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -884,42 +1167,58 @@ export function IndividualProcessesTable({
           </div>
           <DataGridColumnVisibility
             table={table}
-            trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
+            trigger={
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                Columns
+              </Button>
+            }
           />
         </div>
         {(onDelete || onBulkStatusUpdate || onBulkCreateTask) && (
           <DataGridBulkActions
             table={table}
             actions={[
-              ...(onBulkCreateTask ? [{
-                label: t('createBulkTask'),
-                icon: <ListTodo className="h-4 w-4" />,
-                onClick: async (selectedRows: IndividualProcess[]) => {
-                  onBulkCreateTask(selectedRows)
-                },
-                variant: "default" as const,
-              }] : []),
-              ...(onBulkStatusUpdate ? [{
-                label: tCommon('updateStatus'),
-                icon: <Edit className="h-4 w-4" />,
-                onClick: async (selectedRows: IndividualProcess[]) => {
-                  const selected = selectedRows.map(row => ({
-                    _id: row._id,
-                    personId: row.person?._id || ("" as Id<"people">),
-                    status: row.activeStatus?.statusName || row.status
-                  }))
-                  onBulkStatusUpdate(selected)
-                },
-                variant: "default" as const,
-              }] : []),
-              ...(onDelete ? [{
-                label: tCommon('deleteSelected'),
-                icon: <Trash2 className="h-4 w-4" />,
-                onClick: (selectedRows: IndividualProcess[]) => {
-                confirmBulkDelete(selectedRows)
-              },
-                variant: "destructive" as const,
-              }] : []),
+              ...(onBulkCreateTask
+                ? [
+                    {
+                      label: t("createBulkTask"),
+                      icon: <ListTodo className="h-4 w-4" />,
+                      onClick: async (selectedRows: IndividualProcess[]) => {
+                        onBulkCreateTask(selectedRows);
+                      },
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
+              ...(onBulkStatusUpdate
+                ? [
+                    {
+                      label: tCommon("updateStatus"),
+                      icon: <Edit className="h-4 w-4" />,
+                      onClick: async (selectedRows: IndividualProcess[]) => {
+                        const selected = selectedRows.map((row) => ({
+                          _id: row._id,
+                          personId: row.person?._id || ("" as Id<"people">),
+                          status: row.activeStatus?.statusName || row.status,
+                        }));
+                        onBulkStatusUpdate(selected);
+                      },
+                      variant: "default" as const,
+                    },
+                  ]
+                : []),
+              ...(onDelete
+                ? [
+                    {
+                      label: tCommon("deleteSelected"),
+                      icon: <Trash2 className="h-4 w-4" />,
+                      onClick: (selectedRows: IndividualProcess[]) => {
+                        confirmBulkDelete(selectedRows);
+                      },
+                      variant: "destructive" as const,
+                    },
+                  ]
+                : []),
             ]}
           />
         )}
@@ -950,5 +1249,5 @@ export function IndividualProcessesTable({
         isDeleting={bulkDeleteConfirmation.isDeleting}
       />
     </DataGrid>
-  )
+  );
 }
