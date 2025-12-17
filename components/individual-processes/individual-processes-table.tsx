@@ -126,6 +126,8 @@ interface IndividualProcess {
   rnmDeadline?: string;
   deadlineDate?: string;
   urgent?: boolean;
+  qualification?: string;
+  professionalExperienceSince?: string;
 }
 
 interface CandidateFilterOption {
@@ -612,8 +614,7 @@ export function IndividualProcessesTable({
           <DataGridColumnHeader column={column} title={t("qualification")} />
         ),
         cell: ({ row }) => {
-          const filledFields = row.original.activeStatus?.filledFieldsData;
-          const qualification = filledFields?.qualification;
+          const qualification = row.original.qualification;
 
           if (!qualification) {
             return <span className="text-sm text-muted-foreground">-</span>;
@@ -636,8 +637,7 @@ export function IndividualProcessesTable({
           />
         ),
         cell: ({ row }) => {
-          const filledFields = row.original.activeStatus?.filledFieldsData;
-          const experienceDate = filledFields?.professionalExperienceSince;
+          const experienceDate = row.original.professionalExperienceSince;
 
           if (!experienceDate) {
             return <span className="text-sm text-muted-foreground">-</span>;
