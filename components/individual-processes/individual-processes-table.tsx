@@ -48,17 +48,18 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { createSelectColumn } from "@/lib/data-grid-utils";
 import { globalFuzzyFilter } from "@/lib/fuzzy-search";
-import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
-import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
-import { getFieldMetadata } from "@/lib/individual-process-fields";
-import { formatFieldValue, truncateString } from "@/lib/format-field-value";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatRelativeDate } from "@/lib/utils/date-utils";
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
+import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
+import { getFieldMetadata } from "@/lib/individual-process-fields";
+import { formatFieldValue, truncateString } from "@/lib/format-field-value";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -230,6 +231,9 @@ export function IndividualProcessesTable({
 
   // Use ref to store previous sorting to avoid dependency issues
   const previousSortingRef = useRef<SortingState | null>(null);
+
+  // State to control the filter dropdown open/close
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
 
   // Handle RNM mode toggle - show/hide column and apply sorting
   useEffect(() => {
@@ -659,7 +663,32 @@ export function IndividualProcessesTable({
             }
           );
 
-          return <span className="text-sm">{formattedDate}</span>;
+          // Get relative date for tooltip
+          const relativeDate = formatRelativeDate(experienceDate, {
+            year: t("relativeDate.year"),
+            years: t("relativeDate.years"),
+            month: t("relativeDate.month"),
+            months: t("relativeDate.months"),
+            day: t("relativeDate.day"),
+            days: t("relativeDate.days"),
+          });
+
+          if (!relativeDate) {
+            return <span className="text-sm">{formattedDate}</span>;
+          }
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-sm cursor-help">{formattedDate}</span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">{relativeDate}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
         },
         enableSorting: true,
         enableHiding: true,
@@ -1207,7 +1236,7 @@ export function IndividualProcessesTable({
             )}
             {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
               <div className="flex items-center gap-1">
-                <DropdownMenu>
+                <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
@@ -1231,7 +1260,10 @@ export function IndividualProcessesTable({
                   <DropdownMenuContent align="start" className="w-56">
                   {onRnmModeToggle && (
                     <DropdownMenuItem
-                      onClick={onRnmModeToggle}
+                      onClick={() => {
+                        onRnmModeToggle();
+                        setFilterDropdownOpen(false);
+                      }}
                       className={cn(
                         "gap-2 cursor-pointer",
                         isRnmModeActive && "bg-accent"
@@ -1247,7 +1279,10 @@ export function IndividualProcessesTable({
 
                   {onUrgentModeToggle && (
                     <DropdownMenuItem
-                      onClick={onUrgentModeToggle}
+                      onClick={() => {
+                        onUrgentModeToggle();
+                        setFilterDropdownOpen(false);
+                      }}
                       className={cn(
                         "gap-2 cursor-pointer",
                         isUrgentModeActive && "bg-accent"
@@ -1263,7 +1298,10 @@ export function IndividualProcessesTable({
 
                   {onQualExpProfModeToggle && (
                     <DropdownMenuItem
-                      onClick={onQualExpProfModeToggle}
+                      onClick={() => {
+                        onQualExpProfModeToggle();
+                        setFilterDropdownOpen(false);
+                      }}
                       className={cn(
                         "gap-2 cursor-pointer",
                         isQualExpProfModeActive && "bg-accent"

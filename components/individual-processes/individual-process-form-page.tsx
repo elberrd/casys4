@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -47,6 +47,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
+import { formatRelativeDate } from "@/lib/utils/date-utils"
 
 interface IndividualProcessFormPageProps {
   individualProcessId?: Id<"individualProcesses">
@@ -127,6 +128,9 @@ export function IndividualProcessFormPage({
 
   // Get passports for the selected person
   const selectedPersonId = form.watch("personId")
+
+  // Watch professional experience date for relative date calculation
+  const professionalExperienceDate = form.watch("professionalExperienceSince")
   const personPassports = useQuery(
     api.passports.listByPerson,
     selectedPersonId ? { personId: selectedPersonId as Id<"people"> } : "skip"
@@ -698,19 +702,37 @@ export function IndividualProcessFormPage({
                 <FormField
                   control={form.control}
                   name="professionalExperienceSince"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("professionalExperienceSince")}</FormLabel>
-                      <FormControl>
-                        <DatePicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t("professionalExperienceSinceLabel")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const relativeDate = professionalExperienceDate
+                      ? formatRelativeDate(professionalExperienceDate, {
+                          year: t("relativeDate.year"),
+                          years: t("relativeDate.years"),
+                          month: t("relativeDate.month"),
+                          months: t("relativeDate.months"),
+                          day: t("relativeDate.day"),
+                          days: t("relativeDate.days"),
+                        })
+                      : null;
+
+                    return (
+                      <FormItem>
+                        <FormLabel>{t("professionalExperienceSince")}</FormLabel>
+                        <FormControl>
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t("professionalExperienceSinceLabel")}
+                          />
+                        </FormControl>
+                        {relativeDate && (
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            {relativeDate}
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
 

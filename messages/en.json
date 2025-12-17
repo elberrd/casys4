@@ -854,7 +854,15 @@
     },
     "professionalExperienceSince": "Professional Experience",
     "professionalExperienceSinceLabel": "Since",
-    "selectProfessionalExperienceDate": "Select start date"
+    "selectProfessionalExperienceDate": "Select start date",
+    "relativeDate": {
+      "year": "year",
+      "years": "years",
+      "month": "month",
+      "months": "months",
+      "day": "day",
+      "days": "days"
+    }
   },
   "ProcessTimeline": {
     "title": "Process History",

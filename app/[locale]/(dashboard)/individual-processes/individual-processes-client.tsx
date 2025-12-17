@@ -433,11 +433,32 @@ export function IndividualProcessesClient() {
           selectedProgressStatuses={selectedProgressStatuses}
           onProgressStatusFilterChange={setSelectedProgressStatuses}
           isRnmModeActive={isRnmModeActive}
-          onRnmModeToggle={() => setIsRnmModeActive(!isRnmModeActive)}
+          onRnmModeToggle={() => {
+            // If activating RNM mode, deactivate others
+            if (!isRnmModeActive) {
+              setIsUrgentModeActive(false)
+              setIsQualExpProfModeActive(false)
+            }
+            setIsRnmModeActive(!isRnmModeActive)
+          }}
           isUrgentModeActive={isUrgentModeActive}
-          onUrgentModeToggle={() => setIsUrgentModeActive(!isUrgentModeActive)}
+          onUrgentModeToggle={() => {
+            // If activating Urgent mode, deactivate others
+            if (!isUrgentModeActive) {
+              setIsRnmModeActive(false)
+              setIsQualExpProfModeActive(false)
+            }
+            setIsUrgentModeActive(!isUrgentModeActive)
+          }}
           isQualExpProfModeActive={isQualExpProfModeActive}
-          onQualExpProfModeToggle={() => setIsQualExpProfModeActive(!isQualExpProfModeActive)}
+          onQualExpProfModeToggle={() => {
+            // If activating QUAL/EXP PROF mode, deactivate others
+            if (!isQualExpProfModeActive) {
+              setIsRnmModeActive(false)
+              setIsUrgentModeActive(false)
+            }
+            setIsQualExpProfModeActive(!isQualExpProfModeActive)
+          }}
         />
 
         <IndividualProcessFormDialog
