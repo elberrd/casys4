@@ -40,6 +40,8 @@ import {
   CalendarClock,
   Copy,
   AlertTriangle,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
@@ -57,6 +59,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -159,6 +167,9 @@ interface IndividualProcessesTableProps {
   // Urgent mode toggle props
   isUrgentModeActive?: boolean;
   onUrgentModeToggle?: () => void;
+  // QUAL/EXP PROF mode toggle props
+  isQualExpProfModeActive?: boolean;
+  onQualExpProfModeToggle?: () => void;
 }
 
 export function IndividualProcessesTable({
@@ -182,6 +193,8 @@ export function IndividualProcessesTable({
   onRnmModeToggle,
   isUrgentModeActive = false,
   onUrgentModeToggle,
+  isQualExpProfModeActive = false,
+  onQualExpProfModeToggle,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -191,12 +204,22 @@ export function IndividualProcessesTable({
     api.individualProcesses.updateUrgentForCollectiveGroup
   );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    filledFields: false, // Hide the filledFields column by default
-    rnmDeadline: false, // Hide the rnmDeadline column by default (controlled by RNM toggle)
-    protocolNumber: false, // Hide the protocolNumber column by default (controlled by Urgent toggle)
-    processStatus: true, // Show the processStatus column by default (hidden when Urgent toggle is active)
-  });
+
+  // Define initial column visibility state
+  const initialColumnVisibility: VisibilityState = {
+    filledFields: false,
+    rnmDeadline: false,
+    protocolNumber: false,
+    processStatus: true,
+    qualification: false,
+    professionalExperience: false,
+  };
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility);
+
+  // Store the initial state in a ref for restoration
+  const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility);
+
   const [sorting, setSorting] = useState<SortingState>([]);
   // Optimistic state for urgent flag toggles
   const [optimisticUrgent, setOptimisticUrgent] = useState<
@@ -245,6 +268,30 @@ export function IndividualProcessesTable({
       }));
     }
   }, [isUrgentModeActive]);
+
+  // Handle QUAL/EXP PROF mode toggle - show specific columns for qualification view
+  useEffect(() => {
+    if (isQualExpProfModeActive) {
+      setColumnVisibility((prev) => ({
+        ...prev,
+        // Hide columns that aren't relevant to qual/exp view
+        processTypeIndicator: false,
+        urgent: false,
+        companyApplicant: false,
+        caseStatus: false,
+        processStatus: false,
+        protocolNumber: false,
+        rnmDeadline: false,
+        // Show qual/exp specific columns
+        "person.fullName": true,  // Candidate
+        "processType.name": true, // Authorization Type
+        "legalFramework.name": true, // Legal Support
+        qualification: true,
+        professionalExperience: true,
+      }));
+    }
+    // Note: Restoration is handled by the clear filters button
+  }, [isQualExpProfModeActive]);
 
   // Wrap setRowSelection to prevent state updates during render
   const handleRowSelectionChange = useCallback(
@@ -557,6 +604,65 @@ export function IndividualProcessesTable({
             {row.original.legalFramework?.name || "-"}
           </span>
         ),
+      },
+      {
+        accessorKey: "qualification",
+        id: "qualification",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("qualification")} />
+        ),
+        cell: ({ row }) => {
+          const filledFields = row.original.activeStatus?.filledFieldsData;
+          const qualification = filledFields?.qualification;
+
+          if (!qualification) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          // Use translation key from qualificationOptions
+          const qualificationLabel = t(`qualificationOptions.${qualification}` as any);
+          return <span className="text-sm">{qualificationLabel}</span>;
+        },
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
+        accessorKey: "professionalExperience",
+        id: "professionalExperience",
+        header: ({ column }) => (
+          <DataGridColumnHeader
+            column={column}
+            title={t("professionalExperienceSince")}
+          />
+        ),
+        cell: ({ row }) => {
+          const filledFields = row.original.activeStatus?.filledFieldsData;
+          const experienceDate = filledFields?.professionalExperienceSince;
+
+          if (!experienceDate) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          // Parse the ISO date string (YYYY-MM-DD)
+          const [year, month, day] = experienceDate.split("-").map(Number);
+          if (!year || !month || !day) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const date = new Date(year, month - 1, day);
+          const formattedDate = date.toLocaleDateString(
+            locale === "en" ? "en-US" : "pt-BR",
+            {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }
+          );
+
+          return <span className="text-sm">{formattedDate}</span>;
+        },
+        enableSorting: true,
+        enableHiding: true,
       },
       {
         accessorKey: "caseStatus.name",
@@ -1099,71 +1205,102 @@ export function IndividualProcessesTable({
                 clearButtonAriaLabel={t("filters.clearProgressStatus")}
               />
             )}
-            {onRnmModeToggle && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+            {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
-                      variant={isRnmModeActive ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
+                      className={cn(
+                        "min-h-10 gap-2 relative",
+                        (isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) &&
+                        "border-amber-500"
+                      )}
+                    >
+                      {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                        </span>
+                      )}
+                      <span className="font-medium">{t("filtersDropdown")}</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                  {onRnmModeToggle && (
+                    <DropdownMenuItem
                       onClick={onRnmModeToggle}
-                      className={`min-h-10 gap-2 transition-all duration-200 ${
-                        isRnmModeActive
-                          ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
-                          : "hover:border-amber-500 hover:text-amber-600"
-                      }`}
+                      className={cn(
+                        "gap-2 cursor-pointer",
+                        isRnmModeActive && "bg-accent"
+                      )}
                     >
-                      <CalendarClock
-                        className={`h-4 w-4 ${isRnmModeActive ? "animate-pulse" : ""}`}
-                      />
-                      <span className="font-medium">RNM</span>
+                      <CalendarClock className="h-4 w-4" />
+                      <span className="flex-1">RNM</span>
                       {isRnmModeActive && (
-                        <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                        <span className="flex h-2 w-2 rounded-full bg-amber-500" />
                       )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>
-                      {isRnmModeActive
-                        ? t("rnmModeDisable")
-                        : t("rnmModeEnable")}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {onUrgentModeToggle && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={isUrgentModeActive ? "default" : "outline"}
-                      size="sm"
+                    </DropdownMenuItem>
+                  )}
+
+                  {onUrgentModeToggle && (
+                    <DropdownMenuItem
                       onClick={onUrgentModeToggle}
-                      className={`min-h-10 gap-2 transition-all duration-200 ${
-                        isUrgentModeActive
-                          ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
-                          : "hover:border-amber-500 hover:text-amber-600"
-                      }`}
-                    >
-                      <AlertTriangle
-                        className={`h-4 w-4 ${isUrgentModeActive ? "animate-pulse" : ""}`}
-                      />
-                      <span className="font-medium">{t("alertsButton")}</span>
-                      {isUrgentModeActive && (
-                        <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                      className={cn(
+                        "gap-2 cursor-pointer",
+                        isUrgentModeActive && "bg-accent"
                       )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>
-                      {isUrgentModeActive
-                        ? t("alertsModeDisable")
-                        : t("alertsModeEnable")}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="flex-1">{t("alertsButton")}</span>
+                      {isUrgentModeActive && (
+                        <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                      )}
+                    </DropdownMenuItem>
+                  )}
+
+                  {onQualExpProfModeToggle && (
+                    <DropdownMenuItem
+                      onClick={onQualExpProfModeToggle}
+                      className={cn(
+                        "gap-2 cursor-pointer",
+                        isQualExpProfModeActive && "bg-accent"
+                      )}
+                    >
+                      <FileEdit className="h-4 w-4" />
+                      <span className="flex-1">{t("qualExpProfButton")}</span>
+                      {isQualExpProfModeActive && (
+                        <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                      )}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Deactivate all filters
+                    if (isRnmModeActive && onRnmModeToggle) onRnmModeToggle();
+                    if (isUrgentModeActive && onUrgentModeToggle) onUrgentModeToggle();
+                    if (isQualExpProfModeActive && onQualExpProfModeToggle) onQualExpProfModeToggle();
+
+                    // Restore initial column visibility and sorting state after useEffects complete
+                    setTimeout(() => {
+                      setColumnVisibility(initialColumnVisibilityRef.current);
+                      setSorting([]);
+                      previousSortingRef.current = null;
+                    }, 0);
+                  }}
+                  className="h-10 w-10 p-0 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             )}
           </div>
           <DataGridColumnVisibility

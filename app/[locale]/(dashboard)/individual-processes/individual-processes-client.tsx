@@ -34,6 +34,7 @@ export function IndividualProcessesClient() {
   const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
+  const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -435,6 +436,8 @@ export function IndividualProcessesClient() {
           onRnmModeToggle={() => setIsRnmModeActive(!isRnmModeActive)}
           isUrgentModeActive={isUrgentModeActive}
           onUrgentModeToggle={() => setIsUrgentModeActive(!isUrgentModeActive)}
+          isQualExpProfModeActive={isQualExpProfModeActive}
+          onQualExpProfModeToggle={() => setIsQualExpProfModeActive(!isQualExpProfModeActive)}
         />
 
         <IndividualProcessFormDialog
