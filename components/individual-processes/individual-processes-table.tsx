@@ -281,8 +281,6 @@ export function IndividualProcessesTable({
       setColumnVisibility((prev) => ({
         ...prev,
         // Hide columns that aren't relevant to qual/exp view
-        processTypeIndicator: false,
-        urgent: false,
         companyApplicant: false,
         caseStatus: false,
         processStatus: false,

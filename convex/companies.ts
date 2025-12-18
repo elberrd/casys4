@@ -529,3 +529,415 @@ export const setEconomicActivities = mutation({
     );
   },
 });
+
+/**
+ * Dashboard Analytics Queries
+ */
+
+/**
+ * Get company dashboard stats - total processes counts
+ */
+export const getCompanyDashboardStats = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    return {
+      totalCollectiveProcesses: collectiveProcesses.length,
+      totalIndividualProcesses: allIndividualProcesses.length,
+    };
+  },
+});
+
+/**
+ * Get company process type distribution
+ */
+export const getCompanyProcessTypeDistribution = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    // Count by processTypeId
+    const processTypeCounts = new Map<string, number>();
+    for (const ip of allIndividualProcesses) {
+      if (ip.processTypeId) {
+        const key = ip.processTypeId;
+        processTypeCounts.set(key, (processTypeCounts.get(key) || 0) + 1);
+      }
+    }
+
+    // Get process type details and calculate percentages
+    const total = allIndividualProcesses.length;
+    const distribution = await Promise.all(
+      Array.from(processTypeCounts.entries()).map(async ([processTypeId, count]) => {
+        const processType = await ctx.db.get(processTypeId as Id<"processTypes">);
+        return {
+          processTypeId,
+          processTypeName: processType?.name || "Unknown",
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        };
+      })
+    );
+
+    // Sort by count descending
+    return distribution.sort((a, b) => b.count - a.count);
+  },
+});
+
+/**
+ * Get company legal framework distribution
+ */
+export const getCompanyLegalFrameworkDistribution = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    // Count by legalFrameworkId
+    const legalFrameworkCounts = new Map<string, number>();
+    for (const ip of allIndividualProcesses) {
+      if (ip.legalFrameworkId) {
+        const key = ip.legalFrameworkId;
+        legalFrameworkCounts.set(key, (legalFrameworkCounts.get(key) || 0) + 1);
+      }
+    }
+
+    // Get legal framework details and calculate percentages
+    const total = allIndividualProcesses.length;
+    const distribution = await Promise.all(
+      Array.from(legalFrameworkCounts.entries()).map(async ([legalFrameworkId, count]) => {
+        const legalFramework = await ctx.db.get(legalFrameworkId as Id<"legalFrameworks">);
+        return {
+          legalFrameworkId,
+          legalFrameworkName: legalFramework?.name || "Unknown",
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        };
+      })
+    );
+
+    // Sort by count descending
+    return distribution.sort((a, b) => b.count - a.count);
+  },
+});
+
+/**
+ * Get company status distribution
+ */
+export const getCompanyStatusDistribution = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    // Count by caseStatusId
+    const statusCounts = new Map<string, number>();
+    let emPreparacaoCount = 0;
+
+    for (const ip of allIndividualProcesses) {
+      if (ip.caseStatusId) {
+        const key = ip.caseStatusId;
+        statusCounts.set(key, (statusCounts.get(key) || 0) + 1);
+
+        // Check if this is "em_preparacao" status
+        const caseStatus = await ctx.db.get(ip.caseStatusId);
+        if (caseStatus?.code === "em_preparacao") {
+          emPreparacaoCount++;
+        }
+      }
+    }
+
+    // Get case status details and calculate percentages
+    const total = allIndividualProcesses.length;
+    const distribution = await Promise.all(
+      Array.from(statusCounts.entries()).map(async ([caseStatusId, count]) => {
+        const caseStatus = await ctx.db.get(caseStatusId as Id<"caseStatuses">);
+        return {
+          caseStatusId,
+          statusName: caseStatus?.name || "Unknown",
+          statusCode: caseStatus?.code || "unknown",
+          color: caseStatus?.color || "#gray",
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+          isEmPreparacao: caseStatus?.code === "em_preparacao",
+        };
+      })
+    );
+
+    // Sort by count descending
+    return {
+      distribution: distribution.sort((a, b) => b.count - a.count),
+      emPreparacaoCount,
+      total,
+    };
+  },
+});
+
+/**
+ * Get company qualification stats - count processes without qualification and professional experience
+ */
+export const getCompanyQualificationStats = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    // Count missing data
+    let withoutQualification = 0;
+    let withoutProfExperience = 0;
+
+    for (const ip of allIndividualProcesses) {
+      if (!ip.qualification) {
+        withoutQualification++;
+      }
+      if (!ip.professionalExperienceSince) {
+        withoutProfExperience++;
+      }
+    }
+
+    return {
+      withoutQualification,
+      withoutProfExperience,
+      total: allIndividualProcesses.length,
+    };
+  },
+});
+
+/**
+ * Get detailed list of processes with missing qualification/experience data
+ */
+export const getProcessesWithMissingData = query({
+  args: {
+    companyId: v.id("companies"),
+    missingType: v.optional(v.union(v.literal("qualification"), v.literal("profExperience"), v.literal("both"))),
+  },
+  handler: async (ctx, { companyId, missingType = "both" }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Check access permissions
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId || companyId !== userProfile.companyId) {
+        throw new Error(
+          "Access denied: You do not have permission to view this company's data"
+        );
+      }
+    }
+
+    // Get all collective processes for this company
+    const collectiveProcesses = await ctx.db
+      .query("collectiveProcesses")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .collect();
+
+    const collectiveProcessIds = collectiveProcesses.map((cp) => cp._id);
+
+    // Get all individual processes for these collective processes
+    const individualProcesses = await Promise.all(
+      collectiveProcessIds.map((cpId) =>
+        ctx.db
+          .query("individualProcesses")
+          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", cpId))
+          .collect()
+      )
+    );
+
+    const allIndividualProcesses = individualProcesses.flat();
+
+    // Filter processes based on missing data type
+    const processesWithMissingData = allIndividualProcesses.filter((ip) => {
+      const missingQualification = !ip.qualification;
+      const missingProfExperience = !ip.professionalExperienceSince;
+
+      if (missingType === "qualification") return missingQualification;
+      if (missingType === "profExperience") return missingProfExperience;
+      return missingQualification || missingProfExperience;
+    });
+
+    // Get detailed information for each process
+    const detailedProcesses = await Promise.all(
+      processesWithMissingData.map(async (ip) => {
+        const person = await ctx.db.get(ip.personId);
+        const processType = ip.processTypeId
+          ? await ctx.db.get(ip.processTypeId)
+          : null;
+        const legalFramework = ip.legalFrameworkId
+          ? await ctx.db.get(ip.legalFrameworkId)
+          : null;
+        const caseStatus = ip.caseStatusId
+          ? await ctx.db.get(ip.caseStatusId)
+          : null;
+
+        return {
+          _id: ip._id,
+          person: person ? {
+            _id: person._id,
+            fullName: person.fullName,
+          } : null,
+          processType: processType ? {
+            _id: processType._id,
+            name: processType.name,
+          } : null,
+          legalFramework: legalFramework ? {
+            _id: legalFramework._id,
+            name: legalFramework.name,
+          } : null,
+          caseStatus: caseStatus ? {
+            _id: caseStatus._id,
+            name: caseStatus.name,
+            code: caseStatus.code,
+            color: caseStatus.color,
+          } : null,
+          missingQualification: !ip.qualification,
+          missingProfExperience: !ip.professionalExperienceSince,
+          qualification: ip.qualification,
+          professionalExperienceSince: ip.professionalExperienceSince,
+        };
+      })
+    );
+
+    return detailedProcesses;
+  },
+});

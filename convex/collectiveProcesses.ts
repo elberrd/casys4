@@ -116,6 +116,12 @@ export const list = query({
         // Calculate collective process status
         const calculatedStatus = calculateCollectiveProcessStatus(individualProcesses, "pt");
 
+        // Create simplified list for table display (person name + date)
+        const individualProcessesDisplay = individualProcesses.map(ip => ({
+          personName: ip.person?.fullName || "-",
+          dateProcess: ip.dateProcess || "-",
+        }));
+
         return {
           ...process,
           company,
@@ -124,6 +130,7 @@ export const list = query({
           workplaceCity,
           consulate,
           individualProcessesCount: individualProcesses.length,
+          individualProcessesDisplay,
           calculatedStatus,
         };
       }),

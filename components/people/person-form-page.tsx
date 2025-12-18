@@ -80,6 +80,7 @@ export function PersonFormPage({
       nationalityId: "" as Id<"countries">,
       maritalStatus: "",
       profession: "",
+      funcao: "",
       motherName: "",
       fatherName: "",
       phoneNumber: "",
@@ -113,6 +114,7 @@ export function PersonFormPage({
         nationalityId: person.nationalityId,
         maritalStatus: person.maritalStatus as "Single" | "Married" | "Divorced" | "Widowed",
         profession: person.profession,
+        funcao: person.funcao ?? "",
         motherName: person.motherName,
         fatherName: person.fatherName,
         phoneNumber: person.phoneNumber,
@@ -161,6 +163,7 @@ export function PersonFormPage({
         nationalityId: data.nationalityId || undefined,
         maritalStatus: data.maritalStatus || undefined,
         profession: data.profession || undefined,
+        funcao: data.funcao || undefined,
         motherName: data.motherName || undefined,
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
@@ -266,43 +269,6 @@ export function PersonFormPage({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('email')}</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="john@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="cpf"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('cpf')}</FormLabel>
-                      <div className="relative">
-                        <FormControl>
-                          <CPFInput {...field} />
-                        </FormControl>
-                        <CpfValidationFeedback
-                          isChecking={isChecking}
-                          isAvailable={isAvailable}
-                          existingPerson={existingPerson}
-                        />
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
                   name="birthDate"
                   render={({ field }) => (
                     <FormItem>
@@ -333,8 +299,7 @@ export function PersonFormPage({
                           onClick={() => setQuickCityDialogOpen(true)}
                           className="h-7"
                         >
-                          <Plus className="h-4 w-4 mr-1" />
-                          {t('quickAddCity')}
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       <FormControl>
@@ -369,6 +334,43 @@ export function PersonFormPage({
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('email')}</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="john@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="cpf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('cpf')}</FormLabel>
+                      <div className="relative">
+                        <FormControl>
+                          <CPFInput {...field} />
+                        </FormControl>
+                        <CpfValidationFeedback
+                          isChecking={isChecking}
+                          isAvailable={isAvailable}
+                          existingPerson={existingPerson}
+                        />
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <Separator />
@@ -443,6 +445,20 @@ export function PersonFormPage({
                     <FormLabel>{t('profession')}</FormLabel>
                     <FormControl>
                       <Input placeholder="Software Engineer" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="funcao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('funcao')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('funcaoPlaceholder')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

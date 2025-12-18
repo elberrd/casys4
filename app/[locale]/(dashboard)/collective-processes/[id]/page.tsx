@@ -13,10 +13,11 @@ import { BulkStatusUpdateDialog } from "@/components/collective-processes/bulk-s
 import { AddPeopleToCollectiveDialog } from "@/components/collective-processes/add-people-to-collective-dialog"
 import { CollectiveStatusUpdateDialog } from "@/components/collective-processes/collective-status-update-dialog"
 import { AddStatusDialog } from "@/components/individual-processes/add-status-dialog"
+import { ChangeAuthorizationDialog } from "@/components/individual-processes/change-authorization-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserPlus, RefreshCcw } from "lucide-react"
+import { UserPlus, RefreshCcw, Shield } from "lucide-react"
 import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 
@@ -34,6 +35,7 @@ export default function CollectiveProcessDetailPage() {
   const [addPeopleDialogOpen, setAddPeopleDialogOpen] = useState(false)
   const [collectiveStatusDialogOpen, setCollectiveStatusDialogOpen] = useState(false)
   const [individualStatusDialogOpen, setIndividualStatusDialogOpen] = useState(false)
+  const [changeAuthorizationDialogOpen, setChangeAuthorizationDialogOpen] = useState(false)
   const [selectedIndividualProcessId, setSelectedIndividualProcessId] = useState<Id<"individualProcesses"> | null>(null)
   const [selectedProcesses, setSelectedProcesses] = useState<Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>>([])
 
@@ -65,6 +67,10 @@ export default function CollectiveProcessDetailPage() {
     setCollectiveStatusDialogOpen(true)
   }
 
+  const handleChangeAuthorization = () => {
+    setChangeAuthorizationDialogOpen(true)
+  }
+
   const handleBulkStatusUpdate = (selected: Array<{ _id: Id<"individualProcesses">; personId: Id<"people">; status?: string }>) => {
     setSelectedProcesses(selected)
     setBulkStatusDialogOpen(true)
@@ -79,6 +85,10 @@ export default function CollectiveProcessDetailPage() {
   }
 
   const handleCollectiveStatusSuccess = () => {
+    router.refresh()
+  }
+
+  const handleChangeAuthorizationSuccess = () => {
     router.refresh()
   }
 
@@ -137,6 +147,12 @@ export default function CollectiveProcessDetailPage() {
                   <RefreshCcw className="mr-2 h-4 w-4" />
                   {t('updateCollectiveStatus')}
                 </Button>
+                {individualProcesses.length > 0 && (
+                  <Button variant="outline" onClick={handleChangeAuthorization}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    {t('changeAuthorizationButton')}
+                  </Button>
+                )}
                 <Button onClick={handleAddPeople}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   {t('addPeople')}
@@ -218,6 +234,20 @@ export default function CollectiveProcessDetailPage() {
             if (!open) {
               setSelectedIndividualProcessId(null)
               router.refresh()
+            }
+          }}
+        />
+      )}
+
+      {/* Change Authorization Dialog */}
+      {individualProcesses.length > 0 && individualProcesses[0] && (
+        <ChangeAuthorizationDialog
+          individualProcessId={individualProcesses[0]._id}
+          open={changeAuthorizationDialogOpen}
+          onOpenChange={(open) => {
+            setChangeAuthorizationDialogOpen(open)
+            if (!open) {
+              handleChangeAuthorizationSuccess()
             }
           }}
         />

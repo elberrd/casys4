@@ -145,11 +145,17 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-sm font-medium">{t('status')}</div>
-                <div>
-                  <Badge variant={statusVariant}>
-                    {individualProcess.activeStatus?.statusName || individualProcess.status}
-                  </Badge>
+                <div className="text-sm font-medium">{t('companyApplicant')}</div>
+                <div className="text-sm">
+                  {individualProcess.companyApplicant?.name || '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('processType')}</div>
+                <div className="text-sm">{individualProcess.processType?.name || '-'}</div>
+
+                <div className="text-sm font-medium">{t('consulate')}</div>
+                <div className="text-sm">
+                  {individualProcess.consulate?.city?.name || '-'}
                 </div>
 
                 <div className="text-sm font-medium">{t('legalFramework')}</div>
@@ -158,14 +164,15 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm font-medium">{t('protocolNumber')}</div>
                 <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
 
-                <div className="text-sm font-medium">{t('rnmNumber')}</div>
-                <div className="text-sm font-mono">{individualProcess.rnmNumber || '-'}</div>
-
-                <div className="text-sm font-medium">{t('rnmDeadline')}</div>
-                <div className="text-sm">{individualProcess.rnmDeadline || '-'}</div>
-
                 <div className="text-sm font-medium">{t('deadlineDate')}</div>
                 <div className="text-sm">{individualProcess.deadlineDate || '-'}</div>
+
+                <div className="text-sm font-medium">{t('userApplicant')}</div>
+                <div className="text-sm">
+                  {individualProcess.userApplicant && individualProcess.userApplicant.company
+                    ? `${individualProcess.userApplicant.fullName} - ${individualProcess.userApplicant.company.name}`
+                    : '-'}
+                </div>
 
                 <div className="text-sm font-medium">{t('isActive')}</div>
                 <div>
@@ -191,17 +198,41 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm font-medium">{t('email')}</div>
                 <div className="text-sm">{individualProcess.person?.email || '-'}</div>
 
-                <div className="text-sm font-medium">{t('companyApplicant')}</div>
-                <div className="text-sm">
-                  {individualProcess.companyApplicant?.name || '-'}
-                </div>
+                {individualProcess.lastSalaryAmount && (
+                  <>
+                    <div className="text-sm font-medium">{t('lastSalaryAmount')}</div>
+                    <div className="text-sm">
+                      {individualProcess.lastSalaryCurrency} {individualProcess.lastSalaryAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </>
+                )}
 
-                <div className="text-sm font-medium">{t('userApplicant')}</div>
-                <div className="text-sm">
-                  {individualProcess.userApplicant && individualProcess.userApplicant.company
-                    ? `${individualProcess.userApplicant.fullName} - ${individualProcess.userApplicant.company.name}`
-                    : '-'}
-                </div>
+                {individualProcess.exchangeRateToBRL && (
+                  <>
+                    <div className="text-sm font-medium">{t('exchangeRateToBRL')}</div>
+                    <div className="text-sm">
+                      {individualProcess.exchangeRateToBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </>
+                )}
+
+                {individualProcess.salaryInBRL && (
+                  <>
+                    <div className="text-sm font-medium">{t('salaryInBRL')}</div>
+                    <div className="text-sm">
+                      R$ {individualProcess.salaryInBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </>
+                )}
+
+                {individualProcess.monthlyAmountToReceive && (
+                  <>
+                    <div className="text-sm font-medium">{t('monthlyAmountToReceive')}</div>
+                    <div className="text-sm">
+                      R$ {individualProcess.monthlyAmountToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </>
+                )}
 
                 {individualProcess.cbo && (
                   <>

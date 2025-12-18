@@ -88,6 +88,12 @@ export const individualProcessSchema = z.object({
   deadlineUnit: z.string().optional().or(z.literal("")),
   deadlineQuantity: z.coerce.number().optional(),
   deadlineSpecificDate: z.string().optional().or(z.literal("")),
+  // Salary and currency fields
+  lastSalaryCurrency: z.string().optional().or(z.literal("")),
+  lastSalaryAmount: z.coerce.number().positive("Salary amount must be positive").optional(),
+  exchangeRateToBRL: z.coerce.number().positive("Exchange rate must be positive").optional(),
+  salaryInBRL: z.coerce.number().optional(),
+  monthlyAmountToReceive: z.coerce.number().positive("Monthly amount must be positive").optional(),
   isActive: z.boolean().optional(), // DEPRECATED: Use processStatus instead
   processStatus: z.enum(["Atual", "Anterior"]).optional().default("Atual"),
 });

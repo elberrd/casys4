@@ -149,8 +149,13 @@ export function IndividualProcessStatusesSubtable({
     );
   }
 
-  // Sort statuses by changedAt descending (most recent first)
-  const sortedStatuses = [...statuses].sort((a, b) => b.changedAt - a.changedAt);
+  // Sort statuses by date descending (most recent first)
+  // Use the date field (YYYY-MM-DD) or fall back to changedAt timestamp
+  const sortedStatuses = [...statuses].sort((a, b) => {
+    const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+    const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+    return dateB.localeCompare(dateA); // Descending order (most recent first)
+  });
 
   // Date formatting helper
   const formatDateDisplay = (dateString: string): string => {

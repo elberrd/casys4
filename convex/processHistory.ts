@@ -143,7 +143,7 @@ export const getByIndividualProcess = query({
       .withIndex("by_individualProcess", (q) =>
         q.eq("individualProcessId", args.individualProcessId),
       )
-      .order("asc") // Oldest first for timeline display
+      .order("desc") // Most recent first
       .collect();
 
     // Enrich with user information

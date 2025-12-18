@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 
 import { cn, normalizeString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -622,10 +621,11 @@ function ComboboxMultiple<T extends string = string>({
                     }
                     onSelect={handleSelect}
                   >
-                    <Checkbox
-                      checked={selectedValues.includes(option.value)}
-                      className="mr-2 pointer-events-none"
-                    />
+                    <div className="mr-2 h-4 w-4 flex items-center justify-center">
+                      {selectedValues.includes(option.value) && (
+                        <Check className="h-4 w-4" />
+                      )}
+                    </div>
                     {option.icon && <span className="mr-2">{option.icon}</span>}
                     {option.label}
                   </CommandItem>
@@ -649,10 +649,11 @@ function ComboboxMultiple<T extends string = string>({
                       }
                       onSelect={handleSelect}
                     >
-                      <Checkbox
-                        checked={selectedValues.includes(option.value)}
-                        className="mr-2 pointer-events-none"
-                      />
+                      <div className="mr-2 h-4 w-4 flex items-center justify-center">
+                        {selectedValues.includes(option.value) && (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </div>
                       {option.icon && (
                         <span className="mr-2">{option.icon}</span>
                       )}

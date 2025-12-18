@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
 import { CompaniesTable } from "@/components/companies/companies-table"
-import { CompanyViewModal } from "@/components/companies/company-view-modal"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
 
@@ -20,7 +19,6 @@ export function CompaniesClient() {
   const router = useRouter()
 
   const [editingId, setEditingId] = useState<Id<"companies"> | null>(null)
-  const [viewingId, setViewingId] = useState<Id<"companies"> | null>(null)
 
   const companies = useQuery(api.companies.list, {}) ?? []
   const deleteCompany = useMutation(api.companies.remove)
@@ -32,7 +30,7 @@ export function CompaniesClient() {
   ]
 
   const handleView = (id: Id<"companies">) => {
-    setViewingId(id)
+    router.push(`/companies/${id}`)
   }
 
   const handleEdit = (id: Id<"companies">) => {
@@ -73,18 +71,6 @@ export function CompaniesClient() {
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
-
-        {viewingId && (
-          <CompanyViewModal
-            companyId={viewingId}
-            open={true}
-            onOpenChange={(open) => !open && setViewingId(null)}
-            onEdit={() => {
-              setEditingId(viewingId)
-              setViewingId(null)
-            }}
-          />
-        )}
 
         {editingId && (
           <CompanyFormDialog

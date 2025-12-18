@@ -373,8 +373,7 @@ export function PersonFormDialog({
                           onClick={() => setQuickCityDialogOpen(true)}
                           className="h-7"
                         >
-                          <Plus className="h-4 w-4 mr-1" />
-                          {t('quickAddCity')}
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       <FormControl>

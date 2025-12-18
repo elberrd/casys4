@@ -171,7 +171,7 @@ export const getStatusHistory = query({
       }
     }
 
-    // Query all statuses and sort by changedAt (oldest to newest)
+    // Query all statuses
     const statuses = await ctx.db
       .query("individualProcessStatuses")
       .withIndex("by_individualProcess", (q) =>
@@ -179,8 +179,13 @@ export const getStatusHistory = query({
       )
       .collect();
 
-    // Sort by changedAt in ascending order (oldest first)
-    const sortedStatuses = statuses.sort((a, b) => a.changedAt - b.changedAt);
+    // Sort by date field (YYYY-MM-DD) descending (most recent first)
+    // Fall back to changedAt timestamp if date is not set
+    const sortedStatuses = statuses.sort((a, b) => {
+      const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+      const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+      return dateB.localeCompare(dateA); // Descending order
+    });
 
     // Enrich with user information and case status details
     const enrichedStatuses = await Promise.all(

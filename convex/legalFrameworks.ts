@@ -130,6 +130,31 @@ export const getProcessTypes = query({
 });
 
 /**
+ * Query to get legal frameworks filtered by processTypeId
+ * Returns only active legal frameworks linked to the specified authorization type
+ */
+export const listByProcessType = query({
+  args: { processTypeId: v.id("processTypes") },
+  handler: async (ctx, { processTypeId }) => {
+    // Get all junction table records for this process type
+    const links = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_processType", (q) => q.eq("processTypeId", processTypeId))
+      .collect();
+
+    // Get all legal frameworks for these links (only active ones)
+    const legalFrameworks = await Promise.all(
+      links.map(async (link) => {
+        const lf = await ctx.db.get(link.legalFrameworkId);
+        return lf && lf.isActive ? lf : null;
+      })
+    );
+
+    return legalFrameworks.filter((lf) => lf !== null);
+  },
+});
+
+/**
  * Mutation to create legal framework (admin only)
  */
 export const create = mutation({

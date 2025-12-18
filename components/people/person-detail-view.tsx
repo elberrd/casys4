@@ -252,7 +252,7 @@ export function PersonDetailView({
             )}
 
             {/* Professional Information */}
-            {(person.profession || currentCompany?.company) && (
+            {(person.profession || person.funcao || currentCompany?.company) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -267,6 +267,14 @@ export function PersonDetailView({
                         {t("profession")}
                       </p>
                       <p className="text-base mt-1">{person.profession}</p>
+                    </div>
+                  )}
+                  {person.funcao && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {t("funcao")}
+                      </p>
+                      <p className="text-base mt-1">{person.funcao}</p>
                     </div>
                   )}
                   {currentCompany?.company && (

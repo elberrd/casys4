@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
@@ -10,6 +11,7 @@ import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Plus } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 export function CollectiveProcessesClient() {
   const t = useTranslations('CollectiveProcesses')
@@ -17,13 +19,29 @@ export function CollectiveProcessesClient() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const router = useRouter()
 
+  const [selectedProcessTypes, setSelectedProcessTypes] = useState<Id<"processTypes">[]>([])
+
   const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
+  const processTypes = useQuery(api.processTypes.list, {}) ?? []
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
     { label: tBreadcrumbs('processManagement') },
     { label: tBreadcrumbs('collectiveProcesses') }
   ]
+
+  // Filter collective processes by selected process types
+  const filteredCollectiveProcesses = selectedProcessTypes.length > 0
+    ? collectiveProcesses.filter(process =>
+        process.processType && selectedProcessTypes.includes(process.processType._id)
+      )
+    : collectiveProcesses
+
+  // Prepare process types options for multi-select
+  const processTypeOptions = processTypes.map(type => ({
+    value: type._id,
+    label: type.name,
+  }))
 
   const handleView = (id: Id<"collectiveProcesses">) => {
     router.push(`/collective-processes/${id}`)
@@ -54,9 +72,18 @@ export function CollectiveProcessesClient() {
         </div>
 
         <CollectiveProcessesTable
-          collectiveProcesses={collectiveProcesses}
+          collectiveProcesses={filteredCollectiveProcesses}
           onView={handleView}
           onEdit={handleEdit}
+          filterSlot={
+            <MultiSelect
+              options={processTypeOptions}
+              defaultValue={selectedProcessTypes}
+              onValueChange={setSelectedProcessTypes}
+              placeholder={t('selectProcessType')}
+              className="w-full sm:w-[250px]"
+            />
+          }
         />
       </div>
     </>

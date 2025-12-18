@@ -27,9 +27,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, ChevronsUpDown } from "lucide-react";
 import { DynamicFieldRenderer } from "./dynamic-field-renderer";
 import { getFieldsMetadata } from "@/lib/individual-process-fields";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface AddStatusDialogProps {
   individualProcessId: Id<"individualProcesses">;
@@ -50,6 +64,7 @@ export function AddStatusDialog({
   const [notes, setNotes] = useState("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [comboboxOpen, setComboboxOpen] = useState(false);
 
   // Query active case statuses
   const caseStatuses = useQuery(api.caseStatuses.listActive);
@@ -209,36 +224,80 @@ export function AddStatusDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="status">{t("status")}</Label>
-              <Select
-                value={selectedStatusId as string}
-                onValueChange={(value) => setSelectedStatusId(value as Id<"caseStatuses">)}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue placeholder={t("selectStatus")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {caseStatuses?.map((status) => {
-                    const isSuggested = suggestedNextStatus?._id === status._id;
-                    return (
-                      <SelectItem key={status._id} value={status._id}>
-                        <div className="flex items-center gap-2">
-                          <span>{status.name}</span>
-                          {status.orderNumber && (
-                            <Badge variant="outline" className="text-xs">
-                              #{status.orderNumber}
-                            </Badge>
-                          )}
-                          {isSuggested && (
-                            <Badge variant="secondary" className="text-xs">
-                              {t("suggestedStatus")}
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={comboboxOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedStatusId ? (
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {caseStatuses?.find((status) => status._id === selectedStatusId)?.name}
+                        </span>
+                        {caseStatuses?.find((status) => status._id === selectedStatusId)?.orderNumber && (
+                          <Badge variant="outline" className="text-xs">
+                            #{caseStatuses.find((status) => status._id === selectedStatusId)?.orderNumber}
+                          </Badge>
+                        )}
+                        {suggestedNextStatus?._id === selectedStatusId && (
+                          <Badge variant="secondary" className="text-xs">
+                            {t("suggestedStatus")}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">{t("selectStatus")}</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder={t("searchStatus")} />
+                    <CommandList>
+                      <CommandEmpty>{t("noStatusFound")}</CommandEmpty>
+                      <CommandGroup>
+                        {caseStatuses?.map((status) => {
+                          const isSuggested = suggestedNextStatus?._id === status._id;
+                          return (
+                            <CommandItem
+                              key={status._id}
+                              value={`${status.name} ${status.orderNumber || ""}`}
+                              onSelect={() => {
+                                setSelectedStatusId(status._id);
+                                setComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedStatusId === status._id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div className="flex items-center gap-2">
+                                <span>{status.name}</span>
+                                {status.orderNumber && (
+                                  <Badge variant="outline" className="text-xs">
+                                    #{status.orderNumber}
+                                  </Badge>
+                                )}
+                                {isSuggested && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {t("suggestedStatus")}
+                                  </Badge>
+                                )}
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="grid gap-2">

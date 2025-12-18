@@ -46,8 +46,11 @@ import {
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Plus, Calculator, Loader2 } from "lucide-react"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
+import { getCountryCurrencyOptions, getCurrencySymbol } from "@/lib/constants/currencies"
+import { CurrencyInput } from "@/components/ui/currency-input"
+import { fetchExchangeRate } from "@/lib/api/exchange-rate"
 
 interface IndividualProcessFormPageProps {
   individualProcessId?: Id<"individualProcesses">
@@ -122,6 +125,11 @@ export function IndividualProcessFormPage({
       deadlineUnit: "",
       deadlineQuantity: undefined,
       deadlineSpecificDate: "",
+      lastSalaryCurrency: "USD",
+      lastSalaryAmount: undefined,
+      exchangeRateToBRL: undefined,
+      salaryInBRL: undefined,
+      monthlyAmountToReceive: undefined,
       isActive: true,
     },
   })
@@ -141,6 +149,75 @@ export function IndividualProcessFormPage({
 
   // Watch deadline unit for conditional field display
   const selectedDeadlineUnit = form.watch("deadlineUnit")
+
+  // Watch salary fields for currency conversion
+  const selectedCurrency = form.watch("lastSalaryCurrency")
+  const lastSalaryAmount = form.watch("lastSalaryAmount")
+  const exchangeRate = form.watch("exchangeRateToBRL")
+
+  // Loading state for exchange rate fetch
+  const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false)
+
+  // Fetch exchange rate when currency changes
+  useEffect(() => {
+    const fetchRate = async () => {
+      if (!selectedCurrency || selectedCurrency === "BRL") {
+        return // Don't fetch for BRL or empty selection
+      }
+
+      setIsLoadingExchangeRate(true)
+      try {
+        const rate = await fetchExchangeRate(selectedCurrency)
+        if (rate !== null) {
+          form.setValue("exchangeRateToBRL", rate)
+          toast({
+            title: t("exchangeRateUpdated") || "Taxa de câmbio atualizada",
+            description: `1 ${selectedCurrency} = R$ ${rate.toFixed(4)}`,
+          })
+        } else {
+          // Não conseguiu buscar a taxa
+          toast({
+            title: "Não foi possível buscar a taxa de câmbio",
+            description: `Por favor, insira a taxa manualmente para ${selectedCurrency}`,
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching exchange rate:", error)
+        toast({
+          title: "Erro ao buscar taxa de câmbio",
+          description: "Por favor, insira a taxa manualmente",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingExchangeRate(false)
+      }
+    }
+
+    fetchRate()
+  }, [selectedCurrency, form, toast, t])
+
+  // Check if conversion can be calculated
+  const canCalculateConversion = Boolean(
+    selectedCurrency &&
+    lastSalaryAmount &&
+    lastSalaryAmount > 0 &&
+    exchangeRate &&
+    exchangeRate > 0
+  )
+
+  // Handle conversion calculation
+  const handleCalculateConversion = () => {
+    if (canCalculateConversion) {
+      const converted = lastSalaryAmount! * exchangeRate!
+      const convertedValue = Number(converted.toFixed(2))
+      form.setValue("salaryInBRL", convertedValue)
+      form.setValue("monthlyAmountToReceive", convertedValue)
+      toast({
+        title: t("conversionCalculated"),
+      })
+    }
+  }
 
   // Get filtered legal frameworks based on selected authorization type
   const filteredLegalFrameworks = useQuery(
@@ -196,6 +273,11 @@ export function IndividualProcessFormPage({
         deadlineUnit: individualProcess.deadlineUnit ?? "",
         deadlineQuantity: individualProcess.deadlineQuantity,
         deadlineSpecificDate: individualProcess.deadlineSpecificDate ?? "",
+        lastSalaryCurrency: individualProcess.lastSalaryCurrency ?? "USD",
+        lastSalaryAmount: individualProcess.lastSalaryAmount,
+        exchangeRateToBRL: individualProcess.exchangeRateToBRL,
+        salaryInBRL: individualProcess.salaryInBRL,
+        monthlyAmountToReceive: individualProcess.monthlyAmountToReceive,
         isActive: individualProcess.isActive,
       })
       setHasInitializedForm(true)
@@ -317,6 +399,11 @@ export function IndividualProcessFormPage({
         deadlineUnit: "",
         deadlineQuantity: undefined,
         deadlineSpecificDate: "",
+        lastSalaryCurrency: "USD",
+        lastSalaryAmount: undefined,
+        exchangeRateToBRL: undefined,
+        salaryInBRL: undefined,
+        monthlyAmountToReceive: undefined,
         isActive: true,
       })
       setHasInitializedForm(true)
@@ -400,6 +487,11 @@ export function IndividualProcessFormPage({
         deadlineUnit: data.deadlineUnit || undefined,
         deadlineQuantity: data.deadlineQuantity,
         deadlineSpecificDate: data.deadlineSpecificDate || undefined,
+        lastSalaryCurrency: data.lastSalaryCurrency || undefined,
+        lastSalaryAmount: data.lastSalaryAmount,
+        exchangeRateToBRL: data.exchangeRateToBRL,
+        salaryInBRL: data.salaryInBRL,
+        monthlyAmountToReceive: data.monthlyAmountToReceive,
       }
 
       if (individualProcessId) {
@@ -818,6 +910,161 @@ export function IndividualProcessFormPage({
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Salary Information Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("salaryInformation")}</h3>
+
+              {/* Currency and Amount Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="lastSalaryCurrency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("lastSalaryCurrency")}</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={getCountryCurrencyOptions(locale).map(option => ({
+                            value: option.value,
+                            label: option.label,
+                          }))}
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          placeholder={t("selectCountryForCurrency")}
+                          searchPlaceholder={t("searchCountry")}
+                          emptyText={t("noCountryFound")}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="lastSalaryAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("lastSalaryAmount")}</FormLabel>
+                      <FormControl>
+                        <CurrencyInput
+                          placeholder={t("enterSalaryAmount")}
+                          value={field.value}
+                          onChange={field.onChange}
+                          currencySymbol={selectedCurrency ? getCurrencySymbol(selectedCurrency) : undefined}
+                          currencyCode={selectedCurrency || "USD"}
+                          disabled={!selectedCurrency}
+                        />
+                      </FormControl>
+                      {!selectedCurrency && (
+                        <FormDescription className="text-muted-foreground text-xs">
+                          {t("selectCurrencyFirst")}
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Exchange Rate and Calculated Value Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="exchangeRateToBRL"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        {t("exchangeRateToBRL")}
+                        {isLoadingExchangeRate && (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                        )}
+                      </FormLabel>
+                      <FormControl>
+                        <CurrencyInput
+                          placeholder={t("enterExchangeRate")}
+                          value={field.value}
+                          onChange={field.onChange}
+                          currencySymbol="R$"
+                          currencyCode="BRL"
+                          disabled={isLoadingExchangeRate}
+                        />
+                      </FormControl>
+                      {selectedCurrency && (
+                        <FormDescription className="text-xs text-muted-foreground">
+                          {isLoadingExchangeRate
+                            ? "Buscando cotação..."
+                            : `1 ${getCurrencySymbol(selectedCurrency)} = X R$`
+                          }
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="salaryInBRL"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("salaryInBRL")}</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <CurrencyInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            currencySymbol="R$"
+                            currencyCode="BRL"
+                            disabled
+                            className="bg-muted flex-1"
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          disabled={!canCalculateConversion}
+                          onClick={handleCalculateConversion}
+                          className="h-10 w-10 shrink-0"
+                          title={t("calculateConversion")}
+                        >
+                          <Calculator className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Monthly Amount to Receive */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="monthlyAmountToReceive"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("monthlyAmountToReceive")}</FormLabel>
+                      <FormControl>
+                        <CurrencyInput
+                          placeholder={t("enterMonthlyAmount")}
+                          value={field.value}
+                          onChange={field.onChange}
+                          currencySymbol="R$"
+                          currencyCode="BRL"
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs text-muted-foreground">
+                        {t("monthlyAmountDescription")}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Deadline Information Section */}

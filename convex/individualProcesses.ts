@@ -246,7 +246,7 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate] = await Promise.all([
+    const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate, processType] = await Promise.all([
       ctx.db.get(process.personId),
       process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -270,6 +270,8 @@ export const get = query({
       process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
       // Get consulate details if consulateId exists
       process.consulateId ? ctx.db.get(process.consulateId) : null,
+      // Get process type details if processTypeId exists
+      process.processTypeId ? ctx.db.get(process.processTypeId) : null,
     ]);
 
     // Check access permissions for client users
@@ -410,6 +412,7 @@ export const get = query({
       companyApplicant, // NEW: Include company applicant
       userApplicant: enrichedUserApplicant, // NEW: Include user applicant with company
       consulate: enrichedConsulate, // Include consulate with city, state, country
+      processType, // Include process type details
     };
   },
 });
@@ -448,6 +451,11 @@ export const create = mutation({
     deadlineUnit: v.optional(v.string()),
     deadlineQuantity: v.optional(v.number()),
     deadlineSpecificDate: v.optional(v.string()),
+    lastSalaryCurrency: v.optional(v.string()),
+    lastSalaryAmount: v.optional(v.number()),
+    exchangeRateToBRL: v.optional(v.number()),
+    salaryInBRL: v.optional(v.number()),
+    monthlyAmountToReceive: v.optional(v.number()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
     urgent: v.optional(v.boolean()),
@@ -515,6 +523,11 @@ export const create = mutation({
       deadlineUnit: args.deadlineUnit,
       deadlineQuantity: args.deadlineQuantity,
       deadlineSpecificDate: args.deadlineSpecificDate,
+      lastSalaryCurrency: args.lastSalaryCurrency,
+      lastSalaryAmount: args.lastSalaryAmount,
+      exchangeRateToBRL: args.exchangeRateToBRL,
+      salaryInBRL: args.salaryInBRL,
+      monthlyAmountToReceive: args.monthlyAmountToReceive,
       isActive: args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
       processStatus: args.processStatus ?? "Atual", // Default to "Atual" for new processes
       urgent: args.urgent,
@@ -783,6 +796,11 @@ export const update = mutation({
     deadlineUnit: v.optional(v.string()),
     deadlineQuantity: v.optional(v.number()),
     deadlineSpecificDate: v.optional(v.string()),
+    lastSalaryCurrency: v.optional(v.string()),
+    lastSalaryAmount: v.optional(v.number()),
+    exchangeRateToBRL: v.optional(v.number()),
+    salaryInBRL: v.optional(v.number()),
+    monthlyAmountToReceive: v.optional(v.number()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
     urgent: v.optional(v.boolean()),
@@ -869,6 +887,11 @@ export const update = mutation({
       updates.deadlineQuantity = args.deadlineQuantity;
     if (args.deadlineSpecificDate !== undefined)
       updates.deadlineSpecificDate = args.deadlineSpecificDate;
+    if (args.lastSalaryCurrency !== undefined) updates.lastSalaryCurrency = args.lastSalaryCurrency;
+    if (args.lastSalaryAmount !== undefined) updates.lastSalaryAmount = args.lastSalaryAmount;
+    if (args.exchangeRateToBRL !== undefined) updates.exchangeRateToBRL = args.exchangeRateToBRL;
+    if (args.salaryInBRL !== undefined) updates.salaryInBRL = args.salaryInBRL;
+    if (args.monthlyAmountToReceive !== undefined) updates.monthlyAmountToReceive = args.monthlyAmountToReceive;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.urgent !== undefined) updates.urgent = args.urgent;
 
@@ -1300,5 +1323,149 @@ export const updateUrgentForCollectiveGroup = mutation({
     }
 
     return id;
+  },
+});
+
+/**
+ * Mutation to update authorization fields (processTypeId, legalFrameworkId, deadline) for all individual processes in a collective group
+ * Similar to updateUrgentForCollectiveGroup but for authorization-related fields
+ */
+export const updateAuthorizationForCollectiveGroup = mutation({
+  args: {
+    id: v.id("individualProcesses"),
+    processTypeId: v.optional(v.id("processTypes")),
+    legalFrameworkId: v.optional(v.id("legalFrameworks")),
+    deadlineUnit: v.optional(v.union(v.literal("years"), v.literal("months"), v.literal("days"))),
+    deadlineQuantity: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, processTypeId, legalFrameworkId, deadlineUnit, deadlineQuantity }) => {
+    // Require admin role
+    const userProfile = await requireAdmin(ctx);
+
+    const process = await ctx.db.get(id);
+    if (!process) {
+      throw new Error("Individual process not found");
+    }
+
+    const now = Date.now();
+
+    // Calculate deadline specific date if unit and quantity are provided
+    let deadlineSpecificDate: string | undefined = undefined;
+    if (deadlineUnit && deadlineQuantity !== undefined && deadlineQuantity > 0) {
+      const currentDate = new Date();
+
+      switch (deadlineUnit) {
+        case "years":
+          currentDate.setFullYear(currentDate.getFullYear() + deadlineQuantity);
+          break;
+        case "months":
+          currentDate.setMonth(currentDate.getMonth() + deadlineQuantity);
+          break;
+        case "days":
+          currentDate.setDate(currentDate.getDate() + deadlineQuantity);
+          break;
+      }
+
+      // Format as ISO date (YYYY-MM-DD)
+      deadlineSpecificDate = currentDate.toISOString().split('T')[0];
+    }
+
+    // Prepare update object
+    const updateData: {
+      processTypeId?: Id<"processTypes">;
+      legalFrameworkId?: Id<"legalFrameworks">;
+      deadlineUnit?: "years" | "months" | "days";
+      deadlineQuantity?: number;
+      deadlineSpecificDate?: string;
+      updatedAt: number;
+    } = {
+      updatedAt: now,
+    };
+
+    if (processTypeId !== undefined) updateData.processTypeId = processTypeId;
+    if (legalFrameworkId !== undefined) updateData.legalFrameworkId = legalFrameworkId;
+    if (deadlineUnit !== undefined) updateData.deadlineUnit = deadlineUnit;
+    if (deadlineQuantity !== undefined) updateData.deadlineQuantity = deadlineQuantity;
+    if (deadlineSpecificDate !== undefined) updateData.deadlineSpecificDate = deadlineSpecificDate;
+
+    // Update the current process
+    await ctx.db.patch(id, updateData);
+
+    // If this process is part of a collective process, update all other processes in the same collective
+    if (process.collectiveProcessId) {
+      // Get all individual processes from the same collective process
+      const relatedProcesses = await ctx.db
+        .query("individualProcesses")
+        .withIndex("by_collectiveProcess", (q) =>
+          q.eq("collectiveProcessId", process.collectiveProcessId)
+        )
+        .collect();
+
+      // Update all related processes (excluding the current one)
+      const updatePromises = relatedProcesses
+        .filter((p) => p._id !== id)
+        .map((p) => ctx.db.patch(p._id, updateData));
+
+      await Promise.all(updatePromises);
+
+      // Log activity for bulk update
+      try {
+        const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+        if (!userProfile.userId) throw new Error("User must be activated");
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "bulk_authorization_update",
+          entityType: "individualProcess",
+          entityId: id,
+          details: {
+            collectiveProcessReference: collectiveProcess?.referenceNumber,
+            processTypeId,
+            legalFrameworkId,
+            deadlineUnit,
+            deadlineQuantity,
+            deadlineSpecificDate,
+            affectedProcesses: relatedProcesses.length,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+    } else {
+      // If not part of a collective process, just log the individual update
+      try {
+        const person = await ctx.db.get(process.personId);
+        if (!userProfile.userId) throw new Error("User must be activated");
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "authorization_update",
+          entityType: "individualProcess",
+          entityId: id,
+          details: {
+            personName: person?.fullName,
+            processTypeId,
+            legalFrameworkId,
+            deadlineUnit,
+            deadlineQuantity,
+            deadlineSpecificDate,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+    }
+
+    return {
+      id,
+      affectedProcesses: process.collectiveProcessId
+        ? (await ctx.db
+            .query("individualProcesses")
+            .withIndex("by_collectiveProcess", (q) =>
+              q.eq("collectiveProcessId", process.collectiveProcessId!)
+            )
+            .collect()).length
+        : 1
+    };
   },
 });

@@ -33,7 +33,7 @@ import { useTranslations, useLocale } from "next-intl"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
-import { globalFuzzyFilter } from "@/lib/fuzzy-search"
+import { globalFuzzyFilter, fuzzyMatch } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
@@ -61,6 +61,10 @@ interface CollectiveProcess {
     name: string
   } | null
   individualProcessesCount?: number
+  individualProcessesDisplay?: Array<{
+    personName: string
+    dateProcess: string
+  }>
   createdAt: number
   // NEW: Calculated status from individual processes
   calculatedStatus?: {
@@ -84,13 +88,15 @@ interface CollectiveProcessesTableProps {
   onView?: (id: Id<"collectiveProcesses">) => void
   onEdit?: (id: Id<"collectiveProcesses">) => void
   onDelete?: (id: Id<"collectiveProcesses">) => void
+  filterSlot?: React.ReactNode
 }
 
 export function CollectiveProcessesTable({
   collectiveProcesses,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  filterSlot
 }: CollectiveProcessesTableProps) {
   const t = useTranslations('CollectiveProcesses')
   const tCommon = useTranslations('Common')
@@ -273,13 +279,23 @@ export function CollectiveProcessesTable({
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('individualCount')} />
         ),
-        cell: ({ row }) => (
-          <div className="text-center">
-            <Badge variant="outline">
-              {row.original.individualProcessesCount ?? 0}
-            </Badge>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const processes = row.original.individualProcessesDisplay || []
+
+          if (processes.length === 0) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+
+          return (
+            <div className="flex flex-col gap-1 py-1">
+              {processes.map((process, idx) => (
+                <div key={idx} className="text-sm">
+                  {process.dateProcess} - <DataGridHighlightedCell text={process.personName} />
+                </div>
+              ))}
+            </div>
+          )
+        },
       },
       {
         accessorKey: "isUrgent",
@@ -365,6 +381,36 @@ export function CollectiveProcessesTable({
     [t, tCommon, onView, onEdit, onDelete]
   )
 
+  // Custom global filter that also searches in individual process names
+  const customGlobalFilter = (
+    row: { getValue: (columnId: string) => unknown; getAllCells: () => Array<{ column: { id: string }; getValue: () => unknown }>; original: CollectiveProcess },
+    columnId: string,
+    filterValue: string
+  ): boolean => {
+    if (!filterValue) return true
+
+    // First, try the standard fuzzy filter on all cells
+    const cells = row.getAllCells()
+    for (const cell of cells) {
+      const value = cell.getValue()
+      if (value && typeof value === "string") {
+        if (fuzzyMatch(value, filterValue) !== null) {
+          return true
+        }
+      }
+    }
+
+    // Also search in individual process person names
+    const processes = row.original.individualProcessesDisplay || []
+    for (const process of processes) {
+      if (process.personName && fuzzyMatch(process.personName, filterValue) !== null) {
+        return true
+      }
+    }
+
+    return false
+  }
+
   const table = useReactTable({
     data: collectiveProcesses,
     columns,
@@ -372,12 +418,17 @@ export function CollectiveProcessesTable({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    globalFilterFn: globalFuzzyFilter,
+    globalFilterFn: customGlobalFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     initialState: {
       pagination: {
         pageSize: 50,
+      },
+      columnVisibility: {
+        referenceNumber: false,
+        "contactPerson.fullName": false,
+        requestDate: false,
       },
     },
     state: {
@@ -397,7 +448,10 @@ export function CollectiveProcessesTable({
     >
       <div className="w-full space-y-2.5">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-          <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+            <DataGridFilter table={table} className="w-full sm:max-w-sm" />
+            {filterSlot}
+          </div>
           <DataGridColumnVisibility
             table={table}
             trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}

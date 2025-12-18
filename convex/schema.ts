@@ -92,6 +92,7 @@ export default defineSchema({
     nationalityId: v.optional(v.id("countries")),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
+    funcao: v.optional(v.string()),
     motherName: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -286,6 +287,12 @@ export default defineSchema({
     deadlineUnit: v.optional(v.string()), // "years", "months", or "days"
     deadlineQuantity: v.optional(v.number()), // Numeric quantity for the deadline unit
     deadlineSpecificDate: v.optional(v.string()), // ISO date format YYYY-MM-DD - Specific deadline date
+    // Salary and currency information
+    lastSalaryCurrency: v.optional(v.string()), // Currency code (e.g., "USD", "EUR")
+    lastSalaryAmount: v.optional(v.number()), // Salary amount in selected currency
+    exchangeRateToBRL: v.optional(v.number()), // Exchange rate value (BRL per unit of foreign currency)
+    salaryInBRL: v.optional(v.number()), // Calculated salary in BRL
+    monthlyAmountToReceive: v.optional(v.number()), // Monthly amount candidate will receive in BRL
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
     urgent: v.optional(v.boolean()), // Flag to mark process as urgent
