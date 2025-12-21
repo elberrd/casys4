@@ -10,14 +10,18 @@ export const personSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email format").optional().or(z.literal("")),
   cpf: z
-    .string()
-    .regex(cpfRegex, "Invalid CPF format")
-    .refine((val) => !val || val === "" || isValidCPF(val), {
-      message: "Invalid CPF check digits",
-    })
-    .transform((val) => (val ? cleanDocumentNumber(val) : val))
-    .optional()
-    .or(z.literal("")),
+    .union([
+      z.literal(""),
+      z.string()
+        .refine((val) => cpfRegex.test(val), {
+          message: "Invalid CPF format",
+        })
+        .refine((val) => isValidCPF(val), {
+          message: "Invalid CPF check digits",
+        })
+        .transform((val) => cleanDocumentNumber(val)),
+    ])
+    .optional(),
   birthDate: z.string().optional().or(z.literal("")),
   birthCityId: z.custom<Id<"cities">>((val) => typeof val === "string" && val.length > 0, {
     message: "Birth city ID must be valid",

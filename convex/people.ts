@@ -417,10 +417,40 @@ export const update = mutation({
       }
     }
 
-    await ctx.db.patch(id, {
-      ...data,
+    // Get current document to preserve system fields
+    const current = await ctx.db.get(id);
+    if (!current) {
+      throw new Error("Person not found");
+    }
+
+    // Build replacement document - only include optional fields if they have values
+    // To remove an optional field in Convex, don't include it in replace()
+    const replacement: any = {
+      _id: current._id,
+      _creationTime: current._creationTime,
+      createdAt: current.createdAt,
+      fullName: data.fullName,
       updatedAt: Date.now(),
-    });
+    };
+
+    // Only include optional fields if they have non-empty values
+    if (data.email) replacement.email = data.email;
+    if (data.cpf && data.cpf !== "") replacement.cpf = data.cpf;
+    if (data.birthDate) replacement.birthDate = data.birthDate;
+    if (data.birthCityId) replacement.birthCityId = data.birthCityId;
+    if (data.nationalityId) replacement.nationalityId = data.nationalityId;
+    if (data.maritalStatus) replacement.maritalStatus = data.maritalStatus;
+    if (data.profession) replacement.profession = data.profession;
+    if (data.funcao) replacement.funcao = data.funcao;
+    if (data.motherName) replacement.motherName = data.motherName;
+    if (data.fatherName) replacement.fatherName = data.fatherName;
+    if (data.phoneNumber) replacement.phoneNumber = data.phoneNumber;
+    if (data.address) replacement.address = data.address;
+    if (data.currentCityId) replacement.currentCityId = data.currentCityId;
+    if (data.photoUrl) replacement.photoUrl = data.photoUrl;
+    if (data.notes) replacement.notes = data.notes;
+
+    await ctx.db.replace(id, replacement);
 
     return id;
   },

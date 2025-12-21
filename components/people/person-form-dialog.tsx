@@ -204,7 +204,7 @@ export function PersonFormDialog({
       const submitData = {
         ...dataWithoutCompany,
         email: data.email || undefined,
-        cpf: data.cpf || undefined,
+        cpf: data.cpf === "" ? "" : data.cpf, // Send empty string instead of undefined
         birthDate: data.birthDate || undefined,
         birthCityId: data.birthCityId === "" ? undefined : data.birthCityId,
         nationalityId: data.nationalityId === "" ? undefined : data.nationalityId,

@@ -22,6 +22,8 @@ import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 import { PersonFormDialog } from "@/components/people/person-form-dialog"
 import { formatDate } from "@/lib/format-field-value"
+import { formatCPF } from "@/lib/utils/document-masks"
+import { translateCountryName } from "@/lib/utils/country-translations"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -165,7 +167,11 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <div className="text-sm font-medium">{t('dateProcess')}</div>
-                <div className="text-sm">{individualProcess.dateProcess || '-'}</div>
+                <div className="text-sm">
+                  {individualProcess.dateProcess
+                    ? formatDate(individualProcess.dateProcess, resolvedParams.locale)
+                    : '-'}
+                </div>
 
                 <div className="text-sm font-medium">{t('userApplicant')}</div>
                 <div className="text-sm">
@@ -191,7 +197,22 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 </div>
 
                 <div className="text-sm font-medium">{t('deadlineDate')}</div>
-                <div className="text-sm">{individualProcess.deadlineDate || '-'}</div>
+                <div className="text-sm">
+                  {(() => {
+                    const process = individualProcess as any;
+                    if (process.deadlineQuantity && process.deadlineUnit) {
+                      const quantity = process.deadlineQuantity;
+                      const unit = process.deadlineUnit;
+                      const unitLabel = unit === 'years'
+                        ? (quantity === 1 ? (resolvedParams.locale === 'en' ? 'year' : 'ano') : (resolvedParams.locale === 'en' ? 'years' : 'anos'))
+                        : unit === 'months'
+                        ? (quantity === 1 ? (resolvedParams.locale === 'en' ? 'month' : 'mês') : (resolvedParams.locale === 'en' ? 'months' : 'meses'))
+                        : (quantity === 1 ? (resolvedParams.locale === 'en' ? 'day' : 'dia') : (resolvedParams.locale === 'en' ? 'days' : 'dias'));
+                      return `${quantity} ${unitLabel}`;
+                    }
+                    return individualProcess.deadlineDate || '-';
+                  })()}
+                </div>
 
                 <div className="text-sm font-medium">{t('protocolNumber')}</div>
                 <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
@@ -218,10 +239,10 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <div className="text-sm font-medium">{tPeople('cpf')}</div>
-                <div className="text-sm">{individualProcess.person?.cpf || '-'}</div>
+                <div className="text-sm">{individualProcess.person?.cpf ? formatCPF(individualProcess.person.cpf) : '-'}</div>
 
                 <div className="text-sm font-medium">{tPeople('nationality')}</div>
-                <div className="text-sm">{(individualProcess.person as any)?.nationality?.name || '-'}</div>
+                <div className="text-sm">{(individualProcess.person as any)?.nationality?.name ? translateCountryName((individualProcess.person as any).nationality.name, resolvedParams.locale) : '-'}</div>
 
                 <div className="text-sm font-medium">{tPeople('maritalStatus')}</div>
                 <div className="text-sm">

@@ -46,7 +46,7 @@ import {
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { Plus, Calculator, Loader2 } from "lucide-react"
+import { Plus, Calculator, Loader2, RefreshCw } from "lucide-react"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
 import { getCountryCurrencyOptions, getCurrencySymbol } from "@/lib/constants/currencies"
 import { CurrencyInput } from "@/components/ui/currency-input"
@@ -158,44 +158,40 @@ export function IndividualProcessFormPage({
   // Loading state for exchange rate fetch
   const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false)
 
-  // Fetch exchange rate when currency changes
-  useEffect(() => {
-    const fetchRate = async () => {
-      if (!selectedCurrency || selectedCurrency === "BRL") {
-        return // Don't fetch for BRL or empty selection
-      }
-
-      setIsLoadingExchangeRate(true)
-      try {
-        const rate = await fetchExchangeRate(selectedCurrency)
-        if (rate !== null) {
-          form.setValue("exchangeRateToBRL", rate)
-          toast({
-            title: t("exchangeRateUpdated") || "Taxa de câmbio atualizada",
-            description: `1 ${selectedCurrency} = R$ ${rate.toFixed(4)}`,
-          })
-        } else {
-          // Não conseguiu buscar a taxa
-          toast({
-            title: "Não foi possível buscar a taxa de câmbio",
-            description: `Por favor, insira a taxa manualmente para ${selectedCurrency}`,
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        console.error("Error fetching exchange rate:", error)
-        toast({
-          title: "Erro ao buscar taxa de câmbio",
-          description: "Por favor, insira a taxa manualmente",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoadingExchangeRate(false)
-      }
+  // Manual function to fetch exchange rate when user clicks the button
+  const handleFetchExchangeRate = async () => {
+    if (!selectedCurrency || selectedCurrency === "BRL") {
+      return // Don't fetch for BRL or empty selection
     }
 
-    fetchRate()
-  }, [selectedCurrency, form, toast, t])
+    setIsLoadingExchangeRate(true)
+    try {
+      const rate = await fetchExchangeRate(selectedCurrency)
+      if (rate !== null) {
+        form.setValue("exchangeRateToBRL", rate)
+        toast({
+          title: t("exchangeRateUpdated") || "Taxa de câmbio atualizada",
+          description: `1 ${selectedCurrency} = R$ ${rate.toFixed(4)}`,
+        })
+      } else {
+        // Não conseguiu buscar a taxa
+        toast({
+          title: "Não foi possível buscar a taxa de câmbio",
+          description: `Por favor, insira a taxa manualmente para ${selectedCurrency}`,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching exchange rate:", error)
+      toast({
+        title: "Erro ao buscar taxa de câmbio",
+        description: "Por favor, insira a taxa manualmente",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingExchangeRate(false)
+    }
+  }
 
   // Check if conversion can be calculated
   const canCalculateConversion = Boolean(
@@ -981,16 +977,30 @@ export function IndividualProcessFormPage({
                           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                         )}
                       </FormLabel>
-                      <FormControl>
-                        <CurrencyInput
-                          placeholder={t("enterExchangeRate")}
-                          value={field.value}
-                          onChange={field.onChange}
-                          currencySymbol="R$"
-                          currencyCode="BRL"
-                          disabled={isLoadingExchangeRate}
-                        />
-                      </FormControl>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <CurrencyInput
+                            placeholder={t("enterExchangeRate")}
+                            value={field.value}
+                            onChange={field.onChange}
+                            currencySymbol="R$"
+                            currencyCode="BRL"
+                            disabled={isLoadingExchangeRate}
+                            className="flex-1"
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          disabled={!selectedCurrency || selectedCurrency === "BRL" || isLoadingExchangeRate}
+                          onClick={handleFetchExchangeRate}
+                          className="h-10 w-10 shrink-0"
+                          title={t("fetchExchangeRate") || "Buscar cotação"}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </div>
                       {selectedCurrency && (
                         <FormDescription className="text-xs text-muted-foreground">
                           {isLoadingExchangeRate
