@@ -1221,7 +1221,7 @@ export function IndividualProcessesTable({
       },
       {
         id: "actions",
-        minSize: 60,
+        minSize: 50,
         header: () => <span className="sr-only">{tCommon("actions")}</span>,
         cell: ({ row }) => {
           const actions = [];
@@ -1379,33 +1379,33 @@ export function IndividualProcessesTable({
       onRowClick={onRowClick ? (row) => onRowClick(row._id) : undefined}
     >
       <div className="w-full space-y-2.5">
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
-            <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-            {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
-              <div className="flex items-center gap-1">
-                <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "min-h-10 gap-2 relative",
-                        (isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) &&
-                        "border-amber-500"
-                      )}
-                    >
-                      {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
-                        <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                        </span>
-                      )}
-                      <span className="font-medium">{t("filtersDropdown")}</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56">
+        {/* First row: Search, filter modes dropdown, and column visibility */}
+        <div className="flex flex-wrap items-center gap-2">
+          <DataGridFilter table={table} className="flex-1 min-w-[200px] max-w-sm" />
+          {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "min-h-10 gap-2 relative",
+                      (isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) &&
+                      "border-amber-500"
+                    )}
+                  >
+                    {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
+                      <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                      </span>
+                    )}
+                    <span className="font-medium">{t("filtersDropdown")}</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
                   {onRnmModeToggle && (
                     <DropdownMenuItem
                       onClick={() => {
@@ -1488,11 +1488,11 @@ export function IndividualProcessesTable({
               )}
             </div>
           )}
-          </div>
+          {/* Column visibility button */}
           <DataGridColumnVisibility
             table={table}
             trigger={
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" className="flex-shrink-0">
                 Columns
               </Button>
             }
@@ -1500,7 +1500,7 @@ export function IndividualProcessesTable({
         </div>
         {/* Second row: Applicant, Candidate, and Progress Status filters */}
         {(onApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange) && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             {onApplicantFilterChange && applicantOptions.length > 0 && (
               <Combobox
                 multiple
@@ -1510,7 +1510,7 @@ export function IndividualProcessesTable({
                 placeholder={t("filters.selectApplicants")}
                 searchPlaceholder={t("filters.searchApplicants")}
                 emptyText={t("filters.noApplicantsFound")}
-                triggerClassName="w-full sm:w-[280px] min-h-10"
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearApplicants")}
               />
@@ -1524,7 +1524,7 @@ export function IndividualProcessesTable({
                 placeholder={t("filters.selectCandidates")}
                 searchPlaceholder={t("filters.searchCandidates")}
                 emptyText={t("filters.noCandidatesFound")}
-                triggerClassName="w-full sm:w-[280px] min-h-10"
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearCandidates")}
               />
@@ -1538,7 +1538,7 @@ export function IndividualProcessesTable({
                 placeholder={t("filters.selectProgressStatus")}
                 searchPlaceholder={t("filters.searchProgressStatus")}
                 emptyText={t("filters.noProgressStatusFound")}
-                triggerClassName="w-full sm:w-[280px] min-h-10"
+                triggerClassName="min-w-[160px] max-w-[280px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearProgressStatus")}
               />
@@ -1593,10 +1593,12 @@ export function IndividualProcessesTable({
             ]}
           />
         )}
-        <DataGridContainer>
-          <ScrollArea>
-            <DataGridTable />
-            <ScrollBar orientation="horizontal" />
+        <DataGridContainer className="overflow-x-auto">
+          <ScrollArea className="w-full">
+            <div className="min-w-full">
+              <DataGridTable />
+            </div>
+            <ScrollBar orientation="horizontal" className="h-3" />
           </ScrollArea>
         </DataGridContainer>
         <DataGridPagination />

@@ -266,7 +266,7 @@ export function DataGridContainer({
   return (
     <div
       className={cn(
-        "rounded-md border bg-background w-full max-w-full overflow-hidden",
+        "rounded-md border bg-background w-full max-w-full",
         className
       )}
     >

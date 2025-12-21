@@ -41,15 +41,13 @@ export function DataGridTable() {
   const rows = table.getRowModel().rows
 
   return (
-    <div className="relative w-full overflow-x-auto overflow-y-visible">
+    <div className="relative w-full overflow-x-auto overflow-y-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
       <table
         className={cn(
-          "w-full caption-bottom text-sm",
-          tableLayout.width === "fixed" && "md:table-fixed",
-          "table-fixed min-w-max",
+          "w-max min-w-full caption-bottom text-sm",
+          tableLayout.width === "fixed" && "table-fixed",
           tableClassNames.base
         )}
-        style={{ minWidth: '100%' }}
       >
         {/* Header */}
         <thead

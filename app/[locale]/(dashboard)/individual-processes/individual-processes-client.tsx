@@ -674,56 +674,52 @@ export function IndividualProcessesClient() {
 
   return (
     <>
-      <DashboardPageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{t('title')}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t('description')}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Saved Filters Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-shrink-0">
-                  <FilterIcon className="h-4 w-4" />
-                  <span className="ml-2 hidden sm:inline">{tSavedFilters("title")}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
-                <SavedFiltersList
-                  filterType="individualProcesses"
-                  onApplyFilter={handleApplySavedFilter}
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Save Filter Button */}
-            <SaveFilterButton
-              hasActiveFilters={hasActiveFilters}
-              onClick={() => setIsSaveFilterSheetOpen(true)}
-            />
-
-            {/* Excel Export Button */}
-            <ExcelExportDialog
-              columns={prepareExcelColumns()}
-              data={prepareExcelData()}
-              defaultFilename={getExcelFilename()}
-              grouped={selectedProgressStatuses.length >= 2}
-            >
-              <Button variant="outline" size="sm" className="flex-shrink-0">
-                <FileSpreadsheet className="h-4 w-4" />
-                <span className="ml-2 hidden sm:inline">{tExport("exportToExcel")}</span>
-              </Button>
-            </ExcelExportDialog>
-
-            <Button onClick={() => router.push('/process-wizard')} className="flex-shrink-0">
-              <Plus className="h-4 w-4" />
-              <span className="ml-2 hidden sm:inline">{tCommon('create')}</span>
+      <DashboardPageHeader breadcrumbs={breadcrumbs}>
+        {/* Action buttons - no header, sempre visíveis */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <FilterIcon className="h-4 w-4" />
+              <span className="ml-2 hidden lg:inline">{tSavedFilters("title")}</span>
             </Button>
-          </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+            <SavedFiltersList
+              filterType="individualProcesses"
+              onApplyFilter={handleApplySavedFilter}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <SaveFilterButton
+          hasActiveFilters={hasActiveFilters}
+          onClick={() => setIsSaveFilterSheetOpen(true)}
+        />
+
+        <ExcelExportDialog
+          columns={prepareExcelColumns()}
+          data={prepareExcelData()}
+          defaultFilename={getExcelFilename()}
+          grouped={selectedProgressStatuses.length >= 2}
+        >
+          <Button variant="outline" size="sm">
+            <FileSpreadsheet className="h-4 w-4" />
+            <span className="ml-2 hidden lg:inline">{tExport("exportToExcel")}</span>
+          </Button>
+        </ExcelExportDialog>
+
+        <Button onClick={() => router.push('/process-wizard')}>
+          <Plus className="h-4 w-4" />
+          <span className="ml-2 hidden lg:inline">{tCommon('create')}</span>
+        </Button>
+      </DashboardPageHeader>
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {/* Page title and description */}
+        <div>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t('description')}
+          </p>
         </div>
 
 {/* Hidden: Advanced filters - preserved for future use

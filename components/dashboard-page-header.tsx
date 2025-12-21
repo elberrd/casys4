@@ -23,29 +23,29 @@ export interface DashboardPageHeaderProps {
 
 export function DashboardPageHeader({ breadcrumbs, children }: DashboardPageHeaderProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-      <div className="flex items-center gap-2 px-4 flex-1">
-        <SidebarTrigger className="-ml-1" />
+    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 min-w-0 flex-1">
+        <SidebarTrigger className="-ml-1 flex-shrink-0" />
         <Separator
           orientation="vertical"
-          className="mr-2 data-[orientation=vertical]:h-4"
+          className="mr-2 data-[orientation=vertical]:h-4 flex-shrink-0"
         />
-        <Breadcrumb>
-          <BreadcrumbList>
+        <Breadcrumb className="min-w-0 flex-1">
+          <BreadcrumbList className="flex-nowrap">
             {breadcrumbs.map((breadcrumb, index) => {
               const isLast = index === breadcrumbs.length - 1
 
               return (
                 <div key={index} className="contents">
                   {index > 0 && (
-                    <BreadcrumbSeparator className="hidden md:block" />
+                    <BreadcrumbSeparator className="hidden md:block flex-shrink-0" />
                   )}
-                  <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbItem className="hidden md:block min-w-0">
                     {isLast || !breadcrumb.href ? (
-                      <BreadcrumbPage>{breadcrumb.label}</BreadcrumbPage>
+                      <BreadcrumbPage className="truncate">{breadcrumb.label}</BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink asChild>
-                        <Link href={breadcrumb.href}>{breadcrumb.label}</Link>
+                        <Link href={breadcrumb.href} className="truncate">{breadcrumb.label}</Link>
                       </BreadcrumbLink>
                     )}
                   </BreadcrumbItem>
@@ -55,9 +55,9 @@ export function DashboardPageHeader({ breadcrumbs, children }: DashboardPageHead
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      <div className="ml-auto px-4 flex items-center gap-2">
-        <NotificationBell />
+      <div className="flex items-center gap-2 px-4 ml-auto flex-shrink-0">
         {children}
+        <NotificationBell />
       </div>
     </header>
   )

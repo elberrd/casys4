@@ -16,8 +16,8 @@ export function SaveFilterButton({ hasActiveFilters, onClick }: SaveFilterButton
 
   return (
     <Button variant="outline" size="sm" onClick={onClick}>
-      <Save className="mr-2 h-4 w-4" />
-      {t("saveFilter")}
+      <Save className="h-4 w-4" />
+      <span className="ml-2 hidden lg:inline">{t("saveFilter")}</span>
     </Button>
   )
 }
