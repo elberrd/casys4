@@ -21,6 +21,7 @@ import { SavedFiltersList } from "@/components/saved-filters/saved-filters-list"
 import { SaveFilterButton } from "@/components/saved-filters/save-filter-button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { FixedActionButtons } from "@/components/fixed-action-buttons"
 
 export function IndividualProcessesClient() {
   const t = useTranslations('IndividualProcesses')
@@ -674,13 +675,19 @@ export function IndividualProcessesClient() {
 
   return (
     <>
+      {/* Fixed action buttons - always visible in top-right corner */}
+      <FixedActionButtons
+        onCreateClick={() => router.push('/process-wizard')}
+        createButtonText={tCommon('create')}
+      />
+
       <DashboardPageHeader breadcrumbs={breadcrumbs}>
-        {/* Action buttons - no header, sempre visíveis */}
+        {/* Action buttons - sempre visíveis, texto escondido em telas pequenas */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <FilterIcon className="h-4 w-4" />
-              <span className="ml-2 hidden lg:inline">{tSavedFilters("title")}</span>
+            <Button variant="outline" size="sm" className="gap-2">
+              <FilterIcon className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden xl:inline whitespace-nowrap">{tSavedFilters("title")}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
@@ -702,18 +709,13 @@ export function IndividualProcessesClient() {
           defaultFilename={getExcelFilename()}
           grouped={selectedProgressStatuses.length >= 2}
         >
-          <Button variant="outline" size="sm">
-            <FileSpreadsheet className="h-4 w-4" />
-            <span className="ml-2 hidden lg:inline">{tExport("exportToExcel")}</span>
+          <Button variant="outline" size="sm" className="gap-2">
+            <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden xl:inline whitespace-nowrap">{tExport("exportToExcel")}</span>
           </Button>
         </ExcelExportDialog>
-
-        <Button onClick={() => router.push('/process-wizard')}>
-          <Plus className="h-4 w-4" />
-          <span className="ml-2 hidden lg:inline">{tCommon('create')}</span>
-        </Button>
       </DashboardPageHeader>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 w-full max-w-full overflow-x-hidden">
         {/* Page title and description */}
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>

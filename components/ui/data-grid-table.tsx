@@ -41,10 +41,10 @@ export function DataGridTable() {
   const rows = table.getRowModel().rows
 
   return (
-    <div className="relative w-full overflow-x-auto overflow-y-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
+    <div className="relative w-full max-w-full overflow-x-auto overflow-y-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
       <table
         className={cn(
-          "w-max min-w-full caption-bottom text-sm",
+          "w-full caption-bottom text-sm",
           tableLayout.width === "fixed" && "table-fixed",
           tableClassNames.base
         )}
@@ -111,6 +111,11 @@ export function DataGridTable() {
                   calculatedMinWidth = `${Math.max(columnMinSize || 0, calculatedWidth)}px`
                 }
 
+                // Get maxSize from column definition
+                const maxWidth = header.column.columnDef.maxSize
+                  ? `${header.column.columnDef.maxSize}px`
+                  : undefined
+
                 return (
                   <th
                     key={header.id}
@@ -118,6 +123,7 @@ export function DataGridTable() {
                     style={{
                       width: header.getSize() !== 150 ? header.getSize() : undefined,
                       minWidth: calculatedMinWidth,
+                      maxWidth: maxWidth,
                     }}
                     className={cn(
                       "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap overflow-hidden text-ellipsis shrink-0",
@@ -320,6 +326,11 @@ export function DataGridTable() {
                       const isInGroup = row.depth > 0
                       const isFirstCell = cell.column.id === row.getVisibleCells()[0]?.column.id
 
+                      // Get maxSize from column definition
+                      const maxWidth = cell.column.columnDef.maxSize
+                        ? `${cell.column.columnDef.maxSize}px`
+                        : undefined
+
                       return (
                         <td
                           key={cell.id}
@@ -329,6 +340,7 @@ export function DataGridTable() {
                                 ? cell.column.getSize()
                                 : undefined,
                             minWidth: calculatedMinWidth,
+                            maxWidth: maxWidth,
                           }}
                           className={cn(
                             "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] shrink-0",
