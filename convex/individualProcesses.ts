@@ -93,7 +93,7 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate] = await Promise.all([
+        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate, notesCount] = await Promise.all([
           ctx.db.get(process.personId),
           process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -117,7 +117,27 @@ export const list = query({
           process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
           // Get consulate details if consulateId exists
           process.consulateId ? ctx.db.get(process.consulateId) : null,
+          // Get notes count for this individual process
+          ctx.db
+            .query("notes")
+            .withIndex("by_individualProcess_active", (q) =>
+              q.eq("individualProcessId", process._id).eq("isActive", true)
+            )
+            .collect()
+            .then((notes) => notes.length),
         ]);
+
+        // Enrich person with nationality
+        let person = rawPerson;
+        if (rawPerson) {
+          const nationality = rawPerson.nationalityId
+            ? await ctx.db.get(rawPerson.nationalityId)
+            : null;
+          person = {
+            ...rawPerson,
+            nationality,
+          } as any;
+        }
 
         // If passport exists, enrich it with issuing country
         let enrichedPassport = null;
@@ -206,6 +226,7 @@ export const list = query({
           companyApplicant, // Include company applicant details
           userApplicant, // Include user applicant details
           consulate: enrichedConsulate, // Include consulate with city, state, country
+          notesCount, // Include notes count for the process
         };
       }),
     );
@@ -246,7 +267,7 @@ export const get = query({
     const process = await ctx.db.get(id);
     if (!process) return null;
 
-    const [person, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate, processType] = await Promise.all([
+    const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate, processType] = await Promise.all([
       ctx.db.get(process.personId),
       process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -273,6 +294,18 @@ export const get = query({
       // Get process type details if processTypeId exists
       process.processTypeId ? ctx.db.get(process.processTypeId) : null,
     ]);
+
+    // Enrich person with nationality
+    let person = rawPerson;
+    if (rawPerson) {
+      const nationality = rawPerson.nationalityId
+        ? await ctx.db.get(rawPerson.nationalityId)
+        : null;
+      person = {
+        ...rawPerson,
+        nationality,
+      } as any;
+    }
 
     // Check access permissions for client users
     if (userProfile.role === "client") {

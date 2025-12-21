@@ -13,10 +13,14 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   getFilteredRowModel,
+  getGroupedRowModel,
+  getExpandedRowModel,
   ColumnDef,
   RowSelectionState,
   VisibilityState,
   SortingState,
+  GroupingState,
+  ExpandedState,
 } from "@tanstack/react-table";
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
 import { DataGridTable } from "@/components/ui/data-grid-table";
@@ -41,7 +45,9 @@ import {
   Copy,
   AlertTriangle,
   ChevronDown,
+  ChevronRight,
   X,
+  StickyNote,
 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
@@ -58,6 +64,8 @@ import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
+import { useGroupKeyboardShortcuts } from "@/lib/hooks/use-group-keyboard-shortcuts";
+import { IndividualProcessNotesModal } from "./individual-process-notes-modal";
 import { getFieldMetadata } from "@/lib/individual-process-fields";
 import { formatFieldValue, truncateString } from "@/lib/format-field-value";
 import {
@@ -67,7 +75,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -129,6 +137,7 @@ interface IndividualProcess {
   urgent?: boolean;
   qualification?: string;
   professionalExperienceSince?: string;
+  notesCount?: number;
 }
 
 interface CandidateFilterOption {
@@ -160,6 +169,10 @@ interface IndividualProcessesTableProps {
   candidateOptions?: CandidateFilterOption[];
   selectedCandidates?: string[];
   onCandidateFilterChange?: (candidates: string[]) => void;
+  // Applicant filter props
+  applicantOptions?: Array<{ value: string; label: string }>;
+  selectedApplicants?: string[];
+  onApplicantFilterChange?: (applicants: string[]) => void;
   // Progress status filter props
   progressStatusOptions?: Array<{ value: string; label: string }>;
   selectedProgressStatuses?: string[];
@@ -173,6 +186,8 @@ interface IndividualProcessesTableProps {
   // QUAL/EXP PROF mode toggle props
   isQualExpProfModeActive?: boolean;
   onQualExpProfModeToggle?: () => void;
+  // Grouped mode (computed from selectedProgressStatuses.length >= 2)
+  isGroupedModeActive?: boolean;
 }
 
 export function IndividualProcessesTable({
@@ -186,6 +201,9 @@ export function IndividualProcessesTable({
   onBulkCreateTask,
   onRowClick,
   onUpdateStatus,
+  applicantOptions = [],
+  selectedApplicants = [],
+  onApplicantFilterChange,
   candidateOptions = [],
   selectedCandidates = [],
   onCandidateFilterChange,
@@ -198,6 +216,7 @@ export function IndividualProcessesTable({
   onUrgentModeToggle,
   isQualExpProfModeActive = false,
   onQualExpProfModeToggle,
+  isGroupedModeActive = false,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -206,6 +225,7 @@ export function IndividualProcessesTable({
   const updateUrgentForCollectiveGroup = useMutation(
     api.individualProcesses.updateUrgentForCollectiveGroup
   );
+  const currentUser = useQuery(api.userProfiles.getCurrentUser);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   // Define initial column visibility state
@@ -216,6 +236,7 @@ export function IndividualProcessesTable({
     processStatus: true,
     qualification: false,
     professionalExperience: false,
+    notes: true,
   };
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility);
@@ -224,6 +245,10 @@ export function IndividualProcessesTable({
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility);
 
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Grouping and expansion state for grouped table mode
+  const [grouping, setGrouping] = useState<GroupingState>([]);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
   // Optimistic state for urgent flag toggles
   const [optimisticUrgent, setOptimisticUrgent] = useState<
     Map<Id<"individualProcesses">, boolean>
@@ -234,6 +259,12 @@ export function IndividualProcessesTable({
 
   // State to control the filter dropdown open/close
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+
+  // State for notes modal
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [selectedProcessIdForNotes, setSelectedProcessIdForNotes] = useState<
+    Id<"individualProcesses"> | undefined
+  >(undefined);
 
   // Handle RNM mode toggle - show/hide column and apply sorting
   useEffect(() => {
@@ -265,12 +296,14 @@ export function IndividualProcessesTable({
         ...prev,
         protocolNumber: true,
         processStatus: false,
+        notes: true,
       }));
     } else {
       setColumnVisibility((prev) => ({
         ...prev,
         protocolNumber: false,
         processStatus: true,
+        notes: true,
       }));
     }
   }, [isUrgentModeActive]);
@@ -292,10 +325,36 @@ export function IndividualProcessesTable({
         "legalFramework.name": true, // Legal Support
         qualification: true,
         professionalExperience: true,
+        notes: true, // Show notes column
       }));
     }
     // Note: Restoration is handled by the clear filters button
   }, [isQualExpProfModeActive]);
+
+  // Handle Grouped Mode - activate grouping by status when multiple status filters are selected
+  useEffect(() => {
+    if (isGroupedModeActive) {
+      // Activate grouping by case status name
+      setGrouping(["caseStatus.name"]);
+      // Set all groups to collapsed by default when entering grouped mode
+      setExpanded({});
+      // Hide the caseStatus column when grouped mode is active
+      setColumnVisibility(prev => ({
+        ...prev,
+        "caseStatus.name": false
+      }));
+    } else {
+      // Deactivate grouping
+      setGrouping([]);
+      setExpanded({});
+      // Restore the caseStatus column visibility when leaving grouped mode
+      setColumnVisibility(prev => ({
+        ...prev,
+        "caseStatus.name": initialColumnVisibilityRef.current["caseStatus.name"] ?? true
+      }));
+    }
+  }, [isGroupedModeActive]);
+
 
   // Wrap setRowSelection to prevent state updates during render
   const handleRowSelectionChange = useCallback(
@@ -326,6 +385,12 @@ export function IndividualProcessesTable({
     [],
   );
 
+  // Handler for opening notes modal
+  const handleOpenNotesModal = useCallback((processId: Id<"individualProcesses">) => {
+    setSelectedProcessIdForNotes(processId);
+    setNotesModalOpen(true);
+  }, []);
+
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: Id<"individualProcesses">) => {
@@ -355,6 +420,7 @@ export function IndividualProcessesTable({
       createSelectColumn<IndividualProcess>(),
       {
         accessorKey: "person.fullName",
+        minSize: 180,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("personName")} />
         ),
@@ -367,6 +433,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "protocolNumber",
         id: "protocolNumber",
+        minSize: 120,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("protocol")} />
         ),
@@ -414,7 +481,7 @@ export function IndividualProcessesTable({
             </TooltipProvider>
           );
         },
-        size: 50,
+        minSize: 50,
         enableSorting: true,
         enableHiding: true,
       },
@@ -550,12 +617,13 @@ export function IndividualProcessesTable({
             </TooltipProvider>
           );
         },
-        size: 50,
+        minSize: 50,
         enableSorting: true,
         enableHiding: true,
       },
       {
         accessorKey: "companyApplicant.name",
+        minSize: 200,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -582,6 +650,7 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "processType.name",
+        minSize: 200,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("processType")} />
         ),
@@ -600,6 +669,7 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "legalFramework.name",
+        minSize: 250,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("legalFramework")} />
         ),
@@ -612,6 +682,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "qualification",
         id: "qualification",
+        minSize: 150,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("qualification")} />
         ),
@@ -632,6 +703,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "professionalExperience",
         id: "professionalExperience",
+        minSize: 120,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -693,6 +765,15 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "caseStatus.name",
+        id: "caseStatus.name",
+        minSize: 180,
+        enableGrouping: true,
+        getGroupingValue: (row) => {
+          const caseStatus = row.caseStatus;
+          if (!caseStatus) return "Undefined";
+          // Use nameEn for English locale, otherwise use name (Portuguese)
+          return locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name;
+        },
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("caseStatus")} />
         ),
@@ -886,6 +967,7 @@ export function IndividualProcessesTable({
       },
       {
         id: "filledFields",
+        minSize: 250,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("filledFields")} />
         ),
@@ -971,6 +1053,7 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "processStatus",
+        minSize: 100,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("processStatus")} />
         ),
@@ -994,6 +1077,7 @@ export function IndividualProcessesTable({
       {
         id: "rnmDeadline",
         accessorKey: "rnmDeadline",
+        minSize: 150,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -1082,7 +1166,59 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
+        accessorKey: "notesCount",
+        id: "notes",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title="">
+            <StickyNote className="h-4 w-4" />
+          </DataGridColumnHeader>
+        ),
+        cell: ({ row }) => {
+          const notesCount = row.original.notesCount || 0;
+
+          if (notesCount === 0) {
+            return (
+              <div className="flex items-center justify-center p-1">
+                <StickyNote className="h-4 w-4 text-muted-foreground/30" />
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex items-center justify-center">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenNotesModal(row.original._id);
+                      }}
+                      className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary rounded p-1"
+                    >
+                      <StickyNote
+                        className={cn(
+                          "h-4 w-4 cursor-pointer transition-all hover:scale-110",
+                          "fill-primary text-primary-foreground stroke-2"
+                        )}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t("viewNotes")} ({notesCount})</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          );
+        },
+        minSize: 50,
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
         id: "actions",
+        minSize: 60,
         header: () => <span className="sr-only">{tCommon("actions")}</span>,
         cell: ({ row }) => {
           const actions = [];
@@ -1173,11 +1309,15 @@ export function IndividualProcessesTable({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getGroupedRowModel: getGroupedRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
     onColumnVisibilityChange: handleColumnVisibilityChange,
     onSortingChange: setSorting,
+    onGroupingChange: setGrouping,
+    onExpandedChange: setExpanded,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -1187,7 +1327,43 @@ export function IndividualProcessesTable({
       rowSelection,
       columnVisibility,
       sorting,
+      grouping,
+      expanded,
     },
+  });
+
+  // Expand/Collapse all groups functions
+  const expandAll = useCallback(() => {
+    if (!isGroupedModeActive) return;
+
+    // Set all group rows to expanded
+    const allExpanded: Record<string, boolean> = {};
+    table.getRowModel().rows.forEach((row) => {
+      if (row.getIsGrouped()) {
+        allExpanded[row.id] = true;
+      }
+    });
+    setExpanded(allExpanded);
+
+    // Show toast notification
+    toast.success(t("groupedMode.allExpanded") || "All groups expanded");
+  }, [isGroupedModeActive, table, t]);
+
+  const collapseAll = useCallback(() => {
+    if (!isGroupedModeActive) return;
+
+    // Reset expanded state to collapse all
+    setExpanded({});
+
+    // Show toast notification
+    toast.success(t("groupedMode.allCollapsed") || "All groups collapsed");
+  }, [isGroupedModeActive, t]);
+
+  // Use keyboard shortcuts for expand/collapse
+  useGroupKeyboardShortcuts({
+    enabled: isGroupedModeActive,
+    onExpandAll: expandAll,
+    onCollapseAll: collapseAll,
   });
 
   return (
@@ -1204,34 +1380,6 @@ export function IndividualProcessesTable({
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
             <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-            {onCandidateFilterChange && candidateOptions.length > 0 && (
-              <Combobox
-                multiple
-                options={candidateOptions as ComboboxOption<string>[]}
-                value={selectedCandidates}
-                onValueChange={onCandidateFilterChange}
-                placeholder={t("filters.selectCandidates")}
-                searchPlaceholder={t("filters.searchCandidates")}
-                emptyText={t("filters.noCandidatesFound")}
-                triggerClassName="w-full sm:w-[280px] min-h-10"
-                showClearButton={true}
-                clearButtonAriaLabel={t("filters.clearCandidates")}
-              />
-            )}
-            {onProgressStatusFilterChange && progressStatusOptions.length > 0 && (
-              <Combobox
-                multiple
-                options={progressStatusOptions as ComboboxOption<string>[]}
-                value={selectedProgressStatuses}
-                onValueChange={onProgressStatusFilterChange}
-                placeholder={t("filters.selectProgressStatus")}
-                searchPlaceholder={t("filters.searchProgressStatus")}
-                emptyText={t("filters.noProgressStatusFound")}
-                triggerClassName="w-full sm:w-[280px] min-h-10"
-                showClearButton={true}
-                clearButtonAriaLabel={t("filters.clearProgressStatus")}
-              />
-            )}
             {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
               <div className="flex items-center gap-1">
                 <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
@@ -1337,7 +1485,7 @@ export function IndividualProcessesTable({
                 </Button>
               )}
             </div>
-            )}
+          )}
           </div>
           <DataGridColumnVisibility
             table={table}
@@ -1348,6 +1496,53 @@ export function IndividualProcessesTable({
             }
           />
         </div>
+        {/* Second row: Applicant, Candidate, and Progress Status filters */}
+        {(onApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange) && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            {onApplicantFilterChange && applicantOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={applicantOptions as ComboboxOption<string>[]}
+                value={selectedApplicants}
+                onValueChange={onApplicantFilterChange}
+                placeholder={t("filters.selectApplicants")}
+                searchPlaceholder={t("filters.searchApplicants")}
+                emptyText={t("filters.noApplicantsFound")}
+                triggerClassName="w-full sm:w-[280px] min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearApplicants")}
+              />
+            )}
+            {onCandidateFilterChange && candidateOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={candidateOptions as ComboboxOption<string>[]}
+                value={selectedCandidates}
+                onValueChange={onCandidateFilterChange}
+                placeholder={t("filters.selectCandidates")}
+                searchPlaceholder={t("filters.searchCandidates")}
+                emptyText={t("filters.noCandidatesFound")}
+                triggerClassName="w-full sm:w-[280px] min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearCandidates")}
+              />
+            )}
+            {onProgressStatusFilterChange && progressStatusOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={progressStatusOptions as ComboboxOption<string>[]}
+                value={selectedProgressStatuses}
+                onValueChange={onProgressStatusFilterChange}
+                placeholder={t("filters.selectProgressStatus")}
+                searchPlaceholder={t("filters.searchProgressStatus")}
+                emptyText={t("filters.noProgressStatusFound")}
+                triggerClassName="w-full sm:w-[280px] min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearProgressStatus")}
+              />
+            )}
+          </div>
+        )}
         {(onDelete || onBulkStatusUpdate || onBulkCreateTask) && (
           <DataGridBulkActions
             table={table}
@@ -1421,6 +1616,14 @@ export function IndividualProcessesTable({
         variant="bulk"
         count={bulkDeleteConfirmation.itemsToDelete.length}
         isDeleting={bulkDeleteConfirmation.isDeleting}
+      />
+
+      <IndividualProcessNotesModal
+        open={notesModalOpen}
+        onOpenChange={setNotesModalOpen}
+        individualProcessId={selectedProcessIdForNotes}
+        currentUserId={currentUser?.userId}
+        isAdmin={currentUser?.role === "admin"}
       />
     </DataGrid>
   );

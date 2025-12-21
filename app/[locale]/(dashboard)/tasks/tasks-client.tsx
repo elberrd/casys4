@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -23,10 +23,13 @@ import { toast } from "sonner"
 
 export function TasksClient() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const t = useTranslations('Tasks')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
+  const highlightTaskId = searchParams.get('highlight')
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("my-tasks")
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<Id<"tasks"> | null>(null)
@@ -136,6 +139,44 @@ export function TasksClient() {
     task.status !== "completed" &&
     task.status !== "cancelled"
   ) || []
+
+  // Auto-scroll and switch to correct tab when highlighting a task
+  useEffect(() => {
+    if (highlightTaskId && myTasks && highlightTaskId !== activeHighlightId) {
+      // Set the active highlight
+      setActiveHighlightId(highlightTaskId)
+
+      // Find which tab contains the highlighted task
+      const taskInMyTasks = myTasks.find(t => t._id === highlightTaskId)
+      const taskInOverdue = myTasksOverdue?.find(t => t._id === highlightTaskId)
+      const taskInUpcoming = dueThisWeek.find(t => t._id === highlightTaskId)
+
+      if (taskInOverdue) {
+        setActiveTab("overdue")
+      } else if (taskInUpcoming) {
+        setActiveTab("upcoming")
+      } else if (allTasks?.find(t => t._id === highlightTaskId)) {
+        setActiveTab("all")
+      } else if (taskInMyTasks) {
+        setActiveTab("my-tasks")
+      }
+
+      // Scroll to the highlighted task row after a small delay
+      setTimeout(() => {
+        const element = document.querySelector(`[data-task-id="${highlightTaskId}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 300)
+
+      // Clear the highlight after 5 seconds
+      const timeoutId = setTimeout(() => {
+        setActiveHighlightId(null)
+      }, 5000)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [highlightTaskId, myTasks, myTasksOverdue, dueThisWeek, allTasks, activeHighlightId])
 
   return (
     <>
@@ -285,6 +326,7 @@ export function TasksClient() {
                     onUpdateStatus={handleUpdateStatus}
                     onBulkReassign={handleBulkReassign}
                     onBulkUpdateStatus={handleBulkStatusUpdate}
+                    highlightTaskId={activeHighlightId || undefined}
                   />
                 )}
               </TabsContent>
@@ -309,6 +351,7 @@ export function TasksClient() {
                     onUpdateStatus={handleUpdateStatus}
                     onBulkReassign={handleBulkReassign}
                     onBulkUpdateStatus={handleBulkStatusUpdate}
+                    highlightTaskId={activeHighlightId || undefined}
                   />
                 )}
               </TabsContent>
@@ -329,6 +372,7 @@ export function TasksClient() {
                     onUpdateStatus={handleUpdateStatus}
                     onBulkReassign={handleBulkReassign}
                     onBulkUpdateStatus={handleBulkStatusUpdate}
+                    highlightTaskId={activeHighlightId || undefined}
                   />
                 )}
               </TabsContent>
@@ -353,6 +397,7 @@ export function TasksClient() {
                     onUpdateStatus={handleUpdateStatus}
                     onBulkReassign={handleBulkReassign}
                     onBulkUpdateStatus={handleBulkStatusUpdate}
+                    highlightTaskId={activeHighlightId || undefined}
                   />
                 )}
               </TabsContent>

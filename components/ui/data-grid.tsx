@@ -97,6 +97,8 @@ export interface DataGridProps<TData> {
   tableLayout?: DataGridTableLayout
   /** Custom class names for table elements */
   tableClassNames?: DataGridTableClassNames
+  /** Get custom props for each row */
+  getRowProps?: (row: TData) => React.HTMLAttributes<HTMLTableRowElement>
 }
 
 /**
@@ -112,6 +114,7 @@ interface DataGridContextValue<TData> {
   emptyMessage: React.ReactNode | string
   tableLayout: Required<DataGridTableLayout>
   tableClassNames: Required<DataGridTableClassNames>
+  getRowProps?: (row: TData) => React.HTMLAttributes<HTMLTableRowElement>
 }
 
 const DataGridContext = React.createContext<DataGridContextValue<any> | null>(
@@ -204,6 +207,7 @@ export function DataGrid<TData>({
   emptyMessage = "No data available",
   tableLayout = {},
   tableClassNames = {},
+  getRowProps,
 }: DataGridProps<TData>) {
   const mergedTableLayout = React.useMemo(
     () => ({ ...defaultTableLayout, ...tableLayout }),
@@ -226,6 +230,7 @@ export function DataGrid<TData>({
       emptyMessage,
       tableLayout: mergedTableLayout,
       tableClassNames: mergedTableClassNames,
+      getRowProps,
     }),
     [
       table,
@@ -237,6 +242,7 @@ export function DataGrid<TData>({
       emptyMessage,
       mergedTableLayout,
       mergedTableClassNames,
+      getRowProps,
     ]
   )
 

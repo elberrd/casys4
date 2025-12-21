@@ -9,7 +9,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, RefreshCcw } from "lucide-react"
+import { Edit, RefreshCcw, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
 import { GovernmentProtocolCard } from "@/components/individual-processes/government-protocol-card"
@@ -20,6 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
 import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
+import { PersonFormDialog } from "@/components/people/person-form-dialog"
+import { formatDate } from "@/lib/format-field-value"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -28,6 +30,7 @@ interface IndividualProcessDetailPageProps {
   }>
   searchParams: Promise<{
     collectiveProcessId?: string
+    fromTask?: string
   }>
 }
 
@@ -37,12 +40,15 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
+  const tPeople = useTranslations('People')
   const router = useRouter()
 
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
+  const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false)
 
   const processId = resolvedParams.id as Id<"individualProcesses">
   const collectiveProcessId = resolvedSearchParams.collectiveProcessId as Id<"collectiveProcesses"> | undefined
+  const fromTaskId = resolvedSearchParams.fromTask
 
   const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
   const currentUser = useQuery(api.userProfiles.getCurrentUser)
@@ -114,6 +120,19 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {/* Back to Task button */}
+        {fromTaskId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={() => router.push(`/tasks?highlight=${fromTaskId}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {t('backToTask') || 'Voltar para Tarefa'}
+          </Button>
+        )}
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">{individualProcess.person?.fullName || t('details')}</h1>
@@ -145,27 +164,8 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-sm font-medium">{t('companyApplicant')}</div>
-                <div className="text-sm">
-                  {individualProcess.companyApplicant?.name || '-'}
-                </div>
-
-                <div className="text-sm font-medium">{t('processType')}</div>
-                <div className="text-sm">{individualProcess.processType?.name || '-'}</div>
-
-                <div className="text-sm font-medium">{t('consulate')}</div>
-                <div className="text-sm">
-                  {individualProcess.consulate?.city?.name || '-'}
-                </div>
-
-                <div className="text-sm font-medium">{t('legalFramework')}</div>
-                <div className="text-sm">{individualProcess.legalFramework?.name || '-'}</div>
-
-                <div className="text-sm font-medium">{t('protocolNumber')}</div>
-                <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
-
-                <div className="text-sm font-medium">{t('deadlineDate')}</div>
-                <div className="text-sm">{individualProcess.deadlineDate || '-'}</div>
+                <div className="text-sm font-medium">{t('dateProcess')}</div>
+                <div className="text-sm">{individualProcess.dateProcess || '-'}</div>
 
                 <div className="text-sm font-medium">{t('userApplicant')}</div>
                 <div className="text-sm">
@@ -174,29 +174,68 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                     : '-'}
                 </div>
 
-                <div className="text-sm font-medium">{t('isActive')}</div>
-                <div>
-                  <Badge variant={individualProcess.isActive ? "default" : "secondary"}>
-                    {individualProcess.isActive ? tCommon('active') : tCommon('inactive')}
-                  </Badge>
+                <div className="text-sm font-medium">{t('processType')}</div>
+                <div className="text-sm">{individualProcess.processType?.name || '-'}</div>
+
+                <div className="text-sm font-medium">{t('legalFramework')}</div>
+                <div className="text-sm">{individualProcess.legalFramework?.name || '-'}</div>
+
+                <div className="text-sm font-medium">{t('companyApplicant')}</div>
+                <div className="text-sm">
+                  {individualProcess.companyApplicant?.name || '-'}
                 </div>
+
+                <div className="text-sm font-medium">{t('consulate')}</div>
+                <div className="text-sm">
+                  {individualProcess.consulate?.city?.name || '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('deadlineDate')}</div>
+                <div className="text-sm">{individualProcess.deadlineDate || '-'}</div>
+
+                <div className="text-sm font-medium">{t('protocolNumber')}</div>
+                <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
               </div>
             </CardContent>
           </Card>
 
           {/* Person Information Card */}
           <Card>
-            <CardHeader>
-              <CardTitle>{t('personInformation')}</CardTitle>
-              <CardDescription>{t('personInformationDescription')}</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+              <div className="space-y-1.5">
+                <CardTitle>{t('personInformation')}</CardTitle>
+                <CardDescription>{t('personInformationDescription')}</CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsPersonEditDialogOpen(true)}
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                {tCommon('edit')}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-sm font-medium">{t('personName')}</div>
-                <div className="text-sm">{individualProcess.person?.fullName || '-'}</div>
+                <div className="text-sm font-medium">{tPeople('cpf')}</div>
+                <div className="text-sm">{individualProcess.person?.cpf || '-'}</div>
 
-                <div className="text-sm font-medium">{t('email')}</div>
-                <div className="text-sm">{individualProcess.person?.email || '-'}</div>
+                <div className="text-sm font-medium">{tPeople('nationality')}</div>
+                <div className="text-sm">{(individualProcess.person as any)?.nationality?.name || '-'}</div>
+
+                <div className="text-sm font-medium">{tPeople('maritalStatus')}</div>
+                <div className="text-sm">
+                  {individualProcess.person?.maritalStatus
+                    ? tPeople(`maritalStatus${individualProcess.person.maritalStatus.charAt(0).toUpperCase() + individualProcess.person.maritalStatus.slice(1)}`)
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{tPeople('birthDate')}</div>
+                <div className="text-sm">
+                  {individualProcess.person?.birthDate
+                    ? formatDate(individualProcess.person.birthDate, resolvedParams.locale)
+                    : '-'}
+                </div>
 
                 {individualProcess.lastSalaryAmount && (
                   <>
@@ -231,34 +270,6 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                     <div className="text-sm">
                       R$ {individualProcess.monthlyAmountToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                  </>
-                )}
-
-                {individualProcess.cbo && (
-                  <>
-                    <div className="text-sm font-medium">{t('cboCode')}</div>
-                    <div className="text-sm">{individualProcess.cbo.code} - {individualProcess.cbo.title}</div>
-                  </>
-                )}
-
-                {individualProcess.mreOfficeNumber && (
-                  <>
-                    <div className="text-sm font-medium">{t('mreOfficeNumber')}</div>
-                    <div className="text-sm font-mono">{individualProcess.mreOfficeNumber}</div>
-                  </>
-                )}
-
-                {individualProcess.douNumber && (
-                  <>
-                    <div className="text-sm font-medium">{t('douNumber')}</div>
-                    <div className="text-sm font-mono">{individualProcess.douNumber}</div>
-                  </>
-                )}
-
-                {individualProcess.appointmentDateTime && (
-                  <>
-                    <div className="text-sm font-medium">{t('appointmentDateTime')}</div>
-                    <div className="text-sm">{individualProcess.appointmentDateTime}</div>
                   </>
                 )}
               </div>
@@ -329,6 +340,16 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
         currentStatus={individualProcess.activeStatus?.statusName || individualProcess.status || ""}
         onSuccess={() => {
           // Dialog will close automatically, data will refresh via Convex
+        }}
+      />
+
+      {/* Person Edit Dialog */}
+      <PersonFormDialog
+        open={isPersonEditDialogOpen}
+        onOpenChange={setIsPersonEditDialogOpen}
+        personId={individualProcess.personId}
+        onSuccess={() => {
+          setIsPersonEditDialogOpen(false)
         }}
       />
     </>

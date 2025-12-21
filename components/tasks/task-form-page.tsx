@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Combobox } from "@/components/ui/combobox"
 import { Separator } from "@/components/ui/separator"
+import { ExternalLink } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { taskSchema, TaskFormData, priorityOptions, statusOptions } from "@/lib/validations/tasks"
 import { Id } from "@/convex/_generated/dataModel"
@@ -210,8 +211,30 @@ export function TaskFormPage({
 
             {/* Process Assignment */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">{t('processAssignment')}</h3>
-              <p className="text-sm text-muted-foreground">{t('processAssignmentDescription')}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">{t('processAssignment')}</h3>
+                  <p className="text-sm text-muted-foreground">{t('processAssignmentDescription')}</p>
+                </div>
+                {(task?.collectiveProcessId || task?.individualProcessId) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      if (task.collectiveProcessId) {
+                        router.push(`/collective-processes/${task.collectiveProcessId}?fromTask=${taskId}`)
+                      } else if (task.individualProcessId) {
+                        router.push(`/individual-processes/${task.individualProcessId}?fromTask=${taskId}`)
+                      }
+                    }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {t("openProcess")}
+                  </Button>
+                )}
+              </div>
 
               <FormField
                 control={form.control}

@@ -181,7 +181,6 @@ export function IndividualProcessFormDialog({
       const converted = lastSalaryAmount! * exchangeRate!
       const convertedValue = Number(converted.toFixed(2))
       form.setValue("salaryInBRL", convertedValue)
-      form.setValue("monthlyAmountToReceive", convertedValue)
       toast({
         title: t("conversionCalculated"),
       })

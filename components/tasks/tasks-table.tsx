@@ -21,8 +21,9 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions"
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, CheckCircle, UserPlus, Calendar, RefreshCw } from "lucide-react"
+import { Edit, Trash2, CheckCircle, UserPlus, Calendar, RefreshCw, ExternalLink } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useRouter } from "next/navigation"
 import { Id } from "@/convex/_generated/dataModel"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { createSelectColumn } from "@/lib/data-grid-utils"
@@ -72,6 +73,7 @@ interface TasksTableProps {
   onUpdateStatus?: (id: Id<"tasks">) => void
   onBulkReassign?: (selected: Task[]) => void
   onBulkUpdateStatus?: (selected: Task[]) => void
+  highlightTaskId?: string
 }
 
 export function TasksTable({
@@ -85,9 +87,11 @@ export function TasksTable({
   onUpdateStatus,
   onBulkReassign,
   onBulkUpdateStatus,
+  highlightTaskId,
 }: TasksTableProps) {
   const t = useTranslations('Tasks')
   const tCommon = useTranslations('Common')
+  const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -231,26 +235,41 @@ export function TasksTable({
         },
       },
       {
-        accessorKey: "collectiveProcess.referenceNumber",
+        id: "process",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('collectiveProcess')} />
+          <DataGridColumnHeader column={column} title={t('process')} />
         ),
-        cell: ({ row }) => (
-          <span className="text-sm font-mono">
-            {row.original.collectiveProcess?.referenceNumber || "-"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "individualProcess.person.fullName",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('person')} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.individualProcess?.person?.fullName || "-"}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const { collectiveProcess, individualProcess } = row.original
+
+          if (!collectiveProcess && !individualProcess) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+
+          const handleOpenProcess = (e: React.MouseEvent) => {
+            e.stopPropagation()
+            if (collectiveProcess) {
+              router.push(`/collective-processes/${collectiveProcess._id}?fromTask=${row.original._id}`)
+            } else if (individualProcess) {
+              router.push(`/individual-processes/${individualProcess._id}?fromTask=${row.original._id}`)
+            }
+          }
+
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-2 text-sm font-normal"
+              onClick={handleOpenProcess}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {collectiveProcess
+                ? collectiveProcess.referenceNumber
+                : individualProcess?.person?.fullName || "-"
+              }
+            </Button>
+          )
+        },
       },
       {
         id: "actions",
@@ -333,6 +352,7 @@ export function TasksTable({
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    getRowId: (row) => row._id,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -352,6 +372,10 @@ export function TasksTable({
       tableLayout={{
         columnsVisibility: true,
       }}
+      getRowProps={(row) => ({
+        "data-task-id": row._id,
+        className: highlightTaskId === row._id ? "bg-yellow-100 dark:bg-yellow-900/20" : undefined,
+      })}
     >
       <div className="w-full space-y-2.5">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">

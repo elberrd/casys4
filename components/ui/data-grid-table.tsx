@@ -35,6 +35,7 @@ export function DataGridTable() {
     emptyMessage,
     tableLayout,
     tableClassNames,
+    getRowProps,
   } = useDataGrid()
 
   const rows = table.getRowModel().rows
@@ -177,9 +178,60 @@ export function DataGridTable() {
             // Data rows
             rows.map((row) => {
               const meta = row.original as any
+              const customProps = getRowProps?.(row.original) || {}
+
+              // Check if this is a grouped row (group header)
+              const isGrouped = row.getIsGrouped()
+
+              // If this is a grouped row, render a special group header
+              if (isGrouped) {
+                const groupingValue = row.getGroupingValue(row.groupingColumnId!)
+                const count = row.subRows.length
+                const isExpanded = row.getIsExpanded()
+
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      "border-b bg-muted/70 hover:bg-muted transition-colors cursor-pointer",
+                      tableClassNames.bodyRow
+                    )}
+                    onClick={() => row.toggleExpanded()}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    aria-label={`Group: ${groupingValue}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        row.toggleExpanded()
+                      }
+                    }}
+                  >
+                    <td
+                      colSpan={table.getAllColumns().length}
+                      className="p-3 font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "transition-transform duration-200",
+                          isExpanded && "rotate-90"
+                        )}>
+                          →
+                        </span>
+                        <span>{String(groupingValue || 'Undefined')}</span>
+                        <span className="text-sm text-muted-foreground">({count})</span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              }
+
+              // Regular data row rendering
               return (
                 <React.Fragment key={row.id}>
                   <tr
+                    {...customProps}
                     data-state={row.getIsSelected() ? "selected" : undefined}
                     className={cn(
                       "border-b transition-colors",
@@ -188,7 +240,8 @@ export function DataGridTable() {
                       tableLayout.rowRounded && "rounded-lg",
                       !tableLayout.rowBorder && "border-b-0",
                       "hover:bg-muted/50 data-[state=selected]:bg-muted",
-                      tableClassNames.bodyRow
+                      tableClassNames.bodyRow,
+                      customProps.className
                     )}
                     onClick={(e) => {
                       // Prevent row click if clicking on interactive elements (but not the row itself)
@@ -258,6 +311,10 @@ export function DataGridTable() {
                         calculatedMinWidth = `${calculateMinColumnWidth(headerText, false, hasSorting)}px`
                       }
 
+                      // Check if this row is part of a group (has a parent group row)
+                      const isInGroup = row.depth > 0
+                      const isFirstCell = cell.column.id === row.getVisibleCells()[0]?.column.id
+
                       return (
                         <td
                           key={cell.id}
@@ -273,7 +330,9 @@ export function DataGridTable() {
                             tableLayout.dense && "p-1.5",
                             tableLayout.cellBorder && "border-r last:border-r-0",
                             columnMeta?.cellClassName,
-                            tableClassNames.edgeCell
+                            tableClassNames.edgeCell,
+                            // Add left padding for grouped rows on first cell
+                            isInGroup && isFirstCell && "pl-8 md:pl-12 border-l-2 border-muted"
                           )}
                         >
                           {flexRender(

@@ -561,4 +561,21 @@ export default defineSchema({
     .index("by_collectiveProcess_date", ["collectiveProcessId", "date"])
     .index("by_individualProcess_active", ["individualProcessId", "isActive"])
     .index("by_collectiveProcess_active", ["collectiveProcessId", "isActive"]),
+
+  // Saved filter presets for users
+  savedFilters: defineTable({
+    name: v.string(), // User-defined filter name
+    filterType: v.union(
+      v.literal("individualProcesses"),
+      v.literal("collectiveProcesses")
+    ), // Which page this filter is for
+    filterCriteria: v.any(), // Flexible JSON object storing filter state
+    createdBy: v.id("users"), // User who created this filter
+    isActive: v.boolean(), // Soft delete flag
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_createdBy", ["createdBy"])
+    .index("by_createdBy_type", ["createdBy", "filterType"])
+    .index("by_active", ["isActive"]),
 });

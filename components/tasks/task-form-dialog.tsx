@@ -37,7 +37,8 @@ import { useTranslations } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Loader2, CalendarIcon } from "lucide-react";
+import { Loader2, CalendarIcon, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { Calendar } from "@/components/ui/calendar";
@@ -79,6 +80,7 @@ export function TaskFormDialog({
 }: TaskFormDialogProps) {
   const t = useTranslations("Tasks");
   const tCommon = useTranslations("Common");
+  const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -259,6 +261,37 @@ export function TaskFormDialog({
                 </FormItem>
               )}
             />
+
+            {/* Process link button */}
+            {(existingTask?.collectiveProcess || existingTask?.individualProcess || collectiveProcessId || individualProcessId) && (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                <span className="text-sm text-muted-foreground">{t("process")}:</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    const processId =
+                      existingTask?.collectiveProcessId ||
+                      collectiveProcessId ||
+                      existingTask?.individualProcessId ||
+                      individualProcessId
+
+                    if (existingTask?.collectiveProcess || collectiveProcessId) {
+                      router.push(`/collective-processes/${processId}?fromTask=${taskId}`)
+                    } else {
+                      router.push(`/individual-processes/${processId}?fromTask=${taskId}`)
+                    }
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {existingTask?.collectiveProcess?.referenceNumber ||
+                   existingTask?.individualProcess?.person?.fullName ||
+                   t("openProcess")}
+                </Button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Due Date field */}

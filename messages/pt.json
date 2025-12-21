@@ -317,6 +317,7 @@
   "CollectiveProcesses": {
     "title": "Processos Coletivos",
     "description": "Gerencie processos de imigração coletivos com rastreamento detalhado de status e supervisão de processos individuais.",
+    "backToTask": "Voltar para Tarefa",
     "newProcess": "Novo Processo Coletivo",
     "createTitle": "Criar Processo Coletivo",
     "createDescription": "Criar um novo contêiner de processo de imigração",
@@ -436,7 +437,8 @@
       "years": "Anos",
       "months": "Meses",
       "days": "Dias"
-    }
+    },
+    "backToTask": "Voltar para Tarefa"
   },
   "AddPeopleToCollective": {
     "title": "Adicionar Pessoas ao Processo",
@@ -498,6 +500,7 @@
   "IndividualProcesses": {
     "title": "Processos Individuais",
     "description": "Acompanhe processos de imigração individuais com atualizações abrangentes de status, documentos e prazos.",
+    "backToTask": "Voltar para Tarefa",
     "createTitle": "Criar Processo Individual",
     "editTitle": "Editar Processo Individual",
     "newProcess": "Novo Processo Individual",
@@ -865,6 +868,10 @@
         "selectCaseStatus": "Selecione o status...",
         "selectDate": "Selecione a data..."
       },
+      "selectApplicants": "Filtrar por requerentes...",
+      "searchApplicants": "Pesquisar requerentes...",
+      "noApplicantsFound": "Nenhum requerente encontrado.",
+      "clearApplicants": "Limpar seleção de requerentes",
       "selectCandidates": "Filtrar por candidatos...",
       "searchCandidates": "Pesquisar candidatos...",
       "noCandidatesFound": "Nenhum candidato encontrado.",
@@ -905,6 +912,21 @@
       "months": "meses",
       "day": "dia",
       "days": "dias"
+    },
+    "notesColumn": "Notas",
+    "viewNotes": "Ver notas",
+    "notesModalTitle": "Notas - {candidateName}",
+    "hasNotes": "{count} nota(s)",
+    "backToTask": "Voltar para Tarefa",
+    "groupedMode": {
+      "groupHeader": "Grupo: {status}",
+      "itemCount": "{count} itens",
+      "expandAll": "Expandir todos os grupos (Ctrl+E)",
+      "collapseAll": "Recolher todos os grupos (Ctrl+Shift+C)",
+      "allExpanded": "Todos os grupos expandidos",
+      "allCollapsed": "Todos os grupos recolhidos",
+      "groupedBy": "Agrupado por Status",
+      "exitGroupedMode": "Sair do modo agrupado"
     }
   },
   "ProcessTimeline": {
@@ -1232,6 +1254,8 @@
     "selectStatus": "Selecione o status",
     "status": "Status",
     "person": "Pessoa",
+    "process": "Processo",
+    "openProcess": "Abrir Processo",
     "taskName": "Nome Tarefa",
     "notes": "Notas",
     "createdAt": "Data de Criação",
@@ -2805,5 +2829,43 @@
     "description": "Tem certeza que deseja sair? Todas as alterações serão perdidas.",
     "confirmButton": "Sair sem salvar",
     "cancelButton": "Continuar editando"
+  },
+  "SavedFilters": {
+    "title": "Filtros Salvos",
+    "saveFilter": "Salvar Filtro",
+    "saveFilterDescription": "Salve sua configuração atual de filtros para aplicá-la rapidamente mais tarde.",
+    "activeFilters": "Filtros Ativos",
+    "noActiveFilters": "Nenhum filtro ativo",
+    "filterName": "Nome do Filtro",
+    "filterNamePlaceholder": "Digite um nome para este filtro...",
+    "searchPlaceholder": "Pesquisar filtros...",
+    "noResultsFound": "Nenhum filtro encontrado",
+    "noSavedFilters": "Nenhum filtro salvo ainda",
+    "deleteConfirm": "Tem certeza que deseja excluir este filtro?",
+    "filterSummary": {
+      "candidates": "{count} candidato(s)",
+      "applicants": "{count} requerente(s)",
+      "progressStatuses": "{count} status",
+      "processTypes": "{count} tipo(s) de processo",
+      "rnmMode": "Modo RNM",
+      "urgentMode": "Modo Urgente",
+      "qualExpProfMode": "Modo QUAL/EXP PROF",
+      "advancedFilters": "{count} filtro(s) avançado(s)"
+    },
+    "success": {
+      "filterSaved": "Filtro salvo com sucesso",
+      "filterDeleted": "Filtro excluído com sucesso",
+      "filterApplied": "Filtro aplicado com sucesso"
+    },
+    "errors": {
+      "nameRequired": "Nome do filtro é obrigatório",
+      "saveFailed": "Falha ao salvar filtro",
+      "deleteFailed": "Falha ao excluir filtro",
+      "noFiltersActive": "Você precisa aplicar pelo menos um filtro antes de salvar"
+    },
+    "warnings": {
+      "applyFiltersFirst": "Aplique filtros primeiro",
+      "applyFiltersDescription": "Para salvar um filtro, você precisa primeiro aplicar filtros na tabela acima. Depois que os filtros estiverem ativos, você poderá salvá-los aqui."
+    }
   }
 }

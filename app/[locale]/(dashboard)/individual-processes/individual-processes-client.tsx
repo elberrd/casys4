@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations, useLocale } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
@@ -12,14 +12,20 @@ import { CreateFromExistingDialog } from "@/components/individual-processes/crea
 import { Button } from "@/components/ui/button"
 import { ExportDataDialog } from "@/components/ui/export-data-dialog"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
-import { Plus, User, Building2, FileText, Scale, Activity, Calendar } from "lucide-react"
+import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
+import { SaveFilterSheet } from "@/components/saved-filters/save-filter-sheet"
+import { SavedFiltersList } from "@/components/saved-filters/saved-filters-list"
+import { SaveFilterButton } from "@/components/saved-filters/save-filter-button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 
 export function IndividualProcessesClient() {
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
+  const tSavedFilters = useTranslations('SavedFilters')
   const router = useRouter()
   const locale = useLocale()
 
@@ -31,10 +37,12 @@ export function IndividualProcessesClient() {
   const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
+  const [selectedApplicants, setSelectedApplicants] = useState<string[]>([])
   const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
+  const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -157,6 +165,67 @@ export function IndividualProcessesClient() {
     select: t("filters.select"),
   }), [t])
 
+  // Saved Filters functionality
+  const hasActiveFilters = useMemo(() => {
+    return (
+      selectedCandidates.length > 0 ||
+      selectedApplicants.length > 0 ||
+      selectedProgressStatuses.length > 0 ||
+      isRnmModeActive ||
+      isUrgentModeActive ||
+      isQualExpProfModeActive ||
+      filters.length > 0
+    )
+  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+
+  const getCurrentFilterCriteria = useCallback(() => {
+    const criteria: any = {}
+    if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
+    if (selectedApplicants.length > 0) criteria.selectedApplicants = selectedApplicants
+    if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
+    if (isRnmModeActive) criteria.isRnmModeActive = true
+    if (isUrgentModeActive) criteria.isUrgentModeActive = true
+    if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
+    if (filters.length > 0) criteria.advancedFilters = filters
+    return criteria
+  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+
+  const handleApplySavedFilter = useCallback((filterCriteria: any) => {
+    // Clear all filters
+    setSelectedCandidates([])
+    setSelectedApplicants([])
+    setSelectedProgressStatuses([])
+    setIsRnmModeActive(false)
+    setIsUrgentModeActive(false)
+    setIsQualExpProfModeActive(false)
+    setFilters([])
+
+    // Apply saved filter criteria
+    if (filterCriteria.selectedCandidates) {
+      setSelectedCandidates(filterCriteria.selectedCandidates)
+    }
+    if (filterCriteria.selectedApplicants) {
+      setSelectedApplicants(filterCriteria.selectedApplicants)
+    }
+    if (filterCriteria.selectedProgressStatuses) {
+      setSelectedProgressStatuses(filterCriteria.selectedProgressStatuses)
+    }
+    if (filterCriteria.isRnmModeActive) {
+      setIsRnmModeActive(true)
+    }
+    if (filterCriteria.isUrgentModeActive) {
+      setIsUrgentModeActive(true)
+    }
+    if (filterCriteria.isQualExpProfModeActive) {
+      setIsQualExpProfModeActive(true)
+    }
+    if (filterCriteria.advancedFilters) {
+      setFilters(filterCriteria.advancedFilters)
+    }
+
+    toast.success(tSavedFilters("success.filterApplied"))
+  }, [tSavedFilters])
+
   // Apply filters to individual processes
   const filteredProcesses = useMemo(() => {
     let result = individualProcesses
@@ -166,6 +235,14 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const personId = process.person?._id
         return personId && selectedCandidates.includes(personId)
+      })
+    }
+
+    // Apply applicant multi-select filter
+    if (selectedApplicants.length > 0) {
+      result = result.filter((process) => {
+        const applicantId = process.companyApplicant?._id
+        return applicantId && selectedApplicants.includes(applicantId)
       })
     }
 
@@ -321,7 +398,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedProgressStatuses, isUrgentModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedProgressStatuses, isUrgentModeActive])
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -400,6 +477,28 @@ export function IndividualProcessesClient() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Saved Filters Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FilterIcon className="mr-2 h-4 w-4" />
+                  {tSavedFilters("title")}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+                <SavedFiltersList
+                  filterType="individualProcesses"
+                  onApplyFilter={handleApplySavedFilter}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Save Filter Button */}
+            <SaveFilterButton
+              hasActiveFilters={hasActiveFilters}
+              onClick={() => setIsSaveFilterSheetOpen(true)}
+            />
+
             <ExportDataDialog defaultExportType="individualProcesses" />
             <Button onClick={() => router.push('/process-wizard')}>
               <Plus className="mr-2 h-4 w-4" />
@@ -429,6 +528,9 @@ export function IndividualProcessesClient() {
           candidateOptions={candidateOptions}
           selectedCandidates={selectedCandidates}
           onCandidateFilterChange={setSelectedCandidates}
+          applicantOptions={applicantOptions}
+          selectedApplicants={selectedApplicants}
+          onApplicantFilterChange={setSelectedApplicants}
           progressStatusOptions={progressStatusOptions}
           selectedProgressStatuses={selectedProgressStatuses}
           onProgressStatusFilterChange={setSelectedProgressStatuses}
@@ -459,6 +561,7 @@ export function IndividualProcessesClient() {
             }
             setIsQualExpProfModeActive(!isQualExpProfModeActive)
           }}
+          isGroupedModeActive={selectedProgressStatuses.length >= 2}
         />
 
         <IndividualProcessFormDialog
@@ -485,6 +588,17 @@ export function IndividualProcessesClient() {
             sourceProcess={individualProcesses.find(p => p._id === sourceProcessId)}
           />
         )}
+
+        {/* Save Filter Sheet */}
+        <SaveFilterSheet
+          open={isSaveFilterSheetOpen}
+          onOpenChange={setIsSaveFilterSheetOpen}
+          filterType="individualProcesses"
+          currentFilters={getCurrentFilterCriteria()}
+          onSaveSuccess={() => {
+            toast.success(tSavedFilters("success.filterSaved"))
+          }}
+        />
       </div>
     </>
   )

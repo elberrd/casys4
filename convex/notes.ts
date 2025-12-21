@@ -253,6 +253,52 @@ export const list = query({
 });
 
 /**
+ * Query to get notes count for an individual process
+ * Optimized for table display - returns only count, not full note objects
+ */
+export const countByIndividualProcess = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Query notes for the individual process using index
+    const notes = await ctx.db
+      .query("notes")
+      .withIndex("by_individualProcess_active", (q) =>
+        q.eq("individualProcessId", args.individualProcessId).eq("isActive", true)
+      )
+      .collect();
+
+    // Apply role-based access control for client users
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Check individualProcess's collectiveProcess company
+      const individualProcess = await ctx.db.get(args.individualProcessId);
+      if (!individualProcess || !individualProcess.collectiveProcessId) {
+        return 0;
+      }
+
+      const collectiveProcess = await ctx.db.get(
+        individualProcess.collectiveProcessId
+      );
+      if (
+        !collectiveProcess ||
+        collectiveProcess.companyId !== userProfile.companyId
+      ) {
+        return 0;
+      }
+    }
+
+    return notes.length;
+  },
+});
+
+/**
  * Query to get a single note by ID
  */
 export const get = query({

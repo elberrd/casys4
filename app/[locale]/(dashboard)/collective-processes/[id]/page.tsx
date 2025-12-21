@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -17,19 +17,21 @@ import { ChangeAuthorizationDialog } from "@/components/individual-processes/cha
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserPlus, RefreshCcw, Shield } from "lucide-react"
+import { UserPlus, RefreshCcw, Shield, ArrowLeft } from "lucide-react"
 import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 
 export default function CollectiveProcessDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const t = useTranslations('CollectiveProcesses')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tCommon = useTranslations('Common')
 
   const locale = params.locale as string
   const collectiveProcessId = params.id as Id<"collectiveProcesses">
+  const fromTaskId = searchParams.get('fromTask')
 
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false)
   const [addPeopleDialogOpen, setAddPeopleDialogOpen] = useState(false)
@@ -129,6 +131,19 @@ export default function CollectiveProcessDetailPage() {
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {/* Back to Task button */}
+        {fromTaskId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={() => router.push(`/tasks?highlight=${fromTaskId}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {t('backToTask') || 'Voltar para Tarefa'}
+          </Button>
+        )}
+
         {/* Collective Process Overview */}
         <CollectiveProcessDetailCard collectiveProcess={collectiveProcess} />
 

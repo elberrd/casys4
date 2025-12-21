@@ -64,6 +64,7 @@ import type * as peopleCompanies from "../peopleCompanies.js";
 import type * as processHistory from "../processHistory.js";
 import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
+import type * as savedFilters from "../savedFilters.js";
 import type * as seedCaseStatuses from "../seedCaseStatuses.js";
 import type * as seedCboCodes from "../seedCboCodes.js";
 import type * as seedCompanies from "../seedCompanies.js";
@@ -145,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   processHistory: typeof processHistory;
   processRequests: typeof processRequests;
   processTypes: typeof processTypes;
+  savedFilters: typeof savedFilters;
   seedCaseStatuses: typeof seedCaseStatuses;
   seedCboCodes: typeof seedCboCodes;
   seedCompanies: typeof seedCompanies;
