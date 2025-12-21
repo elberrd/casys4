@@ -41,14 +41,15 @@ export function DataGridTable() {
   const rows = table.getRowModel().rows
 
   return (
-    <div className="relative w-full overflow-x-auto">
+    <div className="relative w-full overflow-x-auto overflow-y-visible">
       <table
         className={cn(
           "w-full caption-bottom text-sm",
           tableLayout.width === "fixed" && "md:table-fixed",
-          "table-auto",
+          "table-fixed min-w-max",
           tableClassNames.base
         )}
+        style={{ minWidth: '100%' }}
       >
         {/* Header */}
         <thead
@@ -106,7 +107,10 @@ export function DataGridTable() {
                 } else if (header.column.id === 'actions') {
                   calculatedMinWidth = '60px'
                 } else {
-                  calculatedMinWidth = `${calculateMinColumnWidth(headerText, false, hasSorting)}px`
+                  // Use the larger value between column minSize and calculated width
+                  const columnMinSize = header.column.columnDef.minSize
+                  const calculatedWidth = calculateMinColumnWidth(headerText, false, hasSorting)
+                  calculatedMinWidth = `${Math.max(columnMinSize || 0, calculatedWidth)}px`
                 }
 
                 return (
@@ -118,7 +122,7 @@ export function DataGridTable() {
                       minWidth: calculatedMinWidth,
                     }}
                     className={cn(
-                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap overflow-hidden text-ellipsis",
+                      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] whitespace-nowrap overflow-hidden text-ellipsis shrink-0",
                       tableLayout.dense && "h-8 px-1.5",
                       tableLayout.cellBorder && "border-r last:border-r-0",
                       meta?.headerClassName,
@@ -308,7 +312,10 @@ export function DataGridTable() {
                       } else if (cell.column.id === 'actions') {
                         calculatedMinWidth = '60px'
                       } else {
-                        calculatedMinWidth = `${calculateMinColumnWidth(headerText, false, hasSorting)}px`
+                        // Use the larger value between column minSize and calculated width
+                        const columnMinSize = cell.column.columnDef.minSize
+                        const calculatedWidth = calculateMinColumnWidth(headerText, false, hasSorting)
+                        calculatedMinWidth = `${Math.max(columnMinSize || 0, calculatedWidth)}px`
                       }
 
                       // Check if this row is part of a group (has a parent group row)
@@ -326,13 +333,15 @@ export function DataGridTable() {
                             minWidth: calculatedMinWidth,
                           }}
                           className={cn(
-                            "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+                            "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] shrink-0",
                             tableLayout.dense && "p-1.5",
                             tableLayout.cellBorder && "border-r last:border-r-0",
                             columnMeta?.cellClassName,
                             tableClassNames.edgeCell,
                             // Add left padding for grouped rows on first cell
-                            isInGroup && isFirstCell && "pl-8 md:pl-12 border-l-2 border-muted"
+                            isInGroup && isFirstCell && "pl-8 md:pl-12 border-l-2 border-muted",
+                            // Prevent content from breaking and causing overlap
+                            "overflow-hidden"
                           )}
                         >
                           {flexRender(

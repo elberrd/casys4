@@ -521,6 +521,7 @@
     "protocolNumber": "Número do Protocolo",
     "rnmNumber": "Número RNM",
     "rnmDeadline": "Validade do RNM",
+    "nationality": "Nacionalidade",
     "appointmentDateTime": "Data e Hora do Agendamento",
     "salaryInformation": "Informações Salariais",
     "lastSalaryCurrency": "Moeda Última Remuneração",
@@ -2554,7 +2555,15 @@
     "exportSuccess": "Dados exportados com sucesso",
     "exportFailed": "Falha ao exportar dados",
     "exportFormat": "Formato de Exportação",
-    "csvFormat": "CSV"
+    "csvFormat": "CSV",
+    "exportToExcel": "Exportar para Excel",
+    "exportExcel": "Exportar Excel",
+    "enterFilename": "Digite o nome do arquivo",
+    "filenamePlaceholder": "processos_individuais",
+    "filenameRequired": "Nome do arquivo é obrigatório",
+    "exportingExcel": "Gerando arquivo Excel...",
+    "excelExportSuccess": "Arquivo Excel exportado com sucesso",
+    "excelExportError": "Falha ao exportar arquivo Excel"
   },
   "GovernmentStatus": {
     "notStarted": "Não Iniciado",

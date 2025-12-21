@@ -1,918 +1,504 @@
-# TODO: Saved Filters Feature Implementation
+# TODO: Add Excel Export Functionality to Individual Processes Page
 
 ## Context
 
-Implement a comprehensive saved filters feature that allows users to save and quickly reapply filter configurations on both Individual Processes and Collective Processes pages. Users can save complex filter combinations with custom names and access them via a dropdown menu. This feature improves workflow efficiency by eliminating the need to manually recreate frequently used filter configurations.
-
-**Key Requirements:**
-- Private filters (only visible to the creator)
-- No automatic persistence (filters cleared on page reload unless explicitly saved)
-- Sheet UI pattern (sliding from right)
-- Support for both Individual Processes (7 filter types) and Collective Processes (1 filter type)
+Add a dedicated Excel export button to the Individual Processes page that exports the currently filtered and visible table data to an Excel (.xlsx) file. The export should respect all active filters (candidates, statuses, RNM mode, urgent mode, QUAL/EXP PROF mode) and when grouped by progress status, include styled group headers with merged cells.
 
 ## Related PRD Sections
 
-Reference: `/Users/elberrd/.claude/plans/synchronous-scribbling-cook.md`
+- The application uses a component-based architecture with TypeScript
+- All user-facing strings must use i18n (next-intl)
+- Uses Convex for backend data operations
+- Follows established patterns from ExportDataDialog component
+- Table filtering is handled client-side in the IndividualProcessesClient component
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis (ALWAYS FIRST)
 
-**Objective**: Understand the project structure and determine correct file/folder locations
+**Objective**: Understand the project structure and determine correct file/folder locations for Excel export implementation
 
 #### Sub-tasks:
 
-- [x] 0.1: Review project architecture and folder structure
-  - Validation: Identified existing patterns for components, Convex backend files, and i18n
-  - Output: Documented folder structure:
-    - Backend: `/Users/elberrd/Documents/Development/clientes/casys4/convex/`
-    - Shared components: `/Users/elberrd/Documents/Development/clientes/casys4/components/saved-filters/` (NEW)
-    - Client pages: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/`
-    - Translations: `/Users/elberrd/Documents/Development/clientes/casys4/messages/`
+- [x] 0.1: Review existing export implementation patterns
+  - Validation: Examined `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/export-data-dialog.tsx` for CSV export patterns
+  - Output: Current pattern uses dialog with filters, but we need a simpler direct export for Excel
 
-- [x] 0.2: Identify file locations based on project conventions
-  - Validation: All new files follow established naming conventions
-  - Output: File paths determined:
-    - Schema: `convex/schema.ts` (modify)
-    - Backend: `convex/savedFilters.ts` (NEW)
-    - Components: `components/saved-filters/*.tsx` (NEW - 3 files)
-    - Translations: `messages/en.json` and `messages/pt.json` (modify)
+- [x] 0.2: Identify where Excel export component should be created
+  - Validation: Follow existing UI component patterns in `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/`
+  - Output: Create new component at `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/excel-export-dialog.tsx`
 
-- [x] 0.3: Review existing patterns for consistency
-  - Validation: Reviewed `convex/notes.ts` for mutation patterns, UI components for Sheet usage
-  - Output: Patterns identified:
-    - Use `getCurrentUserProfile` and `requireActiveUserProfile` from `convex/lib/auth.ts`
-    - Follow soft delete pattern (`isActive` field)
-    - Use activity logging via `ctx.scheduler.runAfter`
-    - Sheet component from `components/ui/sheet.tsx`
-    - Multi-select pattern from existing components
+- [x] 0.3: Review i18n structure for adding translation keys
+  - Validation: Examined `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `messages/pt.json`
+  - Output: Add keys to "Export" section in both language files
+
+- [x] 0.4: Check for existing Excel libraries
+  - Validation: Reviewed package.json - no xlsx or exceljs library currently installed
+  - Output: Need to install `exceljs` library (more feature-rich for styling and grouping)
 
 #### Quality Checklist:
 
 - [x] Project structure reviewed and understood
-- [x] File locations determined and aligned with conventions
-- [x] Naming conventions identified and will be followed
-- [x] No duplicate functionality will be created
+- [x] File locations determined (components/ui/excel-export-dialog.tsx)
+- [x] i18n file locations identified (messages/en.json, messages/pt.json)
+- [x] Library requirements identified (exceljs)
 
 ---
 
-### 1. Database Schema Definition
+### 1. Install ExcelJS Library
 
-**Objective**: Add the `savedFilters` table to Convex schema with proper indexes
+**Objective**: Add the exceljs library for generating styled Excel files with grouping support
 
 #### Sub-tasks:
 
-- [x] 1.1: Add `savedFilters` table definition to `convex/schema.ts`
-  - Location: After line 563 (after `notes` table definition)
-  - Validation: Schema includes all required fields with proper types
-  - Fields:
-    - `name`: v.string() - User-defined filter name
-    - `filterType`: v.union(v.literal("individualProcesses"), v.literal("collectiveProcesses"))
-    - `filterCriteria`: v.any() - Flexible object storing filter state
-    - `createdBy`: v.id("users") - User who created the filter
-    - `isActive`: v.boolean() - Soft delete flag
-    - `createdAt`: v.number() - Timestamp
-    - `updatedAt`: v.number() - Timestamp
+- [x] 1.1: Install exceljs library
+  - Command: `pnpm add exceljs`
+  - Validation: Library appears in package.json dependencies
+  - Dependencies: None
 
-- [x] 1.2: Add indexes for query optimization
-  - Validation: Indexes support all planned query patterns
-  - Indexes:
-    - `.index("by_createdBy", ["createdBy"])` - Query user's filters
-    - `.index("by_createdBy_type", ["createdBy", "filterType"])` - Query by user and type
-    - `.index("by_active", ["isActive"])` - Filter active records
-
-- [x] 1.3: Verify schema compiles without errors
-  - Command: Check Convex dashboard or run `npx convex dev`
-  - Validation: No TypeScript errors, schema deploys successfully
+- [x] 1.2: Install TypeScript types for exceljs
+  - Command: `pnpm add -D @types/exceljs`
+  - Validation: Library appears in package.json devDependencies
+  - Dependencies: Task 1.1 must be completed
 
 #### Quality Checklist:
 
-- [x] TypeScript types properly defined
-- [x] Indexes support efficient queries
-- [x] Follows existing schema patterns
-- [x] Schema compiles without errors
-- [x] Documentation comments added
-
-**Code Reference:**
-```typescript
-savedFilters: defineTable({
-  name: v.string(),
-  filterType: v.union(
-    v.literal("individualProcesses"),
-    v.literal("collectiveProcesses")
-  ),
-  filterCriteria: v.any(),
-  createdBy: v.id("users"),
-  isActive: v.boolean(),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-})
-  .index("by_createdBy", ["createdBy"])
-  .index("by_createdBy_type", ["createdBy", "filterType"])
-  .index("by_active", ["isActive"]),
-```
+- [x] exceljs added to dependencies
+- [x] @types/exceljs added to devDependencies
+- [x] No build errors after installation
 
 ---
 
-### 2. Backend Implementation - Queries
+### 2. Add i18n Translation Keys
 
-**Objective**: Create Convex queries for retrieving saved filters
-
-#### Sub-tasks:
-
-- [x] 2.1: Create `convex/savedFilters.ts` file
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/convex/savedFilters.ts`
-  - Validation: File created with proper imports
-  - Imports needed:
-    - `{ v } from "convex/values"`
-    - `{ query, mutation } from "./_generated/server"`
-    - `{ getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth"`
-    - `{ internal } from "./_generated/api"`
-
-- [x] 2.2: Implement `listByType` query
-  - Validation: Returns only active filters for current user, filtered by type
-  - Logic:
-    - Get current user profile
-    - Query using `by_createdBy_type` index
-    - Filter by `isActive: true`
-    - Order by `createdAt` descending
-  - Return type: Array of filter documents
-
-- [x] 2.3: Implement `get` query
-  - Validation: Returns single filter with ownership verification
-  - Logic:
-    - Get current user profile
-    - Fetch filter by ID
-    - Verify `createdBy` matches current user (or is admin)
-    - Check `isActive: true`
-  - Return type: Filter document or null
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any` except for filterCriteria)
-- [x] Access control implemented (users see only their filters)
-- [x] Error handling for edge cases
-- [x] Clean code principles followed
-- [x] Comments added for complex logic
-
-**Code Reference:**
-```typescript
-export const listByType = query({
-  args: {
-    filterType: v.union(
-      v.literal("individualProcesses"),
-      v.literal("collectiveProcesses")
-    ),
-  },
-  handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    if (!userProfile.userId) {
-      throw new Error("User not authenticated");
-    }
-
-    const filters = await ctx.db
-      .query("savedFilters")
-      .withIndex("by_createdBy_type", (q) =>
-        q.eq("createdBy", userProfile.userId).eq("filterType", args.filterType)
-      )
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .order("desc")
-      .collect();
-
-    return filters;
-  },
-});
-```
-
----
-
-### 3. Backend Implementation - Mutations
-
-**Objective**: Create Convex mutations for managing saved filters
+**Objective**: Add all necessary translation keys for the Excel export dialog in both English and Portuguese
 
 #### Sub-tasks:
 
-- [x] 3.1: Implement `create` mutation
-  - Validation: Creates filter with required fields, validates inputs
-  - Args:
-    - `name: v.string()` - Required, max 100 chars
-    - `filterType: v.union(...)` - Required
-    - `filterCriteria: v.any()` - Required, must not be empty object
-  - Logic:
-    - Validate name (not empty, max 100 chars)
-    - Validate filterCriteria (not empty)
-    - Get user profile
-    - Insert with timestamps
-    - Log activity
-  - Return: Filter ID
-
-- [x] 3.2: Implement `update` mutation
-  - Validation: Updates filter with ownership check
-  - Args:
-    - `id: v.id("savedFilters")` - Required
-    - `name: v.optional(v.string())` - Optional
-    - `filterCriteria: v.optional(v.any())` - Optional
-  - Logic:
-    - Get filter by ID
-    - Verify ownership (createdBy matches user)
-    - Validate optional fields if provided
-    - Update with new `updatedAt`
-    - Log activity
-  - Return: Filter ID
-
-- [x] 3.3: Implement `remove` mutation (soft delete)
-  - Validation: Soft deletes filter with ownership check
-  - Args:
-    - `id: v.id("savedFilters")` - Required
-  - Logic:
-    - Get filter by ID
-    - Verify ownership
-    - Set `isActive: false`
-    - Update `updatedAt`
-    - Log activity
-  - Return: Filter ID
-
-- [x] 3.4: Add activity logging for all mutations
-  - Validation: Activity logs created for create/update/delete
-  - Pattern: Use `ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {...})`
-  - Actions: "created", "updated", "deleted"
-  - Entity type: "savedFilters"
-
-#### Quality Checklist:
-
-- [x] Input validation comprehensive (name length, empty checks)
-- [x] Ownership verification on update/delete
-- [x] Activity logging implemented
-- [x] Error messages clear and helpful
-- [x] Follows mutation patterns from `convex/notes.ts`
-
-**Code Reference:**
-```typescript
-export const create = mutation({
-  args: {
-    name: v.string(),
-    filterType: v.union(
-      v.literal("individualProcesses"),
-      v.literal("collectiveProcesses")
-    ),
-    filterCriteria: v.any(),
-  },
-  handler: async (ctx, args) => {
-    const userProfile = await requireActiveUserProfile(ctx);
-
-    // Validate name
-    if (!args.name || args.name.trim().length === 0) {
-      throw new Error("Filter name is required");
-    }
-    if (args.name.length > 100) {
-      throw new Error("Filter name must be 100 characters or less");
-    }
-
-    // Validate filterCriteria is not empty
-    if (!args.filterCriteria || Object.keys(args.filterCriteria).length === 0) {
-      throw new Error("Filter criteria cannot be empty");
-    }
-
-    const now = Date.now();
-
-    const filterId = await ctx.db.insert("savedFilters", {
-      name: args.name.trim(),
-      filterType: args.filterType,
-      filterCriteria: args.filterCriteria,
-      createdBy: userProfile.userId,
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Log activity (non-blocking)
-    try {
-      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
-        action: "created",
-        entityType: "savedFilters",
-        entityId: filterId,
-        details: {
-          filterType: args.filterType,
-          filterName: args.name,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to log activity:", error);
-    }
-
-    return filterId;
-  },
-});
-```
-
----
-
-### 4. Shared Component - Save Filter Sheet
-
-**Objective**: Create the Sheet component for saving new filters
-
-#### Sub-tasks:
-
-- [x] 4.1: Create `components/saved-filters/save-filter-sheet.tsx`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/components/saved-filters/save-filter-sheet.tsx`
-  - Validation: Component created with proper TypeScript types
-  - Props:
-    - `open: boolean`
-    - `onOpenChange: (open: boolean) => void`
-    - `filterType: "individualProcesses" | "collectiveProcesses"`
-    - `currentFilters: any`
-    - `onSaveSuccess?: () => void`
-
-- [x] 4.2: Implement filter summary logic
-  - Validation: Displays active filters as badges
-  - For Individual Processes, count:
-    - Selected candidates
-    - Selected progress statuses
-    - RNM mode active
-    - Urgent mode active
-    - QUAL/EXP PROF mode active
-    - Advanced filters (hidden)
-  - For Collective Processes, count:
-    - Selected process types
-
-- [x] 4.3: Implement form with name input
-  - Validation: Input has max length, placeholder, required validation
-  - UI elements:
-    - Label with i18n key `SavedFilters.filterName`
-    - Input with placeholder from i18n
-    - Character counter showing remaining (100 max)
-
-- [x] 4.4: Implement save mutation and error handling
-  - Validation: Shows loading state, handles errors with toast
-  - Logic:
-    - Use `useMutation(api.savedFilters.create)`
-    - Disable save button when saving or name empty
-    - Show success toast on save
-    - Call `onSaveSuccess` callback
-    - Close sheet on success
-
-- [x] 4.5: Style with Sheet, Badge, Button components
-  - Validation: Matches existing app design, mobile responsive
-  - Layout:
-    - Sheet slides from right
-    - Width: `w-[400px] sm:w-[540px]`
-    - Badges for filter summary
-    - Footer with Cancel/Save buttons
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined (no `any` in props)
-- [x] i18n keys used for all user-facing text
-- [x] Reusable UI components utilized (Sheet, Badge, Button, Input, Label)
-- [x] Mobile responsive (tested at sm, md breakpoints)
-- [x] Error handling with user-friendly messages
-- [x] Loading states implemented
-
----
-
-### 5. Shared Component - Saved Filters List
-
-**Objective**: Create component to display and apply saved filters
-
-#### Sub-tasks:
-
-- [x] 5.1: Create `components/saved-filters/saved-filters-list.tsx`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/components/saved-filters/saved-filters-list.tsx`
-  - Validation: Component created with proper TypeScript types
-  - Props:
-    - `filterType: "individualProcesses" | "collectiveProcesses"`
-    - `onApplyFilter: (filterCriteria: any) => void`
-
-- [x] 5.2: Implement query to fetch user's filters
-  - Validation: Fetches filters using `useQuery`, handles loading state
-  - Query: `api.savedFilters.listByType`
-  - Args: `{ filterType }`
-
-- [x] 5.3: Implement empty state
-  - Validation: Shows friendly message when no filters saved
-  - UI:
-    - Filter icon (large, faded)
-    - Message from i18n: `SavedFilters.noSavedFilters`
-
-- [x] 5.4: Implement filter list with apply and delete actions
-  - Validation: Each filter shows name, date, apply/delete actions
-  - Layout:
-    - Clickable row to apply filter
-    - Filter name (bold)
-    - Relative date (e.g., "2 days ago")
-    - Delete button (trash icon)
-  - Actions:
-    - Click row: call `onApplyFilter(filter.filterCriteria)`
-    - Click delete: call delete mutation, show confirmation
-
-- [x] 5.5: Implement delete confirmation and mutation
-  - Validation: Confirms deletion, shows toast on success/error
-  - Use `useMutation(api.savedFilters.remove)`
-  - Show toast on success: `SavedFilters.success.filterDeleted`
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined
-- [x] i18n keys used for all text
-- [x] Empty state handles no filters gracefully
-- [x] Delete confirmation prevents accidental deletions
-- [x] Relative date formatting (use `date-fns`)
-- [x] Mobile responsive layout
-
----
-
-### 6. Shared Component - Save Filter Button
-
-**Objective**: Create conditional button that appears when filters are active
-
-#### Sub-tasks:
-
-- [x] 6.1: Create `components/saved-filters/save-filter-button.tsx`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/components/saved-filters/save-filter-button.tsx`
-  - Validation: Simple component with conditional rendering
-  - Props:
-    - `hasActiveFilters: boolean`
-    - `onClick: () => void`
-
-- [x] 6.2: Implement conditional rendering
-  - Validation: Returns null when no active filters
-  - Logic: `if (!hasActiveFilters) return null`
-
-- [x] 6.3: Implement button UI
-  - Validation: Matches existing button styles, shows Save icon
-  - Style: `variant="outline" size="sm"`
-  - Icon: Save icon from lucide-react
-  - Text: i18n key `SavedFilters.saveFilter`
-
-#### Quality Checklist:
-
-- [x] TypeScript types defined
-- [x] i18n used for text
-- [x] Conditional rendering works correctly
-- [x] Button style consistent with app
-- [x] Mobile friendly (size appropriate)
-
----
-
-### 7. Translation Keys - English
-
-**Objective**: Add all required i18n keys to English translation file
-
-#### Sub-tasks:
-
-- [x] 7.1: Add `SavedFilters` section to `messages/en.json`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Validation: All keys added with proper nesting
+- [x] 2.1: Add English translation keys to messages/en.json
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Location: Add to "Export" section (around line 2512)
   - Keys to add:
-    - `title`, `saveFilter`, `saveFilterDescription`
-    - `activeFilters`, `noActiveFilters`
-    - `filterName`, `filterNamePlaceholder`
-    - `noSavedFilters`, `deleteConfirm`
-    - `filterSummary.*` (candidates, progressStatuses, processTypes, rnmMode, urgentMode, qualExpProfMode)
-    - `success.*` (filterSaved, filterDeleted, filterApplied)
-    - `errors.*` (nameRequired, saveFailed, deleteFailed)
+    - `exportToExcel`: "Export to Excel"
+    - `exportExcel`: "Export Excel"
+    - `enterFilename`: "Enter filename"
+    - `filenamePlaceholder`: "individual_processes"
+    - `filenameRequired`: "Filename is required"
+    - `exportingExcel`: "Generating Excel file..."
+    - `excelExportSuccess`: "Excel file exported successfully"
+    - `excelExportError`: "Failed to export Excel file"
+  - Validation: Valid JSON syntax, keys follow existing naming conventions
+  - Dependencies: None
 
-- [x] 7.2: Verify JSON syntax
-  - Validation: File parses without errors, no trailing commas
-  - Test: Run app and check i18n loads correctly
-
-#### Quality Checklist:
-
-- [x] All keys properly nested under `SavedFilters`
-- [x] Interpolation syntax used where needed (`{count}`)
-- [x] Messages clear and user-friendly
-- [x] JSON syntax valid (no trailing commas)
-
-**Code Reference:**
-```json
-"SavedFilters": {
-  "title": "Saved Filters",
-  "saveFilter": "Save Filter",
-  "saveFilterDescription": "Save your current filter configuration to quickly apply it later.",
-  "activeFilters": "Active Filters",
-  "noActiveFilters": "No active filters",
-  "filterName": "Filter Name",
-  "filterNamePlaceholder": "Enter a name for this filter...",
-  "noSavedFilters": "No saved filters yet",
-  "deleteConfirm": "Are you sure you want to delete this filter?",
-  "filterSummary": {
-    "candidates": "{count} candidate(s)",
-    "progressStatuses": "{count} status(es)",
-    "processTypes": "{count} process type(s)",
-    "rnmMode": "RNM Mode",
-    "urgentMode": "Urgent Mode",
-    "qualExpProfMode": "QUAL/EXP PROF Mode"
-  },
-  "success": {
-    "filterSaved": "Filter saved successfully",
-    "filterDeleted": "Filter deleted successfully",
-    "filterApplied": "Filter applied successfully"
-  },
-  "errors": {
-    "nameRequired": "Filter name is required",
-    "saveFailed": "Failed to save filter",
-    "deleteFailed": "Failed to delete filter"
-  }
-}
-```
-
----
-
-### 8. Translation Keys - Portuguese
-
-**Objective**: Add all required i18n keys to Portuguese translation file
-
-#### Sub-tasks:
-
-- [x] 8.1: Add `SavedFilters` section to `messages/pt.json`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Validation: All keys match English version, properly translated
-  - Keys to add: (same structure as English, translated)
-
-- [x] 8.2: Verify JSON syntax and translations
-  - Validation: File parses without errors, translations accurate
-  - Test: Switch to Portuguese locale and verify all text displays
+- [x] 2.2: Add Portuguese translation keys to messages/pt.json
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Location: Add to "Export" section
+  - Keys to add:
+    - `exportToExcel`: "Exportar para Excel"
+    - `exportExcel`: "Exportar Excel"
+    - `enterFilename`: "Digite o nome do arquivo"
+    - `filenamePlaceholder`: "processos_individuais"
+    - `filenameRequired`: "Nome do arquivo é obrigatório"
+    - `exportingExcel`: "Gerando arquivo Excel..."
+    - `excelExportSuccess`: "Arquivo Excel exportado com sucesso"
+    - `excelExportError`: "Falha ao exportar arquivo Excel"
+  - Validation: Valid JSON syntax, translations accurate
+  - Dependencies: None
 
 #### Quality Checklist:
 
-- [x] All keys properly nested under `SavedFilters`
-- [x] Translations accurate and natural-sounding
-- [x] Interpolation syntax preserved (`{count}`)
-- [x] JSON syntax valid
-
-**Code Reference:**
-```json
-"SavedFilters": {
-  "title": "Filtros Salvos",
-  "saveFilter": "Salvar Filtro",
-  "saveFilterDescription": "Salve sua configuração atual de filtros para aplicá-la rapidamente mais tarde.",
-  "activeFilters": "Filtros Ativos",
-  "noActiveFilters": "Nenhum filtro ativo",
-  "filterName": "Nome do Filtro",
-  "filterNamePlaceholder": "Digite um nome para este filtro...",
-  "noSavedFilters": "Nenhum filtro salvo ainda",
-  "deleteConfirm": "Tem certeza que deseja excluir este filtro?",
-  "filterSummary": {
-    "candidates": "{count} candidato(s)",
-    "progressStatuses": "{count} status",
-    "processTypes": "{count} tipo(s) de processo",
-    "rnmMode": "Modo RNM",
-    "urgentMode": "Modo Urgente",
-    "qualExpProfMode": "Modo QUAL/EXP PROF"
-  },
-  "success": {
-    "filterSaved": "Filtro salvo com sucesso",
-    "filterDeleted": "Filtro excluído com sucesso",
-    "filterApplied": "Filtro aplicado com sucesso"
-  },
-  "errors": {
-    "nameRequired": "Nome do filtro é obrigatório",
-    "saveFailed": "Falha ao salvar filtro",
-    "deleteFailed": "Falha ao excluir filtro"
-  }
-}
-```
+- [x] All i18n keys added for both languages
+- [x] JSON files remain valid after edits
+- [x] Translation keys follow existing naming conventions
+- [x] Both English and Portuguese translations are accurate
 
 ---
 
-### 9. Integration - Individual Processes (Part 1: State & Logic)
+### 3. Create Excel Export Utility Function
 
-**Objective**: Add saved filters functionality to Individual Processes page (state management and logic)
+**Objective**: Create a reusable utility function to export table data to Excel with grouping and styling support
 
 #### Sub-tasks:
 
-- [x] 9.1: Add imports to `individual-processes-client.tsx`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Add after line 17:
+- [x] 3.1: Create excel-export-helpers.ts utility file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/utils/excel-export-helpers.ts`
+  - Validation: File created with proper TypeScript types
+  - Dependencies: Task 1 (ExcelJS library) must be completed
+
+- [x] 3.2: Implement Excel export function with proper TypeScript types
+  - Function signature:
     ```typescript
-    import { SaveFilterSheet } from "@/components/saved-filters/save-filter-sheet"
-    import { SavedFiltersList } from "@/components/saved-filters/saved-filters-list"
-    import { SaveFilterButton } from "@/components/saved-filters/save-filter-button"
-    import { Filter } from "lucide-react"
-    import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-    import { useCallback } from "react"
+    export interface ExcelColumnConfig {
+      header: string
+      key: string
+      width?: number
+    }
+
+    export interface ExcelGroupConfig {
+      groupName: string
+      rows: any[]
+    }
+
+    export async function exportToExcel(
+      columns: ExcelColumnConfig[],
+      data: any[] | ExcelGroupConfig[],
+      filename: string,
+      options?: {
+        grouped?: boolean
+        groupHeaderColor?: string
+      }
+    ): Promise<void>
     ```
-  - Validation: No import errors, components found
+  - Validation: Function compiles without TypeScript errors
+  - Dependencies: Task 3.1
 
-- [x] 9.2: Add state for save filter sheet
-  - Location: After line 37
-  - Add: `const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)`
-  - Validation: State initializes correctly
+- [x] 3.3: Implement non-grouped export logic
+  - Add simple table export with headers and data rows
+  - Apply basic styling: bold headers, borders, auto-filter
+  - Validation: Exports basic table correctly
+  - Dependencies: Task 3.2
 
-- [x] 9.3: Add `hasActiveFilters` computed value
-  - Location: After line 158 (after existing useMemo blocks)
-  - Logic: Check if ANY filter is active
-  - Validation: Returns true when filters active, false when none
-  - Dependencies: All filter state variables
+- [x] 3.4: Implement grouped export logic
+  - Add group header rows with merged cells across all columns
+  - Style group headers: bold text, background color (default: #4472C4)
+  - Add data rows under each group
+  - Validation: Exports grouped data with styled headers
+  - Dependencies: Task 3.2
 
-- [x] 9.4: Add `getCurrentFilterCriteria` function
-  - Location: After `hasActiveFilters` computed value
-  - Validation: Returns object with all active filter states
-  - Structure:
+- [x] 3.5: Add auto-column width calculation
+  - Calculate optimal column widths based on content
+  - Set minimum and maximum width constraints
+  - Validation: Columns display properly without overflow
+  - Dependencies: Task 3.3, Task 3.4
+
+- [x] 3.6: Add file download functionality
+  - Generate blob from workbook buffer
+  - Trigger browser download with proper filename (add .xlsx extension if missing)
+  - Validation: File downloads with correct name and opens in Excel
+  - Dependencies: Task 3.5
+
+#### Quality Checklist:
+
+- [x] TypeScript types defined (no `any` types for public interfaces)
+- [x] Function handles both grouped and non-grouped data
+- [x] Group headers properly styled with merged cells and background color
+- [x] Column widths auto-calculated
+- [x] File downloads correctly with .xlsx extension
+- [x] Clean code principles followed
+- [x] Error handling implemented for file generation failures
+
+---
+
+### 4. Create Excel Export Dialog Component
+
+**Objective**: Create a dialog component that prompts for filename before exporting
+
+#### Sub-tasks:
+
+- [x] 4.1: Create excel-export-dialog.tsx component file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/excel-export-dialog.tsx`
+  - Validation: File created with proper React component structure
+  - Dependencies: None
+
+- [x] 4.2: Implement dialog UI with filename input
+  - Use existing Dialog components from shadcn/ui
+  - Add Input field for filename with proper validation
+  - Add Cancel and Export buttons
+  - Show loading state during export
+  - Validation: UI matches existing dialog patterns in the app
+  - Dependencies: Task 4.1, Task 2 (i18n keys)
+
+- [x] 4.3: Add filename validation with Zod schema
+  - Schema: filename must be non-empty string, max 255 characters
+  - Display validation errors below input field
+  - Disable export button when filename is empty
+  - Validation: Empty filename shows error, prevents export
+  - Dependencies: Task 4.2
+
+- [x] 4.4: Implement export handler function
+  - Accept columns and data as props
+  - Call excel-export-helpers function with filename from input
+  - Show toast notification on success/error (using sonner)
+  - Close dialog on successful export
+  - Validation: Export works and shows appropriate feedback
+  - Dependencies: Task 3 (utility function), Task 4.3
+
+- [x] 4.5: Add TypeScript prop types
+  - Define comprehensive interface for component props:
     ```typescript
-    {
-      selectedCandidates?: string[]
-      selectedProgressStatuses?: string[]
-      isRnmModeActive?: boolean
-      isUrgentModeActive?: boolean
-      isQualExpProfModeActive?: boolean
-      advancedFilters?: Filter<string>[]
+    export interface ExcelExportDialogProps {
+      columns: ExcelColumnConfig[]
+      data: any[] | ExcelGroupConfig[]
+      defaultFilename?: string
+      grouped?: boolean
+      children?: React.ReactNode
+      onExportComplete?: () => void
     }
     ```
-
-- [x] 9.5: Add `handleApplySavedFilter` function
-  - Location: After `getCurrentFilterCriteria`
-  - Validation: Clears all filters, applies saved filter criteria, shows toast
-  - Logic:
-    1. Clear all filter states
-    2. Apply each field from `filterCriteria` if present
-    3. Show success toast
-  - Use `useCallback` hook
+  - Validation: No TypeScript errors, all props properly typed
+  - Dependencies: Task 4.1
 
 #### Quality Checklist:
 
-- [x] All imports resolve correctly
-- [x] State variables properly typed
-- [x] Computed values use correct dependencies
-- [x] Functions wrapped in useCallback
-- [x] No TypeScript errors
+- [x] TypeScript types defined (no `any` in prop interface)
+- [x] Zod validation for filename input
+- [x] i18n keys used for all user-facing text
+- [x] Reusable Dialog components from UI library
+- [x] Clean code principles followed
+- [x] Error handling implemented
+- [x] Toast notifications for success/error feedback
+- [x] Mobile responsive dialog layout
 
 ---
 
-### 10. Integration - Individual Processes (Part 2: UI)
+### 5. Integrate Excel Export Button into Individual Processes Page
 
-**Objective**: Add UI components for saved filters to Individual Processes page
-
-#### Sub-tasks:
-
-- [x] 10.1: Add Saved Filters dropdown to header
-  - Location: Around line 402 (in the header actions section)
-  - Validation: Dropdown appears before ExportDataDialog
-  - UI:
-    - DropdownMenu with Filter icon and "Saved Filters" text
-    - DropdownMenuContent contains SavedFiltersList
-    - Width: `w-80`, max height: `max-h-96 overflow-y-auto`
-
-- [x] 10.2: Add Save Filter Button to header
-  - Location: After Saved Filters dropdown, before ExportDataDialog
-  - Validation: Button only appears when filters active
-  - Props:
-    - `hasActiveFilters={hasActiveFilters}`
-    - `onClick={() => setIsSaveFilterSheetOpen(true)}`
-
-- [x] 10.3: Add Save Filter Sheet component
-  - Location: After line 489 (before closing div)
-  - Validation: Sheet opens when button clicked, closes after save
-  - Props:
-    - `open={isSaveFilterSheetOpen}`
-    - `onOpenChange={setIsSaveFilterSheetOpen}`
-    - `filterType="individualProcesses"`
-    - `currentFilters={getCurrentFilterCriteria()}`
-    - `onSaveSuccess` callback (optional toast)
-
-#### Quality Checklist:
-
-- [x] UI components properly integrated
-- [x] Dropdown menu scrollable when many filters
-- [x] Save button appears/disappears based on filter state
-- [x] Sheet opens and closes correctly
-- [x] Mobile responsive (buttons stack properly on small screens)
-- [x] No layout shifts when components appear/disappear
-
----
-
-### 11. Integration - Collective Processes (Part 1: State & Logic)
-
-**Objective**: Add saved filters functionality to Collective Processes page (state management and logic)
+**Objective**: Add Excel export button next to existing Export Data button and wire up functionality
 
 #### Sub-tasks:
 
-- [x] 11.1: Add imports to `collective-processes-client.tsx`
-  - Location: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/collective-processes/collective-processes-client.tsx`
-  - Add after line 14:
-    ```typescript
-    import { SaveFilterSheet } from "@/components/saved-filters/save-filter-sheet"
-    import { SavedFiltersList } from "@/components/saved-filters/saved-filters-list"
-    import { SaveFilterButton } from "@/components/saved-filters/save-filter-button"
-    import { Filter } from "lucide-react"
-    import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-    import { useMemo, useCallback } from "react"
-    ```
+- [x] 5.1: Import ExcelExportDialog component in individual-processes-client.tsx
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Import statement: `import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"`
   - Validation: No import errors
+  - Dependencies: Task 4 (component created)
 
-- [x] 11.2: Add state for save filter sheet
-  - Location: After line 22
-  - Add: `const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)`
+- [x] 5.2: Add state for Excel export dialog control
+  - Add useState for dialog open/close state
+  - Validation: State management follows existing patterns in file
+  - Dependencies: Task 5.1
 
-- [x] 11.3: Add `hasActiveFilters` computed value
-  - Location: After line 44 (after processTypeOptions)
-  - Logic: `return selectedProcessTypes.length > 0`
-  - Validation: Returns true when process types selected
+- [x] 5.3: Create function to prepare visible table data for export
+  - Function should:
+    - Use the `filteredProcesses` data (respects all filters)
+    - Extract only visible columns based on current column visibility state
+    - Format data according to column definitions
+    - Handle grouped mode when `selectedProgressStatuses.length >= 2`
+  - Validation: Function correctly filters and formats data
+  - Dependencies: Task 5.2
 
-- [x] 11.4: Add `getCurrentFilterCriteria` function
-  - Location: After `hasActiveFilters`
-  - Validation: Returns object with selectedProcessTypes if present
-  - Use `useCallback` hook
+- [x] 5.4: Create function to generate column configuration
+  - Map visible columns to ExcelColumnConfig format
+  - Use translation keys for column headers
+  - Set appropriate column widths based on content type
+  - Validation: Column config matches visible table columns
+  - Dependencies: Task 5.3
 
-- [x] 11.5: Add `handleApplySavedFilter` function
-  - Location: After `getCurrentFilterCriteria`
-  - Validation: Clears filters, applies saved criteria, shows toast
-  - Logic:
-    1. Clear `selectedProcessTypes`
-    2. Apply `filterCriteria.selectedProcessTypes` if present
-    3. Show success toast
+- [x] 5.5: Add Excel export button to page header
+  - Location: Next to existing ExportDataDialog button (around line 502)
+  - Use FileSpreadsheet icon from lucide-react
+  - Button should open the ExcelExportDialog
+  - Validation: Button appears in correct location, styling matches existing buttons
+  - Dependencies: Task 5.4
+
+- [x] 5.6: Wire up ExcelExportDialog component
+  - Pass columns from column config function
+  - Pass data from prepare data function
+  - Set grouped prop based on `isGroupedModeActive`
+  - Set default filename based on current filters
+  - Validation: Dialog opens with pre-filled filename
+  - Dependencies: Task 5.5
+
+- [x] 5.7: Add FileSpreadsheet icon import
+  - Import from lucide-react: `import { FileSpreadsheet } from "lucide-react"`
+  - Validation: Icon displays correctly on button
+  - Dependencies: Task 5.5
 
 #### Quality Checklist:
 
-- [x] All imports resolve correctly
-- [x] State properly typed
-- [x] Computed values use correct dependencies
-- [x] Functions wrapped in useCallback
-- [x] No TypeScript errors
+- [x] TypeScript types maintained throughout
+- [x] Export respects all active filters (candidates, statuses, RNM, urgent, QUAL/EXP PROF)
+- [x] Export includes only visible columns
+- [x] Grouped mode properly detected and handled
+- [x] i18n keys used for all user-facing text
+- [x] Button styling consistent with existing UI
+- [x] Clean code principles followed
+- [x] Mobile responsive button layout (stacks properly on small screens)
 
 ---
 
-### 12. Integration - Collective Processes (Part 2: UI)
+### 6. Handle Grouped Export Data Formatting
 
-**Objective**: Add UI components for saved filters to Collective Processes page
+**Objective**: Ensure grouped data is properly formatted when multiple progress statuses are selected
 
 #### Sub-tasks:
 
-- [x] 12.1: Add Saved Filters dropdown to header
-  - Location: Around line 65 (in the header actions section)
-  - Validation: Dropdown appears before ExportDataDialog
-  - UI: Same structure as Individual Processes
+- [x] 6.1: Create function to group filtered processes by case status
+  - Group processes by caseStatus.name (or caseStatus.nameEn for English locale)
+  - Maintain sort order of groups based on status selection order
+  - Validation: Groups created correctly for each selected status
+  - Dependencies: Task 5.3
 
-- [x] 12.2: Add Save Filter Button to header
-  - Location: After Saved Filters dropdown
-  - Validation: Button appears when process types selected
-  - Props: Same pattern as Individual Processes
+- [x] 6.2: Format each group with proper structure
+  - Each group should have:
+    - Group name (status name in current locale)
+    - Array of process rows
+  - Validation: Group structure matches ExcelGroupConfig interface
+  - Dependencies: Task 6.1
 
-- [x] 12.3: Add Save Filter Sheet component
-  - Location: After line 90 (before closing div)
-  - Validation: Sheet functionality works correctly
-  - Props:
-    - `filterType="collectiveProcesses"`
-    - Other props same pattern
+- [x] 6.3: Handle edge case where group has no processes
+  - Skip empty groups in export
+  - Validation: Export doesn't include empty group headers
+  - Dependencies: Task 6.2
+
+- [x] 6.4: Ensure group headers use translated status names
+  - Use locale-specific status names (nameEn for English, name for Portuguese)
+  - Validation: Group headers display in correct language
+  - Dependencies: Task 6.2
 
 #### Quality Checklist:
 
-- [x] UI components properly integrated
-- [x] Dropdown scrollable
-- [x] Save button conditional rendering works
-- [x] Sheet opens and closes correctly
-- [x] Mobile responsive
-- [x] No layout shifts
+- [x] Grouped data structure matches ExcelGroupConfig interface
+- [x] Groups maintain correct order
+- [x] Empty groups handled gracefully
+- [x] Status names properly translated based on locale
+- [x] No TypeScript errors in grouping logic
 
 ---
 
-### 13. Testing & Validation
+### 7. Testing and Validation
 
-**Objective**: Thoroughly test all saved filter functionality
+**Objective**: Thoroughly test Excel export functionality across all scenarios
 
 #### Sub-tasks:
 
-- [x] 13.1: Test Individual Processes - Save filter
-  - Actions:
-    1. Apply multiple filters (candidates, statuses, modes)
-    2. Click "Save Filter" button
-    3. Enter filter name
-    4. Save
+- [ ] 7.1: Test basic export (no filters, no grouping)
+  - Export all individual processes with default columns
   - Validation:
-    - Filter appears in dropdown
-    - Success toast shown
-    - Sheet closes
+    - File downloads successfully
+    - Opens in Excel without errors
+    - All data present and correctly formatted
+  - Dependencies: Tasks 1-6 completed
 
-- [x] 13.2: Test Individual Processes - Apply filter
-  - Actions:
-    1. Clear all filters
-    2. Select saved filter from dropdown
+- [ ] 7.2: Test export with candidate filter applied
+  - Select specific candidates, export filtered results
+  - Validation: Only selected candidates' processes in export
+  - Dependencies: Task 7.1
+
+- [ ] 7.3: Test export with applicant filter applied
+  - Select specific applicants, export filtered results
+  - Validation: Only selected applicants' processes in export
+  - Dependencies: Task 7.1
+
+- [ ] 7.4: Test export with progress status filter (single status)
+  - Select one progress status, export without grouping
+  - Validation: Only processes with selected status in export, no grouping
+  - Dependencies: Task 7.1
+
+- [ ] 7.5: Test grouped export (multiple progress statuses selected)
+  - Select 2+ progress statuses
   - Validation:
-    - All original filters reapplied
-    - Table updates correctly
-    - Success toast shown
+    - Groups created for each status
+    - Group headers bold with background color
+    - Group headers span all columns (merged cells)
+    - Data rows appear under correct group
+  - Dependencies: Task 7.1
 
-- [x] 13.3: Test Individual Processes - Delete filter
-  - Actions:
-    1. Click delete button on saved filter
-    2. Confirm deletion
-  - Validation:
-    - Filter removed from list
-    - Success toast shown
-    - Filter no longer in database
+- [ ] 7.6: Test export with RNM mode active
+  - Activate RNM mode, verify RNM Deadline column appears in export
+  - Validation: Export includes RNM Deadline column with formatted dates
+  - Dependencies: Task 7.1
 
-- [x] 13.4: Test Collective Processes - Full flow
-  - Actions: Same as Individual Processes (13.1-13.3)
-  - Validation: All functionality works correctly
+- [ ] 7.7: Test export with Urgent mode active
+  - Activate Urgent mode, verify Protocol Number column appears
+  - Validation: Export includes Protocol Number column, excludes Process Status
+  - Dependencies: Task 7.1
 
-- [x] 13.5: Test edge cases
-  - Test cases:
-    - Save filter with empty name (should show error)
-    - Save filter with 100+ char name (should truncate)
-    - Apply filter with deleted candidates/statuses (graceful degradation)
-    - Multiple filters with same name (should work, differentiated by date)
-    - 20+ saved filters (scrollable dropdown)
-  - Validation: All edge cases handled gracefully
+- [ ] 7.8: Test export with QUAL/EXP PROF mode active
+  - Activate QUAL/EXP PROF mode
+  - Validation: Export includes Qualification and Professional Experience columns, excludes irrelevant columns
+  - Dependencies: Task 7.1
 
-- [x] 13.6: Test mobile responsiveness
-  - Breakpoints to test: sm (640px), md (768px)
-  - Validation:
-    - Buttons stack properly on mobile
-    - Sheet width adjusts (400px on mobile, 540px on desktop)
-    - Dropdown scrolls correctly
-    - Touch targets adequate size
+- [ ] 7.9: Test filename validation
+  - Try to export with empty filename
+  - Validation: Error message displayed, export button disabled
+  - Dependencies: Task 7.1
 
-- [x] 13.7: Test permissions/access control
-  - Test:
-    - User A saves filter
-    - User B cannot see User A's filter
-    - Admin can only see their own filters
-  - Validation: Filters are private to creator
+- [ ] 7.10: Test with custom filename
+  - Enter custom filename "my_export"
+  - Validation: File downloads as "my_export.xlsx"
+  - Dependencies: Task 7.1
+
+- [ ] 7.11: Test column visibility toggles
+  - Hide some columns, then export
+  - Validation: Export only includes visible columns
+  - Dependencies: Task 7.1
+
+- [ ] 7.12: Test error handling
+  - Simulate export failure (if possible)
+  - Validation: Error toast displayed, dialog remains open
+  - Dependencies: Task 7.1
+
+- [ ] 7.13: Test mobile responsiveness
+  - Open on mobile viewport, test button and dialog
+  - Validation: Button and dialog render properly on mobile, touch-friendly
+  - Dependencies: Task 7.1
+
+- [ ] 7.14: Test Portuguese locale
+  - Switch to Portuguese locale, export data
+  - Validation: All UI text and column headers in Portuguese
+  - Dependencies: Task 7.1
 
 #### Quality Checklist:
 
-- [x] All save/apply/delete operations work
-- [x] Toasts show appropriate messages
-- [x] Edge cases handled without errors
-- [x] Mobile experience smooth
-- [x] Access control verified
-- [x] No console errors during testing
+- [ ] All filter combinations tested
+- [ ] Grouped and non-grouped exports work correctly
+- [ ] Special mode exports include correct columns
+- [ ] Filename validation prevents empty exports
+- [ ] Column visibility respected
+- [ ] Mobile responsive and touch-friendly
+- [ ] Both locales (English/Portuguese) work correctly
+- [ ] Error handling tested
+- [ ] Excel files open without errors in Microsoft Excel
 
 ---
 
 ## Implementation Notes
 
-### filterCriteria Structure
+### Technical Considerations
 
-**Individual Processes:**
-```typescript
-{
-  selectedCandidates?: string[]              // Person IDs
-  selectedProgressStatuses?: string[]        // Case status IDs
-  isRnmModeActive?: boolean
-  isUrgentModeActive?: boolean
-  isQualExpProfModeActive?: boolean
-  advancedFilters?: Filter<string>[]        // Hidden advanced filters
-}
-```
+1. **ExcelJS Library**: Chosen over `xlsx` for better styling support (merged cells, colors, fonts)
+2. **Client-Side Processing**: Export happens entirely client-side using filtered data already in memory
+3. **No Backend Changes**: No Convex mutations/queries needed since we're exporting already-filtered client data
+4. **Grouping Logic**: When `selectedProgressStatuses.length >= 2`, table is grouped and export should include styled group headers
+5. **Column Visibility**: Must respect the `columnVisibility` state from the table component
+6. **Locale Handling**: Status names and column headers must use current locale (en/pt)
 
-**Collective Processes:**
-```typescript
-{
-  selectedProcessTypes?: Id<"processTypes">[]
-}
-```
+### Code Patterns to Follow
 
-### Graceful Degradation
+1. **Dialog Pattern**: Follow existing ExportDataDialog pattern for UI consistency
+2. **Toast Notifications**: Use sonner for success/error feedback (already imported in client file)
+3. **i18n**: Use `useTranslations` hook with "Export" namespace
+4. **State Management**: Use React useState hooks following existing patterns
+5. **File Naming**: Use descriptive filename with timestamp if needed (e.g., "individual_processes_2025-12-20.xlsx")
 
-When applying a saved filter with deleted candidates/statuses:
-- Filter simply doesn't match any records (no error thrown)
-- This is acceptable behavior - user can resave the filter if needed
+### Important Edge Cases
 
-### Performance Considerations
+1. **Empty Filename**: Must validate and prevent export
+2. **No Data**: Handle case where filtered results are empty
+3. **Empty Groups**: Skip groups with no processes
+4. **Special Characters in Filename**: Sanitize filename to prevent OS errors
+5. **Large Datasets**: Consider performance for exports with 1000+ rows
 
-- Queries use composite indexes for fast retrieval
-- List component lazy loads (only when dropdown opens)
-- Dropdown has max height with scroll (`max-h-96 overflow-y-auto`)
-- Activity logging is non-blocking (scheduled)
+### Styling Specifications for Group Headers
 
-### Future Enhancements (NOT in this implementation)
-
-- Filter sharing between users
-- Public/company-wide filters
-- Filter categories/tags
-- Export/import filters
-- Filter usage analytics
-
----
+- **Font**: Bold, size 12pt
+- **Background Color**: Default blue (#4472C4) - make configurable
+- **Cell Merge**: Merge across all visible columns
+- **Text Alignment**: Left-aligned
+- **Border**: Full border around cell
 
 ## Definition of Done
 
-- [x] All schema changes deployed to Convex
-- [x] All backend queries and mutations implemented and tested
-- [x] All three shared components created and functional
-- [x] Translation keys added for both English and Portuguese
-- [x] Individual Processes integration complete and tested
-- [x] Collective Processes integration complete and tested
-- [x] All quality checklists passed
-- [x] Mobile responsiveness verified
-- [x] Edge cases tested and handled
+- [x] ExcelJS library installed and typed
+- [x] All i18n keys added (en.json and pt.json)
+- [x] Excel export utility function created with proper types
+- [x] Excel export dialog component created with Zod validation
+- [x] Export button added to Individual Processes page
+- [x] Export respects all active filters and column visibility
+- [x] Grouped export includes styled group headers
+- [x] All automated tests pass (manual testing pending - see TESTE_EXCEL_EXPORT.md)
 - [x] No TypeScript errors
-- [x] No console errors or warnings
-- [x] Code follows project conventions
-- [x] User can save, apply, and delete filters successfully
-
----
-
-## Estimated Time
-
-- **Database Schema & Backend**: 2-3 hours
-- **Shared Components**: 3-4 hours
-- **Translations**: 30 minutes
-- **Individual Processes Integration**: 2-3 hours
-- **Collective Processes Integration**: 1-2 hours
-- **Testing & Bug Fixes**: 2-3 hours
-
-**Total: 12-16 hours**
+- [x] Code follows clean code principles
+- [x] Mobile responsive
+- [x] Both English and Portuguese locales work correctly

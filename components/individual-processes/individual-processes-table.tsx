@@ -420,7 +420,7 @@ export function IndividualProcessesTable({
       createSelectColumn<IndividualProcess>(),
       {
         accessorKey: "person.fullName",
-        minSize: 180,
+        minSize: 200,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("personName")} />
         ),
@@ -433,7 +433,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "protocolNumber",
         id: "protocolNumber",
-        minSize: 120,
+        minSize: 140,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("protocol")} />
         ),
@@ -451,6 +451,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "processTypeIndicator",
         id: "processTypeIndicator",
+        minSize: 70,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -460,34 +461,36 @@ export function IndividualProcessesTable({
         cell: ({ row }) => {
           const isCollective = !!row.original.collectiveProcess;
           return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant={isCollective ? "default" : "secondary"}
-                    className="w-6 h-6 flex items-center justify-center font-semibold cursor-help"
-                  >
-                    {isCollective ? "C" : "I"}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {isCollective
-                      ? t("collectiveProcessIndicator")
-                      : t("individualProcessIndicator")}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center justify-center w-full">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant={isCollective ? "default" : "secondary"}
+                      className="w-6 h-6 flex items-center justify-center font-semibold cursor-help shrink-0"
+                    >
+                      {isCollective ? "C" : "I"}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {isCollective
+                        ? t("collectiveProcessIndicator")
+                        : t("individualProcessIndicator")}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           );
         },
-        minSize: 50,
         enableSorting: true,
-        enableHiding: true,
+        enableHiding: false,
       },
       {
         accessorKey: "urgent",
         id: "urgent",
+        minSize: 70,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title="">
             <AlertTriangle className="h-4 w-4" />
@@ -593,33 +596,34 @@ export function IndividualProcessesTable({
           };
 
           return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleToggle}
-                    className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 rounded p-1"
-                  >
-                    <AlertTriangle
-                      className={cn(
-                        "h-4 w-4 cursor-pointer transition-all hover:scale-110",
-                        isUrgent
-                          ? "fill-amber-500 text-black stroke-2"
-                          : "text-muted-foreground fill-transparent",
-                      )}
-                    />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isUrgent ? t("unmarkAsUrgent") : t("markAsUrgent")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center justify-center w-full">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleToggle}
+                      className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 rounded p-1 shrink-0"
+                    >
+                      <AlertTriangle
+                        className={cn(
+                          "h-4 w-4 cursor-pointer transition-all hover:scale-110",
+                          isUrgent
+                            ? "fill-amber-500 text-black stroke-2"
+                            : "text-muted-foreground fill-transparent",
+                        )}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isUrgent ? t("unmarkAsUrgent") : t("markAsUrgent")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           );
         },
-        minSize: 50,
         enableSorting: true,
-        enableHiding: true,
+        enableHiding: false,
       },
       {
         accessorKey: "companyApplicant.name",
@@ -628,20 +632,19 @@ export function IndividualProcessesTable({
           <DataGridColumnHeader
             column={column}
             title={t("applicant")}
-            className="hidden md:table-cell"
           />
         ),
         cell: ({ row }) => {
           const { companyApplicant } = row.original;
           if (!companyApplicant) {
             return (
-              <span className="hidden md:table-cell text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 -
               </span>
             );
           }
           return (
-            <span className="hidden md:table-cell text-sm">
+            <span className="text-sm">
               {companyApplicant.name}
             </span>
           );
@@ -703,7 +706,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "professionalExperience",
         id: "professionalExperience",
-        minSize: 120,
+        minSize: 140,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -766,7 +769,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "caseStatus.name",
         id: "caseStatus.name",
-        minSize: 180,
+        minSize: 200,
         enableGrouping: true,
         getGroupingValue: (row) => {
           const caseStatus = row.caseStatus;
@@ -1053,7 +1056,7 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "processStatus",
-        minSize: 100,
+        minSize: 120,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("processStatus")} />
         ),
@@ -1168,6 +1171,7 @@ export function IndividualProcessesTable({
       {
         accessorKey: "notesCount",
         id: "notes",
+        minSize: 60,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title="">
             <StickyNote className="h-4 w-4" />
@@ -1212,7 +1216,6 @@ export function IndividualProcessesTable({
             </div>
           );
         },
-        minSize: 50,
         enableSorting: true,
         enableHiding: true,
       },
@@ -1279,7 +1282,6 @@ export function IndividualProcessesTable({
 
           return <DataGridRowActions actions={actions} />;
         },
-        size: 50,
         enableSorting: false,
         enableHiding: false,
       },

@@ -217,8 +217,8 @@ function ComboboxSingle<T extends string = string>({
           )}
         >
           {selectedOption ? (
-            <span className="flex items-center gap-2 truncate">
-              {selectedOption.icon}
+            <span className="flex items-center gap-2 truncate min-w-0">
+              {selectedOption.icon && <span className="shrink-0">{selectedOption.icon}</span>}
               <span className="truncate">{selectedOption.label}</span>
             </span>
           ) : (
@@ -526,7 +526,7 @@ function ComboboxMultiple<T extends string = string>({
           )}
         >
           <div className={cn(
-            "flex flex-wrap gap-1 flex-1",
+            "flex flex-wrap gap-1 flex-1 min-w-0",
             selectedValues.length > 3 && "max-h-[72px] overflow-y-auto"
           )}>
             {selectedValues.length === 0
@@ -534,18 +534,18 @@ function ComboboxMultiple<T extends string = string>({
               : selectedOptions.map((option) => (
                   <span
                     key={String(option.value)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs max-w-[200px]"
                   >
                     {option.icon && (
-                      <span className="h-3 w-3">{option.icon}</span>
+                      <span className="h-3 w-3 shrink-0">{option.icon}</span>
                     )}
-                    {option.label}
+                    <span className="truncate">{option.label}</span>
                     <span
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemove(option.value);
                       }}
-                      className="hover:bg-secondary-foreground/20 rounded-sm cursor-pointer"
+                      className="hover:bg-secondary-foreground/20 rounded-sm cursor-pointer shrink-0"
                     >
                       <X className="h-3 w-3" />
                     </span>
