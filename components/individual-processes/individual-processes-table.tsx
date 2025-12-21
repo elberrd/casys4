@@ -420,7 +420,8 @@ export function IndividualProcessesTable({
       createSelectColumn<IndividualProcess>(),
       {
         accessorKey: "person.fullName",
-        minSize: 200,
+        minSize: 120,
+        maxSize: 180,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("personName")} />
         ),
@@ -433,7 +434,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "protocolNumber",
         id: "protocolNumber",
-        minSize: 140,
+        minSize: 100,
+        maxSize: 120,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("protocol")} />
         ),
@@ -451,7 +453,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "processTypeIndicator",
         id: "processTypeIndicator",
-        minSize: 70,
+        minSize: 50,
+        maxSize: 60,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -490,7 +493,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "urgent",
         id: "urgent",
-        minSize: 70,
+        minSize: 50,
+        maxSize: 60,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title="">
             <AlertTriangle className="h-4 w-4" />
@@ -627,7 +631,8 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "companyApplicant.name",
-        minSize: 200,
+        minSize: 120,
+        maxSize: 200,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -653,7 +658,8 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "processType.name",
-        minSize: 200,
+        minSize: 120,
+        maxSize: 180,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("processType")} />
         ),
@@ -672,7 +678,8 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "legalFramework.name",
-        minSize: 250,
+        minSize: 150,
+        maxSize: 250,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("legalFramework")} />
         ),
@@ -685,7 +692,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "qualification",
         id: "qualification",
-        minSize: 150,
+        minSize: 120,
+        maxSize: 150,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("qualification")} />
         ),
@@ -706,7 +714,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "professionalExperience",
         id: "professionalExperience",
-        minSize: 140,
+        minSize: 120,
+        maxSize: 140,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -769,7 +778,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "caseStatus.name",
         id: "caseStatus.name",
-        minSize: 200,
+        minSize: 140,
+        maxSize: 200,
         enableGrouping: true,
         getGroupingValue: (row) => {
           const caseStatus = row.caseStatus;
@@ -1056,7 +1066,8 @@ export function IndividualProcessesTable({
       },
       {
         accessorKey: "processStatus",
-        minSize: 120,
+        minSize: 90,
+        maxSize: 110,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("processStatus")} />
         ),
@@ -1080,7 +1091,8 @@ export function IndividualProcessesTable({
       {
         id: "rnmDeadline",
         accessorKey: "rnmDeadline",
-        minSize: 150,
+        minSize: 110,
+        maxSize: 130,
         header: ({ column }) => (
           <DataGridColumnHeader
             column={column}
@@ -1171,7 +1183,8 @@ export function IndividualProcessesTable({
       {
         accessorKey: "notesCount",
         id: "notes",
-        minSize: 60,
+        minSize: 50,
+        maxSize: 60,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title="">
             <StickyNote className="h-4 w-4" />
@@ -1375,6 +1388,7 @@ export function IndividualProcessesTable({
       emptyMessage={t("noResults")}
       tableLayout={{
         columnsVisibility: true,
+        width: "auto",
       }}
       onRowClick={onRowClick ? (row) => onRowClick(row._id) : undefined}
     >
