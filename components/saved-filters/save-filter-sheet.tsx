@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,7 +24,15 @@ import { Save, Loader2, AlertCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
+
+interface SavedFilter {
+  _id: Id<"savedFilters">
+  name: string
+  filterType: "individualProcesses" | "collectiveProcesses"
+  filterCriteria: any
+}
 
 interface SaveFilterSheetProps {
   open: boolean
@@ -32,6 +40,7 @@ interface SaveFilterSheetProps {
   filterType: "individualProcesses" | "collectiveProcesses"
   currentFilters: any
   onSaveSuccess?: () => void
+  editingFilter?: SavedFilter | null
 }
 
 export function SaveFilterSheet({
@@ -40,6 +49,7 @@ export function SaveFilterSheet({
   filterType,
   currentFilters,
   onSaveSuccess,
+  editingFilter,
 }: SaveFilterSheetProps) {
   const t = useTranslations("SavedFilters")
   const tCommon = useTranslations("Common")
@@ -47,64 +57,82 @@ export function SaveFilterSheet({
   const [isSaving, setIsSaving] = useState(false)
 
   const createMutation = useMutation(api.savedFilters.create)
+  const updateMutation = useMutation(api.savedFilters.update)
 
-  const getFilterSummary = () => {
+  const isEditMode = !!editingFilter
+
+  // Reset filter name when opening/closing or when editingFilter changes
+  useEffect(() => {
+    if (open) {
+      if (editingFilter) {
+        setFilterName(editingFilter.name)
+      } else {
+        setFilterName("")
+      }
+    }
+  }, [open, editingFilter])
+
+  const getFilterSummaryFromCriteria = (criteria: any) => {
     const summary: Array<{ key: string; label: string }> = []
 
     if (filterType === "individualProcesses") {
-      if (currentFilters.selectedCandidates?.length > 0) {
+      if (criteria.selectedCandidates?.length > 0) {
         summary.push({
           key: "candidates",
-          label: t("filterSummary.candidates", { count: currentFilters.selectedCandidates.length }),
+          label: t("filterSummary.candidates", { count: criteria.selectedCandidates.length }),
         })
       }
-      if (currentFilters.selectedApplicants?.length > 0) {
+      if (criteria.selectedApplicants?.length > 0) {
         summary.push({
           key: "applicants",
-          label: t("filterSummary.applicants", { count: currentFilters.selectedApplicants.length }),
+          label: t("filterSummary.applicants", { count: criteria.selectedApplicants.length }),
         })
       }
-      if (currentFilters.selectedProgressStatuses?.length > 0) {
+      if (criteria.selectedProgressStatuses?.length > 0) {
         summary.push({
           key: "statuses",
-          label: t("filterSummary.progressStatuses", { count: currentFilters.selectedProgressStatuses.length }),
+          label: t("filterSummary.progressStatuses", { count: criteria.selectedProgressStatuses.length }),
         })
       }
-      if (currentFilters.isRnmModeActive) {
+      if (criteria.isRnmModeActive) {
         summary.push({
           key: "rnm",
           label: t("filterSummary.rnmMode"),
         })
       }
-      if (currentFilters.isUrgentModeActive) {
+      if (criteria.isUrgentModeActive) {
         summary.push({
           key: "urgent",
           label: t("filterSummary.urgentMode"),
         })
       }
-      if (currentFilters.isQualExpProfModeActive) {
+      if (criteria.isQualExpProfModeActive) {
         summary.push({
           key: "qual",
           label: t("filterSummary.qualExpProfMode"),
         })
       }
-      if (currentFilters.advancedFilters?.length > 0) {
+      if (criteria.advancedFilters?.length > 0) {
         summary.push({
           key: "advancedFilters",
-          label: t("filterSummary.advancedFilters", { count: currentFilters.advancedFilters.length }),
+          label: t("filterSummary.advancedFilters", { count: criteria.advancedFilters.length }),
         })
       }
     } else if (filterType === "collectiveProcesses") {
-      if (currentFilters.selectedProcessTypes?.length > 0) {
+      if (criteria.selectedProcessTypes?.length > 0) {
         summary.push({
           key: "processTypes",
-          label: t("filterSummary.processTypes", { count: currentFilters.selectedProcessTypes.length }),
+          label: t("filterSummary.processTypes", { count: criteria.selectedProcessTypes.length }),
         })
       }
     }
 
     return summary
   }
+
+  const filterSummary = isEditMode
+    ? getFilterSummaryFromCriteria(editingFilter.filterCriteria)
+    : getFilterSummaryFromCriteria(currentFilters)
 
   const handleSave = async () => {
     if (!filterName.trim()) {
@@ -115,39 +143,53 @@ export function SaveFilterSheet({
     setIsSaving(true)
 
     try {
-      await createMutation({
-        name: filterName.trim(),
-        filterType,
-        filterCriteria: currentFilters,
-      })
+      if (isEditMode) {
+        await updateMutation({
+          id: editingFilter._id,
+          name: filterName.trim(),
+        })
+        toast.success(t("success.filterUpdated"))
+      } else {
+        await createMutation({
+          name: filterName.trim(),
+          filterType,
+          filterCriteria: currentFilters,
+        })
+        toast.success(t("success.filterSaved"))
+      }
 
-      toast.success(t("success.filterSaved"))
       setFilterName("")
       onSaveSuccess?.()
       onOpenChange(false)
     } catch (error) {
       console.error("Failed to save filter:", error)
-      toast.error(t("errors.saveFailed"))
+      toast.error(isEditMode ? t("errors.updateFailed") : t("errors.saveFailed"))
     } finally {
       setIsSaving(false)
     }
   }
 
-  const filterSummary = getFilterSummary()
   const remainingChars = 100 - filterName.length
+  const canSave = isEditMode
+    ? filterName.trim().length > 0
+    : filterName.trim().length > 0 && filterSummary.length > 0
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col">
         <SheetHeader>
-          <SheetTitle>{t("saveFilter")}</SheetTitle>
-          <SheetDescription>{t("saveFilterDescription")}</SheetDescription>
+          <SheetTitle>{isEditMode ? t("editFilter") : t("saveFilter")}</SheetTitle>
+          <SheetDescription>
+            {isEditMode ? t("editFilterDescription") : t("saveFilterDescription")}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-6 py-4">
           {/* Active Filters Summary */}
           <div>
-            <Label className="text-sm font-medium">{t("activeFilters")}</Label>
+            <Label className="text-sm font-medium">
+              {isEditMode ? t("savedFilterCriteria") : t("activeFilters")}
+            </Label>
             {filterSummary.length > 0 ? (
               <div className="flex flex-wrap gap-2 mt-2">
                 {filterSummary.map((item) => (
@@ -159,13 +201,15 @@ export function SaveFilterSheet({
             ) : (
               <>
                 <p className="text-sm text-muted-foreground mt-2">{t("noActiveFilters")}</p>
-                <Alert variant="destructive" className="mt-3">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>{t("warnings.applyFiltersFirst")}</AlertTitle>
-                  <AlertDescription>
-                    {t("warnings.applyFiltersDescription")}
-                  </AlertDescription>
-                </Alert>
+                {!isEditMode && (
+                  <Alert variant="destructive" className="mt-3">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{t("warnings.applyFiltersFirst")}</AlertTitle>
+                    <AlertDescription>
+                      {t("warnings.applyFiltersDescription")}
+                    </AlertDescription>
+                  </Alert>
+                )}
               </>
             )}
           </div>
@@ -201,7 +245,7 @@ export function SaveFilterSheet({
                 <div>
                   <Button
                     onClick={handleSave}
-                    disabled={isSaving || !filterName.trim() || filterSummary.length === 0}
+                    disabled={isSaving || !canSave}
                     className="w-full"
                   >
                     {isSaving ? (
@@ -218,12 +262,12 @@ export function SaveFilterSheet({
                   </Button>
                 </div>
               </TooltipTrigger>
-              {(filterSummary.length === 0 || !filterName.trim()) && !isSaving && (
+              {!canSave && !isSaving && (
                 <TooltipContent>
                   <p>
-                    {filterSummary.length === 0
-                      ? t("errors.noFiltersActive")
-                      : t("errors.nameRequired")}
+                    {!filterName.trim()
+                      ? t("errors.nameRequired")
+                      : t("errors.noFiltersActive")}
                   </p>
                 </TooltipContent>
               )}

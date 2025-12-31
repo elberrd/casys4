@@ -2842,8 +2842,11 @@
   "SavedFilters": {
     "title": "Filtros Salvos",
     "saveFilter": "Salvar Filtro",
+    "editFilter": "Editar Filtro",
     "saveFilterDescription": "Salve sua configuração atual de filtros para aplicá-la rapidamente mais tarde.",
+    "editFilterDescription": "Atualize o nome deste filtro salvo.",
     "activeFilters": "Filtros Ativos",
+    "savedFilterCriteria": "Critérios do Filtro Salvo",
     "noActiveFilters": "Nenhum filtro ativo",
     "filterName": "Nome do Filtro",
     "filterNamePlaceholder": "Digite um nome para este filtro...",
@@ -2863,12 +2866,14 @@
     },
     "success": {
       "filterSaved": "Filtro salvo com sucesso",
+      "filterUpdated": "Filtro atualizado com sucesso",
       "filterDeleted": "Filtro excluído com sucesso",
       "filterApplied": "Filtro aplicado com sucesso"
     },
     "errors": {
       "nameRequired": "Nome do filtro é obrigatório",
       "saveFailed": "Falha ao salvar filtro",
+      "updateFailed": "Falha ao atualizar filtro",
       "deleteFailed": "Falha ao excluir filtro",
       "noFiltersActive": "Você precisa aplicar pelo menos um filtro antes de salvar"
     },
