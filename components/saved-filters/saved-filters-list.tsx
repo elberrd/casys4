@@ -34,7 +34,7 @@ interface SavedFilter {
 
 interface SavedFiltersListProps {
   filterType: "individualProcesses" | "collectiveProcesses"
-  onApplyFilter: (filterCriteria: any) => void
+  onApplyFilter: (filterCriteria: any, filterName: string) => void
   onEditFilter?: (filter: SavedFilter) => void
 }
 
@@ -62,7 +62,7 @@ export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter }: Sa
   }, [savedFilters, searchQuery])
 
   const handleApply = (filter: SavedFilter) => {
-    onApplyFilter(filter.filterCriteria)
+    onApplyFilter(filter.filterCriteria, filter.name)
   }
 
   const handleEditClick = (e: React.MouseEvent, filter: SavedFilter) => {
