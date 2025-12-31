@@ -326,7 +326,7 @@ export const create = mutation({
     nationalityId: v.optional(v.id("countries")),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
-    funcao: v.optional(v.string()),
+    cargo: v.optional(v.string()),
     motherName: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -383,7 +383,7 @@ export const update = mutation({
     nationalityId: v.optional(v.id("countries")),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
-    funcao: v.optional(v.string()),
+    cargo: v.optional(v.string()),
     motherName: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -441,7 +441,7 @@ export const update = mutation({
     if (data.nationalityId) replacement.nationalityId = data.nationalityId;
     if (data.maritalStatus) replacement.maritalStatus = data.maritalStatus;
     if (data.profession) replacement.profession = data.profession;
-    if (data.funcao) replacement.funcao = data.funcao;
+    if (data.cargo) replacement.cargo = data.cargo;
     if (data.motherName) replacement.motherName = data.motherName;
     if (data.fatherName) replacement.fatherName = data.fatherName;
     if (data.phoneNumber) replacement.phoneNumber = data.phoneNumber;

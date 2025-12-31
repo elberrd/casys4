@@ -36,9 +36,10 @@ interface SavedFiltersListProps {
   filterType: "individualProcesses" | "collectiveProcesses"
   onApplyFilter: (filterCriteria: any, filterName: string) => void
   onEditFilter?: (filter: SavedFilter) => void
+  selectedFilterName?: string | null
 }
 
-export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter }: SavedFiltersListProps) {
+export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter, selectedFilterName }: SavedFiltersListProps) {
   const t = useTranslations("SavedFilters")
   const tCommon = useTranslations("Common")
   const locale = useLocale()
@@ -122,10 +123,14 @@ export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter }: Sa
         </div>
       ) : (
         <div className="space-y-1 p-2">
-          {filteredFilters.map((filter) => (
+          {filteredFilters.map((filter) => {
+            const isSelected = filter.name === selectedFilterName
+            return (
           <div
             key={filter._id}
-            className="flex items-center justify-between p-3 rounded-md hover:bg-accent cursor-pointer transition-colors"
+            className={`flex items-center justify-between p-3 rounded-md hover:bg-accent cursor-pointer transition-colors ${
+              isSelected ? 'bg-primary/10 border-2 border-primary' : ''
+            }`}
             onClick={() => handleApply(filter)}
           >
             <div className="flex-1 min-w-0">
@@ -158,7 +163,8 @@ export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter }: Sa
               </Button>
             </div>
           </div>
-        ))}
+            )
+          })}
         </div>
       )}
 

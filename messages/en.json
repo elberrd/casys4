@@ -512,6 +512,8 @@
     "referenceNumber": "Reference Number",
     "status": "Status",
     "legalFramework": "Legal Basis",
+    "funcao": "Function",
+    "funcaoPlaceholder": "e.g., Developer, Analyst",
     "cbo": "CBO Code",
     "mreOfficeNumber": "MRE Office Number",
     "douNumber": "DOU Number",
@@ -534,6 +536,7 @@
     "exchangeRateDescription": "Exchange rate: 1 {currency} = X BRL",
     "enterExchangeRate": "Enter exchange rate",
     "exchangeRateUpdated": "Exchange rate updated",
+    "fetchExchangeRate": "Fetch exchange rate",
     "salaryInBRL": "Value in BRL",
     "calculateConversion": "Calculate Conversion",
     "conversionCalculated": "Conversion calculated successfully",
@@ -977,8 +980,8 @@
     "nationality": "Nationality",
     "maritalStatus": "Marital Status",
     "profession": "Profession",
-    "funcao": "Function/Role",
-    "funcaoPlaceholder": "e.g., Project Manager, Team Lead",
+    "cargo": "Position",
+    "cargoPlaceholder": "e.g., Project Manager, Team Lead",
     "motherName": "Mother's Name",
     "fatherName": "Father's Name",
     "phoneNumber": "Phone Number",
@@ -2844,7 +2847,8 @@
       "filterSaved": "Filter saved successfully",
       "filterUpdated": "Filter updated successfully",
       "filterDeleted": "Filter deleted successfully",
-      "filterApplied": "Filter applied successfully"
+      "filterApplied": "Filter applied successfully",
+      "filterCleared": "Filter cleared successfully"
     },
     "errors": {
       "nameRequired": "Filter name is required",

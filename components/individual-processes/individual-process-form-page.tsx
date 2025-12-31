@@ -109,6 +109,7 @@ export function IndividualProcessFormPage({
       status: "", // DEPRECATED: Kept for backward compatibility
       processTypeId: "",
       legalFrameworkId: "" as Id<"legalFrameworks">,
+      funcao: "",
       cboId: "",
       qualification: "",
       professionalExperienceSince: "",
@@ -252,6 +253,7 @@ export function IndividualProcessFormPage({
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
+        funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
         qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui",
         professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
@@ -306,6 +308,9 @@ export function IndividualProcessFormPage({
       }
       if (currentValues.legalFrameworkId !== (individualProcess.legalFrameworkId ?? ("" as Id<"legalFrameworks">))) {
         updates.legalFrameworkId = individualProcess.legalFrameworkId ?? ("" as Id<"legalFrameworks">)
+      }
+      if (currentValues.funcao !== (individualProcess.funcao ?? "")) {
+        updates.funcao = individualProcess.funcao ?? ""
       }
       if (currentValues.cboId !== (individualProcess.cboId ?? "")) {
         updates.cboId = individualProcess.cboId ?? ""
@@ -378,6 +383,7 @@ export function IndividualProcessFormPage({
         status: "", // DEPRECATED: Kept for backward compatibility
         processTypeId: "",
         legalFrameworkId: "" as Id<"legalFrameworks">,
+        funcao: "",
         cboId: "",
         qualification: "",
         professionalExperienceSince: "",
@@ -466,6 +472,7 @@ export function IndividualProcessFormPage({
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
         processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
+        funcao: data.funcao || undefined,
         cboId: data.cboId || undefined,
         qualification: data.qualification || undefined,
         professionalExperienceSince: data.professionalExperienceSince || undefined,
@@ -1169,6 +1176,21 @@ export function IndividualProcessFormPage({
                 />
               </>
             )}
+
+            {/* Função Field - New field for Individual Process */}
+            <FormField
+              control={form.control}
+              name="funcao"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("funcao")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t("funcaoPlaceholder")} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* CBO Code Field */}
             <FormField

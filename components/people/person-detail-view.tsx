@@ -252,7 +252,7 @@ export function PersonDetailView({
             )}
 
             {/* Professional Information */}
-            {(person.profession || person.funcao || currentCompany?.company) && (
+            {(person.profession || person.cargo || currentCompany?.company) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -269,12 +269,12 @@ export function PersonDetailView({
                       <p className="text-base mt-1">{person.profession}</p>
                     </div>
                   )}
-                  {person.funcao && (
+                  {person.cargo && (
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">
-                        {t("funcao")}
+                        {t("cargo")}
                       </p>
-                      <p className="text-base mt-1">{person.funcao}</p>
+                      <p className="text-base mt-1">{person.cargo}</p>
                     </div>
                   )}
                   {currentCompany?.company && (

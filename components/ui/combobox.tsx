@@ -385,15 +385,28 @@ function ComboboxMultiple<T extends string = string>({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
   const [showCreateButton, setShowCreateButton] = React.useState(false);
+  const isMountedRef = React.useRef(false);
+
+  // Track when component is mounted to prevent state updates before mount
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Monitor the cmdk input for real-time search updates
   React.useEffect(() => {
-    if (!open) {
-      setShowCreateButton(false);
+    if (!open || !isMountedRef.current) {
+      if (isMountedRef.current) {
+        setShowCreateButton(false);
+      }
       return;
     }
 
     const interval = setInterval(() => {
+      if (!isMountedRef.current) return;
+
       const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
       if (cmdkInput) {
         const currentValue = cmdkInput.value;

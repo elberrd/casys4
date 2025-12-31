@@ -123,3 +123,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Toast close button styles */
+[data-sonner-toast] [data-close-button] {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}

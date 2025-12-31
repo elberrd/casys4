@@ -91,7 +91,7 @@ export function PersonFormDialog({
       nationalityId: "" as Id<"countries">,
       maritalStatus: "",
       profession: "",
-      funcao: "",
+      cargo: "",
       motherName: "",
       fatherName: "",
       phoneNumber: "",
@@ -141,7 +141,7 @@ export function PersonFormDialog({
         nationalityId: person.nationalityId,
         maritalStatus: person.maritalStatus as "Single" | "Married" | "Divorced" | "Widowed",
         profession: person.profession,
-        funcao: person.funcao,
+        cargo: person.cargo,
         motherName: person.motherName,
         fatherName: person.fatherName,
         phoneNumber: person.phoneNumber,
@@ -161,7 +161,7 @@ export function PersonFormDialog({
         nationalityId: "" as Id<"countries">,
         maritalStatus: "",
         profession: "",
-        funcao: "",
+        cargo: "",
         motherName: "",
         fatherName: "",
         phoneNumber: "",
@@ -210,7 +210,7 @@ export function PersonFormDialog({
         nationalityId: data.nationalityId === "" ? undefined : data.nationalityId,
         maritalStatus: data.maritalStatus || undefined,
         profession: data.profession || undefined,
-        funcao: data.funcao || undefined,
+        cargo: data.cargo || undefined,
         motherName: data.motherName || undefined,
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
@@ -494,12 +494,12 @@ export function PersonFormDialog({
 
               <FormField
                 control={form.control}
-                name="funcao"
+                name="cargo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('funcao')}</FormLabel>
+                    <FormLabel>{t('cargo')}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t('funcaoPlaceholder')} {...field} />
+                      <Input placeholder={t('cargoPlaceholder')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

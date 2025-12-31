@@ -1,504 +1,461 @@
-# TODO: Add Excel Export Functionality to Individual Processes Page
+# TODO: Rename "Função" to "Cargo" in People Table and Add New "Função" Field to Individual Process
 
 ## Context
 
-Add a dedicated Excel export button to the Individual Processes page that exports the currently filtered and visible table data to an Excel (.xlsx) file. The export should respect all active filters (candidates, statuses, RNM mode, urgent mode, QUAL/EXP PROF mode) and when grouped by progress status, include styled group headers with merged cells.
+This task involves TWO completely separate and independent changes:
+
+1. **People Table**: Rename the existing field "Função" (funcao) to "Cargo" - This refers to a person's position/role in their company
+2. **Individual Process Form**: Add a NEW field called "Função" that appears BEFORE the CBO field when editing - This is a completely different field with no relation to the people table field
+
+These are two distinct fields in different contexts and must be treated separately.
 
 ## Related PRD Sections
 
-- The application uses a component-based architecture with TypeScript
-- All user-facing strings must use i18n (next-intl)
-- Uses Convex for backend data operations
-- Follows established patterns from ExportDataDialog component
-- Table filtering is handled client-side in the IndividualProcessesClient component
+Database schema at `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+- People table has `funcao` field (line 95)
+- Individual processes table will need a new `funcao` field added
 
 ## Task Sequence
 
-### 0. Project Structure Analysis (ALWAYS FIRST)
+### 0. Project Structure Analysis
 
-**Objective**: Understand the project structure and determine correct file/folder locations for Excel export implementation
+**Objective**: Understand the project structure and determine correct file/folder locations
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing export implementation patterns
-  - Validation: Examined `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/export-data-dialog.tsx` for CSV export patterns
-  - Output: Current pattern uses dialog with filters, but we need a simpler direct export for Excel
+- [x] 0.1: Review project architecture for people and individual processes
+  - Validation: Identified the following key files:
+    - Schema: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+    - People backend: `/Users/elberrd/Documents/Development/clientes/casys4/convex/people.ts`
+    - Individual processes backend: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
+    - People forms: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-*.tsx`
+    - Individual process form: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+    - People table: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/people-table.tsx`
+    - Translations: `/Users/elberrd/Documents/Development/clientes/casys4/messages/{en,pt}.json`
+  - Output: File paths documented
 
-- [x] 0.2: Identify where Excel export component should be created
-  - Validation: Follow existing UI component patterns in `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/`
-  - Output: Create new component at `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/excel-export-dialog.tsx`
+- [x] 0.2: Identify all files referencing "funcao" in people context
+  - Validation: Found references in:
+    - person-form-dialog.tsx (lines 94, 144, 164, 213, 497, 500, 502)
+    - person-form-page.tsx (lines 83, 117, 166, 456, 459, 461)
+    - person-detail-view.tsx (lines 255, 272, 275, 277)
+  - Output: List of files to update for people table rename
 
-- [x] 0.3: Review i18n structure for adding translation keys
-  - Validation: Examined `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` and `messages/pt.json`
-  - Output: Add keys to "Export" section in both language files
-
-- [x] 0.4: Check for existing Excel libraries
-  - Validation: Reviewed package.json - no xlsx or exceljs library currently installed
-  - Output: Need to install `exceljs` library (more feature-rich for styling and grouping)
+- [x] 0.3: Identify CBO field location in individual process form
+  - Validation: CBO field found at line 1173-1191 in individual-process-form-page.tsx
+  - Output: New "Função" field must be inserted BEFORE line 1173
 
 #### Quality Checklist:
 
-- [x] Project structure reviewed and understood
-- [x] File locations determined (components/ui/excel-export-dialog.tsx)
-- [x] i18n file locations identified (messages/en.json, messages/pt.json)
-- [x] Library requirements identified (exceljs)
+- [x] PRD structure reviewed and understood
+- [x] File locations determined and aligned with project conventions
+- [x] Naming conventions identified and will be followed
+- [x] No duplicate functionality will be created
 
 ---
 
-### 1. Install ExcelJS Library
+### 1. Update People Table Schema and Backend (Rename funcao to cargo)
 
-**Objective**: Add the exceljs library for generating styled Excel files with grouping support
+**Objective**: Rename the database field from "funcao" to "cargo" in the people table schema and backend
 
 #### Sub-tasks:
 
-- [x] 1.1: Install exceljs library
-  - Command: `pnpm add exceljs`
-  - Validation: Library appears in package.json dependencies
+- [x] 1.1: Update database schema for people table
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Action: Rename `funcao: v.optional(v.string())` to `cargo: v.optional(v.string())` (line 95)
+  - Validation: Schema compiles without errors
   - Dependencies: None
 
-- [x] 1.2: Install TypeScript types for exceljs
-  - Command: `pnpm add -D @types/exceljs`
-  - Validation: Library appears in package.json devDependencies
-  - Dependencies: Task 1.1 must be completed
+- [x] 1.2: Update people.ts backend mutations (create/update)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/people.ts`
+  - Action: Update mutation arguments and field references from `funcao` to `cargo`
+  - Lines to update: 329, 386 (function arguments), 444 (replacement object)
+  - Validation: Convex functions compile without errors
+  - Dependencies: 1.1 must be complete
 
 #### Quality Checklist:
 
-- [x] exceljs added to dependencies
-- [x] @types/exceljs added to devDependencies
-- [x] No build errors after installation
+- [ ] Database schema updated correctly
+- [ ] All backend mutations updated
+- [ ] TypeScript types compile without errors
+- [ ] No references to old field name in backend
 
 ---
 
-### 2. Add i18n Translation Keys
+### 2. Update People Table Frontend Components (Rename funcao to cargo)
 
-**Objective**: Add all necessary translation keys for the Excel export dialog in both English and Portuguese
+**Objective**: Update all people form and display components to use "cargo" instead of "funcao"
 
 #### Sub-tasks:
 
-- [x] 2.1: Add English translation keys to messages/en.json
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Location: Add to "Export" section (around line 2512)
-  - Keys to add:
-    - `exportToExcel`: "Export to Excel"
-    - `exportExcel`: "Export Excel"
-    - `enterFilename`: "Enter filename"
-    - `filenamePlaceholder`: "individual_processes"
-    - `filenameRequired`: "Filename is required"
-    - `exportingExcel`: "Generating Excel file..."
-    - `excelExportSuccess`: "Excel file exported successfully"
-    - `excelExportError`: "Failed to export Excel file"
-  - Validation: Valid JSON syntax, keys follow existing naming conventions
-  - Dependencies: None
+- [x] 2.1: Update person-form-dialog.tsx
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-dialog.tsx`
+  - Action: Replace all instances of `funcao` with `cargo`:
+    - Line 94: default value `funcao: ""` → `cargo: ""`
+    - Line 144: form reset `funcao: person.funcao` → `cargo: person.cargo`
+    - Line 164: default values `funcao: ""` → `cargo: ""`
+    - Line 213: submission data `funcao: data.funcao` → `cargo: data.cargo`
+    - Line 497: form field name `name="funcao"` → `name="cargo"`
+    - Line 500: label `{t('funcao')}` → `{t('cargo')}`
+    - Line 502: placeholder `{t('funcaoPlaceholder')}` → `{t('cargoPlaceholder')}`
+  - Validation: Form compiles and renders correctly
+  - Dependencies: 1.2 must be complete
 
-- [x] 2.2: Add Portuguese translation keys to messages/pt.json
+- [x] 2.2: Update person-form-page.tsx
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-page.tsx`
+  - Action: Replace all instances of `funcao` with `cargo`:
+    - Line 83: default value `funcao: ""` → `cargo: ""`
+    - Line 117: form reset `funcao: person.funcao ?? ""` → `cargo: person.cargo ?? ""`
+    - Line 166: submission data `funcao: data.funcao` → `cargo: data.cargo`
+    - Line 456: form field name `name="funcao"` → `name="cargo"`
+    - Line 459: label `{t('funcao')}` → `{t('cargo')}`
+    - Line 461: placeholder `{t('funcaoPlaceholder')}` → `{t('cargoPlaceholder')}`
+  - Validation: Form compiles and renders correctly
+  - Dependencies: 1.2 must be complete
+
+- [x] 2.3: Update person-detail-view.tsx
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-detail-view.tsx`
+  - Action: Replace all instances of `funcao` with `cargo`:
+    - Line 255: condition `person.funcao` → `person.cargo`
+    - Line 272: condition `person.funcao` → `person.cargo`
+    - Line 275: label `{t("funcao")}` → `{t("cargo")}`
+    - Line 277: display `{person.funcao}` → `{person.cargo}`
+  - Validation: Detail view displays correctly
+  - Dependencies: 1.2 must be complete
+
+#### Quality Checklist:
+
+- [ ] All form components updated
+- [ ] All display components updated
+- [ ] TypeScript types are correct
+- [ ] No TypeScript errors
+- [ ] Forms compile and render correctly
+
+---
+
+### 3. Update i18n Translations for People Table (funcao → cargo)
+
+**Objective**: Update translation keys from "funcao" to "cargo" for Portuguese and English
+
+#### Sub-tasks:
+
+- [x] 3.1: Update Portuguese translations (pt.json)
   - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Location: Add to "Export" section
-  - Keys to add:
-    - `exportToExcel`: "Exportar para Excel"
-    - `exportExcel`: "Exportar Excel"
-    - `enterFilename`: "Digite o nome do arquivo"
-    - `filenamePlaceholder`: "processos_individuais"
-    - `filenameRequired`: "Nome do arquivo é obrigatório"
-    - `exportingExcel`: "Gerando arquivo Excel..."
-    - `excelExportSuccess`: "Arquivo Excel exportado com sucesso"
-    - `excelExportError`: "Falha ao exportar arquivo Excel"
-  - Validation: Valid JSON syntax, translations accurate
-  - Dependencies: None
+  - Action: Update translation keys:
+    - Line 979: Change key from `"funcao": "Função"` to `"cargo": "Cargo"`
+    - Line 980: Change key from `"funcaoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe"` to `"cargoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe"`
+  - Validation: Translation keys match component usage
+  - Dependencies: 2.1, 2.2, 2.3 must be complete
+
+- [x] 3.2: Update English translations (en.json)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Action: Update translation keys:
+    - Line 980: Change key from `"funcao": "Function/Role"` to `"cargo": "Position"`
+    - Line 981: Change key from `"funcaoPlaceholder": "e.g., Project Manager, Team Lead"` to `"cargoPlaceholder": "e.g., Project Manager, Team Lead"`
+  - Validation: Translation keys match component usage
+  - Dependencies: 2.1, 2.2, 2.3 must be complete
 
 #### Quality Checklist:
 
-- [x] All i18n keys added for both languages
-- [x] JSON files remain valid after edits
-- [x] Translation keys follow existing naming conventions
-- [x] Both English and Portuguese translations are accurate
+- [ ] Portuguese translations updated
+- [ ] English translations updated
+- [ ] Translation keys match all component references
+- [ ] No missing translation warnings in console
 
 ---
 
-### 3. Create Excel Export Utility Function
+### 4. Add New "Função" Field to Individual Process Schema
 
-**Objective**: Create a reusable utility function to export table data to Excel with grouping and styling support
+**Objective**: Add a completely new "funcao" field to the individualProcesses table (separate from people table)
 
 #### Sub-tasks:
 
-- [x] 3.1: Create excel-export-helpers.ts utility file
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/utils/excel-export-helpers.ts`
-  - Validation: File created with proper TypeScript types
-  - Dependencies: Task 1 (ExcelJS library) must be completed
-
-- [x] 3.2: Implement Excel export function with proper TypeScript types
-  - Function signature:
+- [x] 4.1: Update database schema for individualProcesses table
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Action: Add new field to individualProcesses table (after line 273, before cboId):
     ```typescript
-    export interface ExcelColumnConfig {
-      header: string
-      key: string
-      width?: number
-    }
-
-    export interface ExcelGroupConfig {
-      groupName: string
-      rows: any[]
-    }
-
-    export async function exportToExcel(
-      columns: ExcelColumnConfig[],
-      data: any[] | ExcelGroupConfig[],
-      filename: string,
-      options?: {
-        grouped?: boolean
-        groupHeaderColor?: string
-      }
-    ): Promise<void>
+    funcao: v.optional(v.string()), // Função field for individual process (different from people.cargo)
     ```
-  - Validation: Function compiles without TypeScript errors
-  - Dependencies: Task 3.1
+  - Validation: Schema compiles without errors
+  - Dependencies: Tasks 1, 2, 3 must be complete to avoid naming conflicts
 
-- [x] 3.3: Implement non-grouped export logic
-  - Add simple table export with headers and data rows
-  - Apply basic styling: bold headers, borders, auto-filter
-  - Validation: Exports basic table correctly
-  - Dependencies: Task 3.2
+- [x] 4.2: Update individualProcesses.ts create mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
+  - Action: Add funcao parameter to create mutation:
+    - Add to args (after line 472): `funcao: v.optional(v.string())`
+    - Add to insert (after line 542): `funcao: args.funcao,`
+  - Validation: Create mutation compiles without errors
+  - Dependencies: 4.1 must be complete
 
-- [x] 3.4: Implement grouped export logic
-  - Add group header rows with merged cells across all columns
-  - Style group headers: bold text, background color (default: #4472C4)
-  - Add data rows under each group
-  - Validation: Exports grouped data with styled headers
-  - Dependencies: Task 3.2
-
-- [x] 3.5: Add auto-column width calculation
-  - Calculate optimal column widths based on content
-  - Set minimum and maximum width constraints
-  - Validation: Columns display properly without overflow
-  - Dependencies: Task 3.3, Task 3.4
-
-- [x] 3.6: Add file download functionality
-  - Generate blob from workbook buffer
-  - Trigger browser download with proper filename (add .xlsx extension if missing)
-  - Validation: File downloads with correct name and opens in Excel
-  - Dependencies: Task 3.5
+- [x] 4.3: Update individualProcesses.ts update mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
+  - Action: Add funcao parameter to update mutation:
+    - Add to args (after line 816): `funcao: v.optional(v.string())`
+    - Add to updates (after line 899): `if (args.funcao !== undefined) updates.funcao = args.funcao;`
+  - Validation: Update mutation compiles without errors
+  - Dependencies: 4.1 must be complete
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any` types for public interfaces)
-- [x] Function handles both grouped and non-grouped data
-- [x] Group headers properly styled with merged cells and background color
-- [x] Column widths auto-calculated
-- [x] File downloads correctly with .xlsx extension
-- [x] Clean code principles followed
-- [x] Error handling implemented for file generation failures
+- [ ] Database schema includes new funcao field for individualProcesses
+- [ ] Create mutation handles funcao field
+- [ ] Update mutation handles funcao field
+- [ ] TypeScript types compile without errors
+- [ ] No conflicts with people.cargo field
 
 ---
 
-### 4. Create Excel Export Dialog Component
+### 5. Add Zod Validation for New Individual Process Função Field
 
-**Objective**: Create a dialog component that prompts for filename before exporting
+**Objective**: Add validation schema for the new funcao field in individual processes
 
 #### Sub-tasks:
 
-- [x] 4.1: Create excel-export-dialog.tsx component file
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/ui/excel-export-dialog.tsx`
-  - Validation: File created with proper React component structure
-  - Dependencies: None
-
-- [x] 4.2: Implement dialog UI with filename input
-  - Use existing Dialog components from shadcn/ui
-  - Add Input field for filename with proper validation
-  - Add Cancel and Export buttons
-  - Show loading state during export
-  - Validation: UI matches existing dialog patterns in the app
-  - Dependencies: Task 4.1, Task 2 (i18n keys)
-
-- [x] 4.3: Add filename validation with Zod schema
-  - Schema: filename must be non-empty string, max 255 characters
-  - Display validation errors below input field
-  - Disable export button when filename is empty
-  - Validation: Empty filename shows error, prevents export
-  - Dependencies: Task 4.2
-
-- [x] 4.4: Implement export handler function
-  - Accept columns and data as props
-  - Call excel-export-helpers function with filename from input
-  - Show toast notification on success/error (using sonner)
-  - Close dialog on successful export
-  - Validation: Export works and shows appropriate feedback
-  - Dependencies: Task 3 (utility function), Task 4.3
-
-- [x] 4.5: Add TypeScript prop types
-  - Define comprehensive interface for component props:
+- [x] 5.1: Update individualProcesses validation schema
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/individualProcesses.ts`
+  - Action: Add funcao field to schema (after line 63, before cboId):
     ```typescript
-    export interface ExcelExportDialogProps {
-      columns: ExcelColumnConfig[]
-      data: any[] | ExcelGroupConfig[]
-      defaultFilename?: string
-      grouped?: boolean
-      children?: React.ReactNode
-      onExportComplete?: () => void
+    funcao: z.string().optional().or(z.literal("")),
+    ```
+  - Validation: Schema compiles and validates correctly
+  - Dependencies: 4.1 must be complete
+
+#### Quality Checklist:
+
+- [ ] Zod schema includes funcao field
+- [ ] Validation allows optional strings
+- [ ] TypeScript types infer correctly
+- [ ] No validation errors
+
+---
+
+### 6. Add Função Field to Individual Process Form UI
+
+**Objective**: Add the new "Função" form field BEFORE the CBO field in the individual process edit form
+
+#### Sub-tasks:
+
+- [x] 6.1: Update form default values
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Add funcao to default values (after line 112):
+    ```typescript
+    funcao: "",
+    ```
+  - Validation: Form initializes correctly
+  - Dependencies: 5.1 must be complete
+
+- [x] 6.2: Update form reset for existing process
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Add funcao to form reset (after line 255):
+    ```typescript
+    funcao: individualProcess.funcao ?? "",
+    ```
+  - Validation: Form loads existing data correctly
+  - Dependencies: 5.1 must be complete
+
+- [x] 6.3: Add funcao to form updates section
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Add funcao to updates check (after line 310):
+    ```typescript
+    if (currentValues.funcao !== (individualProcess.funcao ?? "")) {
+      updates.funcao = individualProcess.funcao ?? ""
     }
     ```
-  - Validation: No TypeScript errors, all props properly typed
-  - Dependencies: Task 4.1
+  - Validation: Form updates sync correctly
+  - Dependencies: 5.1 must be complete
+
+- [x] 6.4: Add funcao to form reset for new process
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Add funcao to default values (after line 381):
+    ```typescript
+    funcao: "",
+    ```
+  - Validation: New process form initializes correctly
+  - Dependencies: 5.1 must be complete
+
+- [x] 6.5: Add funcao to form submission
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Add funcao to submit data (after line 469):
+    ```typescript
+    funcao: data.funcao || undefined,
+    ```
+  - Validation: Form submission includes funcao field
+  - Dependencies: 5.1 must be complete
+
+- [x] 6.6: Add FormField component BEFORE CBO field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
+  - Action: Insert new FormField BEFORE line 1173 (the CBO Code Field comment):
+    ```tsx
+    {/* Função Field - New field for Individual Process */}
+    <FormField
+      control={form.control}
+      name="funcao"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t("funcao")}</FormLabel>
+          <FormControl>
+            <Input placeholder={t("funcaoPlaceholder")} {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+    ```
+  - Validation: Field appears BEFORE CBO field in the form
+  - Dependencies: 5.1 must be complete
 
 #### Quality Checklist:
 
-- [x] TypeScript types defined (no `any` in prop interface)
-- [x] Zod validation for filename input
-- [x] i18n keys used for all user-facing text
-- [x] Reusable Dialog components from UI library
-- [x] Clean code principles followed
-- [x] Error handling implemented
-- [x] Toast notifications for success/error feedback
-- [x] Mobile responsive dialog layout
+- [ ] Form default values include funcao
+- [ ] Form reset includes funcao for existing and new processes
+- [ ] Form updates check includes funcao
+- [ ] Form submission includes funcao
+- [ ] UI field appears BEFORE CBO field
+- [ ] Field is properly styled and responsive
+- [ ] No TypeScript errors
 
 ---
 
-### 5. Integrate Excel Export Button into Individual Processes Page
+### 7. Add i18n Translations for New Individual Process Função Field
 
-**Objective**: Add Excel export button next to existing Export Data button and wire up functionality
+**Objective**: Add translation keys for the new "Função" field in individual processes (separate from people cargo translations)
 
 #### Sub-tasks:
 
-- [x] 5.1: Import ExcelExportDialog component in individual-processes-client.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Import statement: `import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"`
-  - Validation: No import errors
-  - Dependencies: Task 4 (component created)
+- [x] 7.1: Add Portuguese translations for individual process funcao
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Action: Add new translation keys under IndividualProcesses section (around line 1311):
+    ```json
+    "funcao": "Função",
+    "funcaoPlaceholder": "ex: Desenvolvedor, Analista",
+    ```
+  - Note: These are DIFFERENT from the people.cargo translations
+  - Validation: Translation keys work in individual process form
+  - Dependencies: 6.6 must be complete
 
-- [x] 5.2: Add state for Excel export dialog control
-  - Add useState for dialog open/close state
-  - Validation: State management follows existing patterns in file
-  - Dependencies: Task 5.1
-
-- [x] 5.3: Create function to prepare visible table data for export
-  - Function should:
-    - Use the `filteredProcesses` data (respects all filters)
-    - Extract only visible columns based on current column visibility state
-    - Format data according to column definitions
-    - Handle grouped mode when `selectedProgressStatuses.length >= 2`
-  - Validation: Function correctly filters and formats data
-  - Dependencies: Task 5.2
-
-- [x] 5.4: Create function to generate column configuration
-  - Map visible columns to ExcelColumnConfig format
-  - Use translation keys for column headers
-  - Set appropriate column widths based on content type
-  - Validation: Column config matches visible table columns
-  - Dependencies: Task 5.3
-
-- [x] 5.5: Add Excel export button to page header
-  - Location: Next to existing ExportDataDialog button (around line 502)
-  - Use FileSpreadsheet icon from lucide-react
-  - Button should open the ExcelExportDialog
-  - Validation: Button appears in correct location, styling matches existing buttons
-  - Dependencies: Task 5.4
-
-- [x] 5.6: Wire up ExcelExportDialog component
-  - Pass columns from column config function
-  - Pass data from prepare data function
-  - Set grouped prop based on `isGroupedModeActive`
-  - Set default filename based on current filters
-  - Validation: Dialog opens with pre-filled filename
-  - Dependencies: Task 5.5
-
-- [x] 5.7: Add FileSpreadsheet icon import
-  - Import from lucide-react: `import { FileSpreadsheet } from "lucide-react"`
-  - Validation: Icon displays correctly on button
-  - Dependencies: Task 5.5
+- [x] 7.2: Add English translations for individual process funcao
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Action: Add new translation keys under IndividualProcesses section:
+    ```json
+    "funcao": "Function",
+    "funcaoPlaceholder": "e.g., Developer, Analyst",
+    ```
+  - Note: These are DIFFERENT from the people.cargo translations
+  - Validation: Translation keys work in individual process form
+  - Dependencies: 6.6 must be complete
 
 #### Quality Checklist:
 
-- [x] TypeScript types maintained throughout
-- [x] Export respects all active filters (candidates, statuses, RNM, urgent, QUAL/EXP PROF)
-- [x] Export includes only visible columns
-- [x] Grouped mode properly detected and handled
-- [x] i18n keys used for all user-facing text
-- [x] Button styling consistent with existing UI
-- [x] Clean code principles followed
-- [x] Mobile responsive button layout (stacks properly on small screens)
+- [ ] Portuguese translations added for IndividualProcesses.funcao
+- [ ] English translations added for IndividualProcesses.funcao
+- [ ] Translations are in correct namespace (IndividualProcesses, not People)
+- [ ] No translation key conflicts between People.cargo and IndividualProcesses.funcao
+- [ ] No missing translation warnings in console
 
 ---
 
-### 6. Handle Grouped Export Data Formatting
+### 8. Testing and Validation
 
-**Objective**: Ensure grouped data is properly formatted when multiple progress statuses are selected
-
-#### Sub-tasks:
-
-- [x] 6.1: Create function to group filtered processes by case status
-  - Group processes by caseStatus.name (or caseStatus.nameEn for English locale)
-  - Maintain sort order of groups based on status selection order
-  - Validation: Groups created correctly for each selected status
-  - Dependencies: Task 5.3
-
-- [x] 6.2: Format each group with proper structure
-  - Each group should have:
-    - Group name (status name in current locale)
-    - Array of process rows
-  - Validation: Group structure matches ExcelGroupConfig interface
-  - Dependencies: Task 6.1
-
-- [x] 6.3: Handle edge case where group has no processes
-  - Skip empty groups in export
-  - Validation: Export doesn't include empty group headers
-  - Dependencies: Task 6.2
-
-- [x] 6.4: Ensure group headers use translated status names
-  - Use locale-specific status names (nameEn for English, name for Portuguese)
-  - Validation: Group headers display in correct language
-  - Dependencies: Task 6.2
-
-#### Quality Checklist:
-
-- [x] Grouped data structure matches ExcelGroupConfig interface
-- [x] Groups maintain correct order
-- [x] Empty groups handled gracefully
-- [x] Status names properly translated based on locale
-- [x] No TypeScript errors in grouping logic
-
----
-
-### 7. Testing and Validation
-
-**Objective**: Thoroughly test Excel export functionality across all scenarios
+**Objective**: Comprehensive testing to ensure both changes work correctly and independently
 
 #### Sub-tasks:
 
-- [ ] 7.1: Test basic export (no filters, no grouping)
-  - Export all individual processes with default columns
-  - Validation:
-    - File downloads successfully
-    - Opens in Excel without errors
-    - All data present and correctly formatted
-  - Dependencies: Tasks 1-6 completed
+- [ ] 8.1: Test people table "Cargo" field
+  - Test creating a new person with cargo value
+  - Test editing an existing person's cargo
+  - Test viewing person details showing cargo
+  - Test that people table displays cargo column correctly
+  - Validation: All CRUD operations work for people.cargo field
+  - Dependencies: All tasks 1-3 must be complete
 
-- [ ] 7.2: Test export with candidate filter applied
-  - Select specific candidates, export filtered results
-  - Validation: Only selected candidates' processes in export
-  - Dependencies: Task 7.1
+- [ ] 8.2: Test individual process "Função" field
+  - Test creating a new individual process with funcao value
+  - Test editing an existing individual process funcao
+  - Test that funcao appears BEFORE CBO field in form
+  - Test that funcao field saves and loads correctly
+  - Validation: All CRUD operations work for individualProcesses.funcao field
+  - Dependencies: All tasks 4-7 must be complete
 
-- [ ] 7.3: Test export with applicant filter applied
-  - Select specific applicants, export filtered results
-  - Validation: Only selected applicants' processes in export
-  - Dependencies: Task 7.1
+- [ ] 8.3: Test i18n translations
+  - Switch to Portuguese locale and verify:
+    - People forms show "Cargo" label
+    - Individual process form shows "Função" label before CBO
+  - Switch to English locale and verify:
+    - People forms show "Position" label
+    - Individual process form shows "Function" label before CBO
+  - Validation: All translations display correctly in both locales
+  - Dependencies: Tasks 3 and 7 must be complete
 
-- [ ] 7.4: Test export with progress status filter (single status)
-  - Select one progress status, export without grouping
-  - Validation: Only processes with selected status in export, no grouping
-  - Dependencies: Task 7.1
+- [ ] 8.4: Test data independence
+  - Create a person with cargo = "Gerente"
+  - Create an individual process for that person with funcao = "Analista"
+  - Verify both fields are independent and display correctly
+  - Validation: Changing one field doesn't affect the other
+  - Dependencies: All previous tasks must be complete
 
-- [ ] 7.5: Test grouped export (multiple progress statuses selected)
-  - Select 2+ progress statuses
-  - Validation:
-    - Groups created for each status
-    - Group headers bold with background color
-    - Group headers span all columns (merged cells)
-    - Data rows appear under correct group
-  - Dependencies: Task 7.1
-
-- [ ] 7.6: Test export with RNM mode active
-  - Activate RNM mode, verify RNM Deadline column appears in export
-  - Validation: Export includes RNM Deadline column with formatted dates
-  - Dependencies: Task 7.1
-
-- [ ] 7.7: Test export with Urgent mode active
-  - Activate Urgent mode, verify Protocol Number column appears
-  - Validation: Export includes Protocol Number column, excludes Process Status
-  - Dependencies: Task 7.1
-
-- [ ] 7.8: Test export with QUAL/EXP PROF mode active
-  - Activate QUAL/EXP PROF mode
-  - Validation: Export includes Qualification and Professional Experience columns, excludes irrelevant columns
-  - Dependencies: Task 7.1
-
-- [ ] 7.9: Test filename validation
-  - Try to export with empty filename
-  - Validation: Error message displayed, export button disabled
-  - Dependencies: Task 7.1
-
-- [ ] 7.10: Test with custom filename
-  - Enter custom filename "my_export"
-  - Validation: File downloads as "my_export.xlsx"
-  - Dependencies: Task 7.1
-
-- [ ] 7.11: Test column visibility toggles
-  - Hide some columns, then export
-  - Validation: Export only includes visible columns
-  - Dependencies: Task 7.1
-
-- [ ] 7.12: Test error handling
-  - Simulate export failure (if possible)
-  - Validation: Error toast displayed, dialog remains open
-  - Dependencies: Task 7.1
-
-- [ ] 7.13: Test mobile responsiveness
-  - Open on mobile viewport, test button and dialog
-  - Validation: Button and dialog render properly on mobile, touch-friendly
-  - Dependencies: Task 7.1
-
-- [ ] 7.14: Test Portuguese locale
-  - Switch to Portuguese locale, export data
-  - Validation: All UI text and column headers in Portuguese
-  - Dependencies: Task 7.1
+- [ ] 8.5: Test mobile responsiveness
+  - Test people form on mobile (sm breakpoint)
+  - Test individual process form on mobile (sm breakpoint)
+  - Verify both cargo and funcao fields are touch-friendly (min 44x44px)
+  - Validation: Forms work correctly on mobile devices
+  - Dependencies: All previous tasks must be complete
 
 #### Quality Checklist:
 
-- [ ] All filter combinations tested
-- [ ] Grouped and non-grouped exports work correctly
-- [ ] Special mode exports include correct columns
-- [ ] Filename validation prevents empty exports
-- [ ] Column visibility respected
-- [ ] Mobile responsive and touch-friendly
-- [ ] Both locales (English/Portuguese) work correctly
-- [ ] Error handling tested
-- [ ] Excel files open without errors in Microsoft Excel
+- [ ] People.cargo field works correctly in all contexts
+- [ ] IndividualProcesses.funcao field works correctly in all contexts
+- [ ] Both fields are completely independent
+- [ ] i18n translations work for both fields
+- [ ] No data conflicts or cross-contamination
+- [ ] Mobile responsiveness verified
+- [ ] No console errors or warnings
 
 ---
 
 ## Implementation Notes
 
-### Technical Considerations
+### Critical Distinctions
 
-1. **ExcelJS Library**: Chosen over `xlsx` for better styling support (merged cells, colors, fonts)
-2. **Client-Side Processing**: Export happens entirely client-side using filtered data already in memory
-3. **No Backend Changes**: No Convex mutations/queries needed since we're exporting already-filtered client data
-4. **Grouping Logic**: When `selectedProgressStatuses.length >= 2`, table is grouped and export should include styled group headers
-5. **Column Visibility**: Must respect the `columnVisibility` state from the table component
-6. **Locale Handling**: Status names and column headers must use current locale (en/pt)
+1. **Two Completely Different Fields**:
+   - `people.cargo`: Person's position/role in their company (formerly called "funcao")
+   - `individualProcesses.funcao`: Process-specific function (new field, unrelated to people.cargo)
 
-### Code Patterns to Follow
+2. **Translation Namespaces**:
+   - People translations under `People` namespace: `People.cargo`, `People.cargoPlaceholder`
+   - Individual process translations under `IndividualProcesses` namespace: `IndividualProcesses.funcao`, `IndividualProcesses.funcaoPlaceholder`
 
-1. **Dialog Pattern**: Follow existing ExportDataDialog pattern for UI consistency
-2. **Toast Notifications**: Use sonner for success/error feedback (already imported in client file)
-3. **i18n**: Use `useTranslations` hook with "Export" namespace
-4. **State Management**: Use React useState hooks following existing patterns
-5. **File Naming**: Use descriptive filename with timestamp if needed (e.g., "individual_processes_2025-12-20.xlsx")
+3. **Order of Operations**:
+   - Complete ALL people table changes (tasks 1-3) FIRST
+   - Then complete ALL individual process changes (tasks 4-7)
+   - This prevents naming conflicts and confusion
 
-### Important Edge Cases
+4. **Field Positioning**:
+   - The new `funcao` field MUST appear BEFORE the CBO field (line 1173)
+   - This is a specific requirement from the user
 
-1. **Empty Filename**: Must validate and prevent export
-2. **No Data**: Handle case where filtered results are empty
-3. **Empty Groups**: Skip groups with no processes
-4. **Special Characters in Filename**: Sanitize filename to prevent OS errors
-5. **Large Datasets**: Consider performance for exports with 1000+ rows
+### Potential Issues
 
-### Styling Specifications for Group Headers
+- **Naming Confusion**: Be extremely careful not to confuse `people.cargo` with `individualProcesses.funcao`
+- **Translation Conflicts**: Ensure translation keys are properly namespaced to avoid conflicts
+- **Database Migration**: The schema changes will require database migration (Convex handles this automatically)
 
-- **Font**: Bold, size 12pt
-- **Background Color**: Default blue (#4472C4) - make configurable
-- **Cell Merge**: Merge across all visible columns
-- **Text Alignment**: Left-aligned
-- **Border**: Full border around cell
+### Testing Strategy
+
+1. Test people table changes in isolation first
+2. Test individual process changes in isolation second
+3. Test both together to ensure no conflicts
+4. Test i18n in both locales
+5. Test on mobile devices
 
 ## Definition of Done
 
-- [x] ExcelJS library installed and typed
-- [x] All i18n keys added (en.json and pt.json)
-- [x] Excel export utility function created with proper types
-- [x] Excel export dialog component created with Zod validation
-- [x] Export button added to Individual Processes page
-- [x] Export respects all active filters and column visibility
-- [x] Grouped export includes styled group headers
-- [x] All automated tests pass (manual testing pending - see TESTE_EXCEL_EXPORT.md)
-- [x] No TypeScript errors
-- [x] Code follows clean code principles
-- [x] Mobile responsive
-- [x] Both English and Portuguese locales work correctly
+- [ ] All tasks completed
+- [ ] All quality checklists passed
+- [ ] People table "funcao" successfully renamed to "cargo"
+- [ ] Individual process has new "funcao" field before CBO
+- [ ] Both fields work independently
+- [ ] i18n translations correct for both fields
+- [ ] No TypeScript errors
+- [ ] No console warnings
+- [ ] Mobile responsive
+- [ ] All tests passing

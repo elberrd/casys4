@@ -11,7 +11,7 @@ import { FillFieldsModal } from "@/components/individual-processes/fill-fields-m
 import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
 import { Button } from "@/components/ui/button"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
-import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet } from "lucide-react"
+import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"
 import type { ExcelColumnConfig, ExcelGroupConfig } from "@/lib/utils/excel-export-helpers"
@@ -243,7 +243,25 @@ export function IndividualProcessesClient() {
     // Store the selected filter name
     setSelectedFilterName(filterName)
 
-    toast.success(tSavedFilters("success.filterApplied"))
+    toast.success(tSavedFilters("success.filterApplied"), {
+      closeButton: true,
+    })
+  }, [tSavedFilters])
+
+  const handleClearFilter = useCallback(() => {
+    // Clear all filters
+    setSelectedCandidates([])
+    setSelectedApplicants([])
+    setSelectedProgressStatuses([])
+    setIsRnmModeActive(false)
+    setIsUrgentModeActive(false)
+    setIsQualExpProfModeActive(false)
+    setFilters([])
+    setSelectedFilterName(null)
+
+    toast.success(tSavedFilters("success.filterCleared"), {
+      closeButton: true,
+    })
   }, [tSavedFilters])
 
   const handleEditFilter = useCallback((filter: {
@@ -710,23 +728,37 @@ export function IndividualProcessesClient() {
 
       <DashboardPageHeader breadcrumbs={breadcrumbs}>
         {/* Action buttons - sempre visíveis, texto escondido em telas pequenas */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <FilterIcon className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xl:inline whitespace-nowrap max-w-32 truncate">
-                {selectedFilterName || tSavedFilters("title")}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
-            <SavedFiltersList
-              filterType="individualProcesses"
-              onApplyFilter={handleApplySavedFilter}
-              onEditFilter={handleEditFilter}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <FilterIcon className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden xl:inline whitespace-nowrap max-w-32 truncate">
+                  {selectedFilterName || tSavedFilters("title")}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+              <SavedFiltersList
+                filterType="individualProcesses"
+                onApplyFilter={handleApplySavedFilter}
+                onEditFilter={handleEditFilter}
+                selectedFilterName={selectedFilterName}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {selectedFilterName && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleClearFilter()
+              }}
+              className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors z-10"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
 
         <SaveFilterButton
           hasActiveFilters={hasActiveFilters}

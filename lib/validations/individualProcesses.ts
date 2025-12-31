@@ -61,6 +61,7 @@ export const individualProcessSchema = z.object({
   legalFrameworkId: z.custom<Id<"legalFrameworks">>((val) => typeof val === "string", {
     message: "Legal framework ID must be valid",
   }),
+  funcao: z.string().optional().or(z.literal("")),
   cboId: z
     .custom<Id<"cboCodes">>((val) => typeof val === "string", {
       message: "Invalid CBO code",

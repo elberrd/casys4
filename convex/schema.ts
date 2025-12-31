@@ -92,7 +92,7 @@ export default defineSchema({
     nationalityId: v.optional(v.id("countries")),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
-    funcao: v.optional(v.string()),
+    cargo: v.optional(v.string()),
     motherName: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -270,6 +270,7 @@ export default defineSchema({
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
     processTypeId: v.optional(v.id("processTypes")), // Authorization type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
+    funcao: v.optional(v.string()), // Função field for individual process (different from people.cargo)
     cboId: v.optional(v.id("cboCodes")),
     qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "superior", "naoPossui"
     professionalExperienceSince: v.optional(v.string()), // ISO date format YYYY-MM-DD - Professional experience start date

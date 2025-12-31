@@ -512,6 +512,8 @@
     "referenceNumber": "Número de Referência",
     "status": "Status",
     "legalFramework": "Amparo Legal",
+    "funcao": "Função",
+    "funcaoPlaceholder": "ex: Desenvolvedor, Analista",
     "cbo": "Código CBO",
     "mreOfficeNumber": "Número do Ofício MRE",
     "douNumber": "Número do DOU",
@@ -534,6 +536,7 @@
     "exchangeRateDescription": "Taxa de câmbio: 1 {currency} = X BRL",
     "enterExchangeRate": "Digite a taxa de câmbio",
     "exchangeRateUpdated": "Taxa de câmbio atualizada",
+    "fetchExchangeRate": "Buscar cotação",
     "salaryInBRL": "Valor em Real",
     "calculateConversion": "Calcular Conversão",
     "conversionCalculated": "Conversão calculada com sucesso",
@@ -976,8 +979,8 @@
     "nationality": "Nacionalidade",
     "maritalStatus": "Estado Civil",
     "profession": "Profissão",
-    "funcao": "Função",
-    "funcaoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe",
+    "cargo": "Cargo",
+    "cargoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe",
     "motherName": "Nome da Mãe",
     "fatherName": "Nome do Pai",
     "phoneNumber": "Telefone",
@@ -2868,7 +2871,8 @@
       "filterSaved": "Filtro salvo com sucesso",
       "filterUpdated": "Filtro atualizado com sucesso",
       "filterDeleted": "Filtro excluído com sucesso",
-      "filterApplied": "Filtro aplicado com sucesso"
+      "filterApplied": "Filtro aplicado com sucesso",
+      "filterCleared": "Filtro limpo com sucesso"
     },
     "errors": {
       "nameRequired": "Nome do filtro é obrigatório",

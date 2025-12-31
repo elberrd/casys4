@@ -468,6 +468,7 @@ export const create = mutation({
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
+    funcao: v.optional(v.string()),
     cboId: v.optional(v.id("cboCodes")),
     qualification: v.optional(v.string()),
     professionalExperienceSince: v.optional(v.string()),
@@ -540,6 +541,7 @@ export const create = mutation({
       status: statusString, // DEPRECATED: Keep for backward compatibility
       processTypeId: args.processTypeId, // Process type for cascading filtering
       legalFrameworkId: args.legalFrameworkId,
+      funcao: args.funcao,
       cboId: args.cboId,
       qualification: args.qualification,
       professionalExperienceSince: args.professionalExperienceSince,
@@ -813,6 +815,7 @@ export const update = mutation({
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     processTypeId: v.optional(v.id("processTypes")), // Process type for cascading legal framework filtering
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
+    funcao: v.optional(v.string()),
     cboId: v.optional(v.id("cboCodes")),
     qualification: v.optional(v.string()),
     professionalExperienceSince: v.optional(v.string()),
@@ -896,6 +899,7 @@ export const update = mutation({
     if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;
+    if (args.funcao !== undefined) updates.funcao = args.funcao;
     if (args.cboId !== undefined) updates.cboId = args.cboId;
     if (args.qualification !== undefined) updates.qualification = args.qualification;
     if (args.professionalExperienceSince !== undefined)

@@ -41,6 +41,7 @@ interface Person {
   nationalityId?: Id<"countries">
   maritalStatus?: string
   profession?: string
+  cargo?: string
   motherName?: string
   fatherName?: string
   phoneNumber?: string
