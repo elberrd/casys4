@@ -25,7 +25,7 @@ import { useState, useMemo } from "react"
 
 interface SavedFiltersListProps {
   filterType: "individualProcesses" | "collectiveProcesses"
-  onApplyFilter: (filterCriteria: any) => void
+  onApplyFilter: (filterCriteria: any, filterName: string) => void
 }
 
 export function SavedFiltersList({ filterType, onApplyFilter }: SavedFiltersListProps) {
@@ -52,7 +52,7 @@ export function SavedFiltersList({ filterType, onApplyFilter }: SavedFiltersList
   }, [savedFilters, searchQuery])
 
   const handleApply = (filter: any) => {
-    onApplyFilter(filter.filterCriteria)
+    onApplyFilter(filter.filterCriteria, filter.name)
   }
 
   const handleDeleteClick = (e: React.MouseEvent, filterId: Id<"savedFilters">) => {

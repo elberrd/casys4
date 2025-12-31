@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations, useLocale } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
@@ -46,6 +46,7 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
+  const [selectedFilterName, setSelectedFilterName] = useState<string | null>(null)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -181,6 +182,13 @@ export function IndividualProcessesClient() {
     )
   }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
 
+  // Clear selected filter name when all filters are cleared
+  useEffect(() => {
+    if (!hasActiveFilters) {
+      setSelectedFilterName(null)
+    }
+  }, [hasActiveFilters])
+
   const getCurrentFilterCriteria = useCallback(() => {
     const criteria: any = {}
     if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
@@ -193,7 +201,7 @@ export function IndividualProcessesClient() {
     return criteria
   }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
 
-  const handleApplySavedFilter = useCallback((filterCriteria: any) => {
+  const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
     setSelectedCandidates([])
     setSelectedApplicants([])
@@ -225,6 +233,9 @@ export function IndividualProcessesClient() {
     if (filterCriteria.advancedFilters) {
       setFilters(filterCriteria.advancedFilters)
     }
+
+    // Store the selected filter name
+    setSelectedFilterName(filterName)
 
     toast.success(tSavedFilters("success.filterApplied"))
   }, [tSavedFilters])
@@ -687,7 +698,9 @@ export function IndividualProcessesClient() {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2">
               <FilterIcon className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xl:inline whitespace-nowrap">{tSavedFilters("title")}</span>
+              <span className="hidden xl:inline whitespace-nowrap max-w-32 truncate">
+                {selectedFilterName || tSavedFilters("title")}
+              </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
