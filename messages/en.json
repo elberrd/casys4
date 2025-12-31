@@ -2818,8 +2818,11 @@
   "SavedFilters": {
     "title": "Saved Filters",
     "saveFilter": "Save Filter",
+    "editFilter": "Edit Filter",
     "saveFilterDescription": "Save your current filter configuration to quickly apply it later.",
+    "editFilterDescription": "Update the name of this saved filter.",
     "activeFilters": "Active Filters",
+    "savedFilterCriteria": "Saved Filter Criteria",
     "noActiveFilters": "No active filters",
     "filterName": "Filter Name",
     "filterNamePlaceholder": "Enter a name for this filter...",
@@ -2839,12 +2842,14 @@
     },
     "success": {
       "filterSaved": "Filter saved successfully",
+      "filterUpdated": "Filter updated successfully",
       "filterDeleted": "Filter deleted successfully",
       "filterApplied": "Filter applied successfully"
     },
     "errors": {
       "nameRequired": "Filter name is required",
       "saveFailed": "Failed to save filter",
+      "updateFailed": "Failed to update filter",
       "deleteFailed": "Failed to delete filter",
       "noFiltersActive": "You need to apply at least one filter before saving"
     },

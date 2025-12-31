@@ -46,6 +46,12 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
+  const [editingFilter, setEditingFilter] = useState<{
+    _id: Id<"savedFilters">
+    name: string
+    filterType: "individualProcesses" | "collectiveProcesses"
+    filterCriteria: any
+  } | null>(null)
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
@@ -228,6 +234,16 @@ export function IndividualProcessesClient() {
 
     toast.success(tSavedFilters("success.filterApplied"))
   }, [tSavedFilters])
+
+  const handleEditFilter = useCallback((filter: {
+    _id: Id<"savedFilters">
+    name: string
+    filterType: "individualProcesses" | "collectiveProcesses"
+    filterCriteria: any
+  }) => {
+    setEditingFilter(filter)
+    setIsSaveFilterSheetOpen(true)
+  }, [])
 
   // Apply filters to individual processes
   const filteredProcesses = useMemo(() => {
@@ -694,6 +710,7 @@ export function IndividualProcessesClient() {
             <SavedFiltersList
               filterType="individualProcesses"
               onApplyFilter={handleApplySavedFilter}
+              onEditFilter={handleEditFilter}
             />
           </DropdownMenuContent>
         </DropdownMenu>
@@ -809,12 +826,18 @@ export function IndividualProcessesClient() {
         {/* Save Filter Sheet */}
         <SaveFilterSheet
           open={isSaveFilterSheetOpen}
-          onOpenChange={setIsSaveFilterSheetOpen}
+          onOpenChange={(open) => {
+            setIsSaveFilterSheetOpen(open)
+            if (!open) {
+              setEditingFilter(null)
+            }
+          }}
           filterType="individualProcesses"
           currentFilters={getCurrentFilterCriteria()}
           onSaveSuccess={() => {
-            toast.success(tSavedFilters("success.filterSaved"))
+            setEditingFilter(null)
           }}
+          editingFilter={editingFilter}
         />
       </div>
     </>

@@ -565,6 +565,25 @@ export function IndividualProcessFormDialog({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="cboId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("cbo")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={cboOptions}
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectCbo")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
@@ -937,26 +956,6 @@ export function IndividualProcessFormDialog({
                 )
               )}
             </div>
-
-            {/* CBO Code Field */}
-            <FormField
-              control={form.control}
-              name="cboId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("cbo")}</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={cboOptions}
-                      value={field.value || ""}
-                      onValueChange={field.onChange}
-                      placeholder={t("selectCbo")}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {/* Optional Fields Section */}
             {false && (

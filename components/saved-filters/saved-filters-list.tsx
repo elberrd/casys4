@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Filter, Trash2, Search } from "lucide-react"
+import { Filter, Trash2, Search, Pencil } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -23,12 +23,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useState, useMemo } from "react"
 
+interface SavedFilter {
+  _id: Id<"savedFilters">
+  name: string
+  filterType: "individualProcesses" | "collectiveProcesses"
+  filterCriteria: any
+  createdAt: number
+  updatedAt: number
+}
+
 interface SavedFiltersListProps {
   filterType: "individualProcesses" | "collectiveProcesses"
   onApplyFilter: (filterCriteria: any) => void
+  onEditFilter?: (filter: SavedFilter) => void
 }
 
-export function SavedFiltersList({ filterType, onApplyFilter }: SavedFiltersListProps) {
+export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter }: SavedFiltersListProps) {
   const t = useTranslations("SavedFilters")
   const tCommon = useTranslations("Common")
   const locale = useLocale()
@@ -51,8 +61,13 @@ export function SavedFiltersList({ filterType, onApplyFilter }: SavedFiltersList
     )
   }, [savedFilters, searchQuery])
 
-  const handleApply = (filter: any) => {
+  const handleApply = (filter: SavedFilter) => {
     onApplyFilter(filter.filterCriteria)
+  }
+
+  const handleEditClick = (e: React.MouseEvent, filter: SavedFilter) => {
+    e.stopPropagation()
+    onEditFilter?.(filter)
   }
 
   const handleDeleteClick = (e: React.MouseEvent, filterId: Id<"savedFilters">) => {
@@ -122,14 +137,26 @@ export function SavedFiltersList({ filterType, onApplyFilter }: SavedFiltersList
                 })}
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => handleDeleteClick(e, filter._id)}
-              className="ml-2 h-8 w-8 p-0"
-            >
-              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-            </Button>
+            <div className="flex items-center gap-1 ml-2">
+              {onEditFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => handleEditClick(e, filter)}
+                  className="h-8 w-8 p-0"
+                >
+                  <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => handleDeleteClick(e, filter._id)}
+                className="h-8 w-8 p-0"
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+              </Button>
+            </div>
           </div>
         ))}
         </div>
