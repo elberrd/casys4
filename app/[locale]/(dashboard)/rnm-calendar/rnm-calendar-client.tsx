@@ -6,13 +6,13 @@ import { useTranslations, useLocale } from "next-intl"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
-import { Calendar, dateFnsLocalizer, View, Views, SlotInfo } from "react-big-calendar"
+import { Calendar, dateFnsLocalizer, View, Views } from "react-big-calendar"
 import { format, parse, startOfWeek, getDay } from "date-fns"
 import { pt, enUS } from "date-fns/locale"
 import { Id } from "@/convex/_generated/dataModel"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar as CalendarIcon, CalendarDays, CalendarRange, LayoutList, ChevronLeft, ChevronRight, Clock, User } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarDays, CalendarRange, LayoutList, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import "./calendar.css"
@@ -82,55 +82,6 @@ const CustomToolbar = ({ onNavigate, onView, view, label, localizer: { messages 
         </Button>
       </div>
     </div>
-  )
-}
-
-interface CustomEventPopupProps {
-  events: any[]
-  slotStart: Date
-  slotEnd: Date
-  localizer: any
-  onSelectEvent: (event: any) => void
-}
-
-const CustomEventPopup = ({ events, slotStart, localizer, onSelectEvent }: CustomEventPopupProps) => {
-  return (
-    <Card className="min-w-[280px] max-w-[320px] shadow-lg border-border">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          {localizer.format(slotStart, 'HH:mm', 'pt')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 pt-0">
-        {events.map((event, idx) => (
-          <button
-            key={idx}
-            onClick={() => onSelectEvent(event)}
-            className="w-full text-left p-3 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors border border-primary/20 hover:border-primary/40"
-          >
-            <div className="flex items-start gap-2">
-              <User className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {event.title}
-                </p>
-                {event.resource?.rnmNumber && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    RNM: {event.resource.rnmNumber}
-                  </p>
-                )}
-                {event.resource?.companyName && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {event.resource.companyName}
-                  </p>
-                )}
-              </div>
-            </div>
-          </button>
-        ))}
-      </CardContent>
-    </Card>
   )
 }
 
@@ -241,15 +192,6 @@ export function RNMCalendarClient() {
               culture={locale}
               components={{
                 toolbar: CustomToolbar,
-                popup: ({ events, slotStart, slotEnd }: any) => (
-                  <CustomEventPopup
-                    events={events}
-                    slotStart={slotStart}
-                    slotEnd={slotEnd}
-                    localizer={localizer}
-                    onSelectEvent={handleSelectEvent}
-                  />
-                ),
               }}
               eventPropGetter={() => ({
                 className: 'bg-primary border-primary text-primary-foreground text-xs rounded-md shadow-sm px-1.5 py-1 hover:bg-primary/90 transition-all cursor-pointer',
