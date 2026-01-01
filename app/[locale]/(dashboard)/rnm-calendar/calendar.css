@@ -248,9 +248,20 @@
   border-spacing: 0;
 }
 
+.rbc-agenda-view table.rbc-agenda-table {
+  color: #000 !important;
+}
+
+.rbc-agenda-table tbody > tr {
+  background: #fff;
+  color: #000;
+}
+
 .rbc-agenda-table tbody > tr > td {
   padding: 0.75rem 1rem;
   border-top: 1px solid hsl(var(--border));
+  color: #000 !important;
+  background: transparent;
 }
 
 .rbc-agenda-table tbody > tr:first-child > td {
@@ -260,17 +271,17 @@
 .rbc-agenda-date-cell {
   white-space: nowrap;
   font-weight: 600;
-  color: hsl(var(--foreground));
+  color: #000 !important;
 }
 
 .rbc-agenda-time-cell {
   white-space: nowrap;
-  color: hsl(var(--muted-foreground));
+  color: #666 !important;
   font-size: 0.875rem;
 }
 
 .rbc-agenda-event-cell {
-  color: hsl(var(--foreground));
+  color: #000 !important;
   font-weight: 500;
 }
 
@@ -325,27 +336,75 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* Custom Popup Overlay */
+/* Beautiful Professional Popup Overlay */
 .rbc-overlay {
   position: absolute;
   z-index: 50;
-  background: transparent;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   padding: 0;
-  border: none;
-  box-shadow: none;
+  min-width: 280px;
+  max-width: 320px;
 }
 
 .rbc-overlay-header {
-  display: none;
+  background: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0.75rem 1rem;
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* Ensure popup appears above other elements */
+.rbc-overlay-header::before {
+  content: "🕐";
+  font-size: 1rem;
+}
+
 .rbc-event-content {
   position: relative;
   z-index: 1;
 }
 
-/* Week view: Show +more link styling */
+/* Events inside popup */
+.rbc-overlay .rbc-event {
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+  padding: 0.75rem;
+  margin: 0.5rem;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rbc-overlay .rbc-event:hover {
+  background: hsl(var(--primary) / 0.2);
+  border-color: hsl(var(--primary) / 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.rbc-overlay .rbc-event-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.rbc-overlay .rbc-event-content {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.25rem;
+}
+
+/* Show +more link styling */
 .rbc-show-more {
   color: hsl(var(--primary)) !important;
   font-weight: 500;
@@ -357,9 +416,11 @@ button:focus-visible {
   border-radius: calc(var(--radius) - 2px);
   transition: all 0.2s;
   text-decoration: none !important;
+  display: inline-block;
 }
 
 .rbc-show-more:hover {
   background: hsl(var(--primary) / 0.2);
   text-decoration: none !important;
+  transform: translateY(-1px);
 }
