@@ -104,7 +104,8 @@
     "documentTypes": "Document Types",
     "documentTemplates": "Document Templates",
     "activityLogs": "Activity Logs",
-    "settings": "Settings"
+    "settings": "Settings",
+    "rnmCalendar": "RNM"
   },
   "Breadcrumbs": {
     "dashboard": "Dashboard",
@@ -147,6 +148,7 @@
     "editIndividualProcess": "Edit Individual Process",
     "editCollectiveProcess": "Edit Collective Process",
     "newTemplate": "New Template",
+    "rnmCalendar": "RNM Calendar",
     "editTemplate": "Edit Template",
     "edit": "Edit"
   },
@@ -2871,5 +2873,27 @@
       "applyFiltersFirst": "Apply filters first",
       "applyFiltersDescription": "To save a filter, you must first apply filters in the table above. Once filters are active, you can save them here."
     }
+  },
+  "RNMCalendar": {
+    "title": "RNM Calendar",
+    "description": "View and manage RNM appointments for candidates",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda",
+    "today": "Today",
+    "previous": "Previous",
+    "next": "Next",
+    "date": "Date",
+    "time": "Time",
+    "event": "Event",
+    "more": "more",
+    "noAppointments": "No appointments found",
+    "noAppointmentsDescription": "There are no RNM appointments at this time. Appointments will appear here when they are added to individual processes.",
+    "appointmentWith": "Appointment with",
+    "viewDetails": "View details",
+    "editProcess": "Edit process",
+    "noCandidate": "No candidate",
+    "noEventsInRange": "No events in this time range."
   }
 }

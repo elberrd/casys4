@@ -104,7 +104,8 @@
     "documentTypes": "Tipos de Documento",
     "documentTemplates": "Modelos de Documentos",
     "activityLogs": "Registros de Atividade",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "rnmCalendar": "RNM"
   },
   "Breadcrumbs": {
     "dashboard": "Painel",
@@ -147,6 +148,7 @@
     "editIndividualProcess": "Editar Processo Individual",
     "editCollectiveProcess": "Editar Processo Coletivo",
     "newTemplate": "Novo Modelo",
+    "rnmCalendar": "Calendário RNM",
     "editTemplate": "Editar Modelo",
     "edit": "Editar"
   },
@@ -2895,5 +2897,27 @@
       "applyFiltersFirst": "Aplique filtros primeiro",
       "applyFiltersDescription": "Para salvar um filtro, você precisa primeiro aplicar filtros na tabela acima. Depois que os filtros estiverem ativos, você poderá salvá-los aqui."
     }
+  },
+  "RNMCalendar": {
+    "title": "Calendário RNM",
+    "description": "Visualize e gerencie os agendamentos de RNM dos candidatos",
+    "month": "Mês",
+    "week": "Semana",
+    "day": "Dia",
+    "agenda": "Agenda",
+    "today": "Hoje",
+    "previous": "Anterior",
+    "next": "Próximo",
+    "date": "Data",
+    "time": "Hora",
+    "event": "Evento",
+    "more": "mais",
+    "noAppointments": "Nenhum agendamento encontrado",
+    "noAppointmentsDescription": "Não há agendamentos de RNM no momento. Os agendamentos aparecerão aqui quando forem adicionados aos processos individuais.",
+    "appointmentWith": "Agendamento com",
+    "viewDetails": "Ver detalhes",
+    "editProcess": "Editar processo",
+    "noCandidate": "Sem candidato",
+    "noEventsInRange": "Não há eventos neste período."
   }
 }

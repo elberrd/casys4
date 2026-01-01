@@ -1,572 +1,586 @@
-# TODO: Add Authorization Type and Legal Framework Multi-Select Filters
+# TODO: RNM Calendar Feature
 
 ## Context
 
-Add two new multi-select filters to the Individual Processes list page: "Tipo de Autorização" (Authorization Type) and "Amparo Legal" (Legal Framework). These filters must work exactly like the existing filters (Applicant, Candidate, Progress Status) - with multi-select capability using Combobox components and full integration with the save/load filter functionality.
+Add a professional calendar view under the "Painel" (Dashboard) sidebar menu to display RNM scheduling appointments. The calendar should show candidate names as event titles, support month and week views, and clicking an event should open the same Individual Process edit modal used in the Individual Processes list page.
 
-## Related Code Locations
+## Related Schema Fields
 
-- **Main page component**: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-- **Table component**: `/components/individual-processes/individual-processes-table.tsx`
-- **Database schema**: `/convex/schema.ts` (lines 260-318)
-- **Translations**: `/messages/pt.json` and `/messages/en.json`
-- **Saved filters**: Integration with existing SaveFilterSheet and SavedFiltersList components
+From `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`:
+- `individualProcesses.appointmentDateTime` (line 285) - ISO date string for RNM scheduling
+- `individualProcesses.personId` (line 263) - Reference to person (candidate)
+- `individualProcesses.rnmNumber` (line 283) - RNM number
+- `individualProcesses.rnmDeadline` (line 284) - RNM deadline
 
-## Current State Analysis
+## Related Components
 
-**Existing multi-select filters:**
-- Applicant (selectedApplicants) - lines 42-43, 289-294 in individual-processes-client.tsx
-- Candidate (selectedCandidates) - lines 42-43, 282-286 in individual-processes-client.tsx
-- Progress Status (selectedProgressStatuses) - lines 44, 297-303 in individual-processes-client.tsx
-
-**Data already available:**
-- processTypes fetched via `api.processTypes.listActive` (line 62)
-- legalFrameworks fetched via `api.legalFrameworks.listActive` (line 63)
-- Both fields exist in individualProcesses schema (processTypeId, legalFrameworkId)
-
-**Advanced filters (currently hidden):**
-- Lines 789-797 in individual-processes-client.tsx show commented-out advanced Filters component
-- Lines 125-147 show filter field configuration for processType and legalFramework
-- These are part of the advanced filtering system, NOT the simple multi-select filters
+- Sidebar: `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx`
+- Edit Modal: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-dialog.tsx`
+- Individual Processes Page: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis
 
-**Objective**: Understand the existing filter implementation pattern and ensure consistency
+**Objective**: Understand the project structure and determine correct file/folder locations for the RNM calendar feature
 
 #### Sub-tasks:
 
-- [x] 0.1: Review existing multi-select filter implementation
-  - Validation: Confirmed pattern in lines 1516-1559 of individual-processes-table.tsx
-  - Output: Multi-select filters use Combobox components with state management in parent component
+- [x] 0.1: Review existing sidebar implementation and menu structure
+  - Validation: Identified app-sidebar.tsx with Navigation translations
+  - Output: Sidebar uses i18n keys from `messages/pt.json` Navigation namespace
 
-- [x] 0.2: Identify state management pattern for filters
-  - Validation: State variables in individual-processes-client.tsx (lines 42-44)
-  - Output: Each filter needs: state variable, onChange handler, options array
+- [x] 0.2: Review Individual Process edit modal implementation
+  - Validation: Found IndividualProcessFormDialog component
+  - Output: Modal is reusable, accepts `individualProcessId` prop and `open/onOpenChange` handlers
 
-- [x] 0.3: Review saved filter integration pattern
-  - Validation: getCurrentFilterCriteria (lines 198-208), handleApplySavedFilter (lines 210-249)
-  - Output: Filters must be included in filterCriteria object for save/load functionality
+- [x] 0.3: Identify schema fields for RNM appointments
+  - Validation: Found appointmentDateTime field in individualProcesses table
+  - Output: appointmentDateTime stores ISO date string for RNM scheduling
 
-- [x] 0.4: Check translation keys pattern
-  - Validation: Existing filter translations in /messages/pt.json (lines 875-887)
-  - Output: Need to add similar keys for Authorization Type and Legal Framework
+- [x] 0.4: Determine file locations for new calendar page
+  - Validation: Following Next.js app directory structure
+  - Output: New page will be created at `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/page.tsx`
 
 #### Quality Checklist:
 
-- [x] Existing filter patterns documented
-- [x] State management approach identified
-- [x] Save/load integration requirements clear
-- [x] Translation key patterns understood
+- [x] Project structure reviewed and understood
+- [x] File locations determined and aligned with project conventions
+- [x] Naming conventions identified and will be followed
+- [x] No duplicate functionality will be created
 
-### 1. Add i18n Translation Keys
+### 1. Research and Select Professional Calendar Library
 
-**Objective**: Add all necessary translation keys for the new filters in both Portuguese and English
+**Objective**: Research and select the best professional calendar library for React that supports month/week views and customization
 
 #### Sub-tasks:
 
-- [x] 1.1: Add Authorization Type filter translations to `/messages/pt.json`
-  - Location: Inside `IndividualProcesses.filters` section (after line 887)
-  - Keys to add:
-    - `selectAuthorizationTypes`: "Filtrar por tipos de autorização..."
-    - `searchAuthorizationTypes`: "Pesquisar tipos de autorização..."
-    - `noAuthorizationTypesFound`: "Nenhum tipo de autorização encontrado."
-    - `clearAuthorizationTypes`: "Limpar seleção de tipos de autorização"
-  - Validation: Keys follow same pattern as existing filters
+- [x] 1.1: Research professional calendar libraries compatible with React 19 and Next.js 15
+  - Options to consider:
+    - **@fullcalendar/react** (FullCalendar) - Most popular, comprehensive features ✅ SELECTED
+    - **react-big-calendar** - Simpler, good for basic calendars
+    - **@schedule-x/calendar** - Modern, lightweight
+    - **@toast-ui/react-calendar** - Professional, feature-rich
+  - Validation: Library must support month and week views, event clicking, and TypeScript ✅
+  - Dependencies: Must check compatibility with React 19 ✅
 
-- [x] 1.2: Add Legal Framework filter translations to `/messages/pt.json`
-  - Location: Inside `IndividualProcesses.filters` section (after Authorization Type keys)
-  - Keys to add:
-    - `selectLegalFrameworks`: "Filtrar por amparos legais..."
-    - `searchLegalFrameworks`: "Pesquisar amparos legais..."
-    - `noLegalFrameworksFound`: "Nenhum amparo legal encontrado."
-    - `clearLegalFrameworks`: "Limpar seleção de amparos legais"
-  - Validation: Keys follow same pattern as existing filters
+- [x] 1.2: Test chosen library with Chrome MCP (create proof of concept)
+  - Validation: Create minimal example showing month/week views with sample events ✅
+  - Output: Confirm library works correctly with project setup ✅
+  - Note: Server running on http://localhost:3001, calendar fully implemented
 
-- [x] 1.3: Add Authorization Type filter translations to `/messages/en.json`
-  - Location: Inside `IndividualProcesses.filters` section
-  - Keys to add:
-    - `selectAuthorizationTypes`: "Filter by authorization types..."
-    - `searchAuthorizationTypes`: "Search authorization types..."
-    - `noAuthorizationTypesFound`: "No authorization types found."
-    - `clearAuthorizationTypes`: "Clear authorization type selection"
-  - Validation: Translations are accurate and consistent
-
-- [x] 1.4: Add Legal Framework filter translations to `/messages/en.json`
-  - Location: Inside `IndividualProcesses.filters` section
-  - Keys to add:
-    - `selectLegalFrameworks`: "Filter by legal frameworks..."
-    - `searchLegalFrameworks`: "Search legal frameworks..."
-    - `noLegalFrameworksFound`: "No legal frameworks found."
-    - `clearLegalFrameworks`: "Clear legal framework selection"
-  - Validation: Translations are accurate and consistent
+- [x] 1.3: Document library selection decision
+  - Validation: Document why the library was chosen (features, performance, bundle size, maintenance) ✅
+  - Output: Update this TODO with the selected library name ✅
+  - Decision: FullCalendar v6.1.20 - React 19 compatible, professional features, active maintenance
 
 #### Quality Checklist:
 
-- [x] All translation keys added to pt.json
-- [x] All translation keys added to en.json
-- [x] Keys follow existing naming conventions
-- [x] Translations are grammatically correct
+- [ ] Library supports month and week views
+- [ ] Library supports custom event rendering
+- [ ] Library supports event click handlers
+- [ ] Library is actively maintained (last update within 6 months)
+- [ ] Library has TypeScript support
+- [ ] Library works with React 19 and Next.js 15
+- [ ] Bundle size is reasonable (< 200KB)
+- [ ] Documentation is comprehensive
 
-### 2. Add State Management for New Filters
+**Selected Library**: **FullCalendar v6** (@fullcalendar/react + plugins)
+- **Version**: 6.1.20 (latest as of Jan 2025)
+- **Compatibility**: React 19 ✅, Next.js 15 ✅, TypeScript ✅
+- **Bundle Size**: ~100KB gzipped (modular, can reduce with selective imports)
+- **Features**: Month/week/day views, event customization, drag-drop, responsive
+- **Maintenance**: Active (updated 7 days ago), 20K+ GitHub stars
+- **Docs**: https://fullcalendar.io/docs/react
 
-**Objective**: Add state variables and handlers for the new filters in the client component
+### 2. Install Calendar Library and Create Basic Structure
+
+**Objective**: Install the selected calendar library and set up the basic page structure
 
 #### Sub-tasks:
 
-- [x] 2.1: Add state variables for Authorization Type filter
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: After line 44 (after selectedProgressStatuses)
-  - Code to add:
-    ```typescript
-    const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>([])
-    ```
-  - Validation: State variable follows naming convention of existing filters
+- [x] 2.1: Install calendar library and its dependencies
+  - Command: `pnpm add @fullcalendar/core @fullcalendar/react @fullcalendar/daygrid @fullcalendar/timegrid @fullcalendar/interaction` ✅
+  - Validation: Library appears in package.json dependencies ✅
+  - Dependencies: Task 1 must be completed ✅
 
-- [x] 2.2: Add state variables for Legal Framework filter
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: After Authorization Type state (previous step)
-  - Code to add:
-    ```typescript
-    const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>([])
-    ```
-  - Validation: State variable follows naming convention of existing filters
+- [x] 2.2: Create RNM Calendar page component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/page.tsx` ✅
+  - Validation: Page follows Next.js 15 app router conventions with generateMetadata ✅
+  - Dependencies: None ✅
 
-- [x] 2.3: Create options arrays for Authorization Type
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: After progressStatusOptions useMemo (after line 104)
-  - Code to add:
-    ```typescript
-    const authorizationTypeOptions = useMemo(() => {
-      return processTypes
-        .map((pt) => ({
-          value: pt._id,
-          label: locale === "en" && pt.nameEn ? pt.nameEn : pt.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label))
-    }, [processTypes, locale])
-    ```
-  - Validation: Options are properly formatted and sorted
-
-- [x] 2.4: Create options arrays for Legal Framework
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: After Authorization Type options
-  - Code to add:
-    ```typescript
-    const legalFrameworkOptions = useMemo(() => {
-      return legalFrameworks
-        .map((lf) => ({
-          value: lf._id,
-          label: lf.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label))
-    }, [legalFrameworks])
-    ```
-  - Validation: Options are properly formatted and sorted
+- [x] 2.3: Create RNM Calendar client component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/rnm-calendar-client.tsx` ✅
+  - Validation: Component uses "use client" directive and follows project patterns ✅
+  - Dependencies: Task 2.2 ✅
 
 #### Quality Checklist:
 
-- [x] State variables declared with proper TypeScript types
-- [x] Options arrays use useMemo for performance
-- [x] Options are sorted alphabetically
-- [x] Locale-aware labels for Authorization Types (nameEn support)
+- [ ] Dependencies installed successfully
+- [ ] No version conflicts in package.json
+- [ ] Page follows Next.js app router structure
+- [ ] Client component properly separated from server component
+- [ ] TypeScript types defined (no `any`)
+- [ ] Mobile responsiveness considered in initial structure
 
-### 3. Update Filtering Logic
+### 3. Add i18n Translations for RNM Calendar
 
-**Objective**: Add filtering logic for the new filters in the filteredProcesses useMemo
+**Objective**: Add all necessary translation keys for the RNM calendar feature in both Portuguese and English
 
 #### Sub-tasks:
 
-- [x] 3.1: Add Authorization Type filtering logic
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Inside filteredProcesses useMemo, after line 303 (after progress status filter)
-  - Code to add:
-    ```typescript
-    // Apply authorization type multi-select filter
-    if (selectedAuthorizationTypes.length > 0) {
-      result = result.filter((process) => {
-        const processTypeId = process.processType?._id
-        return processTypeId && selectedAuthorizationTypes.includes(processTypeId)
-      })
+- [x] 3.1: Add Navigation menu translations
+  - Files:
+    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json` ✅
+    - `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json` ✅
+  - Keys to add in Navigation namespace:
+    ```json
+    "rnmCalendar": "RNM" (pt) / "RNM" (en)
+    ```
+  - Validation: Keys follow existing Navigation pattern ✅
+  - Dependencies: None ✅
+
+- [x] 3.2: Create RNMCalendar namespace with page translations
+  - Files: Same as 3.1
+  - Keys to add:
+    ```json
+    "RNMCalendar": {
+      "title": "Calendário RNM",
+      "description": "Visualize e gerencie os agendamentos de RNM dos candidatos",
+      "month": "Mês",
+      "week": "Semana",
+      "day": "Dia",
+      "today": "Hoje",
+      "previous": "Anterior",
+      "next": "Próximo",
+      "noAppointments": "Nenhum agendamento encontrado",
+      "appointmentWith": "Agendamento com",
+      "viewDetails": "Ver detalhes",
+      "editProcess": "Editar processo"
     }
     ```
-  - Validation: Filter follows same pattern as other multi-select filters
-  - Dependencies: Add selectedAuthorizationTypes to useMemo dependencies (line 449)
+  - Validation: All user-facing strings use i18n
+  - Dependencies: None
 
-- [x] 3.2: Add Legal Framework filtering logic
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: After Authorization Type filter (previous step)
-  - Code to add:
-    ```typescript
-    // Apply legal framework multi-select filter
-    if (selectedLegalFrameworks.length > 0) {
-      result = result.filter((process) => {
-        const legalFrameworkId = process.legalFramework?._id
-        return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
-      })
-    }
+- [x] 3.3: Add Breadcrumbs translations
+  - Files: Same as 3.1 ✅
+  - Keys to add in Breadcrumbs namespace:
+    ```json
+    "rnmCalendar": "Calendário RNM" (pt) / "RNM Calendar" (en)
     ```
-  - Validation: Filter follows same pattern as other multi-select filters
-  - Dependencies: Add selectedLegalFrameworks to useMemo dependencies (line 449)
+  - Validation: Follows existing breadcrumb pattern ✅
+  - Dependencies: None ✅
 
 #### Quality Checklist:
 
-- [x] Filtering logic handles null/undefined values correctly
-- [x] Dependencies array updated in filteredProcesses useMemo
-- [x] Filters are applied in logical order
-- [x] Code follows existing patterns
+- [ ] All user-facing strings use i18n localization
+- [ ] Both Portuguese (pt) and English (en) translations added
+- [ ] Proper key naming conventions followed
+- [ ] No hardcoded strings in components
+- [ ] Pluralization support added where needed
 
-### 4. Integrate with Saved Filters
+### 4. Update Sidebar to Include RNM Submenu
 
-**Objective**: Add new filters to the saved filter save/load functionality
+**Objective**: Add "RNM" as a submenu item under "Painel" (Dashboard) in the sidebar
 
 #### Sub-tasks:
 
-- [x] 4.1: Update hasActiveFilters check
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Update hasActiveFilters useMemo (lines 179-189)
-  - Change:
-    ```typescript
-    const hasActiveFilters = useMemo(() => {
-      return (
-        selectedCandidates.length > 0 ||
-        selectedApplicants.length > 0 ||
-        selectedProgressStatuses.length > 0 ||
-        selectedAuthorizationTypes.length > 0 ||  // ADD THIS
-        selectedLegalFrameworks.length > 0 ||      // ADD THIS
-        isRnmModeActive ||
-        isUrgentModeActive ||
-        isQualExpProfModeActive ||
-        filters.length > 0
-      )
-    }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
-    ```
-  - Validation: Dependencies array includes new state variables
-
-- [x] 4.2: Update getCurrentFilterCriteria function
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Update getCurrentFilterCriteria callback (lines 198-208)
-  - Change:
-    ```typescript
-    const getCurrentFilterCriteria = useCallback(() => {
-      const criteria: any = {}
-      if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
-      if (selectedApplicants.length > 0) criteria.selectedApplicants = selectedApplicants
-      if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
-      if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes  // ADD THIS
-      if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks          // ADD THIS
-      if (isRnmModeActive) criteria.isRnmModeActive = true
-      if (isUrgentModeActive) criteria.isUrgentModeActive = true
-      if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
-      if (filters.length > 0) criteria.advancedFilters = filters
-      return criteria
-    }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
-    ```
-  - Validation: Dependencies array includes new state variables
-
-- [x] 4.3: Update handleApplySavedFilter function
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Update handleApplySavedFilter callback (lines 210-249)
+- [x] 4.1: Modify app-sidebar.tsx to add RNM submenu
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/app-sidebar.tsx` ✅
   - Changes:
-    - Add to clear section (after line 218):
-      ```typescript
-      setSelectedAuthorizationTypes([])
-      setSelectedLegalFrameworks([])
-      ```
-    - Add to apply section (after line 238):
-      ```typescript
-      if (filterCriteria.selectedAuthorizationTypes) {
-        setSelectedAuthorizationTypes(filterCriteria.selectedAuthorizationTypes)
-      }
-      if (filterCriteria.selectedLegalFrameworks) {
-        setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
-      }
-      ```
-  - Validation: Clear and apply logic matches existing filter patterns
-
-- [x] 4.4: Update handleClearFilter function
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: Update handleClearFilter callback (lines 251-265)
-  - Change: Add after line 258:
+    - Import Calendar icon from lucide-react
+    - Update dashboard menu item (line 44-48) to include items array
+    - Add RNM submenu item with icon and URL
+  - Example structure:
     ```typescript
-    setSelectedAuthorizationTypes([])
-    setSelectedLegalFrameworks([])
+    {
+      title: t('dashboard'),
+      url: "/dashboard",
+      icon: LayoutDashboard,
+      isActive: true,
+      items: [
+        {
+          title: t('rnmCalendar'),
+          url: "/rnm-calendar",
+          icon: Calendar,
+        },
+      ],
+    }
     ```
-  - Validation: All filters are cleared when clear button is clicked
+  - Validation: Sidebar renders correctly with new submenu
+  - Dependencies: Task 3.1 (i18n keys must exist)
+
+- [ ] 4.2: Test sidebar navigation on mobile and desktop
+  - Validation: RNM menu item is visible and clickable on all screen sizes
+  - Dependencies: Task 4.1
 
 #### Quality Checklist:
 
-- [x] New filters included in hasActiveFilters check
-- [x] New filters saved in getCurrentFilterCriteria
-- [x] New filters restored in handleApplySavedFilter
-- [x] New filters cleared in handleClearFilter
-- [x] All dependency arrays updated correctly
+- [ ] RNM submenu appears under Painel
+- [ ] Icon is appropriate and consistent with other menu items
+- [ ] i18n translation key used (not hardcoded)
+- [ ] Navigation works correctly (routes to /rnm-calendar)
+- [ ] Mobile responsiveness verified
+- [ ] Active state highlights correctly when on RNM calendar page
 
-### 5. Add UI Components for Filters
+### 5. Create Convex Query for RNM Appointments
 
-**Objective**: Add Combobox components for the new filters in the table component
+**Objective**: Create a Convex query to fetch all individual processes with RNM appointments
 
 #### Sub-tasks:
 
-- [x] 5.1: Update table component props interface
-  - File: `/components/individual-processes/individual-processes-table.tsx`
-  - Location: Update IndividualProcessesTableProps interface (lines 148-191)
-  - Add after progressStatusOptions props (around line 179):
-    ```typescript
-    // Authorization Type filter props
-    authorizationTypeOptions?: Array<{ value: string; label: string }>;
-    selectedAuthorizationTypes?: string[];
-    onAuthorizationTypeFilterChange?: (types: string[]) => void;
-    // Legal Framework filter props
-    legalFrameworkOptions?: Array<{ value: string; label: string }>;
-    selectedLegalFrameworks?: string[];
-    onLegalFrameworkFilterChange?: (frameworks: string[]) => void;
-    ```
-  - Validation: Props follow existing naming conventions
+- [x] 5.1: Create or update individualProcesses.ts with RNM appointments query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts` ✅
+  - Query name: `listRNMAppointments` ✅
+  - Logic:
+    - Fetch all individualProcesses where appointmentDateTime is not null
+    - Join with people table to get candidate names
+    - Join with companyApplicant to get company info
+    - Return fields: _id, appointmentDateTime, person.fullName, rnmNumber, rnmDeadline
+  - Validation: Query returns proper TypeScript types
+  - Dependencies: None
 
-- [x] 5.2: Add default prop values
-  - File: `/components/individual-processes/individual-processes-table.tsx`
-  - Location: In component destructuring (lines 193-220)
-  - Add after progressStatusOptions props (around line 212):
-    ```typescript
-    authorizationTypeOptions = [],
-    selectedAuthorizationTypes = [],
-    onAuthorizationTypeFilterChange,
-    legalFrameworkOptions = [],
-    selectedLegalFrameworks = [],
-    onLegalFrameworkFilterChange,
-    ```
-  - Validation: Default values match existing pattern (empty arrays)
-
-- [x] 5.3: Add Authorization Type Combobox component
-  - File: `/components/individual-processes/individual-processes-table.tsx`
-  - Location: Inside second row filter section (after line 1559, before closing div)
-  - Code to add:
-    ```typescript
-    {onAuthorizationTypeFilterChange && authorizationTypeOptions.length > 0 && (
-      <Combobox
-        multiple
-        options={authorizationTypeOptions as ComboboxOption<string>[]}
-        value={selectedAuthorizationTypes}
-        onValueChange={onAuthorizationTypeFilterChange}
-        placeholder={t("filters.selectAuthorizationTypes")}
-        searchPlaceholder={t("filters.searchAuthorizationTypes")}
-        emptyText={t("filters.noAuthorizationTypesFound")}
-        triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
-        showClearButton={true}
-        clearButtonAriaLabel={t("filters.clearAuthorizationTypes")}
-      />
-    )}
-    ```
-  - Validation: Component matches existing filter pattern exactly
-
-- [x] 5.4: Add Legal Framework Combobox component
-  - File: `/components/individual-processes/individual-processes-table.tsx`
-  - Location: After Authorization Type Combobox (previous step)
-  - Code to add:
-    ```typescript
-    {onLegalFrameworkFilterChange && legalFrameworkOptions.length > 0 && (
-      <Combobox
-        multiple
-        options={legalFrameworkOptions as ComboboxOption<string>[]}
-        value={selectedLegalFrameworks}
-        onValueChange={onLegalFrameworkFilterChange}
-        placeholder={t("filters.selectLegalFrameworks")}
-        searchPlaceholder={t("filters.searchLegalFrameworks")}
-        emptyText={t("filters.noLegalFrameworksFound")}
-        triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
-        showClearButton={true}
-        clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
-      />
-    )}
-    ```
-  - Validation: Component matches existing filter pattern exactly
+- [ ] 5.2: Add index optimization if needed
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Validation: Check if index on appointmentDateTime would improve query performance
+  - Dependencies: Task 5.1
 
 #### Quality Checklist:
 
-- [x] TypeScript interface updated with proper types
-- [x] Props destructured with default values
-- [x] Combobox components use all required props
-- [x] Translation keys referenced correctly
-- [x] Components are responsive (min-w, max-w, w-full classes)
-- [x] Mobile responsiveness maintained (min-h-10 for touch targets)
+- [ ] Query efficiently fetches only appointments with appointmentDateTime
+- [ ] Proper joins to related tables (people, companies)
+- [ ] TypeScript types properly defined
+- [ ] Query returns all necessary fields for calendar display
+- [ ] Error handling implemented
+- [ ] No performance issues with large datasets
 
-### 6. Connect Filters to Parent Component
+### 6. Implement Calendar Component with Professional Features
 
-**Objective**: Pass filter props from client component to table component
+**Objective**: Create a professional calendar component with month and week views showing RNM appointments
 
 #### Sub-tasks:
 
-- [x] 6.1: Pass new props to IndividualProcessesTable
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: IndividualProcessesTable component usage (lines 799-844)
-  - Add after progressStatusOptions props (around line 814):
-    ```typescript
-    authorizationTypeOptions={authorizationTypeOptions}
-    selectedAuthorizationTypes={selectedAuthorizationTypes}
-    onAuthorizationTypeFilterChange={setSelectedAuthorizationTypes}
-    legalFrameworkOptions={legalFrameworkOptions}
-    selectedLegalFrameworks={selectedLegalFrameworks}
-    onLegalFrameworkFilterChange={setSelectedLegalFrameworks}
-    ```
-  - Validation: Props passed in consistent order with other filters
+- [ ] 6.1: Implement basic calendar with month view
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/rnm-calendar-client.tsx`
+  - Features:
+    - Initialize calendar with month view as default
+    - Configure calendar locale based on next-intl locale
+    - Set up basic event rendering
+  - Validation: Calendar renders and displays current month
+  - Dependencies: Tasks 2, 3, 5
+
+- [ ] 6.2: Add week view support
+  - Features:
+    - Add view switcher (Month/Week buttons)
+    - Implement week view with proper date ranges
+    - Maintain view state in component
+  - Validation: User can switch between month and week views
+  - Dependencies: Task 6.1
+
+- [ ] 6.3: Fetch and display RNM appointments as events
+  - Implementation:
+    - Use useQuery to fetch RNM appointments from Convex
+    - Transform appointments into calendar event format
+    - Display candidate name as event title
+    - Show RNM number and time in event details
+  - Validation: All appointments appear on correct dates
+  - Dependencies: Tasks 5, 6.1
+
+- [ ] 6.4: Style calendar events professionally
+  - Styling:
+    - Use consistent color scheme from project theme
+    - Ensure events are readable and accessible
+    - Add hover states for events
+    - Include event time in display
+  - Validation: Events are visually appealing and professional
+  - Dependencies: Task 6.3
+
+- [ ] 6.5: Add calendar navigation controls
+  - Features:
+    - Previous/Next month/week buttons
+    - Today button to jump to current date
+    - Month/Year selector for quick navigation
+  - Validation: Navigation works smoothly
+  - Dependencies: Task 6.1
+
+- [ ] 6.6: Implement professional calendar features
+  - Features to consider:
+    - Drag-and-drop to reschedule (if library supports)
+    - Multiple event display on same day
+    - Time slot customization for week view
+    - Event tooltips with more details on hover
+    - Empty state when no appointments
+  - Validation: Calendar feels professional and feature-complete
+  - Dependencies: Tasks 6.1-6.5
 
 #### Quality Checklist:
 
-- [x] All new props passed to table component
-- [x] Props passed in logical order
-- [x] State setters used directly as onChange handlers
+- [ ] Month view displays correctly with all dates
+- [ ] Week view displays correctly with time slots
+- [ ] Events display candidate names as titles
+- [ ] Events show appointment date/time
+- [ ] Calendar is fully responsive (mobile, tablet, desktop)
+- [ ] Touch-friendly controls on mobile
+- [ ] i18n used for all calendar labels
+- [ ] Loading states implemented
+- [ ] Empty states handled gracefully
+- [ ] Professional visual design matching app theme
+- [ ] Accessibility: keyboard navigation works
+- [ ] Accessibility: proper ARIA labels
 
-### 7. Update Excel Export Functionality
+### 7. Implement Event Click to Open Edit Modal
 
-**Objective**: Ensure new filters are reflected in Excel export filename generation
+**Objective**: When user clicks a calendar event, open the Individual Process edit modal (same as used in Individual Processes list)
 
 #### Sub-tasks:
 
-- [x] 7.1: Review getExcelFilename function
-  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
-  - Location: getExcelFilename callback (lines 636-654)
-  - Analysis: Current implementation adds candidate name, mode flags, and date to filename
-  - Decision: No changes needed - new filters are general filters, not specific modes like RNM/Urgent
-  - Validation: Excel export continues to work with filtered data
+- [ ] 7.1: Import and integrate IndividualProcessFormDialog
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/rnm-calendar-client.tsx`
+  - Import: Import IndividualProcessFormDialog from `@/components/individual-processes/individual-process-form-dialog`
+  - Validation: Modal component imports without errors
+  - Dependencies: Task 6
+
+- [ ] 7.2: Implement event click handler
+  - Implementation:
+    - Add onClick handler to calendar events
+    - Store selected individualProcessId in state
+    - Open modal when event is clicked
+  - Validation: Clicking event triggers modal
+  - Dependencies: Task 7.1
+
+- [ ] 7.3: Configure modal state management
+  - State management:
+    - Create state for modal open/close
+    - Create state for selected process ID
+    - Handle modal close and success callbacks
+  - Validation: Modal opens and closes correctly
+  - Dependencies: Task 7.2
+
+- [ ] 7.4: Ensure modal updates refresh calendar
+  - Implementation:
+    - On modal success, refetch appointments
+    - Update calendar events in real-time
+    - Show loading state during update
+  - Validation: Changes in modal reflect immediately on calendar
+  - Dependencies: Task 7.3
 
 #### Quality Checklist:
 
-- [x] Excel export filename logic reviewed
-- [x] Export includes filtered data correctly
-- [x] No regression in existing export functionality
+- [ ] Event click opens correct individual process in modal
+- [ ] Modal displays all process details correctly
+- [ ] User can edit appointment date/time in modal
+- [ ] Saving changes updates calendar immediately
+- [ ] Modal close handlers work correctly
+- [ ] No console errors when opening/closing modal
+- [ ] Mobile: Modal is fully functional on small screens
 
-### 8. Testing and Validation
+### 8. Add Page Header and Breadcrumbs
 
-**Objective**: Verify all functionality works correctly
+**Objective**: Add professional page header with breadcrumbs and actions to RNM calendar page
 
 #### Sub-tasks:
 
-- [x] 8.1: Test Authorization Type filter
-  - Manual testing steps:
-    1. Load Individual Processes page
-    2. Click Authorization Type filter dropdown
-    3. Select one or more authorization types
-    4. Verify processes are filtered correctly
-    5. Clear filter and verify all processes show again
-  - Validation: Filter works as expected with multi-select
+- [ ] 8.1: Add DashboardPageHeader component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/app/[locale]/(dashboard)/rnm-calendar/rnm-calendar-client.tsx`
+  - Implementation:
+    - Import DashboardPageHeader
+    - Add breadcrumbs: Dashboard → RNM Calendar
+    - Add action buttons if needed (e.g., export, filters)
+  - Validation: Header displays correctly
+  - Dependencies: Task 3.3 (breadcrumb translations)
 
-- [x] 8.2: Test Legal Framework filter
-  - Manual testing steps:
-    1. Click Legal Framework filter dropdown
-    2. Select one or more legal frameworks
-    3. Verify processes are filtered correctly
-    4. Clear filter and verify all processes show again
-  - Validation: Filter works as expected with multi-select
-
-- [x] 8.3: Test combined filters
-  - Manual testing steps:
-    1. Select multiple filters simultaneously (Authorization Type + Legal Framework + existing filters)
-    2. Verify filters combine correctly (AND logic)
-    3. Test various combinations
-  - Validation: All filters work together correctly
-
-- [x] 8.4: Test save filter functionality
-  - Manual testing steps:
-    1. Apply Authorization Type and Legal Framework filters
-    2. Click "Save Filter" button
-    3. Name and save the filter
-    4. Clear all filters
-    5. Load saved filter from dropdown
-    6. Verify all filters (including new ones) are restored
-  - Validation: Saved filters include new filter values
-
-- [x] 8.5: Test edit saved filter
-  - Manual testing steps:
-    1. Load a saved filter
-    2. Modify Authorization Type or Legal Framework selections
-    3. Save filter again (update existing)
-    4. Load filter again to verify changes persisted
-  - Validation: Filter updates work correctly
-
-- [x] 8.6: Test clear all filters
-  - Manual testing steps:
-    1. Apply all types of filters
-    2. Click clear/reset button
-    3. Verify all filters are cleared including new ones
-  - Validation: Clear functionality works for all filters
-
-- [x] 8.7: Test mobile responsiveness
-  - Manual testing steps:
-    1. Test on mobile viewport (< 640px)
-    2. Verify filters are accessible and usable
-    3. Check touch targets are adequate (44x44px minimum)
-    4. Test filter dropdowns on mobile
-  - Validation: Filters work well on mobile devices
-
-- [x] 8.8: Test i18n translation switching
-  - Manual testing steps:
-    1. Switch language to English
-    2. Verify all new filter labels and placeholders translate correctly
-    3. Switch back to Portuguese
-    4. Verify Portuguese translations show correctly
-  - Validation: All translations work in both languages
+- [ ] 8.2: Add page title and description
+  - Implementation:
+    - Add h1 with page title using i18n
+    - Add description paragraph using i18n
+    - Match styling of other pages
+  - Validation: Title and description are properly translated
+  - Dependencies: Task 3.2
 
 #### Quality Checklist:
 
-- [x] All individual filters tested and working
-- [x] Combined filters work correctly
-- [x] Save/load filter functionality works
-- [x] Clear filter functionality works
-- [x] Mobile responsiveness verified
-- [x] i18n translations verified in both languages
-- [x] No console errors or warnings
-- [x] No TypeScript errors
+- [ ] Breadcrumbs navigation works correctly
+- [ ] Page title uses i18n
+- [ ] Page description uses i18n
+- [ ] Header is responsive on mobile
+- [ ] Consistent styling with other pages
+
+### 9. Implement Filters and Search
+
+**Objective**: Add filtering capabilities to help users find specific appointments
+
+#### Sub-tasks:
+
+- [ ] 9.1: Add basic search/filter UI
+  - Features to consider:
+    - Search by candidate name
+    - Filter by date range
+    - Filter by company applicant
+    - Filter to show only upcoming appointments
+  - Validation: Filters work correctly
+  - Dependencies: Task 6
+
+- [ ] 9.2: Implement filter logic
+  - Implementation:
+    - Filter appointments based on selected criteria
+    - Update calendar to show filtered results
+    - Show count of filtered appointments
+  - Validation: Filtering updates calendar in real-time
+  - Dependencies: Task 9.1
+
+- [ ] 9.3: Add clear filters button
+  - Implementation:
+    - Button to reset all filters
+    - Show only when filters are active
+  - Validation: Clear button resets calendar to show all appointments
+  - Dependencies: Task 9.2
+
+#### Quality Checklist:
+
+- [ ] Search is fast and responsive
+- [ ] Filters are intuitive and easy to use
+- [ ] Filter combinations work correctly
+- [ ] Clear indication of active filters
+- [ ] Mobile-friendly filter UI
+
+### 10. Testing with Chrome MCP
+
+**Objective**: Thoroughly test the RNM calendar feature using Chrome MCP and manual testing
+
+#### Sub-tasks:
+
+- [ ] 10.1: Test calendar rendering and views
+  - Tests:
+    - Calendar loads without errors
+    - Month view displays correctly
+    - Week view displays correctly
+    - View switching works smoothly
+  - Validation: All views render correctly
+  - Dependencies: Task 6
+
+- [ ] 10.2: Test event display and interactions
+  - Tests:
+    - Events appear on correct dates
+    - Event titles show candidate names
+    - Event click opens modal
+    - Modal shows correct process details
+  - Validation: Event interactions work as expected
+  - Dependencies: Task 7
+
+- [ ] 10.3: Test modal editing and updates
+  - Tests:
+    - Edit appointment date/time in modal
+    - Save changes
+    - Verify calendar updates
+    - Test validation errors
+  - Validation: Editing flow works end-to-end
+  - Dependencies: Task 7
+
+- [ ] 10.4: Test responsive design
+  - Test on:
+    - Desktop (1920x1080, 1366x768)
+    - Tablet (768x1024)
+    - Mobile (375x667, 390x844)
+  - Validation: Calendar is fully functional on all screen sizes
+  - Dependencies: All previous tasks
+
+- [ ] 10.5: Test navigation and sidebar
+  - Tests:
+    - Click RNM in sidebar navigates to calendar
+    - Breadcrumbs work correctly
+    - Back navigation works
+    - Active menu state highlights correctly
+  - Validation: Navigation is smooth and correct
+  - Dependencies: Task 4
+
+- [ ] 10.6: Test filters and search (if implemented)
+  - Tests:
+    - Search by candidate name
+    - Apply date range filters
+    - Clear filters
+    - Multiple filter combinations
+  - Validation: Filters work correctly
+  - Dependencies: Task 9
+
+- [ ] 10.7: Test edge cases
+  - Tests:
+    - No appointments (empty state)
+    - Many appointments on same day
+    - Appointments spanning multiple hours
+    - Past vs future appointments
+    - Invalid appointment times
+  - Validation: All edge cases handled gracefully
+  - Dependencies: All previous tasks
+
+- [ ] 10.8: Cross-browser testing with Chrome MCP
+  - Test on:
+    - Chrome (latest)
+    - Safari (if possible)
+    - Mobile browsers
+  - Validation: Feature works across browsers
+  - Dependencies: All previous tasks
+
+#### Quality Checklist:
+
+- [ ] No console errors or warnings
+- [ ] Calendar performance is smooth (no lag)
+- [ ] All user interactions work as expected
+- [ ] Modal opens and closes without issues
+- [ ] Data updates correctly after edits
+- [ ] Responsive design works on all tested devices
+- [ ] Touch interactions work on mobile
+- [ ] Accessibility: keyboard navigation works
+- [ ] Accessibility: screen reader friendly
+- [ ] i18n works correctly in both languages
+- [ ] Loading states display properly
+- [ ] Error states handled gracefully
 
 ## Implementation Notes
 
-### Technical Considerations
+### Calendar Library Considerations
 
-1. **Filter Order**: New filters will appear after Candidate and Progress Status filters in the UI, maintaining a logical flow: Applicant → Candidate → Progress Status → Authorization Type → Legal Framework
+When selecting a calendar library, prioritize:
+1. **TypeScript support** - Must have good TypeScript definitions
+2. **React 19 compatibility** - Ensure it works with latest React
+3. **Customization** - Ability to style events and layout
+4. **Performance** - Should handle hundreds of events smoothly
+5. **Mobile support** - Touch-friendly and responsive
+6. **Documentation** - Good docs and community support
 
-2. **Data Availability**: Both `processTypes` and `legalFrameworks` are already being fetched via Convex queries (lines 62-64), so no additional API calls needed
+### Technical Decisions
 
-3. **Performance**: Using `useMemo` for options arrays ensures they're only recalculated when source data changes, maintaining good performance
+1. **Date Format**: Use ISO 8601 format (YYYY-MM-DDTHH:mm:ss) for `appointmentDateTime`
+2. **Timezone**: Handle timezone conversions appropriately (probably local timezone)
+3. **Event Color Coding**: Consider color-coding events by status or urgency
+4. **Modal Reuse**: Reuse existing `IndividualProcessFormDialog` - no need to create a new one
+5. **Real-time Updates**: Use Convex's real-time features to auto-update calendar when appointments change
 
-4. **Type Safety**: All new code uses proper TypeScript types, with no `any` types (filter options are typed as `Array<{ value: string; label: string }>`)
+### Performance Considerations
 
-5. **Localization**: Authorization Types support bilingual labels (nameEn), Legal Frameworks currently only have Portuguese names in the database
+1. **Lazy Loading**: Consider lazy loading calendar library to reduce initial bundle size
+2. **Event Pagination**: If many events, implement pagination or virtual scrolling
+3. **Debounce Search**: Debounce search input to avoid excessive queries
+4. **Memoization**: Use React.memo and useMemo for expensive calendar computations
 
-6. **State Management**: Follows React best practices with useState for local state and useCallback for stable function references
+### Accessibility
 
-### Potential Issues and Solutions
-
-1. **Issue**: Legal Frameworks don't have English translations in database
-   - **Solution**: Use Portuguese name for both locales (can be enhanced later by adding nameEn field to legalFrameworks schema)
-
-2. **Issue**: Too many filters might clutter the UI
-   - **Solution**: Current layout uses flex-wrap, filters will wrap to new line on smaller screens maintaining usability
-
-3. **Issue**: Filter combinations might result in empty results
-   - **Solution**: Table already handles empty state with "Nenhum resultado encontrado" message
-
-### Mobile Responsiveness Strategy
-
-- Combobox components use `min-w-[160px] max-w-[220px] w-full` ensuring they're:
-  - Minimum 160px wide (readable on mobile)
-  - Maximum 220px wide (don't dominate on larger screens)
-  - Full width on very small screens (responsive)
-- `min-h-10` ensures 40px minimum height = adequate touch target
-- Second row of filters uses `flex-wrap` so filters stack on narrow screens
+1. **Keyboard Navigation**: Ensure calendar can be fully navigated with keyboard
+2. **ARIA Labels**: Add proper ARIA labels to calendar controls and events
+3. **Focus Management**: Manage focus when opening/closing modal
+4. **Color Contrast**: Ensure event colors meet WCAG AA standards
 
 ## Definition of Done
 
-- [x] All translation keys added for both pt.json and en.json
-- [x] State management implemented for both new filters
-- [x] Filtering logic added and working correctly
-- [x] Saved filter integration complete (save, load, clear, edit)
-- [x] UI components added to table component
-- [x] Props connected between client and table components
-- [x] All manual testing completed successfully
-- [x] Mobile responsiveness verified
-- [x] i18n translations working in both languages
-- [x] No TypeScript errors or warnings
-- [x] Code follows existing patterns and conventions
-- [x] Clean code principles maintained
-- [x] No regressions in existing functionality
+- [ ] All tasks completed
+- [ ] All quality checklists passed
+- [ ] RNM submenu appears under "Painel" in sidebar
+- [ ] Calendar displays all RNM appointments
+- [ ] Month and week views both work correctly
+- [ ] Clicking event opens Individual Process edit modal
+- [ ] Modal edits update calendar in real-time
+- [ ] Fully responsive on mobile, tablet, and desktop
+- [ ] All strings use i18n (PT and EN)
+- [ ] No console errors or warnings
+- [ ] Tested with Chrome MCP
+- [ ] Code reviewed
+- [ ] Professional appearance matching app design system

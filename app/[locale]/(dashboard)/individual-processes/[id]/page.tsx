@@ -268,6 +268,15 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                     : '-'}
                 </div>
 
+                <div className="text-sm font-medium">{tPeople('fatherName')}</div>
+                <div className="text-sm">{individualProcess.person?.fatherName || '-'}</div>
+
+                <div className="text-sm font-medium">{tPeople('motherName')}</div>
+                <div className="text-sm">{individualProcess.person?.motherName || '-'}</div>
+
+                <div className="text-sm font-medium">{tPeople('profession')}</div>
+                <div className="text-sm">{individualProcess.person?.profession || '-'}</div>
+
                 {individualProcess.lastSalaryAmount && (
                   <>
                     <div className="text-sm font-medium">{t('lastSalaryAmount')}</div>

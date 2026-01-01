@@ -1506,3 +1506,66 @@ export const updateAuthorizationForCollectiveGroup = mutation({
     };
   },
 });
+
+/**
+ * Query to list all individual processes with RNM appointments
+ * Returns processes with appointmentDateTime populated, joined with person and company data
+ * Access control: Admins see all, clients see only their company's appointments
+ */
+export const listRNMAppointments = query({
+  args: {},
+  handler: async (ctx) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get all individual processes
+    const allProcesses = await ctx.db
+      .query("individualProcesses")
+      .collect();
+
+    // Filter processes with appointmentDateTime
+    const processesWithAppointments = allProcesses.filter(
+      (process) => process.appointmentDateTime !== undefined && process.appointmentDateTime !== null
+    );
+
+    // Apply access control for client users
+    let filteredProcesses = processesWithAppointments;
+    if (userProfile.role === "client" && userProfile.companyId) {
+      // Get all collective processes for the client's company
+      const clientCollectiveProcesses = await ctx.db
+        .query("collectiveProcesses")
+        .withIndex("by_company", (q) => q.eq("companyId", userProfile.companyId!))
+        .collect();
+
+      const clientCollectiveProcessIds = new Set(clientCollectiveProcesses.map((cp) => cp._id));
+
+      // Filter to only include processes from client's collective processes
+      filteredProcesses = processesWithAppointments.filter((process) =>
+        process.collectiveProcessId && clientCollectiveProcessIds.has(process.collectiveProcessId)
+      );
+    }
+
+    // Enrich with person and company data
+    const enrichedResults = await Promise.all(
+      filteredProcesses.map(async (process) => {
+        const [person, companyApplicant] = await Promise.all([
+          ctx.db.get(process.personId),
+          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+        ]);
+
+        return {
+          ...process,
+          person,
+          companyApplicant,
+        };
+      })
+    );
+
+    // Sort by appointment date (earliest first)
+    return enrichedResults.sort((a, b) => {
+      const dateA = new Date(a.appointmentDateTime!).getTime();
+      const dateB = new Date(b.appointmentDateTime!).getTime();
+      return dateA - dateB;
+    });
+  },
+});

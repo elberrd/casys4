@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   Briefcase,
+  Calendar,
   FileText,
   FolderKanban,
   GalleryVerticalEnd,
@@ -45,7 +46,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/dashboard",
       icon: LayoutDashboard,
       isActive: true,
-      items: [],
+      items: [
+        {
+          title: t('rnmCalendar'),
+          url: "/rnm-calendar",
+          icon: Calendar,
+        },
+      ],
     },
     {
       title: t('processManagement'),
