@@ -113,6 +113,7 @@ export function IndividualProcessFormDialog({
       status: "", // DEPRECATED: Kept for backward compatibility
       processTypeId: "",
       legalFrameworkId: "" as Id<"legalFrameworks">,
+      funcao: "",
       cboId: "",
       qualification: "",
       professionalExperienceSince: "",
@@ -219,6 +220,7 @@ export function IndividualProcessFormDialog({
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
+        funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
         qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui",
         professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
@@ -257,6 +259,7 @@ export function IndividualProcessFormDialog({
         status: "", // DEPRECATED: Kept for backward compatibility
         processTypeId: "",
         legalFrameworkId: "" as Id<"legalFrameworks">,
+        funcao: "",
         cboId: "",
         qualification: "",
         professionalExperienceSince: "",
@@ -345,6 +348,7 @@ export function IndividualProcessFormDialog({
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
         processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
+        funcao: data.funcao || undefined,
         cboId: data.cboId || undefined,
         qualification: data.qualification || undefined,
         professionalExperienceSince: data.professionalExperienceSince || undefined,
@@ -578,6 +582,20 @@ export function IndividualProcessFormDialog({
                         onValueChange={field.onChange}
                         placeholder={t("selectCbo")}
                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="funcao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("funcao")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("funcaoPlaceholder")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

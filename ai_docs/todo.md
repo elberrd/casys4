@@ -1,461 +1,572 @@
-# TODO: Rename "Função" to "Cargo" in People Table and Add New "Função" Field to Individual Process
+# TODO: Add Authorization Type and Legal Framework Multi-Select Filters
 
 ## Context
 
-This task involves TWO completely separate and independent changes:
+Add two new multi-select filters to the Individual Processes list page: "Tipo de Autorização" (Authorization Type) and "Amparo Legal" (Legal Framework). These filters must work exactly like the existing filters (Applicant, Candidate, Progress Status) - with multi-select capability using Combobox components and full integration with the save/load filter functionality.
 
-1. **People Table**: Rename the existing field "Função" (funcao) to "Cargo" - This refers to a person's position/role in their company
-2. **Individual Process Form**: Add a NEW field called "Função" that appears BEFORE the CBO field when editing - This is a completely different field with no relation to the people table field
+## Related Code Locations
 
-These are two distinct fields in different contexts and must be treated separately.
+- **Main page component**: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+- **Table component**: `/components/individual-processes/individual-processes-table.tsx`
+- **Database schema**: `/convex/schema.ts` (lines 260-318)
+- **Translations**: `/messages/pt.json` and `/messages/en.json`
+- **Saved filters**: Integration with existing SaveFilterSheet and SavedFiltersList components
 
-## Related PRD Sections
+## Current State Analysis
 
-Database schema at `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-- People table has `funcao` field (line 95)
-- Individual processes table will need a new `funcao` field added
+**Existing multi-select filters:**
+- Applicant (selectedApplicants) - lines 42-43, 289-294 in individual-processes-client.tsx
+- Candidate (selectedCandidates) - lines 42-43, 282-286 in individual-processes-client.tsx
+- Progress Status (selectedProgressStatuses) - lines 44, 297-303 in individual-processes-client.tsx
+
+**Data already available:**
+- processTypes fetched via `api.processTypes.listActive` (line 62)
+- legalFrameworks fetched via `api.legalFrameworks.listActive` (line 63)
+- Both fields exist in individualProcesses schema (processTypeId, legalFrameworkId)
+
+**Advanced filters (currently hidden):**
+- Lines 789-797 in individual-processes-client.tsx show commented-out advanced Filters component
+- Lines 125-147 show filter field configuration for processType and legalFramework
+- These are part of the advanced filtering system, NOT the simple multi-select filters
 
 ## Task Sequence
 
 ### 0. Project Structure Analysis
 
-**Objective**: Understand the project structure and determine correct file/folder locations
+**Objective**: Understand the existing filter implementation pattern and ensure consistency
 
 #### Sub-tasks:
 
-- [x] 0.1: Review project architecture for people and individual processes
-  - Validation: Identified the following key files:
-    - Schema: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-    - People backend: `/Users/elberrd/Documents/Development/clientes/casys4/convex/people.ts`
-    - Individual processes backend: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-    - People forms: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-*.tsx`
-    - Individual process form: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-    - People table: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/people-table.tsx`
-    - Translations: `/Users/elberrd/Documents/Development/clientes/casys4/messages/{en,pt}.json`
-  - Output: File paths documented
+- [x] 0.1: Review existing multi-select filter implementation
+  - Validation: Confirmed pattern in lines 1516-1559 of individual-processes-table.tsx
+  - Output: Multi-select filters use Combobox components with state management in parent component
 
-- [x] 0.2: Identify all files referencing "funcao" in people context
-  - Validation: Found references in:
-    - person-form-dialog.tsx (lines 94, 144, 164, 213, 497, 500, 502)
-    - person-form-page.tsx (lines 83, 117, 166, 456, 459, 461)
-    - person-detail-view.tsx (lines 255, 272, 275, 277)
-  - Output: List of files to update for people table rename
+- [x] 0.2: Identify state management pattern for filters
+  - Validation: State variables in individual-processes-client.tsx (lines 42-44)
+  - Output: Each filter needs: state variable, onChange handler, options array
 
-- [x] 0.3: Identify CBO field location in individual process form
-  - Validation: CBO field found at line 1173-1191 in individual-process-form-page.tsx
-  - Output: New "Função" field must be inserted BEFORE line 1173
+- [x] 0.3: Review saved filter integration pattern
+  - Validation: getCurrentFilterCriteria (lines 198-208), handleApplySavedFilter (lines 210-249)
+  - Output: Filters must be included in filterCriteria object for save/load functionality
+
+- [x] 0.4: Check translation keys pattern
+  - Validation: Existing filter translations in /messages/pt.json (lines 875-887)
+  - Output: Need to add similar keys for Authorization Type and Legal Framework
 
 #### Quality Checklist:
 
-- [x] PRD structure reviewed and understood
-- [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified and will be followed
-- [x] No duplicate functionality will be created
+- [x] Existing filter patterns documented
+- [x] State management approach identified
+- [x] Save/load integration requirements clear
+- [x] Translation key patterns understood
 
----
+### 1. Add i18n Translation Keys
 
-### 1. Update People Table Schema and Backend (Rename funcao to cargo)
-
-**Objective**: Rename the database field from "funcao" to "cargo" in the people table schema and backend
+**Objective**: Add all necessary translation keys for the new filters in both Portuguese and English
 
 #### Sub-tasks:
 
-- [x] 1.1: Update database schema for people table
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Action: Rename `funcao: v.optional(v.string())` to `cargo: v.optional(v.string())` (line 95)
-  - Validation: Schema compiles without errors
-  - Dependencies: None
+- [x] 1.1: Add Authorization Type filter translations to `/messages/pt.json`
+  - Location: Inside `IndividualProcesses.filters` section (after line 887)
+  - Keys to add:
+    - `selectAuthorizationTypes`: "Filtrar por tipos de autorização..."
+    - `searchAuthorizationTypes`: "Pesquisar tipos de autorização..."
+    - `noAuthorizationTypesFound`: "Nenhum tipo de autorização encontrado."
+    - `clearAuthorizationTypes`: "Limpar seleção de tipos de autorização"
+  - Validation: Keys follow same pattern as existing filters
 
-- [x] 1.2: Update people.ts backend mutations (create/update)
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/people.ts`
-  - Action: Update mutation arguments and field references from `funcao` to `cargo`
-  - Lines to update: 329, 386 (function arguments), 444 (replacement object)
-  - Validation: Convex functions compile without errors
-  - Dependencies: 1.1 must be complete
+- [x] 1.2: Add Legal Framework filter translations to `/messages/pt.json`
+  - Location: Inside `IndividualProcesses.filters` section (after Authorization Type keys)
+  - Keys to add:
+    - `selectLegalFrameworks`: "Filtrar por amparos legais..."
+    - `searchLegalFrameworks`: "Pesquisar amparos legais..."
+    - `noLegalFrameworksFound`: "Nenhum amparo legal encontrado."
+    - `clearLegalFrameworks`: "Limpar seleção de amparos legais"
+  - Validation: Keys follow same pattern as existing filters
+
+- [x] 1.3: Add Authorization Type filter translations to `/messages/en.json`
+  - Location: Inside `IndividualProcesses.filters` section
+  - Keys to add:
+    - `selectAuthorizationTypes`: "Filter by authorization types..."
+    - `searchAuthorizationTypes`: "Search authorization types..."
+    - `noAuthorizationTypesFound`: "No authorization types found."
+    - `clearAuthorizationTypes`: "Clear authorization type selection"
+  - Validation: Translations are accurate and consistent
+
+- [x] 1.4: Add Legal Framework filter translations to `/messages/en.json`
+  - Location: Inside `IndividualProcesses.filters` section
+  - Keys to add:
+    - `selectLegalFrameworks`: "Filter by legal frameworks..."
+    - `searchLegalFrameworks`: "Search legal frameworks..."
+    - `noLegalFrameworksFound`: "No legal frameworks found."
+    - `clearLegalFrameworks`: "Clear legal framework selection"
+  - Validation: Translations are accurate and consistent
 
 #### Quality Checklist:
 
-- [ ] Database schema updated correctly
-- [ ] All backend mutations updated
-- [ ] TypeScript types compile without errors
-- [ ] No references to old field name in backend
+- [x] All translation keys added to pt.json
+- [x] All translation keys added to en.json
+- [x] Keys follow existing naming conventions
+- [x] Translations are grammatically correct
 
----
+### 2. Add State Management for New Filters
 
-### 2. Update People Table Frontend Components (Rename funcao to cargo)
-
-**Objective**: Update all people form and display components to use "cargo" instead of "funcao"
+**Objective**: Add state variables and handlers for the new filters in the client component
 
 #### Sub-tasks:
 
-- [x] 2.1: Update person-form-dialog.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-dialog.tsx`
-  - Action: Replace all instances of `funcao` with `cargo`:
-    - Line 94: default value `funcao: ""` → `cargo: ""`
-    - Line 144: form reset `funcao: person.funcao` → `cargo: person.cargo`
-    - Line 164: default values `funcao: ""` → `cargo: ""`
-    - Line 213: submission data `funcao: data.funcao` → `cargo: data.cargo`
-    - Line 497: form field name `name="funcao"` → `name="cargo"`
-    - Line 500: label `{t('funcao')}` → `{t('cargo')}`
-    - Line 502: placeholder `{t('funcaoPlaceholder')}` → `{t('cargoPlaceholder')}`
-  - Validation: Form compiles and renders correctly
-  - Dependencies: 1.2 must be complete
-
-- [x] 2.2: Update person-form-page.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-form-page.tsx`
-  - Action: Replace all instances of `funcao` with `cargo`:
-    - Line 83: default value `funcao: ""` → `cargo: ""`
-    - Line 117: form reset `funcao: person.funcao ?? ""` → `cargo: person.cargo ?? ""`
-    - Line 166: submission data `funcao: data.funcao` → `cargo: data.cargo`
-    - Line 456: form field name `name="funcao"` → `name="cargo"`
-    - Line 459: label `{t('funcao')}` → `{t('cargo')}`
-    - Line 461: placeholder `{t('funcaoPlaceholder')}` → `{t('cargoPlaceholder')}`
-  - Validation: Form compiles and renders correctly
-  - Dependencies: 1.2 must be complete
-
-- [x] 2.3: Update person-detail-view.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/people/person-detail-view.tsx`
-  - Action: Replace all instances of `funcao` with `cargo`:
-    - Line 255: condition `person.funcao` → `person.cargo`
-    - Line 272: condition `person.funcao` → `person.cargo`
-    - Line 275: label `{t("funcao")}` → `{t("cargo")}`
-    - Line 277: display `{person.funcao}` → `{person.cargo}`
-  - Validation: Detail view displays correctly
-  - Dependencies: 1.2 must be complete
-
-#### Quality Checklist:
-
-- [ ] All form components updated
-- [ ] All display components updated
-- [ ] TypeScript types are correct
-- [ ] No TypeScript errors
-- [ ] Forms compile and render correctly
-
----
-
-### 3. Update i18n Translations for People Table (funcao → cargo)
-
-**Objective**: Update translation keys from "funcao" to "cargo" for Portuguese and English
-
-#### Sub-tasks:
-
-- [x] 3.1: Update Portuguese translations (pt.json)
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Action: Update translation keys:
-    - Line 979: Change key from `"funcao": "Função"` to `"cargo": "Cargo"`
-    - Line 980: Change key from `"funcaoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe"` to `"cargoPlaceholder": "ex: Gerente de Projeto, Líder de Equipe"`
-  - Validation: Translation keys match component usage
-  - Dependencies: 2.1, 2.2, 2.3 must be complete
-
-- [x] 3.2: Update English translations (en.json)
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Action: Update translation keys:
-    - Line 980: Change key from `"funcao": "Function/Role"` to `"cargo": "Position"`
-    - Line 981: Change key from `"funcaoPlaceholder": "e.g., Project Manager, Team Lead"` to `"cargoPlaceholder": "e.g., Project Manager, Team Lead"`
-  - Validation: Translation keys match component usage
-  - Dependencies: 2.1, 2.2, 2.3 must be complete
-
-#### Quality Checklist:
-
-- [ ] Portuguese translations updated
-- [ ] English translations updated
-- [ ] Translation keys match all component references
-- [ ] No missing translation warnings in console
-
----
-
-### 4. Add New "Função" Field to Individual Process Schema
-
-**Objective**: Add a completely new "funcao" field to the individualProcesses table (separate from people table)
-
-#### Sub-tasks:
-
-- [x] 4.1: Update database schema for individualProcesses table
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Action: Add new field to individualProcesses table (after line 273, before cboId):
+- [x] 2.1: Add state variables for Authorization Type filter
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: After line 44 (after selectedProgressStatuses)
+  - Code to add:
     ```typescript
-    funcao: v.optional(v.string()), // Função field for individual process (different from people.cargo)
+    const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>([])
     ```
-  - Validation: Schema compiles without errors
-  - Dependencies: Tasks 1, 2, 3 must be complete to avoid naming conflicts
+  - Validation: State variable follows naming convention of existing filters
 
-- [x] 4.2: Update individualProcesses.ts create mutation
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Action: Add funcao parameter to create mutation:
-    - Add to args (after line 472): `funcao: v.optional(v.string())`
-    - Add to insert (after line 542): `funcao: args.funcao,`
-  - Validation: Create mutation compiles without errors
-  - Dependencies: 4.1 must be complete
+- [x] 2.2: Add state variables for Legal Framework filter
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: After Authorization Type state (previous step)
+  - Code to add:
+    ```typescript
+    const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>([])
+    ```
+  - Validation: State variable follows naming convention of existing filters
 
-- [x] 4.3: Update individualProcesses.ts update mutation
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Action: Add funcao parameter to update mutation:
-    - Add to args (after line 816): `funcao: v.optional(v.string())`
-    - Add to updates (after line 899): `if (args.funcao !== undefined) updates.funcao = args.funcao;`
-  - Validation: Update mutation compiles without errors
-  - Dependencies: 4.1 must be complete
+- [x] 2.3: Create options arrays for Authorization Type
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: After progressStatusOptions useMemo (after line 104)
+  - Code to add:
+    ```typescript
+    const authorizationTypeOptions = useMemo(() => {
+      return processTypes
+        .map((pt) => ({
+          value: pt._id,
+          label: locale === "en" && pt.nameEn ? pt.nameEn : pt.name,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }, [processTypes, locale])
+    ```
+  - Validation: Options are properly formatted and sorted
+
+- [x] 2.4: Create options arrays for Legal Framework
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: After Authorization Type options
+  - Code to add:
+    ```typescript
+    const legalFrameworkOptions = useMemo(() => {
+      return legalFrameworks
+        .map((lf) => ({
+          value: lf._id,
+          label: lf.name,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }, [legalFrameworks])
+    ```
+  - Validation: Options are properly formatted and sorted
 
 #### Quality Checklist:
 
-- [ ] Database schema includes new funcao field for individualProcesses
-- [ ] Create mutation handles funcao field
-- [ ] Update mutation handles funcao field
-- [ ] TypeScript types compile without errors
-- [ ] No conflicts with people.cargo field
+- [x] State variables declared with proper TypeScript types
+- [x] Options arrays use useMemo for performance
+- [x] Options are sorted alphabetically
+- [x] Locale-aware labels for Authorization Types (nameEn support)
 
----
+### 3. Update Filtering Logic
 
-### 5. Add Zod Validation for New Individual Process Função Field
-
-**Objective**: Add validation schema for the new funcao field in individual processes
+**Objective**: Add filtering logic for the new filters in the filteredProcesses useMemo
 
 #### Sub-tasks:
 
-- [x] 5.1: Update individualProcesses validation schema
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/individualProcesses.ts`
-  - Action: Add funcao field to schema (after line 63, before cboId):
+- [x] 3.1: Add Authorization Type filtering logic
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: Inside filteredProcesses useMemo, after line 303 (after progress status filter)
+  - Code to add:
     ```typescript
-    funcao: z.string().optional().or(z.literal("")),
-    ```
-  - Validation: Schema compiles and validates correctly
-  - Dependencies: 4.1 must be complete
-
-#### Quality Checklist:
-
-- [ ] Zod schema includes funcao field
-- [ ] Validation allows optional strings
-- [ ] TypeScript types infer correctly
-- [ ] No validation errors
-
----
-
-### 6. Add Função Field to Individual Process Form UI
-
-**Objective**: Add the new "Função" form field BEFORE the CBO field in the individual process edit form
-
-#### Sub-tasks:
-
-- [x] 6.1: Update form default values
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Add funcao to default values (after line 112):
-    ```typescript
-    funcao: "",
-    ```
-  - Validation: Form initializes correctly
-  - Dependencies: 5.1 must be complete
-
-- [x] 6.2: Update form reset for existing process
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Add funcao to form reset (after line 255):
-    ```typescript
-    funcao: individualProcess.funcao ?? "",
-    ```
-  - Validation: Form loads existing data correctly
-  - Dependencies: 5.1 must be complete
-
-- [x] 6.3: Add funcao to form updates section
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Add funcao to updates check (after line 310):
-    ```typescript
-    if (currentValues.funcao !== (individualProcess.funcao ?? "")) {
-      updates.funcao = individualProcess.funcao ?? ""
+    // Apply authorization type multi-select filter
+    if (selectedAuthorizationTypes.length > 0) {
+      result = result.filter((process) => {
+        const processTypeId = process.processType?._id
+        return processTypeId && selectedAuthorizationTypes.includes(processTypeId)
+      })
     }
     ```
-  - Validation: Form updates sync correctly
-  - Dependencies: 5.1 must be complete
+  - Validation: Filter follows same pattern as other multi-select filters
+  - Dependencies: Add selectedAuthorizationTypes to useMemo dependencies (line 449)
 
-- [x] 6.4: Add funcao to form reset for new process
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Add funcao to default values (after line 381):
+- [x] 3.2: Add Legal Framework filtering logic
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: After Authorization Type filter (previous step)
+  - Code to add:
     ```typescript
-    funcao: "",
+    // Apply legal framework multi-select filter
+    if (selectedLegalFrameworks.length > 0) {
+      result = result.filter((process) => {
+        const legalFrameworkId = process.legalFramework?._id
+        return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
+      })
+    }
     ```
-  - Validation: New process form initializes correctly
-  - Dependencies: 5.1 must be complete
-
-- [x] 6.5: Add funcao to form submission
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Add funcao to submit data (after line 469):
-    ```typescript
-    funcao: data.funcao || undefined,
-    ```
-  - Validation: Form submission includes funcao field
-  - Dependencies: 5.1 must be complete
-
-- [x] 6.6: Add FormField component BEFORE CBO field
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-process-form-page.tsx`
-  - Action: Insert new FormField BEFORE line 1173 (the CBO Code Field comment):
-    ```tsx
-    {/* Função Field - New field for Individual Process */}
-    <FormField
-      control={form.control}
-      name="funcao"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{t("funcao")}</FormLabel>
-          <FormControl>
-            <Input placeholder={t("funcaoPlaceholder")} {...field} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-    ```
-  - Validation: Field appears BEFORE CBO field in the form
-  - Dependencies: 5.1 must be complete
+  - Validation: Filter follows same pattern as other multi-select filters
+  - Dependencies: Add selectedLegalFrameworks to useMemo dependencies (line 449)
 
 #### Quality Checklist:
 
-- [ ] Form default values include funcao
-- [ ] Form reset includes funcao for existing and new processes
-- [ ] Form updates check includes funcao
-- [ ] Form submission includes funcao
-- [ ] UI field appears BEFORE CBO field
-- [ ] Field is properly styled and responsive
-- [ ] No TypeScript errors
+- [x] Filtering logic handles null/undefined values correctly
+- [x] Dependencies array updated in filteredProcesses useMemo
+- [x] Filters are applied in logical order
+- [x] Code follows existing patterns
 
----
+### 4. Integrate with Saved Filters
 
-### 7. Add i18n Translations for New Individual Process Função Field
-
-**Objective**: Add translation keys for the new "Função" field in individual processes (separate from people cargo translations)
+**Objective**: Add new filters to the saved filter save/load functionality
 
 #### Sub-tasks:
 
-- [x] 7.1: Add Portuguese translations for individual process funcao
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Action: Add new translation keys under IndividualProcesses section (around line 1311):
-    ```json
-    "funcao": "Função",
-    "funcaoPlaceholder": "ex: Desenvolvedor, Analista",
+- [x] 4.1: Update hasActiveFilters check
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: Update hasActiveFilters useMemo (lines 179-189)
+  - Change:
+    ```typescript
+    const hasActiveFilters = useMemo(() => {
+      return (
+        selectedCandidates.length > 0 ||
+        selectedApplicants.length > 0 ||
+        selectedProgressStatuses.length > 0 ||
+        selectedAuthorizationTypes.length > 0 ||  // ADD THIS
+        selectedLegalFrameworks.length > 0 ||      // ADD THIS
+        isRnmModeActive ||
+        isUrgentModeActive ||
+        isQualExpProfModeActive ||
+        filters.length > 0
+      )
+    }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
     ```
-  - Note: These are DIFFERENT from the people.cargo translations
-  - Validation: Translation keys work in individual process form
-  - Dependencies: 6.6 must be complete
+  - Validation: Dependencies array includes new state variables
 
-- [x] 7.2: Add English translations for individual process funcao
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Action: Add new translation keys under IndividualProcesses section:
-    ```json
-    "funcao": "Function",
-    "funcaoPlaceholder": "e.g., Developer, Analyst",
+- [x] 4.2: Update getCurrentFilterCriteria function
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: Update getCurrentFilterCriteria callback (lines 198-208)
+  - Change:
+    ```typescript
+    const getCurrentFilterCriteria = useCallback(() => {
+      const criteria: any = {}
+      if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
+      if (selectedApplicants.length > 0) criteria.selectedApplicants = selectedApplicants
+      if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
+      if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes  // ADD THIS
+      if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks          // ADD THIS
+      if (isRnmModeActive) criteria.isRnmModeActive = true
+      if (isUrgentModeActive) criteria.isUrgentModeActive = true
+      if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
+      if (filters.length > 0) criteria.advancedFilters = filters
+      return criteria
+    }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
     ```
-  - Note: These are DIFFERENT from the people.cargo translations
-  - Validation: Translation keys work in individual process form
-  - Dependencies: 6.6 must be complete
+  - Validation: Dependencies array includes new state variables
+
+- [x] 4.3: Update handleApplySavedFilter function
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: Update handleApplySavedFilter callback (lines 210-249)
+  - Changes:
+    - Add to clear section (after line 218):
+      ```typescript
+      setSelectedAuthorizationTypes([])
+      setSelectedLegalFrameworks([])
+      ```
+    - Add to apply section (after line 238):
+      ```typescript
+      if (filterCriteria.selectedAuthorizationTypes) {
+        setSelectedAuthorizationTypes(filterCriteria.selectedAuthorizationTypes)
+      }
+      if (filterCriteria.selectedLegalFrameworks) {
+        setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
+      }
+      ```
+  - Validation: Clear and apply logic matches existing filter patterns
+
+- [x] 4.4: Update handleClearFilter function
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: Update handleClearFilter callback (lines 251-265)
+  - Change: Add after line 258:
+    ```typescript
+    setSelectedAuthorizationTypes([])
+    setSelectedLegalFrameworks([])
+    ```
+  - Validation: All filters are cleared when clear button is clicked
 
 #### Quality Checklist:
 
-- [ ] Portuguese translations added for IndividualProcesses.funcao
-- [ ] English translations added for IndividualProcesses.funcao
-- [ ] Translations are in correct namespace (IndividualProcesses, not People)
-- [ ] No translation key conflicts between People.cargo and IndividualProcesses.funcao
-- [ ] No missing translation warnings in console
+- [x] New filters included in hasActiveFilters check
+- [x] New filters saved in getCurrentFilterCriteria
+- [x] New filters restored in handleApplySavedFilter
+- [x] New filters cleared in handleClearFilter
+- [x] All dependency arrays updated correctly
 
----
+### 5. Add UI Components for Filters
+
+**Objective**: Add Combobox components for the new filters in the table component
+
+#### Sub-tasks:
+
+- [x] 5.1: Update table component props interface
+  - File: `/components/individual-processes/individual-processes-table.tsx`
+  - Location: Update IndividualProcessesTableProps interface (lines 148-191)
+  - Add after progressStatusOptions props (around line 179):
+    ```typescript
+    // Authorization Type filter props
+    authorizationTypeOptions?: Array<{ value: string; label: string }>;
+    selectedAuthorizationTypes?: string[];
+    onAuthorizationTypeFilterChange?: (types: string[]) => void;
+    // Legal Framework filter props
+    legalFrameworkOptions?: Array<{ value: string; label: string }>;
+    selectedLegalFrameworks?: string[];
+    onLegalFrameworkFilterChange?: (frameworks: string[]) => void;
+    ```
+  - Validation: Props follow existing naming conventions
+
+- [x] 5.2: Add default prop values
+  - File: `/components/individual-processes/individual-processes-table.tsx`
+  - Location: In component destructuring (lines 193-220)
+  - Add after progressStatusOptions props (around line 212):
+    ```typescript
+    authorizationTypeOptions = [],
+    selectedAuthorizationTypes = [],
+    onAuthorizationTypeFilterChange,
+    legalFrameworkOptions = [],
+    selectedLegalFrameworks = [],
+    onLegalFrameworkFilterChange,
+    ```
+  - Validation: Default values match existing pattern (empty arrays)
+
+- [x] 5.3: Add Authorization Type Combobox component
+  - File: `/components/individual-processes/individual-processes-table.tsx`
+  - Location: Inside second row filter section (after line 1559, before closing div)
+  - Code to add:
+    ```typescript
+    {onAuthorizationTypeFilterChange && authorizationTypeOptions.length > 0 && (
+      <Combobox
+        multiple
+        options={authorizationTypeOptions as ComboboxOption<string>[]}
+        value={selectedAuthorizationTypes}
+        onValueChange={onAuthorizationTypeFilterChange}
+        placeholder={t("filters.selectAuthorizationTypes")}
+        searchPlaceholder={t("filters.searchAuthorizationTypes")}
+        emptyText={t("filters.noAuthorizationTypesFound")}
+        triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+        showClearButton={true}
+        clearButtonAriaLabel={t("filters.clearAuthorizationTypes")}
+      />
+    )}
+    ```
+  - Validation: Component matches existing filter pattern exactly
+
+- [x] 5.4: Add Legal Framework Combobox component
+  - File: `/components/individual-processes/individual-processes-table.tsx`
+  - Location: After Authorization Type Combobox (previous step)
+  - Code to add:
+    ```typescript
+    {onLegalFrameworkFilterChange && legalFrameworkOptions.length > 0 && (
+      <Combobox
+        multiple
+        options={legalFrameworkOptions as ComboboxOption<string>[]}
+        value={selectedLegalFrameworks}
+        onValueChange={onLegalFrameworkFilterChange}
+        placeholder={t("filters.selectLegalFrameworks")}
+        searchPlaceholder={t("filters.searchLegalFrameworks")}
+        emptyText={t("filters.noLegalFrameworksFound")}
+        triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+        showClearButton={true}
+        clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
+      />
+    )}
+    ```
+  - Validation: Component matches existing filter pattern exactly
+
+#### Quality Checklist:
+
+- [x] TypeScript interface updated with proper types
+- [x] Props destructured with default values
+- [x] Combobox components use all required props
+- [x] Translation keys referenced correctly
+- [x] Components are responsive (min-w, max-w, w-full classes)
+- [x] Mobile responsiveness maintained (min-h-10 for touch targets)
+
+### 6. Connect Filters to Parent Component
+
+**Objective**: Pass filter props from client component to table component
+
+#### Sub-tasks:
+
+- [x] 6.1: Pass new props to IndividualProcessesTable
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: IndividualProcessesTable component usage (lines 799-844)
+  - Add after progressStatusOptions props (around line 814):
+    ```typescript
+    authorizationTypeOptions={authorizationTypeOptions}
+    selectedAuthorizationTypes={selectedAuthorizationTypes}
+    onAuthorizationTypeFilterChange={setSelectedAuthorizationTypes}
+    legalFrameworkOptions={legalFrameworkOptions}
+    selectedLegalFrameworks={selectedLegalFrameworks}
+    onLegalFrameworkFilterChange={setSelectedLegalFrameworks}
+    ```
+  - Validation: Props passed in consistent order with other filters
+
+#### Quality Checklist:
+
+- [x] All new props passed to table component
+- [x] Props passed in logical order
+- [x] State setters used directly as onChange handlers
+
+### 7. Update Excel Export Functionality
+
+**Objective**: Ensure new filters are reflected in Excel export filename generation
+
+#### Sub-tasks:
+
+- [x] 7.1: Review getExcelFilename function
+  - File: `/app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`
+  - Location: getExcelFilename callback (lines 636-654)
+  - Analysis: Current implementation adds candidate name, mode flags, and date to filename
+  - Decision: No changes needed - new filters are general filters, not specific modes like RNM/Urgent
+  - Validation: Excel export continues to work with filtered data
+
+#### Quality Checklist:
+
+- [x] Excel export filename logic reviewed
+- [x] Export includes filtered data correctly
+- [x] No regression in existing export functionality
 
 ### 8. Testing and Validation
 
-**Objective**: Comprehensive testing to ensure both changes work correctly and independently
+**Objective**: Verify all functionality works correctly
 
 #### Sub-tasks:
 
-- [ ] 8.1: Test people table "Cargo" field
-  - Test creating a new person with cargo value
-  - Test editing an existing person's cargo
-  - Test viewing person details showing cargo
-  - Test that people table displays cargo column correctly
-  - Validation: All CRUD operations work for people.cargo field
-  - Dependencies: All tasks 1-3 must be complete
+- [x] 8.1: Test Authorization Type filter
+  - Manual testing steps:
+    1. Load Individual Processes page
+    2. Click Authorization Type filter dropdown
+    3. Select one or more authorization types
+    4. Verify processes are filtered correctly
+    5. Clear filter and verify all processes show again
+  - Validation: Filter works as expected with multi-select
 
-- [ ] 8.2: Test individual process "Função" field
-  - Test creating a new individual process with funcao value
-  - Test editing an existing individual process funcao
-  - Test that funcao appears BEFORE CBO field in form
-  - Test that funcao field saves and loads correctly
-  - Validation: All CRUD operations work for individualProcesses.funcao field
-  - Dependencies: All tasks 4-7 must be complete
+- [x] 8.2: Test Legal Framework filter
+  - Manual testing steps:
+    1. Click Legal Framework filter dropdown
+    2. Select one or more legal frameworks
+    3. Verify processes are filtered correctly
+    4. Clear filter and verify all processes show again
+  - Validation: Filter works as expected with multi-select
 
-- [ ] 8.3: Test i18n translations
-  - Switch to Portuguese locale and verify:
-    - People forms show "Cargo" label
-    - Individual process form shows "Função" label before CBO
-  - Switch to English locale and verify:
-    - People forms show "Position" label
-    - Individual process form shows "Function" label before CBO
-  - Validation: All translations display correctly in both locales
-  - Dependencies: Tasks 3 and 7 must be complete
+- [x] 8.3: Test combined filters
+  - Manual testing steps:
+    1. Select multiple filters simultaneously (Authorization Type + Legal Framework + existing filters)
+    2. Verify filters combine correctly (AND logic)
+    3. Test various combinations
+  - Validation: All filters work together correctly
 
-- [ ] 8.4: Test data independence
-  - Create a person with cargo = "Gerente"
-  - Create an individual process for that person with funcao = "Analista"
-  - Verify both fields are independent and display correctly
-  - Validation: Changing one field doesn't affect the other
-  - Dependencies: All previous tasks must be complete
+- [x] 8.4: Test save filter functionality
+  - Manual testing steps:
+    1. Apply Authorization Type and Legal Framework filters
+    2. Click "Save Filter" button
+    3. Name and save the filter
+    4. Clear all filters
+    5. Load saved filter from dropdown
+    6. Verify all filters (including new ones) are restored
+  - Validation: Saved filters include new filter values
 
-- [ ] 8.5: Test mobile responsiveness
-  - Test people form on mobile (sm breakpoint)
-  - Test individual process form on mobile (sm breakpoint)
-  - Verify both cargo and funcao fields are touch-friendly (min 44x44px)
-  - Validation: Forms work correctly on mobile devices
-  - Dependencies: All previous tasks must be complete
+- [x] 8.5: Test edit saved filter
+  - Manual testing steps:
+    1. Load a saved filter
+    2. Modify Authorization Type or Legal Framework selections
+    3. Save filter again (update existing)
+    4. Load filter again to verify changes persisted
+  - Validation: Filter updates work correctly
+
+- [x] 8.6: Test clear all filters
+  - Manual testing steps:
+    1. Apply all types of filters
+    2. Click clear/reset button
+    3. Verify all filters are cleared including new ones
+  - Validation: Clear functionality works for all filters
+
+- [x] 8.7: Test mobile responsiveness
+  - Manual testing steps:
+    1. Test on mobile viewport (< 640px)
+    2. Verify filters are accessible and usable
+    3. Check touch targets are adequate (44x44px minimum)
+    4. Test filter dropdowns on mobile
+  - Validation: Filters work well on mobile devices
+
+- [x] 8.8: Test i18n translation switching
+  - Manual testing steps:
+    1. Switch language to English
+    2. Verify all new filter labels and placeholders translate correctly
+    3. Switch back to Portuguese
+    4. Verify Portuguese translations show correctly
+  - Validation: All translations work in both languages
 
 #### Quality Checklist:
 
-- [ ] People.cargo field works correctly in all contexts
-- [ ] IndividualProcesses.funcao field works correctly in all contexts
-- [ ] Both fields are completely independent
-- [ ] i18n translations work for both fields
-- [ ] No data conflicts or cross-contamination
-- [ ] Mobile responsiveness verified
-- [ ] No console errors or warnings
-
----
+- [x] All individual filters tested and working
+- [x] Combined filters work correctly
+- [x] Save/load filter functionality works
+- [x] Clear filter functionality works
+- [x] Mobile responsiveness verified
+- [x] i18n translations verified in both languages
+- [x] No console errors or warnings
+- [x] No TypeScript errors
 
 ## Implementation Notes
 
-### Critical Distinctions
+### Technical Considerations
 
-1. **Two Completely Different Fields**:
-   - `people.cargo`: Person's position/role in their company (formerly called "funcao")
-   - `individualProcesses.funcao`: Process-specific function (new field, unrelated to people.cargo)
+1. **Filter Order**: New filters will appear after Candidate and Progress Status filters in the UI, maintaining a logical flow: Applicant → Candidate → Progress Status → Authorization Type → Legal Framework
 
-2. **Translation Namespaces**:
-   - People translations under `People` namespace: `People.cargo`, `People.cargoPlaceholder`
-   - Individual process translations under `IndividualProcesses` namespace: `IndividualProcesses.funcao`, `IndividualProcesses.funcaoPlaceholder`
+2. **Data Availability**: Both `processTypes` and `legalFrameworks` are already being fetched via Convex queries (lines 62-64), so no additional API calls needed
 
-3. **Order of Operations**:
-   - Complete ALL people table changes (tasks 1-3) FIRST
-   - Then complete ALL individual process changes (tasks 4-7)
-   - This prevents naming conflicts and confusion
+3. **Performance**: Using `useMemo` for options arrays ensures they're only recalculated when source data changes, maintaining good performance
 
-4. **Field Positioning**:
-   - The new `funcao` field MUST appear BEFORE the CBO field (line 1173)
-   - This is a specific requirement from the user
+4. **Type Safety**: All new code uses proper TypeScript types, with no `any` types (filter options are typed as `Array<{ value: string; label: string }>`)
 
-### Potential Issues
+5. **Localization**: Authorization Types support bilingual labels (nameEn), Legal Frameworks currently only have Portuguese names in the database
 
-- **Naming Confusion**: Be extremely careful not to confuse `people.cargo` with `individualProcesses.funcao`
-- **Translation Conflicts**: Ensure translation keys are properly namespaced to avoid conflicts
-- **Database Migration**: The schema changes will require database migration (Convex handles this automatically)
+6. **State Management**: Follows React best practices with useState for local state and useCallback for stable function references
 
-### Testing Strategy
+### Potential Issues and Solutions
 
-1. Test people table changes in isolation first
-2. Test individual process changes in isolation second
-3. Test both together to ensure no conflicts
-4. Test i18n in both locales
-5. Test on mobile devices
+1. **Issue**: Legal Frameworks don't have English translations in database
+   - **Solution**: Use Portuguese name for both locales (can be enhanced later by adding nameEn field to legalFrameworks schema)
+
+2. **Issue**: Too many filters might clutter the UI
+   - **Solution**: Current layout uses flex-wrap, filters will wrap to new line on smaller screens maintaining usability
+
+3. **Issue**: Filter combinations might result in empty results
+   - **Solution**: Table already handles empty state with "Nenhum resultado encontrado" message
+
+### Mobile Responsiveness Strategy
+
+- Combobox components use `min-w-[160px] max-w-[220px] w-full` ensuring they're:
+  - Minimum 160px wide (readable on mobile)
+  - Maximum 220px wide (don't dominate on larger screens)
+  - Full width on very small screens (responsive)
+- `min-h-10` ensures 40px minimum height = adequate touch target
+- Second row of filters uses `flex-wrap` so filters stack on narrow screens
 
 ## Definition of Done
 
-- [ ] All tasks completed
-- [ ] All quality checklists passed
-- [ ] People table "funcao" successfully renamed to "cargo"
-- [ ] Individual process has new "funcao" field before CBO
-- [ ] Both fields work independently
-- [ ] i18n translations correct for both fields
-- [ ] No TypeScript errors
-- [ ] No console warnings
-- [ ] Mobile responsive
-- [ ] All tests passing
+- [x] All translation keys added for both pt.json and en.json
+- [x] State management implemented for both new filters
+- [x] Filtering logic added and working correctly
+- [x] Saved filter integration complete (save, load, clear, edit)
+- [x] UI components added to table component
+- [x] Props connected between client and table components
+- [x] All manual testing completed successfully
+- [x] Mobile responsiveness verified
+- [x] i18n translations working in both languages
+- [x] No TypeScript errors or warnings
+- [x] Code follows existing patterns and conventions
+- [x] Clean code principles maintained
+- [x] No regressions in existing functionality

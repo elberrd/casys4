@@ -42,6 +42,8 @@ export function IndividualProcessesClient() {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([])
   const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
+  const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>([])
+  const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>([])
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
@@ -102,6 +104,26 @@ export function IndividualProcessesClient() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [caseStatuses, locale])
+
+  // Get authorization type options from process types
+  const authorizationTypeOptions = useMemo(() => {
+    return processTypes
+      .map((pt) => ({
+        value: pt._id,
+        label: pt.name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [processTypes])
+
+  // Get legal framework options
+  const legalFrameworkOptions = useMemo(() => {
+    return legalFrameworks
+      .map((lf) => ({
+        value: lf._id,
+        label: lf.name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [legalFrameworks])
 
   // Filter field configuration
   const filterFields: FilterFieldConfig<string>[] = useMemo(() => [
@@ -181,12 +203,14 @@ export function IndividualProcessesClient() {
       selectedCandidates.length > 0 ||
       selectedApplicants.length > 0 ||
       selectedProgressStatuses.length > 0 ||
+      selectedAuthorizationTypes.length > 0 ||
+      selectedLegalFrameworks.length > 0 ||
       isRnmModeActive ||
       isUrgentModeActive ||
       isQualExpProfModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -200,18 +224,22 @@ export function IndividualProcessesClient() {
     if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
     if (selectedApplicants.length > 0) criteria.selectedApplicants = selectedApplicants
     if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
+    if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes
+    if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
     if (isRnmModeActive) criteria.isRnmModeActive = true
     if (isUrgentModeActive) criteria.isUrgentModeActive = true
     if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
     if (filters.length > 0) criteria.advancedFilters = filters
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
 
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
     setSelectedCandidates([])
     setSelectedApplicants([])
     setSelectedProgressStatuses([])
+    setSelectedAuthorizationTypes([])
+    setSelectedLegalFrameworks([])
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
@@ -226,6 +254,12 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedProgressStatuses) {
       setSelectedProgressStatuses(filterCriteria.selectedProgressStatuses)
+    }
+    if (filterCriteria.selectedAuthorizationTypes) {
+      setSelectedAuthorizationTypes(filterCriteria.selectedAuthorizationTypes)
+    }
+    if (filterCriteria.selectedLegalFrameworks) {
+      setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
     }
     if (filterCriteria.isRnmModeActive) {
       setIsRnmModeActive(true)
@@ -253,6 +287,8 @@ export function IndividualProcessesClient() {
     setSelectedCandidates([])
     setSelectedApplicants([])
     setSelectedProgressStatuses([])
+    setSelectedAuthorizationTypes([])
+    setSelectedLegalFrameworks([])
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
@@ -299,6 +335,22 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const caseStatusId = process.caseStatus?._id
         return caseStatusId && selectedProgressStatuses.includes(caseStatusId)
+      })
+    }
+
+    // Apply authorization type multi-select filter
+    if (selectedAuthorizationTypes.length > 0) {
+      result = result.filter((process) => {
+        const processTypeId = process.processType?._id
+        return processTypeId && selectedAuthorizationTypes.includes(processTypeId)
+      })
+    }
+
+    // Apply legal framework multi-select filter
+    if (selectedLegalFrameworks.length > 0) {
+      result = result.filter((process) => {
+        const legalFrameworkId = process.legalFramework?._id
+        return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
       })
     }
 
@@ -446,7 +498,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedProgressStatuses, isUrgentModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive])
 
   // Excel export functions (must be after filteredProcesses declaration)
   const prepareExcelColumns = useCallback((): ExcelColumnConfig[] => {
@@ -813,6 +865,12 @@ export function IndividualProcessesClient() {
           progressStatusOptions={progressStatusOptions}
           selectedProgressStatuses={selectedProgressStatuses}
           onProgressStatusFilterChange={setSelectedProgressStatuses}
+          authorizationTypeOptions={authorizationTypeOptions}
+          selectedAuthorizationTypes={selectedAuthorizationTypes}
+          onAuthorizationTypeFilterChange={setSelectedAuthorizationTypes}
+          legalFrameworkOptions={legalFrameworkOptions}
+          selectedLegalFrameworks={selectedLegalFrameworks}
+          onLegalFrameworkFilterChange={setSelectedLegalFrameworks}
           isRnmModeActive={isRnmModeActive}
           onRnmModeToggle={() => {
             // If activating RNM mode, deactivate others

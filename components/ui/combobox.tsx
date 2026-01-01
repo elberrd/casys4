@@ -540,14 +540,15 @@ function ComboboxMultiple<T extends string = string>({
         >
           <div className={cn(
             "flex flex-wrap gap-1 flex-1 min-w-0",
-            selectedValues.length > 3 && "max-h-[72px] overflow-y-auto"
+            selectedValues.length > 3 && "max-h-[72px] overflow-y-auto",
+            showClearButton && selectedValues.length > 0 && "pr-2"
           )}>
             {selectedValues.length === 0
               ? placeholder
               : selectedOptions.map((option) => (
                   <span
                     key={String(option.value)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs max-w-[200px]"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs max-w-[150px]"
                   >
                     {option.icon && (
                       <span className="h-3 w-3 shrink-0">{option.icon}</span>

@@ -760,6 +760,39 @@ export function IndividualProcessFormPage({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="cboId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("cbo")}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={cboOptions}
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        placeholder={t("selectCbo")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="funcao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("funcao")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("funcaoPlaceholder")} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
@@ -1176,41 +1209,6 @@ export function IndividualProcessFormPage({
                 />
               </>
             )}
-
-            {/* Função Field - New field for Individual Process */}
-            <FormField
-              control={form.control}
-              name="funcao"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("funcao")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t("funcaoPlaceholder")} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* CBO Code Field */}
-            <FormField
-              control={form.control}
-              name="cboId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("cbo")}</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={cboOptions}
-                      value={field.value || ""}
-                      onValueChange={field.onChange}
-                      placeholder={t("selectCbo")}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <Separator />
 

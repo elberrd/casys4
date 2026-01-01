@@ -177,6 +177,14 @@ interface IndividualProcessesTableProps {
   progressStatusOptions?: Array<{ value: string; label: string }>;
   selectedProgressStatuses?: string[];
   onProgressStatusFilterChange?: (statuses: string[]) => void;
+  // Authorization Type filter props
+  authorizationTypeOptions?: Array<{ value: string; label: string }>;
+  selectedAuthorizationTypes?: string[];
+  onAuthorizationTypeFilterChange?: (types: string[]) => void;
+  // Legal Framework filter props
+  legalFrameworkOptions?: Array<{ value: string; label: string }>;
+  selectedLegalFrameworks?: string[];
+  onLegalFrameworkFilterChange?: (frameworks: string[]) => void;
   // RNM mode toggle props
   isRnmModeActive?: boolean;
   onRnmModeToggle?: () => void;
@@ -210,6 +218,12 @@ export function IndividualProcessesTable({
   progressStatusOptions = [],
   selectedProgressStatuses = [],
   onProgressStatusFilterChange,
+  authorizationTypeOptions = [],
+  selectedAuthorizationTypes = [],
+  onAuthorizationTypeFilterChange,
+  legalFrameworkOptions = [],
+  selectedLegalFrameworks = [],
+  onLegalFrameworkFilterChange,
   isRnmModeActive = false,
   onRnmModeToggle,
   isUrgentModeActive = false,
@@ -1555,6 +1569,34 @@ export function IndividualProcessesTable({
                 triggerClassName="min-w-[160px] max-w-[280px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearProgressStatus")}
+              />
+            )}
+            {onAuthorizationTypeFilterChange && authorizationTypeOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={authorizationTypeOptions as ComboboxOption<string>[]}
+                value={selectedAuthorizationTypes}
+                onValueChange={onAuthorizationTypeFilterChange}
+                placeholder={t("filters.selectAuthorizationTypes")}
+                searchPlaceholder={t("filters.searchAuthorizationTypes")}
+                emptyText={t("filters.noAuthorizationTypesFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearAuthorizationTypes")}
+              />
+            )}
+            {onLegalFrameworkFilterChange && legalFrameworkOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={legalFrameworkOptions as ComboboxOption<string>[]}
+                value={selectedLegalFrameworks}
+                onValueChange={onLegalFrameworkFilterChange}
+                placeholder={t("filters.selectLegalFrameworks")}
+                searchPlaceholder={t("filters.searchLegalFrameworks")}
+                emptyText={t("filters.noLegalFrameworksFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
               />
             )}
           </div>

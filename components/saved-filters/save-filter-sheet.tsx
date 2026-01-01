@@ -94,6 +94,18 @@ export function SaveFilterSheet({
           label: t("filterSummary.progressStatuses", { count: criteria.selectedProgressStatuses.length }),
         })
       }
+      if (criteria.selectedAuthorizationTypes?.length > 0) {
+        summary.push({
+          key: "authorizationTypes",
+          label: t("filterSummary.authorizationTypes", { count: criteria.selectedAuthorizationTypes.length }),
+        })
+      }
+      if (criteria.selectedLegalFrameworks?.length > 0) {
+        summary.push({
+          key: "legalFrameworks",
+          label: t("filterSummary.legalFrameworks", { count: criteria.selectedLegalFrameworks.length }),
+        })
+      }
       if (criteria.isRnmModeActive) {
         summary.push({
           key: "rnm",
@@ -176,15 +188,15 @@ export function SaveFilterSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col">
-        <SheetHeader>
+      <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col z-[100]">
+        <SheetHeader className="px-6">
           <SheetTitle>{isEditMode ? t("editFilter") : t("saveFilter")}</SheetTitle>
           <SheetDescription>
             {isEditMode ? t("editFilterDescription") : t("saveFilterDescription")}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-6 py-4">
+        <div className="flex-1 space-y-6 py-4 px-6">
           {/* Active Filters Summary */}
           <div>
             <Label className="text-sm font-medium">
@@ -231,7 +243,7 @@ export function SaveFilterSheet({
           </div>
         </div>
 
-        <SheetFooter className="gap-2">
+        <SheetFooter className="gap-2 px-6 pb-6">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

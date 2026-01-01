@@ -180,6 +180,16 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                     : '-'}
                 </div>
 
+                <div className="text-sm font-medium">{t('cbo')}</div>
+                <div className="text-sm">
+                  {individualProcess.cbo
+                    ? `${individualProcess.cbo.code} - ${individualProcess.cbo.title}`
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('funcao')}</div>
+                <div className="text-sm">{individualProcess.funcao || '-'}</div>
+
                 <div className="text-sm font-medium">{t('processType')}</div>
                 <div className="text-sm">{individualProcess.processType?.name || '-'}</div>
 
