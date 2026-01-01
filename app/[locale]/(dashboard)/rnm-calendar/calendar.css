@@ -324,3 +324,42 @@ button:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
+
+/* Custom Popup Overlay */
+.rbc-overlay {
+  position: absolute;
+  z-index: 50;
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.rbc-overlay-header {
+  display: none;
+}
+
+/* Ensure popup appears above other elements */
+.rbc-event-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Week view: Show +more link styling */
+.rbc-show-more {
+  color: hsl(var(--primary)) !important;
+  font-weight: 500;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.125rem;
+  background: hsl(var(--primary) / 0.1);
+  border-radius: calc(var(--radius) - 2px);
+  transition: all 0.2s;
+  text-decoration: none !important;
+}
+
+.rbc-show-more:hover {
+  background: hsl(var(--primary) / 0.2);
+  text-decoration: none !important;
+}
