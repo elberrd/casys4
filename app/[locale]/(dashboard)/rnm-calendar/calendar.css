@@ -340,13 +340,17 @@ button:focus-visible {
 .rbc-overlay {
   position: absolute;
   z-index: 50;
-  background: hsl(var(--card));
+  background: hsl(var(--popover, var(--card)));
+  background-color: hsl(var(--popover, var(--card)));
+  color: hsl(var(--popover-foreground, var(--foreground)));
+  opacity: 1;
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   padding: 0;
   min-width: 280px;
   max-width: 320px;
+  overflow: hidden;
 }
 
 .rbc-overlay-header {
@@ -361,11 +365,6 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.rbc-overlay-header::before {
-  content: "🕐";
-  font-size: 1rem;
 }
 
 .rbc-event-content {
@@ -400,8 +399,8 @@ button:focus-visible {
 
 .rbc-overlay .rbc-event-content {
   font-size: 0.8125rem;
-  color: hsl(var(--muted-foreground));
-  margin-top: 0.25rem;
+  color: inherit;
+  margin-top: 0;
 }
 
 /* Show +more link styling */

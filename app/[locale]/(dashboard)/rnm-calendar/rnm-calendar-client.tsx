@@ -221,8 +221,13 @@ export function RNMCalendarClient() {
     noEventsInRange: t("noEventsInRange") || "Não há eventos neste período.",
   };
 
-  // Group overlapping events for both month and week views
+  // Group overlapping events for month and week views only (not agenda)
   const events = useMemo(() => {
+    // Agenda view shows all events ungrouped
+    if (view === Views.AGENDA) {
+      return baseEvents;
+    }
+
     // Group events by their start time (rounded to 30-min buckets for week, exact for month)
     const bucketMinutes = view === Views.WEEK ? 30 : 1440; // 30 min for week, 1 day for month
     const buckets = new Map<string, Array<any>>();
@@ -295,6 +300,60 @@ export function RNMCalendarClient() {
       // Multiple events - show primary with "+x more" button
       const extraCount = groupedEvents.length - 1;
 
+      // Week view: show only button (no person name, no time - calendar shows time automatically)
+      if (view === Views.WEEK) {
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-xs font-semibold underline underline-offset-2 opacity-90 hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                +{extraCount} {t("more") || "mais"}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-80 p-2"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                {format(event.start, "dd/MM/yyyy", { locale: dateLocale })}
+              </div>
+              <div className="mt-1 flex flex-col gap-1">
+                {groupedEvents.map((ev) => (
+                  <button
+                    key={String(ev.id)}
+                    type="button"
+                    className="w-full rounded-md border bg-card px-2 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      openProcessDialog(ev.resource.processId);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold tabular-nums">
+                        {formatEventTime(ev.start)}
+                      </span>
+                      <span className="truncate">{ev.title}</span>
+                    </div>
+                    {ev.resource?.companyName && (
+                      <div className="mt-1 truncate text-xs text-muted-foreground">
+                        {ev.resource.companyName}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      }
+
+      // Month view: show time, person name, and button
       return (
         <div className="flex items-center justify-between gap-2 w-full">
           <span className="flex items-center gap-2 min-w-0">
@@ -352,7 +411,7 @@ export function RNMCalendarClient() {
         </div>
       );
     },
-    [dateLocale, formatEventTime, openProcessDialog, t],
+    [dateLocale, formatEventTime, openProcessDialog, t, view],
   );
 
   return (
