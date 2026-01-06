@@ -512,10 +512,14 @@ export function IndividualProcessFormPage({
         })
       }
 
-      // Call onSuccess callback if provided, otherwise navigate to list
+      // Call onSuccess callback if provided, otherwise navigate appropriately
       if (onSuccess) {
         onSuccess()
+      } else if (individualProcessId) {
+        // When editing, redirect to the view page of that process
+        router.push(`/${locale}/individual-processes/${individualProcessId}`)
       } else {
+        // When creating new, redirect to the list
         router.push(`/${locale}/individual-processes`)
       }
 
