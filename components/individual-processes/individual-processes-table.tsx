@@ -258,6 +258,9 @@ export function IndividualProcessesTable({
   // Store the initial state in a ref for restoration
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility);
 
+  // Track if component is mounted to prevent state updates during initial render
+  const isMountedRef = useRef(false);
+
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // Grouping and expansion state for grouped table mode
@@ -279,6 +282,14 @@ export function IndividualProcessesTable({
   const [selectedProcessIdForNotes, setSelectedProcessIdForNotes] = useState<
     Id<"individualProcesses"> | undefined
   >(undefined);
+
+  // Set mounted flag when component mounts
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Handle RNM mode toggle - show/hide column and apply sorting
   useEffect(() => {
@@ -377,9 +388,14 @@ export function IndividualProcessesTable({
         | RowSelectionState
         | ((old: RowSelectionState) => RowSelectionState),
     ) => {
+      // Only update if component is mounted
+      if (!isMountedRef.current) return;
+
       // Defer state update to avoid updating during render
       queueMicrotask(() => {
-        setRowSelection(updaterOrValue);
+        if (isMountedRef.current) {
+          setRowSelection(updaterOrValue);
+        }
       });
     },
     [],
@@ -392,8 +408,13 @@ export function IndividualProcessesTable({
         | VisibilityState
         | ((old: VisibilityState) => VisibilityState),
     ) => {
+      // Only update if component is mounted
+      if (!isMountedRef.current) return;
+
       queueMicrotask(() => {
-        setColumnVisibility(updaterOrValue);
+        if (isMountedRef.current) {
+          setColumnVisibility(updaterOrValue);
+        }
       });
     },
     [],
