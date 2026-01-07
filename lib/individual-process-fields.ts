@@ -100,6 +100,11 @@ export const FILLABLE_FIELDS: readonly FieldMetadata[] = [
     fieldType: "string",
   },
   {
+    fieldName: "rnmProtocol",
+    labelKey: "IndividualProcesses.fields.rnmProtocol",
+    fieldType: "string",
+  },
+  {
     fieldName: "rnmDeadline",
     labelKey: "IndividualProcesses.fields.rnmDeadline",
     fieldType: "date",

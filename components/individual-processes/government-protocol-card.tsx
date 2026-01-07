@@ -22,6 +22,7 @@ interface GovernmentProtocolCardProps {
     douDate?: string;
     protocolNumber?: string;
     rnmNumber?: string;
+    rnmProtocol?: string;
     rnmDeadline?: string;
     appointmentDateTime?: string;
   };
@@ -55,6 +56,7 @@ export function GovernmentProtocolCard({
     individualProcess.douDate ||
     individualProcess.protocolNumber ||
     individualProcess.rnmNumber ||
+    individualProcess.rnmProtocol ||
     individualProcess.rnmDeadline ||
     individualProcess.appointmentDateTime;
 
@@ -182,7 +184,7 @@ export function GovernmentProtocolCard({
             )}
 
             {/* RNM Section */}
-            {(individualProcess.rnmNumber || individualProcess.rnmDeadline) && (
+            {(individualProcess.rnmNumber || individualProcess.rnmProtocol || individualProcess.rnmDeadline) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -199,6 +201,12 @@ export function GovernmentProtocolCard({
                       <>
                         <span className="text-muted-foreground">{t('rnmNumber')}</span>
                         <span className="font-mono">{individualProcess.rnmNumber}</span>
+                      </>
+                    )}
+                    {individualProcess.rnmProtocol && (
+                      <>
+                        <span className="text-muted-foreground">{t('rnmProtocol')}</span>
+                        <span className="font-mono">{individualProcess.rnmProtocol}</span>
                       </>
                     )}
                     {individualProcess.rnmDeadline && (
