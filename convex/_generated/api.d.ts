@@ -42,6 +42,7 @@ import type * as lib_stringUtils from "../lib/stringUtils.js";
 import type * as migrations_addDateToIndividualProcessStatuses from "../migrations/addDateToIndividualProcessStatuses.js";
 import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/addOrderNumberToCaseStatuses.js";
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
+import type * as migrations_fixRnmFillableFields from "../migrations/fixRnmFillableFields.js";
 import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.js";
 import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeopleToCompanies.js";
 import type * as migrations_migrateIndividualProcessStatuses from "../migrations/migrateIndividualProcessStatuses.js";
@@ -125,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/addDateToIndividualProcessStatuses": typeof migrations_addDateToIndividualProcessStatuses;
   "migrations/addOrderNumberToCaseStatuses": typeof migrations_addOrderNumberToCaseStatuses;
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
+  "migrations/fixRnmFillableFields": typeof migrations_fixRnmFillableFields;
   "migrations/importPeopleCsv": typeof migrations_importPeopleCsv;
   "migrations/linkPeopleToCompanies": typeof migrations_linkPeopleToCompanies;
   "migrations/migrateIndividualProcessStatuses": typeof migrations_migrateIndividualProcessStatuses;
