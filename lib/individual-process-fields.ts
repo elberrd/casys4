@@ -140,7 +140,20 @@ export function validateFieldNames(fieldNames: string[]): boolean {
  * Get field metadata for multiple field names
  */
 export function getFieldsMetadata(fieldNames: string[]): FieldMetadata[] {
-  return fieldNames
-    .map((name) => getFieldMetadata(name))
+  console.log('[getFieldsMetadata] Input fieldNames:', fieldNames);
+  console.log('[getFieldsMetadata] FILLABLE_FIELDS count:', FILLABLE_FIELDS.length);
+  console.log('[getFieldsMetadata] FILLABLE_FIELDS fieldNames:', FILLABLE_FIELDS.map(f => f.fieldName));
+
+  const result = fieldNames
+    .map((name) => {
+      const meta = getFieldMetadata(name);
+      if (!meta) {
+        console.warn(`[getFieldsMetadata] No metadata found for field: ${name}`);
+      }
+      return meta;
+    })
     .filter((meta): meta is FieldMetadata => meta !== undefined);
+
+  console.log('[getFieldsMetadata] Result:', result);
+  return result;
 }

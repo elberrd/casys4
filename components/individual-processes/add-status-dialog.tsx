@@ -80,6 +80,14 @@ export function AddStatusDialog({
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);
 
+  // Debug logging
+  useEffect(() => {
+    if (fillableFields.length > 0) {
+      console.log('[AddStatusDialog] fillableFields from query:', fillableFields);
+      console.log('[AddStatusDialog] fieldsMetadata:', fieldsMetadata);
+    }
+  }, [fillableFields, fieldsMetadata]);
+
   // Query current active status for this individual process
   const activeStatus = useQuery(
     api.individualProcessStatuses.getActiveStatus,
