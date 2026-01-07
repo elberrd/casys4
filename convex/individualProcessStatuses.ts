@@ -544,13 +544,37 @@ export const deleteStatus = mutation({
       throw new Error("Status record not found");
     }
 
-    // If deleting the active status, update individualProcess to clear active status reference
+    // Get the case status to check fillable fields
+    const caseStatus = status.caseStatusId
+      ? await ctx.db.get(status.caseStatusId)
+      : null;
+
+    // Prepare updates for individual process
+    const now = Date.now();
+    const updates: any = { updatedAt: now };
+
+    // If deleting the active status, clear active status reference
     if (status.isActive) {
-      await ctx.db.patch(status.individualProcessId, {
-        caseStatusId: undefined,
-        status: undefined,
-        updatedAt: Date.now(),
-      });
+      updates.caseStatusId = undefined;
+      updates.status = undefined;
+    }
+
+    // Clear fillable fields data that was set by this status
+    // This ensures that when a status is deleted, its associated data is cleaned up
+    const fillableFields = status.fillableFields || caseStatus?.fillableFields || [];
+    if (fillableFields.length > 0 && status.filledFieldsData) {
+      // Clear only the fields that were filled by this specific status
+      const filledFields = Object.keys(status.filledFieldsData);
+      for (const fieldName of filledFields) {
+        if (fillableFields.includes(fieldName)) {
+          updates[fieldName] = undefined;
+        }
+      }
+    }
+
+    // Update the individual process
+    if (Object.keys(updates).length > 1) { // More than just updatedAt
+      await ctx.db.patch(status.individualProcessId, updates);
     }
 
     // Delete the status record
