@@ -39,6 +39,7 @@ import type * as lib_statusCalculation from "../lib/statusCalculation.js";
 import type * as lib_statusManagement from "../lib/statusManagement.js";
 import type * as lib_statusValidation from "../lib/statusValidation.js";
 import type * as lib_stringUtils from "../lib/stringUtils.js";
+import type * as migrations_addAppointmentDateTimeToRnm from "../migrations/addAppointmentDateTimeToRnm.js";
 import type * as migrations_addDateToIndividualProcessStatuses from "../migrations/addDateToIndividualProcessStatuses.js";
 import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/addOrderNumberToCaseStatuses.js";
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
@@ -123,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   "lib/statusManagement": typeof lib_statusManagement;
   "lib/statusValidation": typeof lib_statusValidation;
   "lib/stringUtils": typeof lib_stringUtils;
+  "migrations/addAppointmentDateTimeToRnm": typeof migrations_addAppointmentDateTimeToRnm;
   "migrations/addDateToIndividualProcessStatuses": typeof migrations_addDateToIndividualProcessStatuses;
   "migrations/addOrderNumberToCaseStatuses": typeof migrations_addOrderNumberToCaseStatuses;
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
