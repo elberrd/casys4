@@ -701,15 +701,20 @@ export const saveFilledFields = mutation({
       }
     }
 
-    // Get fillable fields - prioritize status record, fallback to case status
-    let fillableFields = status.fillableFields || [];
+    // Get fillable fields from the case status (source of truth)
+    // Always use case status fillableFields, not the individual status record's fillableFields
+    let fillableFields: string[] = [];
 
-    // If status doesn't have fillableFields, get them from the case status
-    if ((!fillableFields || fillableFields.length === 0) && status.caseStatusId) {
+    if (status.caseStatusId) {
       const caseStatus = await ctx.db.get(status.caseStatusId);
       if (caseStatus && caseStatus.fillableFields) {
         fillableFields = caseStatus.fillableFields;
       }
+    }
+
+    // Fallback to status record only if case status has no configuration
+    if (fillableFields.length === 0 && status.fillableFields) {
+      fillableFields = status.fillableFields;
     }
 
     // Validate that only fillable fields are being filled
@@ -797,15 +802,20 @@ export const getFillableFields = query({
       }
     }
 
-    // Get fillable fields - prioritize status record, fallback to case status
-    let fillableFields = status.fillableFields || [];
+    // Get fillable fields from the case status (source of truth)
+    // Always use case status fillableFields, not the individual status record's fillableFields
+    let fillableFields: string[] = [];
 
-    // If status doesn't have fillableFields, get them from the case status
-    if ((!fillableFields || fillableFields.length === 0) && status.caseStatusId) {
+    if (status.caseStatusId) {
       const caseStatus = await ctx.db.get(status.caseStatusId);
       if (caseStatus && caseStatus.fillableFields) {
         fillableFields = caseStatus.fillableFields;
       }
+    }
+
+    // Fallback to status record only if case status has no configuration
+    if (fillableFields.length === 0 && status.fillableFields) {
+      fillableFields = status.fillableFields;
     }
 
     // Get current values from the individualProcess record
