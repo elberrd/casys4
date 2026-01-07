@@ -35,6 +35,7 @@ interface GovernmentProtocolEditDialogProps {
     douDate?: string;
     protocolNumber?: string;
     rnmNumber?: string;
+    rnmProtocol?: string;
     rnmDeadline?: string;
     appointmentDateTime?: string;
   };
@@ -59,6 +60,7 @@ export function GovernmentProtocolEditDialog({
     verificationLink: "",
     protocolNumber: individualProcess.protocolNumber || "",
     rnmNumber: individualProcess.rnmNumber || "",
+    rnmProtocol: individualProcess.rnmProtocol || "",
     rnmDeadline: individualProcess.rnmDeadline || "",
     appointmentDateTime: individualProcess.appointmentDateTime || "",
     appointmentLocation: "",
@@ -86,6 +88,7 @@ export function GovernmentProtocolEditDialog({
         douDate: formData.douDate || undefined,
         protocolNumber: formData.protocolNumber || undefined,
         rnmNumber: formData.rnmNumber || undefined,
+        rnmProtocol: formData.rnmProtocol || undefined,
         rnmDeadline: formData.rnmDeadline || undefined,
         appointmentDateTime: formData.appointmentDateTime || undefined,
       });
@@ -161,6 +164,15 @@ export function GovernmentProtocolEditDialog({
                   value={formData.rnmNumber}
                   onChange={(e) => handleChange('rnmNumber', e.target.value)}
                   placeholder={t('rnmNumberPlaceholder')}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rnmProtocol">{t('rnmProtocol')}</Label>
+                <Input
+                  id="rnmProtocol"
+                  value={formData.rnmProtocol}
+                  onChange={(e) => handleChange('rnmProtocol', e.target.value)}
+                  placeholder={t('rnmProtocol')}
                 />
               </div>
               <div className="space-y-2">

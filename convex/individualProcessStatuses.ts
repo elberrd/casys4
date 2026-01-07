@@ -624,7 +624,7 @@ export const updateFillableFields = mutation({
     const validFieldNames = [
       "passportId", "applicantId", "processTypeId", "legalFrameworkId", "cboId",
       "mreOfficeNumber", "douNumber", "douSection", "douPage", "douDate",
-      "protocolNumber", "rnmNumber", "rnmDeadline", "appointmentDateTime", "deadlineDate"
+      "protocolNumber", "rnmNumber", "rnmProtocol", "rnmDeadline", "appointmentDateTime", "deadlineDate"
     ];
 
     if (args.fillableFields) {

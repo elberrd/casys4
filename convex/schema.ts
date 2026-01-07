@@ -281,6 +281,7 @@ export default defineSchema({
     douDate: v.optional(v.string()),
     protocolNumber: v.optional(v.string()),
     rnmNumber: v.optional(v.string()),
+    rnmProtocol: v.optional(v.string()),
     rnmDeadline: v.optional(v.string()),
     appointmentDateTime: v.optional(v.string()),
     deadlineDate: v.optional(v.string()),

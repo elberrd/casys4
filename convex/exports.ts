@@ -221,6 +221,7 @@ export const exportIndividualProcesses = query({
           douDate: process.douDate || "",
           protocolNumber: process.protocolNumber || "",
           rnmNumber: process.rnmNumber || "",
+          rnmProtocol: process.rnmProtocol || "",
           rnmDeadline: process.rnmDeadline || "",
           appointmentDateTime: process.appointmentDateTime || "",
           deadlineDate: process.deadlineDate || "",

@@ -770,6 +770,43 @@ export function IndividualProcessesClient() {
     }
   }
 
+  // Memoized mode toggle handlers
+  const handleRnmModeToggle = useCallback(() => {
+    setIsRnmModeActive((prev) => {
+      const newValue = !prev
+      // If activating RNM mode, deactivate others
+      if (newValue) {
+        setIsUrgentModeActive(false)
+        setIsQualExpProfModeActive(false)
+      }
+      return newValue
+    })
+  }, [])
+
+  const handleUrgentModeToggle = useCallback(() => {
+    setIsUrgentModeActive((prev) => {
+      const newValue = !prev
+      // If activating Urgent mode, deactivate others
+      if (newValue) {
+        setIsRnmModeActive(false)
+        setIsQualExpProfModeActive(false)
+      }
+      return newValue
+    })
+  }, [])
+
+  const handleQualExpProfModeToggle = useCallback(() => {
+    setIsQualExpProfModeActive((prev) => {
+      const newValue = !prev
+      // If activating QUAL/EXP PROF mode, deactivate others
+      if (newValue) {
+        setIsRnmModeActive(false)
+        setIsUrgentModeActive(false)
+      }
+      return newValue
+    })
+  }, [])
+
   return (
     <>
       {/* Fixed action buttons - always visible in top-right corner */}
@@ -872,32 +909,11 @@ export function IndividualProcessesClient() {
           selectedLegalFrameworks={selectedLegalFrameworks}
           onLegalFrameworkFilterChange={setSelectedLegalFrameworks}
           isRnmModeActive={isRnmModeActive}
-          onRnmModeToggle={() => {
-            // If activating RNM mode, deactivate others
-            if (!isRnmModeActive) {
-              setIsUrgentModeActive(false)
-              setIsQualExpProfModeActive(false)
-            }
-            setIsRnmModeActive(!isRnmModeActive)
-          }}
+          onRnmModeToggle={handleRnmModeToggle}
           isUrgentModeActive={isUrgentModeActive}
-          onUrgentModeToggle={() => {
-            // If activating Urgent mode, deactivate others
-            if (!isUrgentModeActive) {
-              setIsRnmModeActive(false)
-              setIsQualExpProfModeActive(false)
-            }
-            setIsUrgentModeActive(!isUrgentModeActive)
-          }}
+          onUrgentModeToggle={handleUrgentModeToggle}
           isQualExpProfModeActive={isQualExpProfModeActive}
-          onQualExpProfModeToggle={() => {
-            // If activating QUAL/EXP PROF mode, deactivate others
-            if (!isQualExpProfModeActive) {
-              setIsRnmModeActive(false)
-              setIsUrgentModeActive(false)
-            }
-            setIsQualExpProfModeActive(!isQualExpProfModeActive)
-          }}
+          onQualExpProfModeToggle={handleQualExpProfModeToggle}
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
         />
 

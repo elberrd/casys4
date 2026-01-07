@@ -83,6 +83,7 @@ export const individualProcessSchema = z.object({
   douDate: z.string().optional().or(z.literal("")),
   protocolNumber: z.string().optional().or(z.literal("")),
   rnmNumber: z.string().optional().or(z.literal("")),
+  rnmProtocol: z.string().optional().or(z.literal("")),
   rnmDeadline: z.string().optional().or(z.literal("")),
   appointmentDateTime: z.string().optional().or(z.literal("")),
   deadlineDate: z.string().optional().or(z.literal("")),
