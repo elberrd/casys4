@@ -76,6 +76,14 @@ export function AddStatusDialog({
     selectedStatusId && selectedStatusId !== "" ? { caseStatusId: selectedStatusId as Id<"caseStatuses"> } : "skip"
   );
 
+  // Debug: log the query parameters
+  useEffect(() => {
+    if (selectedStatusId && selectedStatusId !== "") {
+      console.log('[AddStatusDialog] Querying fillableFields for caseStatusId:', selectedStatusId);
+      console.log('[AddStatusDialog] Query result:', fillableFieldsData);
+    }
+  }, [selectedStatusId, fillableFieldsData]);
+
   // Get field metadata for the fillable fields
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);

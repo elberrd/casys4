@@ -383,6 +383,10 @@ export const getFillableFieldsForCaseStatus = query({
       return { fillableFields: undefined };
     }
 
+    console.log('[getFillableFieldsForCaseStatus] caseStatusId:', caseStatusId);
+    console.log('[getFillableFieldsForCaseStatus] caseStatus.code:', caseStatus.code);
+    console.log('[getFillableFieldsForCaseStatus] caseStatus.fillableFields:', caseStatus.fillableFields);
+
     return {
       fillableFields: caseStatus.fillableFields
     };
