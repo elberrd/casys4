@@ -118,15 +118,24 @@ export function AddStatusDialog({
 
   // Auto-select suggested status when dialog opens
   useEffect(() => {
+    console.log('[AddStatusDialog] Auto-select effect triggered');
+    console.log('[AddStatusDialog] open:', open);
+    console.log('[AddStatusDialog] suggestedNextStatus:', suggestedNextStatus);
+
     if (open && suggestedNextStatus) {
+      console.log('[AddStatusDialog] Auto-selecting status:', suggestedNextStatus.name, suggestedNextStatus._id);
       setSelectedStatusId(suggestedNextStatus._id);
+    } else {
+      console.log('[AddStatusDialog] Not auto-selecting. open:', open, 'suggestedNextStatus:', !!suggestedNextStatus);
     }
   }, [open, suggestedNextStatus]);
 
-  // Reset form data when status changes or dialog closes
+  // Reset form data and selected status when dialog closes
   useEffect(() => {
     if (!open) {
       setFormData({});
+      setSelectedStatusId("");
+      setNotes("");
     }
   }, [open]);
 
