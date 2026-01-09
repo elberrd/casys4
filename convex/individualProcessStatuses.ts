@@ -227,7 +227,7 @@ export const addStatus = mutation({
   args: {
     individualProcessId: v.id("individualProcesses"),
     caseStatusId: v.id("caseStatuses"), // Required: Reference to case status
-    date: v.optional(v.string()), // Optional: ISO date YYYY-MM-DD, defaults to today
+    date: v.optional(v.string()), // Optional: ISO datetime YYYY-MM-DDTHH:mm or date YYYY-MM-DD, defaults to now
     statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
@@ -271,12 +271,14 @@ export const addStatus = mutation({
     const now = Date.now();
     const isActive = args.isActive ?? true;
 
-    // Default date to current date if not provided
-    const statusDate = args.date || new Date(now).toISOString().split('T')[0];
+    // Default date to current datetime if not provided (YYYY-MM-DDTHH:mm format)
+    const nowDate = new Date(now);
+    const defaultDateTime = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}T${String(nowDate.getHours()).padStart(2, '0')}:${String(nowDate.getMinutes()).padStart(2, '0')}`;
+    const statusDate = args.date || defaultDateTime;
 
-    // Validate date format (YYYY-MM-DD)
-    if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
-      throw new Error("Invalid date format. Expected YYYY-MM-DD");
+    // Validate date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+    if (args.date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(args.date)) {
+      throw new Error("Invalid date format. Expected YYYY-MM-DD or YYYY-MM-DDTHH:mm");
     }
 
     // If this new status is active, deactivate all other statuses
@@ -365,7 +367,7 @@ export const updateStatus = mutation({
   args: {
     statusId: v.id("individualProcessStatuses"),
     caseStatusId: v.optional(v.id("caseStatuses")),
-    date: v.optional(v.string()), // Optional: ISO date YYYY-MM-DD
+    date: v.optional(v.string()), // Optional: ISO datetime YYYY-MM-DDTHH:mm or date YYYY-MM-DD
     statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
@@ -386,9 +388,9 @@ export const updateStatus = mutation({
       throw new Error("Status record not found");
     }
 
-    // Validate date format if provided (YYYY-MM-DD)
-    if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
-      throw new Error("Invalid date format. Expected YYYY-MM-DD");
+    // Validate date format if provided (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+    if (args.date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(args.date)) {
+      throw new Error("Invalid date format. Expected YYYY-MM-DD or YYYY-MM-DDTHH:mm");
     }
 
     // Get case status if caseStatusId is provided

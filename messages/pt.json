@@ -816,6 +816,7 @@
     "yourProtocolNumber": "Seu Número de Protocolo",
     "verificationNote": "Após verificar o status do protocolo no portal governamental, marque-o como verificado no sistema para acompanhar sua conclusão.",
     "statusDate": "Data Andamento",
+    "statusDateTime": "Data e Hora",
     "editStatusDate": "Editar Data do Andamento",
     "editStatus": "Editar Status",
     "invalidDate": "Formato de data inválido",
