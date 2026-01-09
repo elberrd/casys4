@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -60,7 +60,17 @@ export function AddStatusDialog({
   const tCommon = useTranslations("Common");
 
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"caseStatuses"> | "">("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
+  // Default to current date and time in YYYY-MM-DDTHH:mm format
+  const getDefaultDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+  const [date, setDate] = useState(getDefaultDateTime());
   const [notes, setNotes] = useState("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,8 +163,8 @@ export function AddStatusDialog({
       return;
     }
 
-    // Validate date format
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    // Validate date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+    if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(date)) {
       toast.error(t("invalidDate"));
       return;
     }
@@ -183,7 +193,7 @@ export function AddStatusDialog({
 
       // Reset form
       setSelectedStatusId("");
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getDefaultDateTime());
       setNotes("");
       setFormData({});
     } catch (error) {
@@ -326,10 +336,13 @@ export function AddStatusDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="date">{t("statusDate")}</Label>
-              <DatePicker
+              <Label htmlFor="date">{t("statusDateTime")}</Label>
+              <Input
+                id="date"
+                type="datetime-local"
                 value={date}
-                onChange={(value) => setDate(value || "")}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full"
               />
             </div>
 

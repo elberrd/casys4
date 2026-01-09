@@ -817,6 +817,7 @@
     "yourProtocolNumber": "Your Protocol Number",
     "verificationNote": "After verifying the protocol status on the government portal, mark it as verified in the system to track its completion.",
     "statusDate": "Progress Date",
+    "statusDateTime": "Date and Time",
     "editStatusDate": "Edit Progress Date",
     "editStatus": "Edit Status",
     "invalidDate": "Invalid date format",

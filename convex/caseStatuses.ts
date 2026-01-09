@@ -380,15 +380,27 @@ export const getFillableFieldsForCaseStatus = query({
     const caseStatus = await ctx.db.get(caseStatusId);
 
     if (!caseStatus) {
+      console.log('[getFillableFieldsForCaseStatus] caseStatus not found for ID:', caseStatusId);
       return { fillableFields: undefined };
     }
 
+    console.log('[getFillableFieldsForCaseStatus] ===================');
     console.log('[getFillableFieldsForCaseStatus] caseStatusId:', caseStatusId);
+    console.log('[getFillableFieldsForCaseStatus] caseStatus._id:', caseStatus._id);
     console.log('[getFillableFieldsForCaseStatus] caseStatus.code:', caseStatus.code);
+    console.log('[getFillableFieldsForCaseStatus] caseStatus.name:', caseStatus.name);
+    console.log('[getFillableFieldsForCaseStatus] caseStatus.updatedAt:', caseStatus.updatedAt);
     console.log('[getFillableFieldsForCaseStatus] caseStatus.fillableFields:', caseStatus.fillableFields);
+    console.log('[getFillableFieldsForCaseStatus] fillableFields length:', caseStatus.fillableFields?.length);
+    console.log('[getFillableFieldsForCaseStatus] fillableFields array:', JSON.stringify(caseStatus.fillableFields));
+    console.log('[getFillableFieldsForCaseStatus] ===================');
 
-    return {
+    const result = {
       fillableFields: caseStatus.fillableFields
     };
+
+    console.log('[getFillableFieldsForCaseStatus] Returning:', JSON.stringify(result));
+
+    return result;
   },
 });

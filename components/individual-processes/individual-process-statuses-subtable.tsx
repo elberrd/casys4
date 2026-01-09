@@ -16,7 +16,6 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { Pencil, Save, X, Plus, FileEdit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -80,14 +79,20 @@ export function IndividualProcessStatusesSubtable({
     currentCaseStatusId?: Id<"caseStatuses">
   ) => {
     setEditingId(statusId);
-    setEditDate(currentDate || "");
+    // Convert legacy date format (YYYY-MM-DD) to datetime-local format (YYYY-MM-DDTHH:mm)
+    // If date has no time, add T00:00 so the datetime-local input can display it
+    let dateForInput = currentDate || "";
+    if (dateForInput && !dateForInput.includes('T')) {
+      dateForInput = `${dateForInput}T00:00`;
+    }
+    setEditDate(dateForInput);
     setEditCaseStatusId(currentCaseStatusId || null);
   };
 
   const handleSave = async (statusId: Id<"individualProcessStatuses">) => {
     try {
-      // Validate date format
-      if (editDate && !/^\d{4}-\d{2}-\d{2}$/.test(editDate)) {
+      // Validate date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+      if (editDate && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(editDate)) {
         toast.error(t("invalidDate"));
         return;
       }
@@ -157,22 +162,43 @@ export function IndividualProcessStatusesSubtable({
     return dateB.localeCompare(dateA); // Descending order (most recent first)
   });
 
-  // Date formatting helper
-  const formatDateDisplay = (dateString: string): string => {
+  // Date and time formatting helper
+  // Supports both YYYY-MM-DD (legacy) and YYYY-MM-DDTHH:mm (new) formats
+  const formatDateTimeDisplay = (dateString: string): string => {
     try {
-      // Parse the date string as local date to avoid timezone issues
-      // ISO format: YYYY-MM-DD
-      const [year, month, day] = dateString.split('-').map(Number);
-      if (!year || !month || !day) return dateString;
+      // Check if it has time component (YYYY-MM-DDTHH:mm)
+      const hasTime = dateString.includes('T');
 
-      // Create date in local timezone (month is 0-indexed)
-      const date = new Date(year, month - 1, day);
-      if (isNaN(date.getTime())) return dateString;
+      if (hasTime) {
+        // Parse datetime format: YYYY-MM-DDTHH:mm
+        const [datePart, timePart] = dateString.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes] = timePart.split(':').map(Number);
 
-      if (locale === "pt") {
-        return format(date, "dd/MM/yyyy", { locale: ptBR });
+        if (!year || !month || !day) return dateString;
+
+        // Create date in local timezone
+        const date = new Date(year, month - 1, day, hours, minutes);
+        if (isNaN(date.getTime())) return dateString;
+
+        if (locale === "pt") {
+          return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+        } else {
+          return format(date, "MM/dd/yyyy 'at' HH:mm", { locale: enUS });
+        }
       } else {
-        return format(date, "MM/dd/yyyy", { locale: enUS });
+        // Legacy format: YYYY-MM-DD (no time)
+        const [year, month, day] = dateString.split('-').map(Number);
+        if (!year || !month || !day) return dateString;
+
+        const date = new Date(year, month - 1, day);
+        if (isNaN(date.getTime())) return dateString;
+
+        if (locale === "pt") {
+          return format(date, "dd/MM/yyyy", { locale: ptBR });
+        } else {
+          return format(date, "MM/dd/yyyy", { locale: enUS });
+        }
       }
     } catch (error) {
       return dateString;
@@ -243,7 +269,7 @@ export function IndividualProcessStatusesSubtable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("statusDate")}</TableHead>
+                <TableHead>{t("statusDateTime")}</TableHead>
                 <TableHead>{t("status")}</TableHead>
                 {isAdmin && <TableHead className="w-[100px]">{tCommon("actions")}</TableHead>}
               </TableRow>
@@ -259,10 +285,11 @@ export function IndividualProcessStatusesSubtable({
                     <TableCell>
                       {isEditing ? (
                         <div className="flex items-center gap-2">
-                          <DatePicker
+                          <Input
+                            type="datetime-local"
                             value={editDate}
-                            onChange={(value) => setEditDate(value || "")}
-                            className="h-8 w-[150px]"
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="h-8 w-[200px]"
                           />
                           <Button
                             size="icon"
@@ -286,7 +313,7 @@ export function IndividualProcessStatusesSubtable({
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-sm">
-                            {formatDateDisplay(displayDate)}
+                            {formatDateTimeDisplay(displayDate)}
                           </span>
                         </div>
                       )}
