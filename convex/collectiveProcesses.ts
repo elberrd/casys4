@@ -94,16 +94,36 @@ export const list = query({
         // Enrich individual processes with all related data
         const individualProcesses = await Promise.all(
           individualProcessesRaw.map(async (ip) => {
-            const [caseStatus, person, activeStatus] = await Promise.all([
-              ip.caseStatusId ? ctx.db.get(ip.caseStatusId) : null,
+            const [person, activeStatusRaw] = await Promise.all([
               ip.personId ? ctx.db.get(ip.personId) : null,
+              // Get most recent status by date (regardless of isActive flag)
               ctx.db
                 .query("individualProcessStatuses")
-                .withIndex("by_individualProcess_active", (q) =>
-                  q.eq("individualProcessId", ip._id).eq("isActive", true)
+                .withIndex("by_individualProcess", (q) =>
+                  q.eq("individualProcessId", ip._id)
                 )
-                .first(),
+                .collect()
+                .then((statuses) => {
+                  if (statuses.length === 0) return null;
+                  return statuses.sort((a, b) => {
+                    const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+                    const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+                    return dateB.localeCompare(dateA);
+                  })[0];
+                }),
             ]);
+
+            // Get caseStatus from the most recent activeStatus (not from ip.caseStatusId which may be stale)
+            const caseStatus = activeStatusRaw?.caseStatusId
+              ? await ctx.db.get(activeStatusRaw.caseStatusId)
+              : (ip.caseStatusId ? await ctx.db.get(ip.caseStatusId) : null);
+
+            // Enrich activeStatus with its caseStatus object
+            const activeStatus = activeStatusRaw ? {
+              ...activeStatusRaw,
+              caseStatus,
+            } : null;
+
             return {
               ...ip,
               caseStatus,
@@ -203,21 +223,40 @@ export const get = query({
     // Enrich individual processes with all related data for table display
     const individualProcesses = await Promise.all(
       individualProcessesRaw.map(async (ip) => {
-        const [caseStatus, person, ipProcessType, legalFramework, companyApplicant, userApplicant, activeStatus] = await Promise.all([
-          ip.caseStatusId ? ctx.db.get(ip.caseStatusId) : null,
+        const [person, ipProcessType, legalFramework, companyApplicant, userApplicant, activeStatusRaw] = await Promise.all([
           ip.personId ? ctx.db.get(ip.personId) : null,
           ip.processTypeId ? ctx.db.get(ip.processTypeId) : null,
           ip.legalFrameworkId ? ctx.db.get(ip.legalFrameworkId) : null,
           ip.companyApplicantId ? ctx.db.get(ip.companyApplicantId) : null,
           ip.userApplicantId ? ctx.db.get(ip.userApplicantId) : null,
-          // Get the active status with filled fields data
+          // Get most recent status by date (regardless of isActive flag)
           ctx.db
             .query("individualProcessStatuses")
-            .withIndex("by_individualProcess_active", (q) =>
-              q.eq("individualProcessId", ip._id).eq("isActive", true)
+            .withIndex("by_individualProcess", (q) =>
+              q.eq("individualProcessId", ip._id)
             )
-            .first(),
+            .collect()
+            .then((statuses) => {
+              if (statuses.length === 0) return null;
+              return statuses.sort((a, b) => {
+                const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+                const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+                return dateB.localeCompare(dateA);
+              })[0];
+            }),
         ]);
+
+        // Get caseStatus from the most recent activeStatus (not from ip.caseStatusId which may be stale)
+        const caseStatus = activeStatusRaw?.caseStatusId
+          ? await ctx.db.get(activeStatusRaw.caseStatusId)
+          : (ip.caseStatusId ? await ctx.db.get(ip.caseStatusId) : null);
+
+        // Enrich activeStatus with its caseStatus object
+        const activeStatus = activeStatusRaw ? {
+          ...activeStatusRaw,
+          caseStatus,
+        } : null;
+
         return {
           ...ip,
           caseStatus,

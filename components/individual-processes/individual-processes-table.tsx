@@ -425,6 +425,51 @@ export function IndividualProcessesTable({
     [],
   );
 
+  // Wrap setSorting to prevent state updates during render
+  const handleSortingChange = useCallback(
+    (
+      updaterOrValue: SortingState | ((old: SortingState) => SortingState),
+    ) => {
+      if (!isMountedRef.current) return;
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          setSorting(updaterOrValue);
+        }
+      }, 0);
+    },
+    [],
+  );
+
+  // Wrap setGrouping to prevent state updates during render
+  const handleGroupingChange = useCallback(
+    (
+      updaterOrValue: GroupingState | ((old: GroupingState) => GroupingState),
+    ) => {
+      if (!isMountedRef.current) return;
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          setGrouping(updaterOrValue);
+        }
+      }, 0);
+    },
+    [],
+  );
+
+  // Wrap setExpanded to prevent state updates during render
+  const handleExpandedChange = useCallback(
+    (
+      updaterOrValue: ExpandedState | ((old: ExpandedState) => ExpandedState),
+    ) => {
+      if (!isMountedRef.current) return;
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          setExpanded(updaterOrValue);
+        }
+      }, 0);
+    },
+    [],
+  );
+
   // Handler for opening notes modal
   const handleOpenNotesModal = useCallback((processId: Id<"individualProcesses">) => {
     setSelectedProcessIdForNotes(processId);
@@ -1373,9 +1418,9 @@ export function IndividualProcessesTable({
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
     onColumnVisibilityChange: handleColumnVisibilityChange,
-    onSortingChange: setSorting,
-    onGroupingChange: setGrouping,
-    onExpandedChange: setExpanded,
+    onSortingChange: handleSortingChange,
+    onGroupingChange: handleGroupingChange,
+    onExpandedChange: handleExpandedChange,
     initialState: {
       pagination: {
         pageSize: 50,

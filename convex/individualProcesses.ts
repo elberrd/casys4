@@ -93,20 +93,27 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, processType, companyApplicant, userApplicant, consulate, notesCount] = await Promise.all([
+        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, consulate, notesCount] = await Promise.all([
           ctx.db.get(process.personId),
           process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
-          // Get active status from new status system
+          // Get most recent status by date (regardless of isActive flag)
           ctx.db
             .query("individualProcessStatuses")
-            .withIndex("by_individualProcess_active", (q) =>
-              q.eq("individualProcessId", process._id).eq("isActive", true)
+            .withIndex("by_individualProcess", (q) =>
+              q.eq("individualProcessId", process._id)
             )
-            .first(),
-          // Get case status details
-          process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
+            .collect()
+            .then((statuses) => {
+              if (statuses.length === 0) return null;
+              // Sort by date descending (most recent first), falling back to changedAt
+              return statuses.sort((a, b) => {
+                const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+                const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+                return dateB.localeCompare(dateA);
+              })[0];
+            }),
           // Get passport details if passportId exists
           process.passportId ? ctx.db.get(process.passportId) : null,
           // Get process type details if processTypeId exists
@@ -126,6 +133,17 @@ export const list = query({
             .collect()
             .then((notes) => notes.length),
         ]);
+
+        // Get caseStatus from the most recent activeStatus (not from process.caseStatusId which may be stale)
+        const caseStatus = activeStatusRaw?.caseStatusId
+          ? await ctx.db.get(activeStatusRaw.caseStatusId)
+          : (process.caseStatusId ? await ctx.db.get(process.caseStatusId) : null);
+
+        // Create activeStatus with enriched caseStatus
+        const activeStatus = activeStatusRaw ? {
+          ...activeStatusRaw,
+          caseStatus,
+        } : null;
 
         // Enrich person with nationality
         let person = rawPerson;
@@ -171,8 +189,8 @@ export const list = query({
 
         // Enrich activeStatus with resolved reference field names
         let enrichedActiveStatus = activeStatus;
-        if (activeStatus?.filledFieldsData) {
-          const filledData = activeStatus.filledFieldsData;
+        if (activeStatusRaw?.filledFieldsData) {
+          const filledData = activeStatusRaw.filledFieldsData;
           const enrichedData: Record<string, any> = {};
 
           // Resolve reference field IDs to readable names
@@ -210,7 +228,7 @@ export const list = query({
           enrichedActiveStatus = {
             ...activeStatus,
             filledFieldsData: enrichedData,
-          };
+          } as typeof activeStatus;
         }
 
         return {
@@ -272,13 +290,21 @@ export const get = query({
       process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
       process.cboId ? ctx.db.get(process.cboId) : null,
-      // Get active status from new status system
+      // Get most recent status by date (regardless of isActive flag)
       ctx.db
         .query("individualProcessStatuses")
-        .withIndex("by_individualProcess_active", (q) =>
-          q.eq("individualProcessId", id).eq("isActive", true)
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", id)
         )
-        .first(),
+        .collect()
+        .then((statuses) => {
+          if (statuses.length === 0) return null;
+          return statuses.sort((a, b) => {
+            const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
+            const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+            return dateB.localeCompare(dateA);
+          })[0];
+        }),
       // Get case status details
       process.caseStatusId ? ctx.db.get(process.caseStatusId) : null,
       // Get passport details if passportId exists
