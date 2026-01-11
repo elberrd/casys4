@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
 } from "react";
 import {
@@ -284,7 +285,9 @@ export function IndividualProcessesTable({
   >(undefined);
 
   // Set mounted flag when component mounts
-  useEffect(() => {
+  // Use useLayoutEffect to ensure the flag is set before any microtasks run
+  // This prevents "state update on unmounted component" warnings
+  useLayoutEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
@@ -391,12 +394,13 @@ export function IndividualProcessesTable({
       // Only update if component is mounted
       if (!isMountedRef.current) return;
 
-      // Defer state update to avoid updating during render
-      queueMicrotask(() => {
+      // Defer state update to next event loop tick to avoid updating during render
+      // setTimeout(0) is more reliable than queueMicrotask as it runs after React's render cycle
+      setTimeout(() => {
         if (isMountedRef.current) {
           setRowSelection(updaterOrValue);
         }
-      });
+      }, 0);
     },
     [],
   );
@@ -411,11 +415,12 @@ export function IndividualProcessesTable({
       // Only update if component is mounted
       if (!isMountedRef.current) return;
 
-      queueMicrotask(() => {
+      // Defer state update to next event loop tick to avoid updating during render
+      setTimeout(() => {
         if (isMountedRef.current) {
           setColumnVisibility(updaterOrValue);
         }
-      });
+      }, 0);
     },
     [],
   );
@@ -847,8 +852,11 @@ export function IndividualProcessesTable({
               activeStatus.date ||
               new Date(activeStatus.changedAt).toISOString().split("T")[0];
 
+            // Extract just the date part if datetime includes time (e.g., "2025-12-08T10:30" -> "2025-12-08")
+            const datePart = displayDate.split("T")[0];
+
             // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
-            const [year, month, day] = displayDate.split("-").map(Number);
+            const [year, month, day] = datePart.split("-").map(Number);
             if (year && month && day) {
               const date = new Date(year, month - 1, day);
               if (!isNaN(date.getTime())) {
