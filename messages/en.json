@@ -2331,6 +2331,7 @@
       "updated": "Updated",
       "deleted": "Deleted",
       "status_changed": "Status Changed",
+      "status_added": "Status Added",
       "approved": "Approved",
       "rejected": "Rejected",
       "assigned": "Assigned",
@@ -2370,12 +2371,15 @@
       "processRequest": "Process Request",
       "processRequests": "Process Request",
       "documentTemplate": "Document Template",
-      "documentTemplates": "Document Template"
+      "documentTemplates": "Document Template",
+      "individualProcessStatus": "Individual Process Status"
     },
     "activityLogDetails": "Activity Log Details",
     "activityInformation": "Activity Information",
     "userInformation": "User Information",
-    "createdAt": "Created At"
+    "createdAt": "Created At",
+    "clickToShowFilters": "Click to expand filters",
+    "clickToHideFilters": "Click to collapse filters"
   },
   "BulkImport": {
     "title": "Bulk Import People",

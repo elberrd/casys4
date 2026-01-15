@@ -8,17 +8,14 @@ import { Id } from "@/convex/_generated/dataModel"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { ActivityLogsTable } from "@/components/activity-logs/activity-logs-table"
 import { ActivityLogFilters } from "@/components/activity-logs/activity-log-filters"
-import { ActivityDetailsDialog } from "@/components/activity-logs/activity-details-dialog"
 import { ActivityLogViewModal } from "@/components/activity-logs/activity-log-view-modal"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileDown } from "lucide-react"
+import { FileDown, FileSpreadsheet, FileJson } from "lucide-react"
 import { toast } from "sonner"
 
 export function ActivityLogsClient() {
   const t = useTranslations('ActivityLogs')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
-  const tCommon = useTranslations('Common')
 
   // State for filters
   const [userId, setUserId] = useState<Id<"users"> | undefined>()
@@ -28,9 +25,7 @@ export function ActivityLogsClient() {
   const [startDate, setStartDate] = useState<number | undefined>()
   const [endDate, setEndDate] = useState<number | undefined>()
 
-  // State for details dialog and view modal
-  const [selectedLog, setSelectedLog] = useState<any>(null)
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  // State for view modal
   const [viewingLog, setViewingLog] = useState<Id<"activityLogs"> | undefined>()
 
   // Fetch activity logs with filters
@@ -53,7 +48,6 @@ export function ActivityLogsClient() {
   ]
 
   const handleViewDetails = (log: any) => {
-    // Use the view modal instead of details dialog
     setViewingLog(log._id)
   }
 
@@ -113,32 +107,27 @@ export function ActivityLogsClient() {
     setEndDate(undefined)
   }
 
+  // Check if any filter is active
+  const hasActiveFilters = entityType || entityId || action || startDate || endDate
+
   return (
-    <div className="flex flex-col h-full">
+    <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 space-y-6 p-4 md:p-6">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-          <p className="text-muted-foreground">{t('description')}</p>
-        </div>
-
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          {/* Filters */}
-          <ActivityLogFilters
-            onFiltersChange={handleFiltersChange}
-            onClearFilters={handleClearFilters}
-          />
-
-          {/* Export buttons */}
-          <div className="flex justify-end gap-2">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {/* Header with title and export buttons */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{t('title')}</h1>
+            <p className="text-sm text-muted-foreground">{t('description')}</p>
+          </div>
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleExport("csv")}
             >
-              <FileDown className="h-4 w-4 mr-2" />
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
               {t('exportCsv')}
             </Button>
             <Button
@@ -146,28 +135,25 @@ export function ActivityLogsClient() {
               size="sm"
               onClick={() => handleExport("json")}
             >
-              <FileDown className="h-4 w-4 mr-2" />
+              <FileJson className="h-4 w-4 mr-2" />
               {t('exportJson')}
             </Button>
           </div>
+        </div>
 
-          {/* Table */}
-          <ActivityLogsTable
-            logs={logsResult?.logs || []}
-            onViewDetails={handleViewDetails}
-          />
+        {/* Filters */}
+        <ActivityLogFilters
+          onFiltersChange={handleFiltersChange}
+          onClearFilters={handleClearFilters}
+          hasActiveFilters={!!hasActiveFilters}
+        />
 
-          {/* Load more / pagination info */}
-          {logsResult && (
-            <div className="text-sm text-muted-foreground text-center">
-              {t('showingResults', {
-                count: logsResult.logs.length,
-                total: logsResult.total
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {/* Table */}
+        <ActivityLogsTable
+          logs={logsResult?.logs || []}
+          onViewDetails={handleViewDetails}
+          totalCount={logsResult?.total}
+        />
 
         {/* View Modal */}
         {viewingLog && (
@@ -177,14 +163,7 @@ export function ActivityLogsClient() {
             onOpenChange={(open) => !open && setViewingLog(undefined)}
           />
         )}
-
-        {/* Details Dialog (legacy, can be removed if not used elsewhere) */}
-        <ActivityDetailsDialog
-          log={selectedLog}
-          open={detailsDialogOpen}
-          onOpenChange={setDetailsDialogOpen}
-        />
       </div>
-    </div>
+    </>
   )
 }
