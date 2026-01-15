@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -128,7 +129,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Allow any authenticated user to create cities
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
 
     // Check if state exists (when provided)
     if (args.stateId) {
@@ -153,6 +154,19 @@ export const create = mutation({
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "cities",
+        entityId: cityId,
+        details: {
+          name: args.name,
+        },
+      });
+    }
+
     return cityId;
   },
 });
@@ -169,7 +183,7 @@ export const update = mutation({
     hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check if state exists (when provided)
     if (args.stateId) {
@@ -194,6 +208,19 @@ export const update = mutation({
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "cities",
+        entityId: id,
+        details: {
+          name: args.name,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -204,10 +231,29 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("cities") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get city data before deletion for logging
+    const city = await ctx.db.get(id);
+    if (!city) {
+      throw new Error("City not found");
+    }
 
     // Note: Add cascade checks here if there are related tables
     // For now, we'll just delete the city
     await ctx.db.delete(id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "cities",
+        entityId: id,
+        details: {
+          name: city.name,
+        },
+      });
+    }
   },
 });

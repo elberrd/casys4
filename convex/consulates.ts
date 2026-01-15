@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -128,15 +129,32 @@ export const create = mutation({
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
-    return await ctx.db.insert("consulates", {
+    const consulateId = await ctx.db.insert("consulates", {
       cityId: args.cityId,
       address: args.address,
       phoneNumber: args.phoneNumber,
       email: args.email,
       website: args.website,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      const city = args.cityId ? await ctx.db.get(args.cityId) : null;
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "consulates",
+        entityId: consulateId,
+        details: {
+          cityName: city?.name,
+          address: args.address,
+        },
+      });
+    }
+
+    return consulateId;
   },
 });
 
@@ -153,11 +171,26 @@ export const update = mutation({
     website: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
 
     await ctx.db.patch(id, updateData);
+
+    // Log activity
+    if (userProfile.userId) {
+      const city = args.cityId ? await ctx.db.get(args.cityId) : null;
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "consulates",
+        entityId: id,
+        details: {
+          cityName: city?.name,
+          address: args.address,
+        },
+      });
+    }
   },
 });
 
@@ -167,10 +200,32 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("consulates") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get consulate data before deletion for logging
+    const consulate = await ctx.db.get(args.id);
+    if (!consulate) {
+      throw new Error("Consulate not found");
+    }
+
+    const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
 
     // TODO: Add cascade check when main processes table is implemented
     // Check if any main processes reference this consulate
     await ctx.db.delete(args.id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "consulates",
+        entityId: args.id,
+        details: {
+          cityName: city?.name,
+          address: consulate.address,
+        },
+      });
+    }
   },
 });

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -89,7 +90,7 @@ export const create = mutation({
     countryId: v.optional(v.id("countries")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check if country exists (when provided)
     if (args.countryId) {
@@ -117,6 +118,20 @@ export const create = mutation({
       countryId: args.countryId,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "states",
+        entityId: stateId,
+        details: {
+          name: args.name,
+          code: args.code,
+        },
+      });
+    }
+
     return stateId;
   },
 });
@@ -132,7 +147,7 @@ export const update = mutation({
     countryId: v.optional(v.id("countries")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check if country exists (when provided)
     if (args.countryId) {
@@ -160,6 +175,20 @@ export const update = mutation({
       countryId: args.countryId,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "states",
+        entityId: args.id,
+        details: {
+          name: args.name,
+          code: args.code,
+        },
+      });
+    }
+
     return args.id;
   },
 });
@@ -170,7 +199,13 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("states") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get state data before deletion for logging
+    const state = await ctx.db.get(id);
+    if (!state) {
+      throw new Error("State not found");
+    }
 
     // Check if there are cities associated with this state
     const cities = await ctx.db
@@ -183,5 +218,19 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "states",
+        entityId: id,
+        details: {
+          name: state.name,
+          code: state.code,
+        },
+      });
+    }
   },
 });

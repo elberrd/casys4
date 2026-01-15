@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -191,6 +192,21 @@ export const create = mutation({
       }
     }
 
+    // Log activity
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "created",
+        entityType: "legalFrameworks",
+        entityId: legalFrameworkId,
+        details: {
+          name: args.name,
+          description: args.description,
+          isActive: args.isActive ?? true,
+        },
+      });
+    }
+
     return legalFrameworkId;
   },
 });
@@ -249,6 +265,21 @@ export const update = mutation({
       }
     }
 
+    // Log activity
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "legalFrameworks",
+        entityId: id,
+        details: {
+          name: args.name,
+          description: args.description,
+          isActive: args.isActive,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -260,7 +291,13 @@ export const remove = mutation({
   args: { id: v.id("legalFrameworks") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+
+    // Get legal framework data before deletion for logging
+    const legalFramework = await ctx.db.get(id);
+    if (!legalFramework) {
+      throw new Error("Legal framework not found");
+    }
 
     // Delete all junction table records first
     const existingLinks = await ctx.db
@@ -274,5 +311,18 @@ export const remove = mutation({
 
     // Delete the legal framework
     await ctx.db.delete(id);
+
+    // Log activity
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "deleted",
+        entityType: "legalFrameworks",
+        entityId: id,
+        details: {
+          name: legalFramework.name,
+        },
+      });
+    }
   },
 });

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -322,7 +323,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const isCurrent = args.isCurrent ?? true;
 
@@ -359,7 +360,7 @@ export const create = mutation({
       throw new Error("Current employment cannot have an end date");
     }
 
-    return await ctx.db.insert("peopleCompanies", {
+    const relationshipId = await ctx.db.insert("peopleCompanies", {
       personId: args.personId,
       companyId: args.companyId,
       role: args.role,
@@ -367,6 +368,26 @@ export const create = mutation({
       endDate: args.endDate,
       isCurrent,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      const person = await ctx.db.get(args.personId);
+      const company = await ctx.db.get(args.companyId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "peopleCompanies",
+        entityId: relationshipId,
+        details: {
+          personName: person?.fullName,
+          companyName: company?.name,
+          role: args.role,
+          isCurrent,
+        },
+      });
+    }
+
+    return relationshipId;
   },
 });
 
@@ -385,7 +406,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
     const existing = await ctx.db.get(id);
@@ -433,6 +454,24 @@ export const update = mutation({
       ...updateData,
       isCurrent,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      const person = await ctx.db.get(args.personId);
+      const company = await ctx.db.get(args.companyId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "peopleCompanies",
+        entityId: id,
+        details: {
+          personName: person?.fullName,
+          companyName: company?.name,
+          role: args.role,
+          isCurrent,
+        },
+      });
+    }
   },
 });
 
@@ -443,9 +482,32 @@ export const remove = mutation({
   args: { id: v.id("peopleCompanies") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get relationship data before deletion for logging
+    const relationship = await ctx.db.get(args.id);
+    if (!relationship) {
+      throw new Error("Employment relationship not found");
+    }
+
+    const person = await ctx.db.get(relationship.personId);
+    const company = await ctx.db.get(relationship.companyId);
 
     await ctx.db.delete(args.id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "peopleCompanies",
+        entityId: args.id,
+        details: {
+          personName: person?.fullName,
+          companyName: company?.name,
+        },
+      });
+    }
   },
 });
 

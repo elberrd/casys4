@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -337,7 +338,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check for duplicate CPF if provided
     if (args.cpf) {
@@ -364,6 +365,21 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "people",
+        entityId: personId,
+        details: {
+          fullName: args.fullName,
+          email: args.email,
+          cpf: args.cpf,
+        },
+      });
+    }
 
     return personId;
   },
@@ -394,7 +410,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...data } = args;
 
@@ -452,6 +468,20 @@ export const update = mutation({
 
     await ctx.db.replace(id, replacement);
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "people",
+        entityId: id,
+        details: {
+          fullName: data.fullName,
+          email: data.email,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -463,7 +493,13 @@ export const remove = mutation({
   args: { id: v.id("people") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get person data before deletion for logging
+    const person = await ctx.db.get(id);
+    if (!person) {
+      throw new Error("Person not found");
+    }
 
     // Check if there are individual processes associated with this person
     const individualProcesses = await ctx.db
@@ -496,6 +532,20 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "people",
+        entityId: id,
+        details: {
+          fullName: person.fullName,
+          email: person.email,
+        },
+      });
+    }
   },
 });
 

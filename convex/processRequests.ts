@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireClient } from "./lib/auth";
 
@@ -213,6 +214,21 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (profile.userId) {
+      const company = await ctx.db.get(companyId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: profile.userId,
+        action: "created",
+        entityType: "processRequests",
+        entityId: requestId,
+        details: {
+          companyName: company?.name,
+          isUrgent: args.isUrgent,
+        },
+      });
+    }
+
     return requestId;
   },
 });
@@ -270,6 +286,22 @@ export const approve = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (adminProfile.userId) {
+      const company = await ctx.db.get(request.companyId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "approved",
+        entityType: "processRequests",
+        entityId: id,
+        details: {
+          companyName: company?.name,
+          collectiveProcessId,
+          referenceNumber,
+        },
+      });
+    }
+
     return collectiveProcessId;
   },
 });
@@ -309,6 +341,21 @@ export const reject = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (adminProfile.userId) {
+      const company = await ctx.db.get(request.companyId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "rejected",
+        entityType: "processRequests",
+        entityId: id,
+        details: {
+          companyName: company?.name,
+          rejectionReason,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -329,7 +376,7 @@ export const update = mutation({
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const request = await ctx.db.get(id);
     if (!request) {
@@ -358,6 +405,19 @@ export const update = mutation({
 
     await ctx.db.patch(id, updates);
 
+    // Log activity
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "processRequests",
+        entityId: id,
+        details: {
+          isUrgent: args.isUrgent,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -369,7 +429,7 @@ export const remove = mutation({
   args: { id: v.id("processRequests") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const request = await ctx.db.get(id);
     if (!request) {
@@ -382,7 +442,24 @@ export const remove = mutation({
       );
     }
 
+    const company = await ctx.db.get(request.companyId);
+
     await ctx.db.delete(id);
+
+    // Log activity
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "deleted",
+        entityType: "processRequests",
+        entityId: id,
+        details: {
+          companyName: company?.name,
+          status: request.status,
+        },
+      });
+    }
+
     return id;
   },
 });

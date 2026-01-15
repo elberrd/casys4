@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -45,7 +46,7 @@ export const create = mutation({
     flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const countryId = await ctx.db.insert("countries", {
       name: args.name,
@@ -53,6 +54,19 @@ export const create = mutation({
       iso3: "",
       flag: args.flag,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "countries",
+        entityId: countryId,
+        details: {
+          name: args.name,
+        },
+      });
+    }
 
     return countryId;
   },
@@ -68,12 +82,25 @@ export const update = mutation({
     flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     await ctx.db.patch(args.id, {
       name: args.name,
       flag: args.flag,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "countries",
+        entityId: args.id,
+        details: {
+          name: args.name,
+        },
+      });
+    }
 
     return args.id;
   },
@@ -85,7 +112,13 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("countries") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get country data before deletion for logging
+    const country = await ctx.db.get(id);
+    if (!country) {
+      throw new Error("Country not found");
+    }
 
     // Check if there are states associated with this country
     const states = await ctx.db
@@ -98,5 +131,18 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "countries",
+        entityId: id,
+        details: {
+          name: country.name,
+        },
+      });
+    }
   },
 });

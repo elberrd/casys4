@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -81,7 +82,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check for duplicate code if provided
     if (args.code) {
@@ -95,13 +96,30 @@ export const create = mutation({
       }
     }
 
-    return await ctx.db.insert("documentTypes", {
+    const documentTypeId = await ctx.db.insert("documentTypes", {
       name: args.name,
       code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
       category: args.category ?? "",
       description: args.description ?? "",
       isActive: args.isActive ?? true,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "documentTypes",
+        entityId: documentTypeId,
+        details: {
+          name: args.name,
+          code: args.code,
+          category: args.category,
+        },
+      });
+    }
+
+    return documentTypeId;
   },
 });
 
@@ -119,7 +137,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
 
@@ -144,6 +162,21 @@ export const update = mutation({
       ...(updateData.description !== undefined && { description: updateData.description }),
       ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "documentTypes",
+        entityId: id,
+        details: {
+          name: updateData.name,
+          code: updateData.code,
+          category: updateData.category,
+        },
+      });
+    }
   },
 });
 
@@ -154,10 +187,30 @@ export const remove = mutation({
   args: { id: v.id("documentTypes") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get document type data before deletion for logging
+    const documentType = await ctx.db.get(args.id);
+    if (!documentType) {
+      throw new Error("Document type not found");
+    }
 
     // TODO: Add cascade check when document requirements table is implemented
     // Check if any document requirements reference this document type
     await ctx.db.delete(args.id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "documentTypes",
+        entityId: args.id,
+        details: {
+          name: documentType.name,
+          code: documentType.code,
+        },
+      });
+    }
   },
 });

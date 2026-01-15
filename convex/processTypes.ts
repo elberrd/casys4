@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -196,6 +197,21 @@ export const create = mutation({
       }
     }
 
+    // Log activity
+    if (user.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: user.userId,
+        action: "created",
+        entityType: "processTypes",
+        entityId: processTypeId,
+        details: {
+          name: args.name,
+          description: args.description,
+          isActive: args.isActive ?? true,
+        },
+      });
+    }
+
     return processTypeId;
   },
 });
@@ -259,6 +275,21 @@ export const update = mutation({
       }
     }
 
+    // Log activity
+    if (user.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: user.userId,
+        action: "updated",
+        entityType: "processTypes",
+        entityId: id,
+        details: {
+          name: args.name,
+          description: args.description,
+          isActive: args.isActive,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -270,7 +301,13 @@ export const remove = mutation({
   args: { id: v.id("processTypes") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const user = await requireAdmin(ctx);
+
+    // Get process type data before deletion for logging
+    const processType = await ctx.db.get(id);
+    if (!processType) {
+      throw new Error("Process type not found");
+    }
 
     // Delete all junction table records first
     const existingLinks = await ctx.db
@@ -284,6 +321,19 @@ export const remove = mutation({
 
     // Delete the authorization type
     await ctx.db.delete(id);
+
+    // Log activity
+    if (user.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: user.userId,
+        action: "deleted",
+        entityType: "processTypes",
+        entityId: id,
+        details: {
+          name: processType.name,
+        },
+      });
+    }
   },
 });
 
@@ -301,10 +351,23 @@ export const reorder = mutation({
   },
   handler: async (ctx, { updates }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const user = await requireAdmin(ctx);
 
     for (const update of updates) {
       await ctx.db.patch(update.id, { sortOrder: update.sortOrder });
+    }
+
+    // Log activity
+    if (user.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: user.userId,
+        action: "reordered",
+        entityType: "processTypes",
+        entityId: "bulk",
+        details: {
+          count: updates.length,
+        },
+      });
     }
   },
 });

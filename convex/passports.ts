@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
@@ -338,7 +339,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const now = Date.now();
     const isActive = args.isActive ?? true;
@@ -362,7 +363,7 @@ export const create = mutation({
       );
     }
 
-    return await ctx.db.insert("passports", {
+    const passportId = await ctx.db.insert("passports", {
       personId: args.personId,
       passportNumber: args.passportNumber,
       issuingCountryId: args.issuingCountryId,
@@ -373,6 +374,24 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      const person = await ctx.db.get(args.personId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "passports",
+        entityId: passportId,
+        details: {
+          passportNumber: args.passportNumber,
+          personName: person?.fullName,
+          isActive,
+        },
+      });
+    }
+
+    return passportId;
   },
 });
 
@@ -393,7 +412,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
     const now = Date.now();
@@ -425,6 +444,22 @@ export const update = mutation({
       isActive,
       updatedAt: now,
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      const person = await ctx.db.get(args.personId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "passports",
+        entityId: id,
+        details: {
+          passportNumber: args.passportNumber,
+          personName: person?.fullName,
+          isActive,
+        },
+      });
+    }
   },
 });
 
@@ -435,8 +470,30 @@ export const remove = mutation({
   args: { id: v.id("passports") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    // Get passport data before deletion for logging
+    const passport = await ctx.db.get(args.id);
+    if (!passport) {
+      throw new Error("Passport not found");
+    }
+
+    const person = await ctx.db.get(passport.personId);
 
     await ctx.db.delete(args.id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "passports",
+        entityId: args.id,
+        details: {
+          passportNumber: passport.passportNumber,
+          personName: person?.fullName,
+        },
+      });
+    }
   },
 });

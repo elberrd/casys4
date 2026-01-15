@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 
@@ -95,7 +96,7 @@ export const create = mutation({
     fillableFields: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Check if code already exists
     const existingByCode = await ctx.db
@@ -135,6 +136,21 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "caseStatuses",
+        entityId: caseStatusId,
+        details: {
+          name: args.name,
+          code: args.code,
+          category: args.category,
+        },
+      });
+    }
+
     return caseStatusId;
   },
 });
@@ -157,7 +173,7 @@ export const update = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -206,6 +222,20 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "caseStatuses",
+        entityId: id,
+        details: {
+          name: args.name || existing.name,
+          code: args.code || existing.code,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -217,7 +247,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("caseStatuses") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -242,6 +272,20 @@ export const remove = mutation({
       updatedAt: Date.now(),
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "caseStatuses",
+        entityId: id,
+        details: {
+          name: existing.name,
+          code: existing.code,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -260,13 +304,26 @@ export const reorder = mutation({
     ),
   },
   handler: async (ctx, { updates }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     // Update all statuses with new sortOrder
     for (const update of updates) {
       await ctx.db.patch(update.id, {
         sortOrder: update.sortOrder,
         updatedAt: Date.now(),
+      });
+    }
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "reordered",
+        entityType: "caseStatuses",
+        entityId: "bulk",
+        details: {
+          count: updates.length,
+        },
       });
     }
 
@@ -283,7 +340,7 @@ export const toggleActive = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, { id, isActive }) => {
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -308,6 +365,21 @@ export const toggleActive = mutation({
       isActive,
       updatedAt: Date.now(),
     });
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: isActive ? "activated" : "deactivated",
+        entityType: "caseStatuses",
+        entityId: id,
+        details: {
+          name: existing.name,
+          code: existing.code,
+          isActive,
+        },
+      });
+    }
 
     return id;
   },

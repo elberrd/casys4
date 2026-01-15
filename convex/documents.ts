@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
@@ -230,7 +231,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const now = Date.now();
 
@@ -258,6 +259,22 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      const documentType = await ctx.db.get(args.documentTypeId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "created",
+        entityType: "documents",
+        entityId: documentId,
+        details: {
+          name: args.name,
+          fileName: args.fileName,
+          documentType: documentType?.name,
+        },
+      });
+    }
+
     return documentId;
   },
 });
@@ -283,7 +300,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const { id, ...updates } = args;
     const now = Date.now();
@@ -312,6 +329,22 @@ export const update = mutation({
       updatedAt: now,
     });
 
+    // Log activity
+    if (userProfile.userId) {
+      const documentType = await ctx.db.get(args.documentTypeId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "documents",
+        entityId: id,
+        details: {
+          name: args.name,
+          fileName: args.fileName,
+          documentType: documentType?.name,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -323,7 +356,7 @@ export const remove = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
 
     const document = await ctx.db.get(args.id);
     if (!document) {
@@ -336,6 +369,21 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+
+    // Log activity
+    if (userProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "documents",
+        entityId: args.id,
+        details: {
+          name: document.name,
+          fileName: document.fileName,
+        },
+      });
+    }
+
     return args.id;
   },
 });
@@ -347,11 +395,14 @@ export const bulkRemove = mutation({
   args: { ids: v.array(v.id("documents")) },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+
+    const deletedDocuments: { id: string; name: string; fileName?: string }[] = [];
 
     for (const id of args.ids) {
       const document = await ctx.db.get(id);
       if (document) {
+        deletedDocuments.push({ id, name: document.name, fileName: document.fileName });
         // Delete file from storage if exists
         if (document.storageId) {
           await ctx.storage.delete(document.storageId);
@@ -359,6 +410,21 @@ export const bulkRemove = mutation({
         await ctx.db.delete(id);
       }
     }
+
+    // Log activity
+    if (userProfile.userId && deletedDocuments.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "bulk_deleted",
+        entityType: "documents",
+        entityId: "bulk",
+        details: {
+          count: deletedDocuments.length,
+          documents: deletedDocuments,
+        },
+      });
+    }
+
     return args.ids;
   },
 });
