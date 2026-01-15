@@ -239,6 +239,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm">
                   {individualProcess.professionalExperienceSince
                     ? (() => {
+                        const exactDate = formatDate(individualProcess.professionalExperienceSince, resolvedParams.locale);
                         const relativeDate = formatRelativeDate(individualProcess.professionalExperienceSince, {
                           year: t("relativeDate.year"),
                           years: t("relativeDate.years"),
@@ -247,7 +248,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                           day: t("relativeDate.day"),
                           days: t("relativeDate.days"),
                         });
-                        return relativeDate || formatDate(individualProcess.professionalExperienceSince, resolvedParams.locale);
+                        return relativeDate ? `${exactDate} (${relativeDate})` : exactDate;
                       })()
                     : '-'}
                 </div>
