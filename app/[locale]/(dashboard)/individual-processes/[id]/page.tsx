@@ -24,6 +24,7 @@ import { PersonFormDialog } from "@/components/people/person-form-dialog"
 import { formatDate } from "@/lib/format-field-value"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { translateCountryName } from "@/lib/utils/country-translations"
+import { formatRelativeDate } from "@/lib/utils/date-utils"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -276,6 +277,30 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
                 <div className="text-sm font-medium">{tPeople('profession')}</div>
                 <div className="text-sm">{individualProcess.person?.profession || '-'}</div>
+
+                <div className="text-sm font-medium">{t('qualification')}</div>
+                <div className="text-sm">
+                  {individualProcess.qualification
+                    ? t(`qualificationOptions.${individualProcess.qualification}`)
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('professionalExperienceSince')}</div>
+                <div className="text-sm">
+                  {individualProcess.professionalExperienceSince
+                    ? (() => {
+                        const relativeDate = formatRelativeDate(individualProcess.professionalExperienceSince, {
+                          year: t("relativeDate.year"),
+                          years: t("relativeDate.years"),
+                          month: t("relativeDate.month"),
+                          months: t("relativeDate.months"),
+                          day: t("relativeDate.day"),
+                          days: t("relativeDate.days"),
+                        });
+                        return relativeDate || formatDate(individualProcess.professionalExperienceSince, resolvedParams.locale);
+                      })()
+                    : '-'}
+                </div>
 
                 {individualProcess.lastSalaryAmount && (
                   <>
