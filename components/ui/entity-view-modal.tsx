@@ -96,8 +96,8 @@ export function EntityViewModal<T>({
             <p className="text-muted-foreground">{defaultLoadingText}</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-hidden px-6 pb-6">
-            <ScrollArea className="h-full max-h-[calc(90vh-120px)]">
+          <div className="flex-1 min-h-0 overflow-hidden px-6 pb-6">
+            <ScrollArea className="h-full">
               {customHeader && <div className="mb-4">{customHeader}</div>}
               <div className="space-y-6 pt-2 pr-4">
                 {sections.map((section, sectionIndex) => (
