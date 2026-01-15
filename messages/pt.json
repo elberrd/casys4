@@ -2355,6 +2355,7 @@
       "updated": "Atualizado",
       "deleted": "Excluído",
       "status_changed": "Status Alterado",
+      "status_added": "Status Adicionado",
       "approved": "Aprovado",
       "rejected": "Rejeitado",
       "assigned": "Atribuído",
@@ -2394,12 +2395,15 @@
       "processRequest": "Solicitação de Processo",
       "processRequests": "Solicitação de Processo",
       "documentTemplate": "Modelo de Documento",
-      "documentTemplates": "Modelo de Documento"
+      "documentTemplates": "Modelo de Documento",
+      "individualProcessStatus": "Status do Processo Individual"
     },
     "activityLogDetails": "Detalhes do Registro de Atividade",
     "activityInformation": "Informações da Atividade",
     "userInformation": "Informações do Usuário",
-    "createdAt": "Criado em"
+    "createdAt": "Criado em",
+    "clickToShowFilters": "Clique para expandir os filtros",
+    "clickToHideFilters": "Clique para recolher os filtros"
   },
   "BulkImport": {
     "title": "Importação em Massa de Pessoas",

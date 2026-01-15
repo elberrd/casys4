@@ -73,8 +73,8 @@ export function EntityViewModal<T>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${sizeClasses[size]} max-h-[90vh] p-0`}>
-        <DialogHeader className="px-6 pt-6 pb-2 pr-14 flex flex-row items-center justify-between space-y-0">
+      <DialogContent className={`${sizeClasses[size]} max-h-[90vh] p-0 flex flex-col`}>
+        <DialogHeader className="px-6 pt-6 pb-2 pr-14 flex flex-row items-center justify-between space-y-0 shrink-0">
           <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
           {onEdit && !loading && (
             <Button
@@ -96,41 +96,43 @@ export function EntityViewModal<T>({
             <p className="text-muted-foreground">{defaultLoadingText}</p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[calc(90vh-100px)] px-6 pb-6">
-            {customHeader && <div className="mb-4">{customHeader}</div>}
-            <div className="space-y-6 pt-2">
-              {sections.map((section, sectionIndex) => (
-                <Card key={sectionIndex}>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {section.icon}
-                      {section.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {section.fields.map((field, fieldIndex) => (
-                      <div
-                        key={fieldIndex}
-                        className={`${
-                          field.fullWidth ? "md:col-span-2" : ""
-                        } ${field.className || ""}`}
-                      >
-                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                          {field.icon}
-                          {field.label}
-                        </p>
-                        <div className="text-base mt-1">
-                          {field.value}
+          <div className="flex-1 overflow-hidden px-6 pb-6">
+            <ScrollArea className="h-full max-h-[calc(90vh-120px)]">
+              {customHeader && <div className="mb-4">{customHeader}</div>}
+              <div className="space-y-6 pt-2 pr-4">
+                {sections.map((section, sectionIndex) => (
+                  <Card key={sectionIndex}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        {section.icon}
+                        {section.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {section.fields.map((field, fieldIndex) => (
+                        <div
+                          key={fieldIndex}
+                          className={`${
+                            field.fullWidth ? "md:col-span-2" : ""
+                          } ${field.className || ""}`}
+                        >
+                          <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                            {field.icon}
+                            {field.label}
+                          </p>
+                          <div className="text-sm mt-1">
+                            {field.value}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
 
-              {children}
-            </div>
-          </ScrollArea>
+                {children}
+              </div>
+            </ScrollArea>
+          </div>
         )}
       </DialogContent>
     </Dialog>
