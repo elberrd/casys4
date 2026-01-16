@@ -1750,7 +1750,9 @@
   "LegalFrameworks": {
     "title": "Legal Basis",
     "createTitle": "Create Legal Basis",
+    "createDescription": "Fill in the information to create a new legal basis",
     "editTitle": "Edit Legal Basis",
+    "editDescription": "Edit the legal basis information below",
     "deleteConfirm": "Are you sure you want to delete this legal basis?",
     "name": "Legal Basis Name",
     "processType": "Authorization Type",
@@ -1766,7 +1768,18 @@
     "noResults": "No legal basis found",
     "legalFrameworkDetails": "Legal Basis Details",
     "frameworkInformation": "Framework Information",
-    "status": "Status"
+    "status": "Status",
+    "documentTypeAssociations": "Associated Document Types",
+    "documentTypeAssociationsDescription": "Select the document types that must be submitted for processes under this legal basis. Check 'Required' for essential documents.",
+    "addDocumentType": "New Type",
+    "filterDocumentTypes": "Filter document types...",
+    "noDocumentTypesAvailable": "No active document types available",
+    "noDocumentTypesFound": "No document types found",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "required": "Required",
+    "selectedCount": "{count} selected",
+    "requiredCount": "{count} required"
   },
   "Passports": {
     "title": "Passports",

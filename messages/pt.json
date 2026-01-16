@@ -1774,7 +1774,9 @@
   "LegalFrameworks": {
     "title": "Amparo Legal",
     "createTitle": "Criar Amparo Legal",
+    "createDescription": "Preencha as informações para criar um novo amparo legal",
     "editTitle": "Editar Amparo Legal",
+    "editDescription": "Edite as informações do amparo legal abaixo",
     "deleteConfirm": "Tem certeza de que deseja excluir este amparo legal?",
     "name": "Nome do Amparo Legal",
     "processType": "Tipo de Autorização",
@@ -1790,7 +1792,18 @@
     "noResults": "Nenhum amparo legal encontrado",
     "legalFrameworkDetails": "Detalhes do Amparo Legal",
     "frameworkInformation": "Informações do Amparo",
-    "status": "Status"
+    "status": "Status",
+    "documentTypeAssociations": "Tipos de Documento Associados",
+    "documentTypeAssociationsDescription": "Selecione os tipos de documento que devem ser entregues para processos com este amparo legal. Marque 'Obrigatório' para documentos essenciais.",
+    "addDocumentType": "Novo Tipo",
+    "filterDocumentTypes": "Filtrar tipos de documento...",
+    "noDocumentTypesAvailable": "Nenhum tipo de documento ativo disponível",
+    "noDocumentTypesFound": "Nenhum tipo de documento encontrado",
+    "selectAll": "Marcar Todos",
+    "deselectAll": "Desmarcar Todos",
+    "required": "Obrigatório",
+    "selectedCount": "{count} selecionado(s)",
+    "requiredCount": "{count} obrigatório(s)"
   },
   "Passports": {
     "title": "Passaportes",

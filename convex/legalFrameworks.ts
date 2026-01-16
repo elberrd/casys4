@@ -100,9 +100,30 @@ export const get = query({
       })
     );
 
+    // Get document type associations for this legal framework
+    const docTypeLinks = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
+
+    const documentTypeAssociations = await Promise.all(
+      docTypeLinks.map(async (link) => {
+        const dt = await ctx.db.get(link.documentTypeId);
+        return {
+          documentTypeId: link.documentTypeId,
+          documentTypeName: dt?.name ?? "",
+          documentTypeCode: dt?.code,
+          isRequired: link.isRequired,
+        };
+      })
+    );
+
     return {
       ...legalFramework,
       processTypes: processTypes.filter((pt) => pt !== null),
+      documentTypeAssociations: documentTypeAssociations.filter(
+        (a) => a.documentTypeName !== ""
+      ),
     };
   },
 });
@@ -163,13 +184,23 @@ export const create = mutation({
     description: v.optional(v.string()),
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
+    documentTypeAssociations: v.optional(
+      v.array(
+        v.object({
+          documentTypeId: v.id("documentTypes"),
+          isRequired: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     // Require admin role and active user (with valid userId)
     const adminProfile = await requireAdmin(ctx);
 
     // Ensure userId exists if we need to create junction table records
-    if (args.processTypeIds && args.processTypeIds.length > 0 && !adminProfile.userId) {
+    const hasProcessTypes = args.processTypeIds && args.processTypeIds.length > 0;
+    const hasDocTypes = args.documentTypeAssociations && args.documentTypeAssociations.length > 0;
+    if ((hasProcessTypes || hasDocTypes) && !adminProfile.userId) {
       throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
     }
 
@@ -179,13 +210,28 @@ export const create = mutation({
       isActive: args.isActive ?? true,
     });
 
+    const now = Date.now();
+
     // Create junction table records for authorization types
     if (args.processTypeIds && args.processTypeIds.length > 0) {
       for (const processTypeId of args.processTypeIds) {
         await ctx.db.insert("processTypesLegalFrameworks", {
           processTypeId,
           legalFrameworkId,
-          createdAt: Date.now(),
+          createdAt: now,
+          createdBy: adminProfile.userId!,
+        });
+      }
+    }
+
+    // Create junction table records for document types
+    if (args.documentTypeAssociations && args.documentTypeAssociations.length > 0) {
+      for (const assoc of args.documentTypeAssociations) {
+        await ctx.db.insert("documentTypesLegalFrameworks", {
+          documentTypeId: assoc.documentTypeId,
+          legalFrameworkId,
+          isRequired: assoc.isRequired,
+          createdAt: now,
           createdBy: adminProfile.userId!,
         });
       }
@@ -205,17 +251,27 @@ export const update = mutation({
     description: v.optional(v.string()),
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
+    documentTypeAssociations: v.optional(
+      v.array(
+        v.object({
+          documentTypeId: v.id("documentTypes"),
+          isRequired: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
 
     // Ensure userId exists if we need to update junction table records
-    if (args.processTypeIds !== undefined && args.processTypeIds.length > 0 && !adminProfile.userId) {
+    const hasProcessTypes = args.processTypeIds !== undefined && args.processTypeIds.length > 0;
+    const hasDocTypes = args.documentTypeAssociations !== undefined && args.documentTypeAssociations.length > 0;
+    if ((hasProcessTypes || hasDocTypes) && !adminProfile.userId) {
       throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
     }
 
-    const updates: any = {
+    const updates: Record<string, string | boolean> = {
       name: args.name,
     };
 
@@ -223,6 +279,8 @@ export const update = mutation({
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(id, updates);
+
+    const now = Date.now();
 
     // Update junction table records for authorization types
     if (args.processTypeIds !== undefined) {
@@ -242,7 +300,33 @@ export const update = mutation({
           await ctx.db.insert("processTypesLegalFrameworks", {
             processTypeId,
             legalFrameworkId: id,
-            createdAt: Date.now(),
+            createdAt: now,
+            createdBy: adminProfile.userId!,
+          });
+        }
+      }
+    }
+
+    // Update junction table records for document types
+    if (args.documentTypeAssociations !== undefined) {
+      // Delete all existing links
+      const existingDocLinks = await ctx.db
+        .query("documentTypesLegalFrameworks")
+        .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+        .collect();
+
+      for (const link of existingDocLinks) {
+        await ctx.db.delete(link._id);
+      }
+
+      // Create new links
+      if (args.documentTypeAssociations.length > 0) {
+        for (const assoc of args.documentTypeAssociations) {
+          await ctx.db.insert("documentTypesLegalFrameworks", {
+            documentTypeId: assoc.documentTypeId,
+            legalFrameworkId: id,
+            isRequired: assoc.isRequired,
+            createdAt: now,
             createdBy: adminProfile.userId!,
           });
         }
@@ -262,13 +346,23 @@ export const remove = mutation({
     // Require admin role
     await requireAdmin(ctx);
 
-    // Delete all junction table records first
-    const existingLinks = await ctx.db
+    // Delete all process types junction table records
+    const existingProcessTypeLinks = await ctx.db
       .query("processTypesLegalFrameworks")
       .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
       .collect();
 
-    for (const link of existingLinks) {
+    for (const link of existingProcessTypeLinks) {
+      await ctx.db.delete(link._id);
+    }
+
+    // Delete all document types junction table records
+    const existingDocTypeLinks = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
+
+    for (const link of existingDocTypeLinks) {
       await ctx.db.delete(link._id);
     }
 

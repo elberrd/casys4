@@ -27,12 +27,14 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox } from "@/components/ui/combobox"
+import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "next-intl"
 import { legalFrameworkSchema, LegalFrameworkFormData } from "@/lib/validations/legalFrameworks"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { DocumentTypeAssociationSection } from "./document-type-association-section"
 
 interface LegalFrameworkFormDialogProps {
   open: boolean
@@ -78,6 +80,7 @@ export function LegalFrameworkFormDialog({
       description: "",
       processTypeIds: [],
       isActive: true,
+      documentTypeAssociations: [],
     },
   })
 
@@ -105,6 +108,10 @@ export function LegalFrameworkFormDialog({
         description: legalFramework.description,
         processTypeIds: legalFramework.processTypes?.map((pt) => pt._id) || [],
         isActive: legalFramework.isActive,
+        documentTypeAssociations: legalFramework.documentTypeAssociations?.map((a) => ({
+          documentTypeId: a.documentTypeId,
+          isRequired: a.isRequired,
+        })) || [],
       })
     } else if (!legalFrameworkId) {
       form.reset({
@@ -112,18 +119,27 @@ export function LegalFrameworkFormDialog({
         description: "",
         processTypeIds: [],
         isActive: true,
+        documentTypeAssociations: [],
       })
     }
   }, [legalFramework, legalFrameworkId, form])
 
   const onSubmit = async (data: LegalFrameworkFormData) => {
     try {
-      // Clean optional fields and convert processTypeIds to the correct type
+      // Clean optional fields and convert IDs to the correct types
+      const documentTypeAssociations = data.documentTypeAssociations?.map((a) => ({
+        documentTypeId: a.documentTypeId as Id<"documentTypes">,
+        isRequired: a.isRequired,
+      }))
+
       const submitData = {
         ...data,
         description: data.description || undefined,
         processTypeIds: data.processTypeIds && data.processTypeIds.length > 0
           ? data.processTypeIds as Id<"processTypes">[]
+          : undefined,
+        documentTypeAssociations: documentTypeAssociations && documentTypeAssociations.length > 0
+          ? documentTypeAssociations
           : undefined,
       }
 
@@ -154,21 +170,22 @@ export function LegalFrameworkFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {legalFrameworkId ? t('editTitle') : t('createTitle')}
           </DialogTitle>
           <DialogDescription>
             {legalFrameworkId
-              ? "Edit the legal framework information below"
-              : "Fill in the information to create a new legal framework"
+              ? t('editDescription')
+              : t('createDescription')
             }
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-2">
             <FormField
               control={form.control}
               name="name"
@@ -218,7 +235,7 @@ export function LegalFrameworkFormDialog({
                     <Textarea
                       placeholder="Description of the legal framework..."
                       className="resize-none"
-                      rows={4}
+                      rows={3}
                       {...field}
                     />
                   </FormControl>
@@ -226,6 +243,27 @@ export function LegalFrameworkFormDialog({
                 </FormItem>
               )}
             />
+
+            <Separator className="my-4" />
+
+            {/* Document Type Associations Section */}
+            <FormField
+              control={form.control}
+              name="documentTypeAssociations"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <DocumentTypeAssociationSection
+                      value={field.value || []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Separator className="my-4" />
 
             <FormField
               control={form.control}
@@ -249,12 +287,14 @@ export function LegalFrameworkFormDialog({
                 </FormItem>
               )}
             />
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
+                disabled={form.formState.isSubmitting}
               >
                 {tCommon('cancel')}
               </Button>
