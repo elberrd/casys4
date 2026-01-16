@@ -109,6 +109,7 @@ export function DocumentTypesTable({
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.name} />
         ),
+        size: 350,
       },
       {
         accessorKey: "code",
@@ -215,6 +216,9 @@ export function DocumentTypesTable({
     initialState: {
       pagination: {
         pageSize: 50,
+      },
+      columnVisibility: {
+        code: false,
       },
     },
     state: {
