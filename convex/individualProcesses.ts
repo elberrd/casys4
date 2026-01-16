@@ -956,6 +956,7 @@ export const update = mutation({
     if (args.protocolNumber !== undefined)
       updates.protocolNumber = args.protocolNumber;
     if (args.rnmNumber !== undefined) updates.rnmNumber = args.rnmNumber;
+    if (args.rnmProtocol !== undefined) updates.rnmProtocol = args.rnmProtocol;
     if (args.rnmDeadline !== undefined) updates.rnmDeadline = args.rnmDeadline;
     if (args.appointmentDateTime !== undefined)
       updates.appointmentDateTime = args.appointmentDateTime;
@@ -1613,5 +1614,64 @@ export const listRNMAppointments = query({
       const dateB = new Date(b.appointmentDateTime!).getTime();
       return dateA - dateB;
     });
+  },
+});
+
+/**
+ * Query to list individual processes for selector/combobox components
+ * Returns lightweight data for UI selection: id, person name, and reference number
+ * Access control: Admins see all processes, clients see only their company's processes
+ */
+export const listForSelector = query({
+  args: {},
+  handler: async (ctx) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    let processes = await ctx.db.query("individualProcesses").collect();
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      // Filter by collectiveProcess.companyId
+      const filteredByCompany = await Promise.all(
+        processes.map(async (process) => {
+          if (!process.collectiveProcessId) return null;
+          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
+            return process;
+          }
+          return null;
+        })
+      );
+
+      processes = filteredByCompany.filter((p) => p !== null) as typeof processes;
+    }
+
+    // Enrich with person name and collective process reference
+    const enrichedResults = await Promise.all(
+      processes.map(async (process) => {
+        const [person, collectiveProcess] = await Promise.all([
+          ctx.db.get(process.personId),
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
+        ]);
+
+        const label = collectiveProcess?.referenceNumber
+          ? `${person?.fullName || "Unknown"} (${collectiveProcess.referenceNumber})`
+          : person?.fullName || "Unknown";
+
+        return {
+          _id: process._id,
+          label,
+          personName: person?.fullName || "Unknown",
+          referenceNumber: collectiveProcess?.referenceNumber || null,
+        };
+      })
+    );
+
+    // Sort by label (person name)
+    return enrichedResults.sort((a, b) => a.label.localeCompare(b.label));
   },
 });

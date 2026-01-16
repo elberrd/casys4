@@ -468,7 +468,7 @@ export function IndividualProcessFormPage({
         companyApplicantId: data.companyApplicantId || undefined,
         userApplicantId: data.userApplicantId || undefined,
         consulateId: data.consulateId || undefined,
-        caseStatusId: data.caseStatusId,
+        caseStatusId: data.caseStatusId || undefined,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
         processTypeId: data.processTypeId || undefined,
         legalFrameworkId: data.legalFrameworkId || undefined,
