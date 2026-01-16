@@ -223,16 +223,49 @@ export default defineSchema({
     .index("by_active", ["isActive"])
     .index("by_category", ["category"]),
 
+  // Document Categories - Managed lookup table for document type categories
+  documentCategories: defineTable({
+    name: v.string(), // Display name (e.g., "Identidade")
+    code: v.string(), // Unique code (e.g., "IDENTITY")
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  })
+    .index("by_code", ["code"])
+    .index("by_isActive", ["isActive"]),
+
   documentTypes: defineTable({
     name: v.string(),
     code: v.optional(v.string()),
-    category: v.optional(v.string()),
+    category: v.optional(v.string()), // Legacy: string category
+    categoryId: v.optional(v.id("documentCategories")), // New: reference to documentCategories
     description: v.optional(v.string()),
+    allowedFileTypes: v.optional(v.array(v.string())), // [".pdf", ".jpg", ".png", etc.]
+    maxFileSizeMB: v.optional(v.number()), // Maximum file size in MB
     isActive: v.optional(v.boolean()),
   })
     .index("by_code", ["code"])
     .index("by_category", ["category"])
+    .index("by_categoryId", ["categoryId"])
     .index("by_active", ["isActive"]),
+
+  // Junction table for document types and legal frameworks (many-to-many)
+  documentTypesLegalFrameworks: defineTable({
+    documentTypeId: v.id("documentTypes"),
+    legalFrameworkId: v.id("legalFrameworks"),
+    isRequired: v.boolean(), // Whether this document is required for this legal framework
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_documentType", ["documentTypeId"])
+    .index("by_legalFramework", ["legalFrameworkId"])
+    .index("by_documentType_legalFramework", [
+      "documentTypeId",
+      "legalFrameworkId",
+    ]),
 
   // Process management tables
   collectiveProcesses: defineTable({
@@ -422,10 +455,16 @@ export default defineSchema({
     .index("by_sortOrder", ["sortOrder"]),
 
   // Documents delivered by users for individual processes
+  // Supports: loose (no type), typed (with type), and pre-populated (auto-generated from legal framework)
   documentsDelivered: defineTable({
     individualProcessId: v.id("individualProcesses"),
-    documentTypeId: v.id("documentTypes"),
+    documentTypeId: v.optional(v.id("documentTypes")), // Optional for loose documents
     documentRequirementId: v.optional(v.id("documentRequirements")),
+    documentTypeLegalFrameworkId: v.optional(
+      v.id("documentTypesLegalFrameworks")
+    ), // Link to document-legal framework association
+    isRequired: v.optional(v.boolean()), // Whether this document is required (from auto-population)
+    storageId: v.optional(v.id("_storage")), // Reference to Convex file storage
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
     fileName: v.string(),
@@ -448,7 +487,8 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
-    .index("by_latest", ["isLatest"]),
+    .index("by_latest", ["isLatest"])
+    .index("by_isRequired", ["isRequired"]),
 
   // Task management - Automates workflow and deadline tracking
   tasks: defineTable({

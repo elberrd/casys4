@@ -58,7 +58,9 @@ export const list = query({
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
-        const documentType = await ctx.db.get(doc.documentTypeId);
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
         const documentRequirement = doc.documentRequirementId
           ? await ctx.db.get(doc.documentRequirementId)
           : null;
@@ -117,7 +119,9 @@ export const get = query({
     }
 
     // Enrich with related data
-    const documentType = await ctx.db.get(document.documentTypeId);
+    const documentType = document.documentTypeId
+      ? await ctx.db.get(document.documentTypeId)
+      : null;
     const documentRequirement = document.documentRequirementId
       ? await ctx.db.get(document.documentRequirementId)
       : null;
@@ -292,7 +296,9 @@ export const approve = mutation({
 
     // Send notification to document uploader
     try {
-      const documentType = await ctx.db.get(document.documentTypeId);
+      const documentType = document.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
       const documentTypeName = documentType?.name || "Document";
 
       await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
@@ -312,7 +318,7 @@ export const approve = mutation({
       if (adminProfile.userId) {
         const [individualProcess, documentType, person] = await Promise.all([
           ctx.db.get(document.individualProcessId),
-          ctx.db.get(document.documentTypeId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
           document.personId ? ctx.db.get(document.personId) : null,
         ]);
 
@@ -367,7 +373,9 @@ export const reject = mutation({
 
     // Send notification to document uploader
     try {
-      const documentType = await ctx.db.get(document.documentTypeId);
+      const documentType = document.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
       const documentTypeName = documentType?.name || "Document";
 
       await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
@@ -387,7 +395,7 @@ export const reject = mutation({
       if (adminProfile.userId) {
         const [individualProcess, documentType, person] = await Promise.all([
           ctx.db.get(document.individualProcessId),
-          ctx.db.get(document.documentTypeId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
           document.personId ? ctx.db.get(document.personId) : null,
         ]);
 
@@ -500,7 +508,7 @@ export const remove = mutation({
     // Get related data before soft delete
     const [individualProcess, documentType, person] = await Promise.all([
       ctx.db.get(document.individualProcessId),
-      ctx.db.get(document.documentTypeId),
+      document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
       document.personId ? ctx.db.get(document.personId) : null,
     ]);
 
@@ -601,7 +609,9 @@ export const getDocumentsForBulkDownload = query({
 
       // Enrich and add to results
       for (const doc of documents) {
-        const documentType = await ctx.db.get(doc.documentTypeId);
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
         allDocuments.push({
           _id: doc._id,
           fileName: doc.fileName,
@@ -669,7 +679,9 @@ export const bulkApprove = mutation({
 
         // Send notification (non-blocking)
         try {
-          const documentType = await ctx.db.get(document.documentTypeId);
+          const documentType = document.documentTypeId
+            ? await ctx.db.get(document.documentTypeId)
+            : null;
           const documentTypeName = documentType?.name || "Document";
 
           await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
@@ -688,7 +700,7 @@ export const bulkApprove = mutation({
         try {
           if (adminProfile.userId) {
             const [documentType, person] = await Promise.all([
-              ctx.db.get(document.documentTypeId),
+              document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
               document.personId ? ctx.db.get(document.personId) : null,
             ]);
 
@@ -781,7 +793,9 @@ export const bulkReject = mutation({
 
         // Send notification (non-blocking)
         try {
-          const documentType = await ctx.db.get(document.documentTypeId);
+          const documentType = document.documentTypeId
+            ? await ctx.db.get(document.documentTypeId)
+            : null;
           const documentTypeName = documentType?.name || "Document";
 
           await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
@@ -800,7 +814,7 @@ export const bulkReject = mutation({
         try {
           if (adminProfile.userId) {
             const [documentType, person] = await Promise.all([
-              ctx.db.get(document.documentTypeId),
+              document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
               document.personId ? ctx.db.get(document.personId) : null,
             ]);
 
@@ -888,7 +902,7 @@ export const bulkDelete = mutation({
 
         // Get related data before delete for logging
         const [documentType, person] = await Promise.all([
-          ctx.db.get(document.documentTypeId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
           document.personId ? ctx.db.get(document.personId) : null,
         ]);
 
@@ -943,5 +957,561 @@ export const bulkDelete = mutation({
     }
 
     return results;
+  },
+});
+
+/**
+ * Upload a loose document (without document type)
+ * Creates a document entry that can later be assigned a type
+ */
+export const uploadLoose = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileSize: v.number(),
+    mimeType: v.string(),
+    expiryDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get individual process to check access
+    const individualProcess = await ctx.db.get(args.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to upload documents for this process");
+      }
+    }
+
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before uploading documents");
+    }
+    const uploaderUserId = userProfile.userId;
+
+    // Get file URL from storage
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) {
+      throw new Error("Failed to get file URL from storage");
+    }
+
+    // Create document without type (loose document)
+    const documentId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId: args.individualProcessId,
+      // documentTypeId is undefined - this is a loose document
+      personId: individualProcess.personId,
+      companyId: collectiveProcess?.companyId,
+      storageId: args.storageId,
+      fileName: args.fileName,
+      fileUrl: fileUrl,
+      fileSize: args.fileSize,
+      mimeType: args.mimeType,
+      status: "uploaded",
+      uploadedBy: uploaderUserId,
+      uploadedAt: Date.now(),
+      expiryDate: args.expiryDate,
+      version: 1,
+      isLatest: true,
+    });
+
+    // Log activity
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: uploaderUserId,
+        action: "uploaded_loose",
+        entityType: "document",
+        entityId: documentId,
+        details: {
+          fileName: args.fileName,
+          fileSize: args.fileSize,
+          personName: person?.fullName,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
+          isLooseDocument: true,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return documentId;
+  },
+});
+
+/**
+ * Upload a document with a specific document type
+ * Validates file type and size against document type constraints
+ */
+export const uploadWithType = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    documentTypeId: v.id("documentTypes"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileSize: v.number(),
+    mimeType: v.string(),
+    expiryDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get individual process
+    const individualProcess = await ctx.db.get(args.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to upload documents for this process");
+      }
+    }
+
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before uploading documents");
+    }
+    const uploaderUserId = userProfile.userId;
+
+    // Get document type and validate constraints
+    const documentType = await ctx.db.get(args.documentTypeId);
+    if (!documentType) {
+      throw new Error("Document type not found");
+    }
+
+    if (!documentType.isActive) {
+      throw new Error("Document type is not active");
+    }
+
+    // Validate file type if constraints exist
+    if (documentType.allowedFileTypes && documentType.allowedFileTypes.length > 0) {
+      const fileExtension = args.fileName.substring(args.fileName.lastIndexOf(".")).toLowerCase();
+      const isAllowed = documentType.allowedFileTypes.some(
+        (allowed) => allowed.toLowerCase() === fileExtension
+      );
+      if (!isAllowed) {
+        throw new Error(
+          `File type not allowed. Allowed types: ${documentType.allowedFileTypes.join(", ")}`
+        );
+      }
+    }
+
+    // Validate file size if constraint exists
+    if (documentType.maxFileSizeMB) {
+      const fileSizeMB = args.fileSize / (1024 * 1024);
+      if (fileSizeMB > documentType.maxFileSizeMB) {
+        throw new Error(
+          `File size exceeds maximum allowed (${documentType.maxFileSizeMB}MB)`
+        );
+      }
+    }
+
+    // Get file URL from storage
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) {
+      throw new Error("Failed to get file URL from storage");
+    }
+
+    // Check for existing document of same type
+    let existingDocuments = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", args.individualProcessId))
+      .collect();
+
+    existingDocuments = existingDocuments.filter(
+      (doc) =>
+        doc.documentTypeId === args.documentTypeId &&
+        doc.isLatest
+    );
+
+    let version = 1;
+
+    // If replacing, mark old version as not latest
+    if (existingDocuments.length > 0) {
+      const existingDoc = existingDocuments[0];
+      version = existingDoc.version + 1;
+
+      await ctx.db.patch(existingDoc._id, {
+        isLatest: false,
+      });
+    }
+
+    // Create document with type
+    const documentId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId: args.individualProcessId,
+      documentTypeId: args.documentTypeId,
+      personId: individualProcess.personId,
+      companyId: collectiveProcess?.companyId,
+      storageId: args.storageId,
+      fileName: args.fileName,
+      fileUrl: fileUrl,
+      fileSize: args.fileSize,
+      mimeType: args.mimeType,
+      status: "uploaded",
+      uploadedBy: uploaderUserId,
+      uploadedAt: Date.now(),
+      expiryDate: args.expiryDate,
+      version: version,
+      isLatest: true,
+    });
+
+    // Log activity
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: uploaderUserId,
+        action: "uploaded_with_type",
+        entityType: "document",
+        entityId: documentId,
+        details: {
+          fileName: args.fileName,
+          fileSize: args.fileSize,
+          documentType: documentType.name,
+          personName: person?.fullName,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
+          version,
+          isReplacement: version > 1,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return documentId;
+  },
+});
+
+/**
+ * Assign a document type to a loose document
+ * Converts an untyped document to a typed one
+ */
+export const assignType = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    documentTypeId: v.id("documentTypes"),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Check if it's a loose document
+    if (document.documentTypeId) {
+      throw new Error("Document already has a type assigned");
+    }
+
+    // Get individual process for access check
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to modify this document");
+      }
+    }
+
+    // Get document type
+    const documentType = await ctx.db.get(args.documentTypeId);
+    if (!documentType) {
+      throw new Error("Document type not found");
+    }
+
+    if (!documentType.isActive) {
+      throw new Error("Document type is not active");
+    }
+
+    // Validate file type if constraints exist
+    if (documentType.allowedFileTypes && documentType.allowedFileTypes.length > 0) {
+      const fileExtension = document.fileName.substring(document.fileName.lastIndexOf(".")).toLowerCase();
+      const isAllowed = documentType.allowedFileTypes.some(
+        (allowed) => allowed.toLowerCase() === fileExtension
+      );
+      if (!isAllowed) {
+        throw new Error(
+          `File type not allowed for this document type. Allowed types: ${documentType.allowedFileTypes.join(", ")}`
+        );
+      }
+    }
+
+    // Validate file size if constraint exists
+    if (documentType.maxFileSizeMB) {
+      const fileSizeMB = document.fileSize / (1024 * 1024);
+      if (fileSizeMB > documentType.maxFileSizeMB) {
+        throw new Error(
+          `File size exceeds maximum allowed for this document type (${documentType.maxFileSizeMB}MB)`
+        );
+      }
+    }
+
+    // Update document with type
+    await ctx.db.patch(args.documentId, {
+      documentTypeId: args.documentTypeId,
+    });
+
+    // Log activity
+    try {
+      if (userProfile.userId) {
+        const person = await ctx.db.get(individualProcess.personId);
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "assigned_type",
+          entityType: "document",
+          entityId: args.documentId,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType.name,
+            personName: person?.fullName,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return args.documentId;
+  },
+});
+
+/**
+ * Upload file for a pre-populated pending document
+ * Used when documents are auto-generated and waiting for upload
+ */
+export const uploadForPending = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileSize: v.number(),
+    mimeType: v.string(),
+    expiryDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Must be a pending document (not_started status)
+    if (document.status !== "not_started") {
+      throw new Error("Document already has a file uploaded");
+    }
+
+    // Get individual process for access check
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to upload documents for this process");
+      }
+    }
+
+    if (!userProfile.userId) {
+      throw new Error("User profile must be activated before uploading documents");
+    }
+    const uploaderUserId = userProfile.userId;
+
+    // Validate against document type if it exists
+    if (document.documentTypeId) {
+      const documentType = await ctx.db.get(document.documentTypeId);
+      if (documentType) {
+        // Validate file type if constraints exist
+        if (documentType.allowedFileTypes && documentType.allowedFileTypes.length > 0) {
+          const fileExtension = args.fileName.substring(args.fileName.lastIndexOf(".")).toLowerCase();
+          const isAllowed = documentType.allowedFileTypes.some(
+            (allowed) => allowed.toLowerCase() === fileExtension
+          );
+          if (!isAllowed) {
+            throw new Error(
+              `File type not allowed. Allowed types: ${documentType.allowedFileTypes.join(", ")}`
+            );
+          }
+        }
+
+        // Validate file size if constraint exists
+        if (documentType.maxFileSizeMB) {
+          const fileSizeMB = args.fileSize / (1024 * 1024);
+          if (fileSizeMB > documentType.maxFileSizeMB) {
+            throw new Error(
+              `File size exceeds maximum allowed (${documentType.maxFileSizeMB}MB)`
+            );
+          }
+        }
+      }
+    }
+
+    // Get file URL from storage
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) {
+      throw new Error("Failed to get file URL from storage");
+    }
+
+    // Update the pending document with file information
+    await ctx.db.patch(args.documentId, {
+      storageId: args.storageId,
+      fileName: args.fileName,
+      fileUrl: fileUrl,
+      fileSize: args.fileSize,
+      mimeType: args.mimeType,
+      status: "uploaded",
+      uploadedBy: uploaderUserId,
+      uploadedAt: Date.now(),
+      expiryDate: args.expiryDate,
+    });
+
+    // Log activity
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+      const documentType = document.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: uploaderUserId,
+        action: "uploaded_pending",
+        entityType: "document",
+        entityId: args.documentId,
+        details: {
+          fileName: args.fileName,
+          fileSize: args.fileSize,
+          documentType: documentType?.name,
+          personName: person?.fullName,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
+          isRequired: document.isRequired,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return args.documentId;
+  },
+});
+
+/**
+ * List documents grouped by category
+ * Returns documents separated into: required, optional, and loose
+ */
+export const listGroupedByCategory = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { individualProcessId }) => {
+    // Get individual process to check access
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to view these documents");
+      }
+    }
+
+    // Get all latest documents for this process
+    let documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+      .collect();
+
+    documents = documents.filter((doc) => doc.isLatest);
+
+    // Enrich with related data
+    const enrichedDocuments = await Promise.all(
+      documents.map(async (doc) => {
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
+        const documentRequirement = doc.documentRequirementId
+          ? await ctx.db.get(doc.documentRequirementId)
+          : null;
+        const uploadedByUser = doc.uploadedBy
+          ? await ctx.db.get(doc.uploadedBy)
+          : null;
+        const reviewedByUser = doc.reviewedBy
+          ? await ctx.db.get(doc.reviewedBy)
+          : null;
+
+        return {
+          ...doc,
+          documentType,
+          documentRequirement,
+          uploadedByUser,
+          reviewedByUser,
+        };
+      }),
+    );
+
+    // Group by category
+    const required = enrichedDocuments.filter(
+      (doc) => doc.isRequired === true && doc.documentTypeId
+    );
+    const optional = enrichedDocuments.filter(
+      (doc) => doc.isRequired === false && doc.documentTypeId
+    );
+    const loose = enrichedDocuments.filter(
+      (doc) => !doc.documentTypeId
+    );
+
+    return {
+      required,
+      optional,
+      loose,
+      summary: {
+        totalRequired: required.length,
+        totalOptional: optional.length,
+        totalLoose: loose.length,
+        requiredUploaded: required.filter((d) => d.status !== "not_started").length,
+        requiredApproved: required.filter((d) => d.status === "approved").length,
+        optionalUploaded: optional.filter((d) => d.status !== "not_started").length,
+        optionalApproved: optional.filter((d) => d.status === "approved").length,
+      },
+    };
   },
 });
