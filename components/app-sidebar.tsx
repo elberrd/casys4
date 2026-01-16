@@ -6,6 +6,7 @@ import {
   Calendar,
   FileText,
   FolderKanban,
+  FolderTree,
   GalleryVerticalEnd,
   Globe,
   LayoutDashboard,
@@ -109,6 +110,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           title: t('documentTypes'),
           url: "/document-types",
+        },
+        {
+          title: t('documentCategories'),
+          url: "/document-categories",
+          icon: FolderTree,
         },
         {
           title: t('documentTemplates'),

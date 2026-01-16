@@ -37,19 +37,56 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Plus } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { generateCategoryCodeFromName } from "@/lib/validations/documentCategories";
 import {
   documentTypeSchema,
-  documentCategories,
+  commonFileTypes,
+  DEFAULT_MAX_FILE_SIZE_MB,
   type DocumentTypeFormData,
 } from "@/lib/validations/documentTypes";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { LegalFrameworkAssociationSection } from "./legal-framework-association-section";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentTypeId?: Id<"documentTypes">;
   onSuccess?: () => void;
+}
+
+/**
+ * Generates a code/slug from a name string.
+ * - Converts to uppercase
+ * - Normalizes accented characters (é -> E, ç -> C, etc.)
+ * - Replaces spaces with underscores
+ * - Removes special characters (keeps only A-Z, 0-9, _)
+ * - Removes consecutive underscores
+ * - Trims underscores from start/end
+ */
+function generateCodeFromName(name: string): string {
+  return name
+    // Normalize unicode characters (NFD decomposes accented chars)
+    .normalize("NFD")
+    // Remove diacritical marks (accents)
+    .replace(/[\u0300-\u036f]/g, "")
+    // Convert to uppercase
+    .toUpperCase()
+    // Replace spaces and hyphens with underscores
+    .replace(/[\s-]+/g, "_")
+    // Remove any character that is not A-Z, 0-9, or underscore
+    .replace(/[^A-Z0-9_]/g, "")
+    // Replace multiple consecutive underscores with single underscore
+    .replace(/_+/g, "_")
+    // Remove leading/trailing underscores
+    .replace(/^_+|_+$/g, "");
 }
 
 export function DocumentTypeFormDialog({
@@ -60,15 +97,57 @@ export function DocumentTypeFormDialog({
 }: DocumentTypeFormDialogProps) {
   const t = useTranslations("DocumentTypes");
   const tCommon = useTranslations("Common");
+  const tCategories = useTranslations("DocumentCategories");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Track if user has manually edited the code field
+  const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
+  // State for inline category creation
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [pendingCategoryCode, setPendingCategoryCode] = useState<string | null>(null);
 
   const documentType = useQuery(
-    api.documentTypes.get,
+    api.documentTypes.getWithLegalFrameworks,
     documentTypeId ? { id: documentTypeId } : "skip"
   );
 
+  // Query active document categories from database
+  const documentCategories = useQuery(api.documentCategories.listActive, {}) ?? [];
+
   const createDocumentType = useMutation(api.documentTypes.create);
   const updateDocumentType = useMutation(api.documentTypes.update);
+  const createCategory = useMutation(api.documentCategories.create);
+
+  // Handle inline category creation
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    try {
+      setIsCreatingCategory(true);
+      const code = generateCategoryCodeFromName(newCategoryName);
+      await createCategory({
+        name: newCategoryName,
+        code,
+        isActive: true,
+      });
+      toast.success(tCategories("createdSuccess"));
+      // Store the code to be selected once the query refreshes
+      setPendingCategoryCode(code);
+      setNewCategoryName("");
+      setCategoryPopoverOpen(false);
+    } catch (error) {
+      console.error("Error creating category:", error);
+      const errorMessage = error instanceof Error ? error.message : "";
+      if (errorMessage.includes("already exists")) {
+        toast.error(tCategories("errorDuplicateCode"));
+      } else {
+        toast.error(tCategories("errorCreate"));
+      }
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
 
   const form = useForm<DocumentTypeFormData>({
     resolver: zodResolver(documentTypeSchema),
@@ -77,7 +156,13 @@ export function DocumentTypeFormDialog({
       code: documentType?.code ?? "",
       category: documentType?.category as any ?? "Other",
       description: documentType?.description ?? "",
+      allowedFileTypes: documentType?.allowedFileTypes ?? [...commonFileTypes],
+      maxFileSizeMB: documentType?.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
       isActive: documentType?.isActive ?? true,
+      legalFrameworkAssociations: documentType?.legalFrameworkAssociations?.map((a) => ({
+        legalFrameworkId: a.legalFrameworkId,
+        isRequired: a.isRequired,
+      })) ?? [],
     },
   });
 
@@ -92,6 +177,7 @@ export function DocumentTypeFormDialog({
     formState: form.formState,
     onConfirmedClose: () => {
       form.reset();
+      setIsCodeManuallyEdited(false);
       onOpenChange(false);
     },
     isSubmitting: isSubmitting,
@@ -105,14 +191,48 @@ export function DocumentTypeFormDialog({
         code: documentType.code,
         category: documentType.category as any,
         description: documentType.description,
+        allowedFileTypes: documentType.allowedFileTypes ?? [...commonFileTypes],
+        maxFileSizeMB: documentType.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
         isActive: documentType.isActive,
+        legalFrameworkAssociations: documentType.legalFrameworkAssociations?.map((a) => ({
+          legalFrameworkId: a.legalFrameworkId,
+          isRequired: a.isRequired,
+        })) ?? [],
       });
+      // When editing, consider the code as manually set (don't auto-generate)
+      setIsCodeManuallyEdited(true);
     }
   }, [documentType, documentTypeId, form]);
+
+  // Reset manual edit flag when dialog opens for creating new document type
+  useEffect(() => {
+    if (open && !documentTypeId) {
+      setIsCodeManuallyEdited(false);
+    }
+  }, [open, documentTypeId]);
+
+  // Auto-select newly created category once it appears in the query results
+  useEffect(() => {
+    if (pendingCategoryCode && documentCategories.length > 0) {
+      const categoryExists = documentCategories.some(
+        (cat) => cat.code === pendingCategoryCode
+      );
+      if (categoryExists) {
+        form.setValue("category", pendingCategoryCode, { shouldValidate: true });
+        setPendingCategoryCode(null);
+      }
+    }
+  }, [pendingCategoryCode, documentCategories, form]);
 
   const onSubmit = async (data: DocumentTypeFormData) => {
     try {
       setIsSubmitting(true);
+
+      // Cast legal framework associations to proper types
+      const associations = data.legalFrameworkAssociations?.map((a) => ({
+        legalFrameworkId: a.legalFrameworkId as Id<"legalFrameworks">,
+        isRequired: a.isRequired,
+      }));
 
       if (documentTypeId) {
         await updateDocumentType({
@@ -121,7 +241,10 @@ export function DocumentTypeFormDialog({
           code: data.code,
           category: data.category,
           description: data.description,
+          allowedFileTypes: data.allowedFileTypes,
+          maxFileSizeMB: data.maxFileSizeMB,
           isActive: data.isActive,
+          legalFrameworkAssociations: associations,
         });
         toast.success(t("updatedSuccess"));
       } else {
@@ -130,12 +253,16 @@ export function DocumentTypeFormDialog({
           code: data.code,
           category: data.category,
           description: data.description,
+          allowedFileTypes: data.allowedFileTypes,
+          maxFileSizeMB: data.maxFileSizeMB,
           isActive: data.isActive,
+          legalFrameworkAssociations: associations,
         });
         toast.success(t("createdSuccess"));
       }
 
       form.reset();
+      setIsCodeManuallyEdited(false);
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -154,8 +281,8 @@ export function DocumentTypeFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {documentTypeId ? t("editTitle") : t("createTitle")}
           </DialogTitle>
@@ -167,15 +294,26 @@ export function DocumentTypeFormDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 space-y-4">
+              <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("name")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        // Auto-generate code from name if not manually edited
+                        if (!isCodeManuallyEdited && !documentTypeId) {
+                          const generatedCode = generateCodeFromName(e.target.value);
+                          form.setValue("code", generatedCode, { shouldValidate: true });
+                        }
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -195,6 +333,8 @@ export function DocumentTypeFormDialog({
                         placeholder="PASSPORT"
                         className="font-mono uppercase"
                         onChange={(e) => {
+                          // Mark as manually edited when user types in the code field
+                          setIsCodeManuallyEdited(true);
                           const value = e.target.value.toUpperCase().replace(/\s+/g, "");
                           field.onChange(value);
                         }}
@@ -212,20 +352,71 @@ export function DocumentTypeFormDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("category")}</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("selectCategory")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {documentCategories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {t(`category${category}` as any)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder={t("selectCategory")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {documentCategories.map((category) => (
+                            <SelectItem key={category._id} value={category.code}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            title={tCategories("createTitle")}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" align="end">
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-sm">{tCategories("createTitle")}</h4>
+                            <Input
+                              placeholder={tCategories("name")}
+                              value={newCategoryName}
+                              onChange={(e) => setNewCategoryName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleCreateCategory();
+                                }
+                              }}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setNewCategoryName("");
+                                  setCategoryPopoverOpen(false);
+                                }}
+                              >
+                                {tCommon("cancel")}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={handleCreateCategory}
+                                disabled={isCreatingCategory || !newCategoryName.trim()}
+                              >
+                                {isCreatingCategory ? tCommon("loading") : tCommon("save")}
+                              </Button>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -246,6 +437,27 @@ export function DocumentTypeFormDialog({
               )}
             />
 
+            <Separator className="my-4" />
+
+            {/* Legal Framework Associations Section */}
+            <FormField
+              control={form.control}
+              name="legalFrameworkAssociations"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <LegalFrameworkAssociationSection
+                      value={field.value || []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Separator className="my-4" />
+
             <FormField
               control={form.control}
               name="isActive"
@@ -265,9 +477,10 @@ export function DocumentTypeFormDialog({
                   </FormControl>
                 </FormItem>
               )}
-            />
+              />
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 pt-4">
               <Button
                 type="button"
                 variant="outline"

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
@@ -69,6 +69,74 @@ export const get = query({
 });
 
 /**
+ * Query to get a document type with all its legal framework associations
+ */
+export const getWithLegalFrameworks = query({
+  args: { id: v.id("documentTypes") },
+  handler: async (ctx, args) => {
+    const documentType = await ctx.db.get(args.id);
+    if (!documentType) {
+      return null;
+    }
+
+    // Get all associations for this document type
+    const associations = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_documentType", (q) => q.eq("documentTypeId", args.id))
+      .collect();
+
+    // Enrich associations with legal framework data
+    const enrichedAssociations = await Promise.all(
+      associations.map(async (assoc) => {
+        const legalFramework = await ctx.db.get(assoc.legalFrameworkId);
+        return {
+          legalFrameworkId: assoc.legalFrameworkId,
+          legalFrameworkName: legalFramework?.name ?? "",
+          isRequired: assoc.isRequired,
+        };
+      })
+    );
+
+    return {
+      ...documentType,
+      legalFrameworkAssociations: enrichedAssociations,
+    };
+  },
+});
+
+/**
+ * Query to list document types associated with a specific legal framework
+ */
+export const listByLegalFramework = query({
+  args: { legalFrameworkId: v.id("legalFrameworks") },
+  handler: async (ctx, args) => {
+    const associations = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) =>
+        q.eq("legalFrameworkId", args.legalFrameworkId)
+      )
+      .collect();
+
+    const documentTypes = await Promise.all(
+      associations.map(async (assoc) => {
+        const documentType = await ctx.db.get(assoc.documentTypeId);
+        if (!documentType || documentType.isActive === false) {
+          return null;
+        }
+        return {
+          ...documentType,
+          isRequired: assoc.isRequired,
+        };
+      })
+    );
+
+    return documentTypes.filter(
+      (dt): dt is NonNullable<typeof dt> => dt !== null
+    );
+  },
+});
+
+/**
  * Mutation to create a new document type (admin only)
  */
 export const create = mutation({
@@ -77,11 +145,24 @@ export const create = mutation({
     code: v.optional(v.string()),
     category: v.optional(v.string()),
     description: v.optional(v.string()),
+    allowedFileTypes: v.optional(v.array(v.string())),
+    maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    legalFrameworkAssociations: v.optional(
+      v.array(
+        v.object({
+          legalFrameworkId: v.id("legalFrameworks"),
+          isRequired: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new Error("User must be activated");
+    }
 
     // Check for duplicate code if provided
     if (args.code) {
@@ -95,13 +176,31 @@ export const create = mutation({
       }
     }
 
-    return await ctx.db.insert("documentTypes", {
+    const documentTypeId = await ctx.db.insert("documentTypes", {
       name: args.name,
       code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
       category: args.category ?? "",
       description: args.description ?? "",
+      allowedFileTypes: args.allowedFileTypes ?? [],
+      maxFileSizeMB: args.maxFileSizeMB ?? 10,
       isActive: args.isActive ?? true,
     });
+
+    // Create legal framework associations if provided
+    if (args.legalFrameworkAssociations && args.legalFrameworkAssociations.length > 0) {
+      const now = Date.now();
+      for (const assoc of args.legalFrameworkAssociations) {
+        await ctx.db.insert("documentTypesLegalFrameworks", {
+          documentTypeId,
+          legalFrameworkId: assoc.legalFrameworkId,
+          isRequired: assoc.isRequired,
+          createdAt: now,
+          createdBy: userProfile.userId,
+        });
+      }
+    }
+
+    return documentTypeId;
   },
 });
 
@@ -115,13 +214,26 @@ export const update = mutation({
     code: v.optional(v.string()),
     category: v.optional(v.string()),
     description: v.optional(v.string()),
+    allowedFileTypes: v.optional(v.array(v.string())),
+    maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    legalFrameworkAssociations: v.optional(
+      v.array(
+        v.object({
+          legalFrameworkId: v.id("legalFrameworks"),
+          isRequired: v.boolean(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new Error("User must be activated");
+    }
 
-    const { id, ...updateData } = args;
+    const { id, legalFrameworkAssociations, ...updateData } = args;
 
     // Check for duplicate code (excluding current record) if provided
     if (args.code) {
@@ -138,12 +250,45 @@ export const update = mutation({
     await ctx.db.patch(id, {
       name: updateData.name,
       ...(updateData.code !== undefined && {
-        code: updateData.code.toUpperCase().replace(/\s+/g, "")
+        code: updateData.code.toUpperCase().replace(/\s+/g, ""),
       }),
       ...(updateData.category !== undefined && { category: updateData.category }),
-      ...(updateData.description !== undefined && { description: updateData.description }),
+      ...(updateData.description !== undefined && {
+        description: updateData.description,
+      }),
+      ...(updateData.allowedFileTypes !== undefined && {
+        allowedFileTypes: updateData.allowedFileTypes,
+      }),
+      ...(updateData.maxFileSizeMB !== undefined && {
+        maxFileSizeMB: updateData.maxFileSizeMB,
+      }),
       ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
     });
+
+    // Update legal framework associations if provided
+    if (legalFrameworkAssociations !== undefined) {
+      // Delete existing associations
+      const existingAssociations = await ctx.db
+        .query("documentTypesLegalFrameworks")
+        .withIndex("by_documentType", (q) => q.eq("documentTypeId", id))
+        .collect();
+
+      for (const assoc of existingAssociations) {
+        await ctx.db.delete(assoc._id);
+      }
+
+      // Create new associations
+      const now = Date.now();
+      for (const assoc of legalFrameworkAssociations) {
+        await ctx.db.insert("documentTypesLegalFrameworks", {
+          documentTypeId: id,
+          legalFrameworkId: assoc.legalFrameworkId,
+          isRequired: assoc.isRequired,
+          createdAt: now,
+          createdBy: userProfile.userId,
+        });
+      }
+    }
   },
 });
 

@@ -17,6 +17,12 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Upload,
   CheckCircle2,
   XCircle,
@@ -24,13 +30,20 @@ import {
   FileText,
   AlertCircle,
   Eye,
-  History
+  History,
+  FileQuestion,
+  FileType,
+  Plus,
+  ChevronDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DocumentUploadDialog } from "./document-upload-dialog"
 import { DocumentReviewDialog } from "./document-review-dialog"
 import { DocumentHistoryDialog } from "./document-history-dialog"
 import { BulkDocumentActionsMenu } from "./bulk-document-actions-menu"
+import { LooseDocumentUploadDialog } from "./loose-document-upload-dialog"
+import { TypedDocumentUploadDialog } from "./typed-document-upload-dialog"
+import { AssignDocumentTypeDialog } from "./assign-document-type-dialog"
 
 interface DocumentChecklistCardProps {
   individualProcessId: Id<"individualProcesses">
@@ -45,6 +58,17 @@ type DialogState = {
     documentTypeId: Id<"documentTypes"> | null
     documentRequirementId: Id<"documentRequirements"> | null
   }
+  looseUpload: { open: boolean }
+  typedUpload: { open: boolean }
+  assignType: {
+    open: boolean
+    document: {
+      id: Id<"documentsDelivered">
+      fileName: string
+      fileSize: number
+      mimeType: string
+    } | null
+  }
 }
 
 export function DocumentChecklistCard({
@@ -54,6 +78,12 @@ export function DocumentChecklistCard({
   const t = useTranslations("DocumentChecklist")
   const tCommon = useTranslations("Common")
 
+  // Use the new grouped query
+  const groupedDocuments = useQuery(api.documentsDelivered.listGroupedByCategory, {
+    individualProcessId,
+  })
+
+  // Also get the regular list for bulk operations (fallback if grouped not available)
   const documents = useQuery(api.documentsDelivered.list, {
     individualProcessId,
   })
@@ -62,6 +92,9 @@ export function DocumentChecklistCard({
     upload: { open: false, document: null },
     review: { open: false, documentId: null },
     history: { open: false, documentTypeId: null, documentRequirementId: null },
+    looseUpload: { open: false },
+    typedUpload: { open: false },
+    assignType: { open: false, document: null },
   })
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
@@ -75,9 +108,10 @@ export function DocumentChecklistCard({
   }
 
   const openHistoryDialog = (
-    documentTypeId: Id<"documentTypes">,
+    documentTypeId: Id<"documentTypes"> | undefined,
     documentRequirementId?: Id<"documentRequirements">
   ) => {
+    if (!documentTypeId) return
     setDialogs(prev => ({
       ...prev,
       history: {
@@ -88,11 +122,37 @@ export function DocumentChecklistCard({
     }))
   }
 
+  const openLooseUploadDialog = () => {
+    setDialogs(prev => ({ ...prev, looseUpload: { open: true } }))
+  }
+
+  const openTypedUploadDialog = () => {
+    setDialogs(prev => ({ ...prev, typedUpload: { open: true } }))
+  }
+
+  const openAssignTypeDialog = (doc: any) => {
+    setDialogs(prev => ({
+      ...prev,
+      assignType: {
+        open: true,
+        document: {
+          id: doc._id,
+          fileName: doc.fileName || "",
+          fileSize: doc.fileSize || 0,
+          mimeType: doc.mimeType || "",
+        },
+      },
+    }))
+  }
+
   const closeAllDialogs = () => {
     setDialogs({
       upload: { open: false, document: null },
       review: { open: false, documentId: null },
       history: { open: false, documentTypeId: null, documentRequirementId: null },
+      looseUpload: { open: false },
+      typedUpload: { open: false },
+      assignType: { open: false, document: null },
     })
   }
 
@@ -123,7 +183,7 @@ export function DocumentChecklistCard({
     setSelectedDocumentIds(new Set())
   }
 
-  if (documents === undefined) {
+  if (groupedDocuments === undefined || documents === undefined) {
     return (
       <Card>
         <CardHeader>
@@ -134,15 +194,12 @@ export function DocumentChecklistCard({
     )
   }
 
-  // Group documents by required vs optional
-  const requiredDocs = documents.filter(doc => doc.documentRequirement?.isRequired)
-  const optionalDocs = documents.filter(doc => !doc.documentRequirement?.isRequired)
+  const { required, optional, loose, summary } = groupedDocuments
 
-  // Calculate progress
-  const totalRequired = requiredDocs.length
-  const completedRequired = requiredDocs.filter(
-    doc => doc.status === "approved"
-  ).length
+  // Derived summary values for UI
+  const requiredCompleted = summary.requiredApproved
+  const requiredTotal = summary.totalRequired
+  const total = summary.totalRequired + summary.totalOptional + summary.totalLoose
 
   const getStatusBadge = (status: string, isCritical?: boolean) => {
     switch (status) {
@@ -182,6 +239,118 @@ export function DocumentChecklistCard({
   const selectableDocs = documents?.filter(doc => doc.status !== "not_started") || []
   const allSelectableSelected = selectableDocs.length > 0 && selectedDocumentIds.size === selectableDocs.length
 
+  // Render a single document row
+  const renderDocumentRow = (doc: any, showCritical = false, isLoose = false) => (
+    <div
+      key={doc._id}
+      className={cn(
+        "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors",
+        showCritical && doc.isRequired && "border-primary/50",
+        selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
+      )}
+    >
+      <div className="flex items-center gap-3 flex-1">
+        {doc.status !== "not_started" && (
+          <Checkbox
+            checked={selectedDocumentIds.has(doc._id)}
+            onCheckedChange={() => toggleDocumentSelection(doc._id)}
+            aria-label={`Select ${doc.documentType?.name || doc.fileName}`}
+          />
+        )}
+        {isLoose ? (
+          <FileQuestion className="h-5 w-5 text-muted-foreground" />
+        ) : (
+          getStatusIcon(doc.status)
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium truncate">
+              {doc.documentType?.name || doc.fileName || t("looseDocument")}
+            </p>
+            {showCritical && doc.isRequired && (
+              <Badge variant="default" className="text-xs">
+                {t("required")}
+              </Badge>
+            )}
+            {isLoose && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <FileQuestion className="h-3 w-3" />
+                {t("looseDocument")}
+              </Badge>
+            )}
+          </div>
+          {doc.documentType?.description && !isLoose && (
+            <p className="text-xs text-muted-foreground truncate">
+              {doc.documentType.description}
+            </p>
+          )}
+          {doc.fileName && (
+            <p className="text-xs text-muted-foreground truncate mt-1">
+              {doc.fileName}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 ml-3">
+        {getStatusBadge(doc.status)}
+
+        {doc.status === "not_started" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openUploadDialog(doc)}
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            {t("upload")}
+          </Button>
+        ) : (
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openReviewDialog(doc._id)}
+              title={t("viewDetails")}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {doc.documentTypeId && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openHistoryDialog(doc.documentTypeId, doc.documentRequirementId)}
+                title={t("viewHistory")}
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            )}
+            {isLoose && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openAssignTypeDialog(doc)}
+                title={t("assignType")}
+              >
+                <FileType className="h-4 w-4 mr-1" />
+                {t("assignType")}
+              </Button>
+            )}
+            {doc.status === "rejected" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openUploadDialog(doc)}
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                {t("reupload")}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <Card>
       <CardHeader>
@@ -197,233 +366,141 @@ export function DocumentChecklistCard({
               )}
               <span>{t("title")}</span>
               <Badge variant="outline">
-                {completedRequired} / {totalRequired} {t("completed")}
+                {requiredCompleted} / {requiredTotal} {t("completed")}
               </Badge>
             </CardTitle>
             <CardDescription className="mt-2">{t("description")}</CardDescription>
           </div>
-          {selectedDocuments.length > 0 && (
-            <BulkDocumentActionsMenu
-              selectedDocuments={selectedDocuments.map(doc => ({
-                _id: doc._id,
-                fileName: doc.fileName,
-                fileUrl: doc.fileUrl,
-                status: doc.status,
-                documentType: doc.documentType ? { name: doc.documentType.name } : undefined,
-              }))}
-              onSuccess={handleBulkActionSuccess}
-              userRole={userRole}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {selectedDocuments.length > 0 && (
+              <BulkDocumentActionsMenu
+                selectedDocuments={selectedDocuments.map(doc => ({
+                  _id: doc._id,
+                  fileName: doc.fileName,
+                  fileUrl: doc.fileUrl,
+                  status: doc.status,
+                  documentType: doc.documentType ? { name: doc.documentType.name } : undefined,
+                }))}
+                onSuccess={handleBulkActionSuccess}
+                userRole={userRole}
+              />
+            )}
+            {/* Upload dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t("addDocument")}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openLooseUploadDialog}>
+                  <FileQuestion className="h-4 w-4 mr-2" />
+                  {t("uploadLoose")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openTypedUploadDialog}>
+                  <FileType className="h-4 w-4 mr-2" />
+                  {t("uploadWithType")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
         {/* Progress bar */}
-        {totalRequired > 0 && (
+        {requiredTotal > 0 && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t("progress")}</span>
               <span className="font-medium">
-                {Math.round((completedRequired / totalRequired) * 100)}%
+                {Math.round((requiredCompleted / requiredTotal) * 100)}%
               </span>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${(completedRequired / totalRequired) * 100}%` }}
+                style={{ width: `${(requiredCompleted / requiredTotal) * 100}%` }}
               />
             </div>
           </div>
         )}
 
         {/* Required Documents */}
-        {requiredDocs.length > 0 && (
+        {required.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               {t("requiredDocuments")}
+              <Badge variant="secondary" className="ml-auto">
+                {required.filter(d => d.status === "approved").length} / {required.length}
+              </Badge>
             </h3>
             <div className="space-y-2">
-              {requiredDocs.map((doc) => (
-                <div
-                  key={doc._id}
-                  className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors",
-                    doc.documentRequirement?.isCritical && "border-destructive/50",
-                    selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
-                  )}
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    {doc.status !== "not_started" && (
-                      <Checkbox
-                        checked={selectedDocumentIds.has(doc._id)}
-                        onCheckedChange={() => toggleDocumentSelection(doc._id)}
-                        aria-label={`Select ${doc.documentType?.name}`}
-                      />
-                    )}
-                    {getStatusIcon(doc.status)}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">
-                          {doc.documentType?.name}
-                        </p>
-                        {doc.documentRequirement?.isCritical && (
-                          <Badge variant="destructive" className="text-xs">
-                            {t("critical")}
-                          </Badge>
-                        )}
-                      </div>
-                      {doc.documentRequirement?.description && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {doc.documentRequirement.description}
-                        </p>
-                      )}
-                      {doc.fileName && (
-                        <p className="text-xs text-muted-foreground truncate mt-1">
-                          {doc.fileName}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 ml-3">
-                    {getStatusBadge(doc.status, doc.documentRequirement?.isCritical)}
-
-                    {doc.status === "not_started" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openUploadDialog(doc)}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        {t("upload")}
-                      </Button>
-                    ) : (
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openReviewDialog(doc._id)}
-                          title={t("viewDetails")}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openHistoryDialog(doc.documentTypeId, doc.documentRequirementId)}
-                          title={t("viewHistory")}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                        {doc.status === "rejected" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openUploadDialog(doc)}
-                          >
-                            <Upload className="h-4 w-4 mr-1" />
-                            {t("reupload")}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {required.map((doc) => renderDocumentRow(doc, true))}
             </div>
           </div>
         )}
 
         {/* Optional Documents */}
-        {optionalDocs.length > 0 && (
+        {optional.length > 0 && (
           <>
             <Separator />
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground">
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4" />
                 {t("optionalDocuments")}
+                <Badge variant="outline" className="ml-auto">
+                  {optional.filter(d => d.status === "approved").length} / {optional.length}
+                </Badge>
               </h3>
               <div className="space-y-2">
-                {optionalDocs.map((doc) => (
-                  <div
-                    key={doc._id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors",
-                      selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
-                    )}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      {doc.status !== "not_started" && (
-                        <Checkbox
-                          checked={selectedDocumentIds.has(doc._id)}
-                          onCheckedChange={() => toggleDocumentSelection(doc._id)}
-                          aria-label={`Select ${doc.documentType?.name}`}
-                        />
-                      )}
-                      {getStatusIcon(doc.status)}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {doc.documentType?.name}
-                        </p>
-                        {doc.documentRequirement?.description && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {doc.documentRequirement.description}
-                          </p>
-                        )}
-                        {doc.fileName && (
-                          <p className="text-xs text-muted-foreground truncate mt-1">
-                            {doc.fileName}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                {optional.map((doc) => renderDocumentRow(doc))}
+              </div>
+            </div>
+          </>
+        )}
 
-                    <div className="flex items-center gap-2 ml-3">
-                      {getStatusBadge(doc.status)}
-
-                      {doc.status === "not_started" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openUploadDialog(doc)}
-                        >
-                          <Upload className="h-4 w-4 mr-1" />
-                          {t("upload")}
-                        </Button>
-                      ) : (
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openReviewDialog(doc._id)}
-                            title={t("viewDetails")}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openHistoryDialog(doc.documentTypeId, doc.documentRequirementId)}
-                            title={t("viewHistory")}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+        {/* Loose Documents */}
+        {loose.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <FileQuestion className="h-4 w-4" />
+                {t("looseDocuments")}
+                <Badge variant="outline" className="ml-auto">
+                  {loose.length}
+                </Badge>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {t("looseDocumentsDescription")}
+              </p>
+              <div className="space-y-2">
+                {loose.map((doc) => renderDocumentRow(doc, false, true))}
               </div>
             </div>
           </>
         )}
 
         {/* Empty state */}
-        {documents.length === 0 && (
+        {total === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="text-sm">{t("noDocuments")}</p>
+            <p className="text-xs mt-2">{t("noDocumentsHint")}</p>
+            <div className="flex justify-center gap-2 mt-4">
+              <Button variant="outline" size="sm" onClick={openLooseUploadDialog}>
+                <FileQuestion className="h-4 w-4 mr-1" />
+                {t("uploadLoose")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={openTypedUploadDialog}>
+                <FileType className="h-4 w-4 mr-1" />
+                {t("uploadWithType")}
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
@@ -440,9 +517,9 @@ export function DocumentChecklistCard({
           documentRequirementId={dialogs.upload.document.documentRequirementId}
           documentInfo={{
             name: dialogs.upload.document.documentType?.name || "",
-            description: dialogs.upload.document.documentRequirement?.description,
-            maxSizeMB: dialogs.upload.document.documentRequirement?.maxSizeMB,
-            allowedFormats: dialogs.upload.document.documentRequirement?.allowedFormats,
+            description: dialogs.upload.document.documentType?.description,
+            maxSizeMB: dialogs.upload.document.documentType?.maxFileSizeMB,
+            allowedFormats: dialogs.upload.document.documentType?.allowedFileTypes,
           }}
           onSuccess={closeAllDialogs}
         />
@@ -468,6 +545,35 @@ export function DocumentChecklistCard({
           individualProcessId={individualProcessId}
           documentTypeId={dialogs.history.documentTypeId}
           documentRequirementId={dialogs.history.documentRequirementId || undefined}
+        />
+      )}
+
+      <LooseDocumentUploadDialog
+        open={dialogs.looseUpload.open}
+        onOpenChange={(open) => {
+          if (!open) closeAllDialogs()
+        }}
+        individualProcessId={individualProcessId}
+        onSuccess={closeAllDialogs}
+      />
+
+      <TypedDocumentUploadDialog
+        open={dialogs.typedUpload.open}
+        onOpenChange={(open) => {
+          if (!open) closeAllDialogs()
+        }}
+        individualProcessId={individualProcessId}
+        onSuccess={closeAllDialogs}
+      />
+
+      {dialogs.assignType.open && dialogs.assignType.document && (
+        <AssignDocumentTypeDialog
+          open={dialogs.assignType.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          document={dialogs.assignType.document}
+          onSuccess={closeAllDialogs}
         />
       )}
     </Card>

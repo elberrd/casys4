@@ -386,7 +386,7 @@ export const exportDocuments = query({
         const [individualProcess, documentType, person, company, uploadedByUser, reviewedByUser] =
           await Promise.all([
             ctx.db.get(doc.individualProcessId),
-            ctx.db.get(doc.documentTypeId),
+            doc.documentTypeId ? ctx.db.get(doc.documentTypeId) : null,
             doc.personId ? ctx.db.get(doc.personId) : null,
             doc.companyId ? ctx.db.get(doc.companyId) : null,
             ctx.db.get(doc.uploadedBy),

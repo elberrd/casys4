@@ -49,16 +49,24 @@ interface DocumentTypesTableProps {
   onCreateNew: () => void
 }
 
+// Default color for categories - legacy categories have specific colors,
+// new categories get a default color
 const getCategoryColor = (category: string) => {
   const colors: Record<string, string> = {
     Identity: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    IDENTITY: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
     Work: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    WORK: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     Education: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    EDUCATION: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
     Financial: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    FINANCIAL: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
     Legal: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    LEGAL: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     Other: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
+    OTHER: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
   }
-  return colors[category] || colors.Other
+  return colors[category] || "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
 }
 
 export function DocumentTypesTable({
@@ -121,7 +129,7 @@ export function DocumentTypesTable({
           if (!category) return <span className="text-muted-foreground">-</span>
           return (
             <Badge className={getCategoryColor(category)} variant="outline">
-              {t(`category${category}` as any)}
+              {category}
             </Badge>
           )
         },

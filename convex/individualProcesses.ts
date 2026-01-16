@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
-import { generateDocumentChecklist } from "./lib/documentChecklist";
+import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework } from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
@@ -635,12 +635,20 @@ export const create = mutation({
       console.error("Failed to log initial status to history:", error);
     }
 
-    // Auto-generate document checklist
+    // Auto-generate document checklist (template-based, for backward compatibility)
     try {
       await generateDocumentChecklist(ctx, processId);
     } catch (error) {
       // Log error but don't fail process creation
       console.error("Failed to generate document checklist:", error);
+    }
+
+    // Auto-generate document checklist based on legal framework associations (new approach)
+    try {
+      await generateDocumentChecklistByLegalFramework(ctx, processId);
+    } catch (error) {
+      // Log error but don't fail process creation
+      console.error("Failed to generate document checklist by legal framework:", error);
     }
 
     // Log activity (non-blocking)
@@ -768,11 +776,18 @@ export const createFromExisting = mutation({
       console.error("Failed to log initial status to history:", error);
     }
 
-    // Auto-generate document checklist for new process
+    // Auto-generate document checklist for new process (template-based)
     try {
       await generateDocumentChecklist(ctx, newProcessId);
     } catch (error) {
       console.error("Failed to generate document checklist:", error);
+    }
+
+    // Auto-generate document checklist based on legal framework associations
+    try {
+      await generateDocumentChecklistByLegalFramework(ctx, newProcessId);
+    } catch (error) {
+      console.error("Failed to generate document checklist by legal framework:", error);
     }
 
     // Update source process to mark it as "Anterior"
@@ -1236,13 +1251,16 @@ export const regenerateDocumentChecklist = mutation({
       }
     }
 
-    // Regenerate checklist from current template
-    const createdDocumentIds = await generateDocumentChecklist(ctx, id);
+    // Regenerate checklist from current template (backward compatibility)
+    const templateCreatedIds = await generateDocumentChecklist(ctx, id);
+
+    // Regenerate checklist from legal framework associations (new approach)
+    const legalFrameworkCreatedIds = await generateDocumentChecklistByLegalFramework(ctx, id);
 
     return {
       deletedCount: existingDocuments.filter((d) => d.status === "not_started")
         .length,
-      createdCount: createdDocumentIds.length,
+      createdCount: templateCreatedIds.length + legalFrameworkCreatedIds.length,
     };
   },
 });

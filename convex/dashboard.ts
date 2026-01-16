@@ -93,7 +93,7 @@ export const getDocumentReviewQueue = query({
       documents.map(async (doc) => {
         const [individualProcess, documentType, person] = await Promise.all([
           ctx.db.get(doc.individualProcessId),
-          ctx.db.get(doc.documentTypeId),
+          doc.documentTypeId ? ctx.db.get(doc.documentTypeId) : null,
           doc.personId ? ctx.db.get(doc.personId) : null,
         ]);
 

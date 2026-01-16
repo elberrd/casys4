@@ -1,464 +1,1144 @@
-# TODO: Add rnmProtocol Field to Individual Processes
+# TODO: Sistema de Documentação para Processos Individuais
 
 ## Context
 
-Add a new field called "rnmProtocol" to the individualProcesses table that will be used specifically for the "Registro Nacional Migratório (RNM)" process type. This field should behave identically to existing RNM-related fields (rnmNumber and rnmDeadline) and be visible in the "Histórico de Andamento" when adding or updating status, as well as displayed in the individual process detail view inside the "Informações do Processo" card.
+Implementar um sistema completo de documentação que permite:
+1. Cadastrar tipos de documento associados a amparos legais com obrigatoriedade configurável
+2. Auto-popular documentos pendentes quando um processo individual é criado
+3. Upload de documentos na visualização do processo (avulso, tipado ou pré-populado)
+4. Conversão de documentos avulsos para tipados
 
-## Related PRD Sections
+## Related Documentation
 
-- Section 4.2: Core Tables Detailed - individualProcesses table
-- Section 10.4: Database Schema - Document Management and Process Tracking
-- The system uses a fillableFields pattern where specific case statuses can allow editing of specific fields from the individualProcesses table
+- Plan file: `/Users/elberrd/.claude/plans/dynamic-hatching-breeze.md`
+- Schema: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+- Project structure follows Convex + Next.js pattern with TypeScript
+
+---
 
 ## Task Sequence
 
-### 0. Project Structure Analysis (ALWAYS FIRST)
+### 0. Project Structure Analysis ✓
 
-**Objective**: Understand the project structure and determine correct file/folder locations for the rnmProtocol field implementation
+**Objective**: Understand the project structure and determine correct file/folder locations
 
-#### Sub-tasks:
+#### Analysis Complete:
 
-- [x] 0.1: Review database schema location and structure
-  - Validation: Identified schema is located at `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Output: individualProcesses table is defined at lines 260-318 with existing RNM fields (rnmNumber, rnmDeadline) at lines 283-284
+- **Convex Backend Files**: `/Users/elberrd/Documents/Development/clientes/casys4/convex/`
+  - Schema: `convex/schema.ts`
+  - API functions: `convex/[tableName].ts`
+  - Helper functions: `convex/lib/[helperName].ts`
 
-- [x] 0.2: Review fillable fields configuration system
-  - Validation: Identified fillable fields metadata at `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts`
-  - Output: FILLABLE_FIELDS array contains field metadata with fieldName, labelKey, fieldType, and optional reference data
+- **Validations**: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/`
+  - Zod schemas in camelCase: `documentTypes.ts`, `individualProcesses.ts`, etc.
 
-- [x] 0.3: Review UI components for RNM field display
-  - Validation: Identified government protocol card at `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-  - Output: RNM fields are displayed in a dedicated section starting at line 185 within the "Informações do Processo" card structure
+- **Components**: `/Users/elberrd/Documents/Development/clientes/casys4/components/`
+  - Feature folders with kebab-case: `document-types/`, `individual-processes/`, etc.
+  - Components in kebab-case: `component-name.tsx`
 
-- [x] 0.4: Review i18n localization files
-  - Validation: Located translation files at `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json` and `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Output: IndividualProcesses translation keys follow the pattern "IndividualProcesses.fields.{fieldName}"
+- **Translations**: `/Users/elberrd/Documents/Development/clientes/casys4/messages/`
+  - `pt.json` and `en.json`
 
-- [x] 0.5: Review recent migration patterns for similar fields
-  - Validation: Found migration file at `/Users/elberrd/Documents/Development/clientes/casys4/convex/migrations/fixRnmFillableFields.ts` showing RNM status uses fillableFields: ["rnmNumber", "rnmDeadline"]
-  - Output: Need to update RNM status fillableFields to include "rnmProtocol" once field is added
+---
 
-#### Quality Checklist:
+### 1. Database Schema - Modify documentTypes Table
 
-- [x] PRD structure reviewed and understood
-- [x] File locations determined and aligned with project conventions
-- [x] Naming conventions identified and will be followed
-- [x] No duplicate functionality will be created
-
-### 1. Add rnmProtocol Field to Database Schema
-
-**Objective**: Add the rnmProtocol field to the individualProcesses table in the Convex schema
+**Objective**: Add file validation fields to documentTypes table
 
 #### Sub-tasks:
 
-- [x] 1.1: Add rnmProtocol field to individualProcesses table in schema.ts
+- [x] 1.1: Add `allowedFileTypes` field to documentTypes table
   - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-  - Location: After line 283 (rnmNumber field), add: `rnmProtocol: v.optional(v.string()),`
-  - Validation: Field is added as optional string type, consistent with rnmNumber
-  - Dependencies: None
+  - Add: `allowedFileTypes: v.optional(v.array(v.string()))`
+  - Description: Array of file extensions like `[".pdf", ".jpg", ".png"]`
+  - Validation: Field should be optional and accept string array
 
-- [x] 1.2: Verify schema compiles without errors
-  - Validation: Run `npx convex dev` to ensure schema is valid
-  - Dependencies: 1.1 completed
-
-#### Quality Checklist:
-
-- [ ] TypeScript types defined (no `any`)
-- [ ] Field type matches existing RNM fields (optional string)
-- [ ] Schema compiles without errors
-- [ ] Convex deployment successful
-
-### 2. Add Field Metadata to Fillable Fields Configuration
-
-**Objective**: Register rnmProtocol in the centralized field metadata system
-
-#### Sub-tasks:
-
-- [x] 2.1: Add rnmProtocol to FILLABLE_FIELDS array in individual-process-fields.ts
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts`
-  - Location: After rnmNumber field (after line 101), add:
-    ```typescript
-    {
-      fieldName: "rnmProtocol",
-      labelKey: "IndividualProcesses.fields.rnmProtocol",
-      fieldType: "string",
-    },
-    ```
-  - Validation: Field metadata follows exact pattern of rnmNumber
-  - Dependencies: 1.1 completed
-
-- [x] 2.2: Add rnmProtocol to validation list in individualProcessStatuses.ts
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts`
-  - Location: Line 627, add "rnmProtocol" to validFieldNames array after "rnmNumber"
-  - Validation: Field can be used in fillableFields for case statuses
-  - Dependencies: 2.1 completed
-
-#### Quality Checklist:
-
-- [ ] Field metadata follows established pattern
-- [ ] TypeScript types are properly defined
-- [ ] Field can be selected in status configuration
-- [ ] No breaking changes to existing fields
-
-### 3. Add i18n Translations
-
-**Objective**: Add localized labels for the rnmProtocol field in both Portuguese and English
-
-#### Sub-tasks:
-
-- [x] 3.1: Add Portuguese translation to messages/pt.json
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
-  - Location: In IndividualProcesses.fields section, add after rnmNumber:
-    ```json
-    "rnmProtocol": "Protocolo RNM",
-    ```
-  - Validation: Translation key matches labelKey in field metadata
-  - Dependencies: 2.1 completed
-
-- [x] 3.2: Add English translation to messages/en.json
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
-  - Location: In IndividualProcesses.fields section, add after rnmNumber:
-    ```json
-    "rnmProtocol": "RNM Protocol",
-    ```
-  - Validation: Translation key matches labelKey in field metadata
-  - Dependencies: 2.1 completed
-
-#### Quality Checklist:
-
-- [ ] i18n keys added for user-facing text
-- [ ] Both Portuguese and English translations provided
-- [ ] Translation keys follow established naming convention
-- [ ] Keys match exactly with field metadata labelKey
-
-### 4. Update Government Protocol Card UI
-
-**Objective**: Display rnmProtocol in the "Informações do Processo" card below "Número do Protocolo"
-
-#### Sub-tasks:
-
-- [x] 4.1: Add rnmProtocol to TypeScript interface in government-protocol-card.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-  - Location: Line 26, add after appointmentDateTime: `rnmProtocol?: string;`
-  - Validation: Type matches schema definition (optional string)
-  - Dependencies: 1.1 completed
-
-- [x] 4.2: Update hasGovernmentData check to include rnmProtocol
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-  - Location: Line 58, add `|| individualProcess.rnmProtocol` before the semicolon
-  - Validation: Card shows when rnmProtocol has data
-  - Dependencies: 4.1 completed
-
-- [x] 4.3: Add rnmProtocol display in RNM Information section
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-  - Location: Inside "RNM Information" section (after line 201, before line 209), add:
-    ```tsx
-    {individualProcess.rnmProtocol && (
-      <>
-        <span className="text-muted-foreground">{t('rnmProtocol')}</span>
-        <span className="font-mono">{individualProcess.rnmProtocol}</span>
-      </>
-    )}
-    ```
-  - Validation: Field displays below rnmNumber, above rnmDeadline
-  - Dependencies: 4.2 completed
-
-- [x] 4.4: Update conditional check for RNM section visibility
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-  - Location: Line 185, update condition to include rnmProtocol:
-    ```tsx
-    {(individualProcess.rnmNumber || individualProcess.rnmProtocol || individualProcess.rnmDeadline) && (
-    ```
-  - Validation: RNM section shows when any RNM field has data
-  - Dependencies: 4.3 completed
+- [x] 1.2: Add `maxFileSizeMB` field to documentTypes table
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add: `maxFileSizeMB: v.optional(v.number())`
+  - Description: Maximum file size in MB
+  - Validation: Field should be optional and accept number
 
 #### Quality Checklist:
 
 - [ ] TypeScript types defined (no `any`)
-- [ ] Reusable components utilized
-- [ ] i18n keys used for all user-facing text
-- [ ] Mobile responsiveness maintained (follows existing grid pattern)
+- [ ] Schema fields properly optional
+- [ ] Consistent with existing schema patterns
+- [ ] No breaking changes to existing data
+
+---
+
+### 2. Database Schema - Create documentTypesLegalFrameworks Junction Table
+
+**Objective**: Create many-to-many relationship between documentTypes and legalFrameworks
+
+#### Sub-tasks:
+
+- [x] 2.1: Create documentTypesLegalFrameworks table definition
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add new table after `legalFrameworks` table
+  - Fields:
+    - `documentTypeId: v.id("documentTypes")`
+    - `legalFrameworkId: v.id("legalFrameworks")`
+    - `isRequired: v.boolean()` - indicates if document is required for this legal framework
+    - `createdAt: v.number()`
+    - `createdBy: v.id("users")`
+  - Validation: All fields should be properly typed
+
+- [x] 2.2: Add indexes to documentTypesLegalFrameworks table
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add indexes:
+    - `.index("by_documentType", ["documentTypeId"])`
+    - `.index("by_legalFramework", ["legalFrameworkId"])`
+    - `.index("by_documentType_legalFramework", ["documentTypeId", "legalFrameworkId"])`
+  - Validation: Indexes follow the same pattern as `processTypesLegalFrameworks` table
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Indexes created for optimal queries
+- [ ] Consistent with existing junction table patterns (`processTypesLegalFrameworks`)
+- [ ] Follows same field naming conventions
+
+---
+
+### 3. Database Schema - Modify documentsDelivered Table
+
+**Objective**: Make documentsDelivered support both typed and loose documents
+
+#### Sub-tasks:
+
+- [x] 3.1: Change `documentTypeId` to optional in documentsDelivered
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Change: `documentTypeId: v.id("documentTypes")` to `documentTypeId: v.optional(v.id("documentTypes"))`
+  - Reason: Support loose documents without type
+  - Validation: Field should be optional
+
+- [x] 3.2: Add `documentTypeLegalFrameworkId` field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add: `documentTypeLegalFrameworkId: v.optional(v.id("documentTypesLegalFrameworks"))`
+  - Description: Link to the specific document-legal framework association
+  - Validation: Field should be optional
+
+- [x] 3.3: Add `isRequired` field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add: `isRequired: v.optional(v.boolean())`
+  - Description: Indicates if this document is required (from auto-population)
+  - Validation: Field should be optional
+
+- [x] 3.4: Add `storageId` field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
+  - Add: `storageId: v.optional(v.id("_storage"))`
+  - Description: Reference to Convex file storage (if using storage API)
+  - Validation: Field should be optional
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Optional fields properly marked
+- [ ] No breaking changes to existing documents
+- [ ] Consistent with Convex storage patterns
+
+---
+
+### 4. Backend API - Create documentTypesLegalFrameworks Functions
+
+**Objective**: Create API functions to manage document type and legal framework associations
+
+#### Sub-tasks:
+
+- [x] 4.1: Create new file for junction table API
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypesLegalFrameworks.ts`
+  - Create file with imports: `mutation`, `query`, `v` from Convex
+  - Add auth helpers import
+  - Validation: File created in correct location
+
+- [x] 4.2: Implement `updateAssociations` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypesLegalFrameworks.ts`
+  - Function: Update associations for a document type
+  - Parameters:
+    - `documentTypeId: v.id("documentTypes")`
+    - `associations: v.array(v.object({ legalFrameworkId: v.id("legalFrameworks"), isRequired: v.boolean() }))`
+  - Logic:
+    - Delete existing associations for this document type
+    - Create new associations
+    - Set `createdAt` and `createdBy` fields
+  - Validation: Authenticated users only, proper error handling
+
+- [x] 4.3: Implement `toggleAllForDocumentType` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypesLegalFrameworks.ts`
+  - Function: Mark/unmark all legal frameworks for a document type
+  - Parameters:
+    - `documentTypeId: v.id("documentTypes")`
+    - `selectAll: v.boolean()`
+    - `defaultIsRequired: v.optional(v.boolean())`
+  - Logic:
+    - If `selectAll: true`: Create associations for all active legal frameworks
+    - If `selectAll: false`: Delete all associations for this document type
+  - Validation: Authenticated users only
+
+- [x] 4.4: Implement `listByDocumentType` query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypesLegalFrameworks.ts`
+  - Function: List all associations for a document type
+  - Parameters: `documentTypeId: v.id("documentTypes")`
+  - Returns: Array of associations with enriched legal framework data
+  - Validation: Include only active legal frameworks
+
+- [x] 4.5: Implement `listByLegalFramework` query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypesLegalFrameworks.ts`
+  - Function: List all document types for a legal framework
+  - Parameters: `legalFrameworkId: v.id("legalFrameworks")`
+  - Returns: Array of associations with enriched document type data
+  - Validation: Include only active document types
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Authentication checks implemented
+- [ ] Error handling for edge cases
+- [ ] Consistent naming with `processTypesLegalFrameworks.ts` patterns
 - [ ] Clean code principles followed
-- [ ] Field displays in correct location (below protocolNumber, inside RNM section)
 
-### 5. Update Government Protocol Edit Dialog
+---
 
-**Objective**: Allow editing rnmProtocol field in the government protocol edit dialog
+### 5. Backend API - Update documentTypes Functions
+
+**Objective**: Update documentTypes API to support legal framework associations
 
 #### Sub-tasks:
 
-- [x] 5.1: Add rnmProtocol to TypeScript interface in government-protocol-edit-dialog.tsx
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-edit-dialog.tsx`
-  - Location: Add to interface that extends individualProcess props
-  - Validation: Type matches schema definition
-  - Dependencies: 1.1 completed
+- [x] 5.1: Update `create` mutation to handle associations
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypes.ts`
+  - Add parameters: `allowedFileTypes`, `maxFileSizeMB`
+  - Add parameter: `associations: v.optional(v.array(v.object({ legalFrameworkId, isRequired })))`
+  - Logic: After creating document type, create associations if provided
+  - Validation: Transaction-safe operations
 
-- [x] 5.2: Add rnmProtocol to form state initialization
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-edit-dialog.tsx`
-  - Location: In useState or form initialization, include rnmProtocol
-  - Validation: Form correctly loads existing rnmProtocol value
-  - Dependencies: 5.1 completed
+- [x] 5.2: Update `update` mutation to handle associations
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypes.ts`
+  - Add parameters: `allowedFileTypes`, `maxFileSizeMB`
+  - Add parameter: `associations: v.optional(v.array(v.object({ legalFrameworkId, isRequired })))`
+  - Logic: Update document type fields and associations if provided
+  - Validation: Transaction-safe operations
 
-- [x] 5.3: Add rnmProtocol input field to form
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-edit-dialog.tsx`
-  - Location: In RNM section, add Input field between rnmNumber and rnmDeadline
-  - Validation: Input field uses i18n translation, follows existing field pattern
-  - Dependencies: 5.2 completed
+- [x] 5.3: Create `getWithLegalFrameworks` query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypes.ts`
+  - Function: Get document type with all associated legal frameworks
+  - Parameters: `documentTypeId: v.id("documentTypes")`
+  - Returns: Document type with enriched associations array
+  - Validation: Include all fields including new ones
 
-- [x] 5.4: Include rnmProtocol in mutation/update call
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-edit-dialog.tsx`
-  - Location: In form submission handler
-  - Validation: rnmProtocol value is saved to database
-  - Dependencies: 5.3 completed
+- [x] 5.4: Create `listByLegalFramework` query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentTypes.ts`
+  - Function: List document types associated with a legal framework
+  - Parameters: `legalFrameworkId: v.id("legalFrameworks")`
+  - Returns: Array of document types with `isRequired` flag
+  - Validation: Only return active document types
 
 #### Quality Checklist:
 
 - [ ] TypeScript types defined (no `any`)
-- [ ] Form validation implemented (if needed)
-- [ ] i18n keys added for labels
-- [ ] Reusable components utilized (Input, Label)
-- [ ] Clean code principles followed
+- [ ] Zod validation for new parameters
 - [ ] Error handling implemented
-- [ ] Mobile responsiveness maintained
+- [ ] Transaction safety for mutations
+- [ ] Clean code principles followed
 
-### 6. Update RNM Status Fillable Fields
+---
 
-**Objective**: Configure the RNM case status to allow editing rnmProtocol field in status history
+### 6. Backend API - Update documentsDelivered Functions
+
+**Objective**: Create new upload functions supporting loose, typed, and pre-populated documents
 
 #### Sub-tasks:
 
-- [x] 6.1: Create migration script to add rnmProtocol to RNM status fillableFields
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/migrations/addRnmProtocolToFillableFields.ts`
-  - Content:
+- [x] 6.1: Implement `uploadLoose` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentsDelivered.ts`
+  - Function: Upload document without document type
+  - Parameters:
+    - `individualProcessId: v.id("individualProcesses")`
+    - `fileName: v.string()`
+    - `fileUrl: v.string()`
+    - `fileSize: v.number()`
+    - `mimeType: v.string()`
+    - `expiryDate: v.optional(v.string())`
+  - Logic: Create document with `documentTypeId: null`, status: "uploaded"
+  - Validation: Authenticated users only
+
+- [x] 6.2: Implement `uploadWithType` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentsDelivered.ts`
+  - Function: Upload document with document type selection
+  - Parameters: Same as `uploadLoose` + `documentTypeId: v.id("documentTypes")`
+  - Logic:
+    - Validate file type and size against document type rules
+    - Create document with type, status: "uploaded"
+  - Validation: File format and size validation
+
+- [x] 6.3: Implement `assignType` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentsDelivered.ts`
+  - Function: Convert loose document to typed document
+  - Parameters:
+    - `documentId: v.id("documentsDelivered")`
+    - `documentTypeId: v.id("documentTypes")`
+  - Logic:
+    - Verify document has no type assigned
+    - Validate file against document type rules
+    - Update document with type
+  - Validation: File format and size validation, document must be loose
+
+- [x] 6.4: Implement `uploadForPending` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentsDelivered.ts`
+  - Function: Upload file for a pre-populated document
+  - Parameters:
+    - `documentId: v.id("documentsDelivered")`
+    - `fileName: v.string()`
+    - `fileUrl: v.string()`
+    - `fileSize: v.number()`
+    - `mimeType: v.string()`
+    - `expiryDate: v.optional(v.string())`
+  - Logic:
+    - Verify document exists and is "not_started" or "pending_upload"
+    - Update document with file info, change status to "uploaded"
+  - Validation: Document must be pre-populated
+
+- [x] 6.5: Update `listByIndividualProcess` query (implemented as `listGroupedByCategory`)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/documentsDelivered.ts`
+  - Function: List documents grouped by category
+  - Returns:
+    - Required documents (pre-populated with `isRequired: true`)
+    - Optional documents (pre-populated with `isRequired: false`)
+    - Loose documents (no `documentTypeId`)
+  - Validation: Proper grouping and enrichment
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] File validation logic implemented
+- [ ] Error handling for edge cases
+- [ ] Status transitions properly managed
+- [ ] Clean code principles followed
+
+---
+
+### 7. Backend Helper - Create Document Checklist Generator
+
+**Objective**: Auto-populate documents when creating individual process
+
+#### Sub-tasks:
+
+- [x] 7.1: Create or update document checklist helper file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/lib/documentChecklist.ts`
+  - If file doesn't exist, create it
+  - Import necessary types and helpers
+  - Validation: File created in correct location
+
+- [x] 7.2: Implement `generateDocumentChecklistByLegalFramework` function
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/lib/documentChecklist.ts`
+  - Function: Generate document checklist based on legal framework
+  - Parameters:
+    - `ctx: QueryCtx | MutationCtx`
+    - `individualProcessId: Id<"individualProcesses">`
+    - `legalFrameworkId: Id<"legalFrameworks">`
+    - `userId: Id<"users">`
+  - Logic:
+    - Query `documentTypesLegalFrameworks` by legal framework
+    - For each association, create a document in `documentsDelivered`:
+      - `status: "not_started"`
+      - `documentTypeId`: from association
+      - `documentTypeLegalFrameworkId`: association ID
+      - `isRequired`: from association
+      - Leave file fields empty
+  - Returns: Array of created document IDs
+  - Validation: Transaction-safe, error handling
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Proper Convex context typing
+- [ ] Error handling implemented
+- [ ] Transaction safety
+- [ ] Clean code principles followed
+
+---
+
+### 8. Backend API - Update individualProcesses Creation
+
+**Objective**: Auto-populate documents when creating individual process
+
+#### Sub-tasks:
+
+- [x] 8.1: Import document checklist helper
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
+  - Add import: `import { generateDocumentChecklistByLegalFramework } from "./lib/documentChecklist"`
+  - Validation: Import path is correct
+
+- [x] 8.2: Call document generation in `create` mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
+  - Location: After creating individual process record
+  - Add logic:
+    - If `legalFrameworkId` is provided
+    - Call `await generateDocumentChecklistByLegalFramework(ctx, processId, legalFrameworkId, userId)`
+  - Validation: Only call if legal framework is set
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Error handling for generator failures
+- [ ] Transaction safety maintained
+- [ ] No breaking changes to existing create logic
+- [ ] Clean code principles followed
+
+---
+
+### 9. Zod Validations - Update documentTypes Schema
+
+**Objective**: Add Zod validation for new document type fields
+
+#### Sub-tasks:
+
+- [x] 9.1: Add validation for `allowedFileTypes`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documentTypes.ts`
+  - Schema: `allowedFileTypes: z.array(z.string()).optional()`
+  - Description: Array of file extensions
+  - Validation: Array of strings, optional
+
+- [x] 9.2: Add validation for `maxFileSizeMB`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documentTypes.ts`
+  - Schema: `maxFileSizeMB: z.number().positive().optional()`
+  - Description: Maximum file size in MB
+  - Validation: Positive number, optional
+
+- [x] 9.3: Create `legalFrameworkAssociationSchema`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documentTypes.ts`
+  - Schema:
     ```typescript
-    /**
-     * Migration: Add rnmProtocol to RNM status fillableFields
-     *
-     * Updates the RNM case status to include the new rnmProtocol field
-     * in its fillableFields array alongside rnmNumber and rnmDeadline.
-     *
-     * To run: npx convex run migrations/addRnmProtocolToFillableFields
-     */
-
-    import { internalMutation } from "../_generated/server";
-
-    export default internalMutation({
-      handler: async (ctx) => {
-        const rnmStatus = await ctx.db
-          .query("caseStatuses")
-          .withIndex("by_code", (q) => q.eq("code", "rnm"))
-          .first();
-
-        if (rnmStatus) {
-          await ctx.db.patch(rnmStatus._id, {
-            fillableFields: ["rnmNumber", "rnmProtocol", "rnmDeadline"],
-            updatedAt: Date.now(),
-          });
-          console.log("✓ Added rnmProtocol to RNM status fillableFields");
-        }
-        return { success: true };
-      },
+    export const legalFrameworkAssociationSchema = z.object({
+      legalFrameworkId: z.string(),
+      isRequired: z.boolean(),
     });
     ```
-  - Validation: Migration script follows existing pattern from fixRnmFillableFields.ts
-  - Dependencies: 2.2 completed
+  - Validation: Proper object schema
 
-- [x] 6.2: Run the migration to update RNM status
-  - Command: `npx convex run migrations/addRnmProtocolToFillableFields`
-  - Validation: Migration completes successfully, RNM status updated
-  - Dependencies: 6.1 completed
-
-- [x] 6.3: Verify rnmProtocol appears in "Histórico de Andamento" add/edit forms
-  - Validation: When adding/editing RNM status, rnmProtocol field is visible
-  - Dependencies: 6.2 completed
+- [x] 9.4: Update `documentTypeSchema` to include associations
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documentTypes.ts`
+  - Add field: `associations: z.array(legalFrameworkAssociationSchema).optional()`
+  - Validation: Optional array of associations
 
 #### Quality Checklist:
 
-- [ ] Migration script follows established patterns
-- [ ] TypeScript types properly defined
-- [ ] Migration is idempotent (safe to run multiple times)
-- [ ] Console logging provides clear feedback
-- [ ] Field appears correctly in status forms
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod schemas properly structured
+- [ ] Error messages are clear
+- [ ] Consistent with existing validation patterns
 
-### 7. Update TypeScript Validation Schemas
+---
 
-**Objective**: Add rnmProtocol to Zod validation schemas if they exist
+### 10. Zod Validations - Create documentsDelivered Schema
+
+**Objective**: Create Zod validation schemas for document upload operations
 
 #### Sub-tasks:
 
-- [x] 7.1: Check for validation schemas in lib/validations/individualProcesses.ts
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/individualProcesses.ts`
-  - Location: If schema exists for individual process fields, add rnmProtocol as optional string
-  - Validation: Schema includes rnmProtocol with proper validation rules
-  - Dependencies: 1.1 completed
+- [x] 10.1: Create new validation file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documents-delivered.ts`
+  - Create file with Zod import
+  - Validation: File created with proper naming (kebab-case)
 
-- [x] 7.2: Update any forms that use validation schemas
-  - Validation: Forms using Zod schemas properly validate rnmProtocol
-  - Dependencies: 7.1 completed
+- [x] 10.2: Create `looseDocumentUploadSchema`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documents-delivered.ts`
+  - Schema fields:
+    - `individualProcessId: z.string()`
+    - `fileName: z.string().min(1)`
+    - `fileUrl: z.string().url()`
+    - `fileSize: z.number().positive()`
+    - `mimeType: z.string()`
+    - `expiryDate: z.string().optional()`
+  - Validation: All required fields validated
+
+- [x] 10.3: Create `typedDocumentUploadSchema`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documents-delivered.ts`
+  - Schema: Extend `looseDocumentUploadSchema` with `documentTypeId: z.string()`
+  - Validation: Inherits from loose schema
+
+- [x] 10.4: Create `assignDocumentTypeSchema`
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documents-delivered.ts`
+  - Schema fields:
+    - `documentId: z.string()`
+    - `documentTypeId: z.string()`
+  - Validation: Both IDs required
+
+- [x] 10.5: Create `uploadForPendingSchema` (implemented as `pendingDocumentUploadSchema`)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/lib/validations/documents-delivered.ts`
+  - Schema fields:
+    - `documentId: z.string()`
+    - `fileName: z.string().min(1)`
+    - `fileUrl: z.string().url()`
+    - `fileSize: z.number().positive()`
+    - `mimeType: z.string()`
+    - `expiryDate: z.string().optional()`
+  - Validation: Document ID + file fields
 
 #### Quality Checklist:
 
-- [ ] Zod validation implemented for rnmProtocol
-- [ ] Validation rules match field type (optional string)
-- [ ] No breaking changes to existing validations
-- [ ] Error messages are user-friendly
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod schemas properly structured
+- [ ] Error messages are clear (i18n compatible)
+- [ ] Consistent with existing validation patterns
+- [ ] File naming follows kebab-case convention
 
-### 8. Update Relevant Queries and Mutations
+---
 
-**Objective**: Ensure all database queries and mutations properly handle the new rnmProtocol field
+### 11. Frontend Component - Legal Framework Association Section
+
+**Objective**: Create component for managing document type associations with legal frameworks
 
 #### Sub-tasks:
 
-- [x] 8.1: Review individualProcesses queries in convex/individualProcesses.ts
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Location: Check if queries need to explicitly include rnmProtocol in return types
-  - Validation: Queries return rnmProtocol when fetching individual processes
-  - Dependencies: 1.1 completed
+- [x] 11.1: Create component file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - Create new component with TypeScript
+  - Import necessary UI components (Checkbox, Button, Label, etc.)
+  - Validation: File created in correct location with kebab-case
 
-- [x] 8.2: Update any update/patch mutations to allow rnmProtocol
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcesses.ts`
-  - Location: In update/patch mutation arguments, ensure rnmProtocol is accepted
-  - Validation: Mutations can save rnmProtocol values
-  - Dependencies: 8.1 completed
+- [x] 11.2: Implement component props interface
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - Props:
+    ```typescript
+    interface LegalFrameworkAssociationSectionProps {
+      value: Array<{ legalFrameworkId: string; isRequired: boolean }>;
+      onChange: (value: Array<{ legalFrameworkId: string; isRequired: boolean }>) => void;
+      disabled?: boolean;
+    }
+    ```
+  - Validation: Proper TypeScript interface
 
-- [x] 8.3: Review export functionality to include rnmProtocol
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/convex/exports.ts`
-  - Location: Ensure rnmProtocol is included in data exports if applicable
-  - Validation: Exports contain rnmProtocol data when present
-  - Dependencies: 8.1 completed
+- [x] 11.3: Implement legal frameworks list query
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - Query: Fetch all active legal frameworks using Convex query
+  - Display: List with checkboxes for each legal framework
+  - Validation: Handle loading and error states
+
+- [x] 11.4: Implement "Select All" / "Deselect All" buttons
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - Buttons: "Marcar Todos" and "Desmarcar Todos"
+  - Logic: Select/deselect all legal frameworks with `isRequired: false` default
+  - Validation: Buttons trigger onChange with updated array
+
+- [x] 11.5: Implement individual "Required" checkbox per selected framework
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - UI: For each selected legal framework, show "Obrigatório" checkbox
+  - Logic: Toggle `isRequired` flag in the associations array
+  - Validation: Only show when legal framework is selected
+
+- [x] 11.6: Add i18n support for all text
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/legal-framework-association-section.tsx`
+  - Use `useTranslations()` hook
+  - All labels and buttons use translation keys
+  - Validation: No hardcoded strings
 
 #### Quality Checklist:
 
-- [ ] TypeScript types are properly inferred
-- [ ] No `any` types used
-- [ ] Mutations properly validate input
-- [ ] Queries return complete data including rnmProtocol
+- [ ] TypeScript types defined (no `any`)
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable UI components utilized (Checkbox, Button, Label)
+- [ ] Clean code principles followed
 - [ ] Error handling implemented
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
 
-### 9. Update Tables and List Views
+---
 
-**Objective**: Ensure rnmProtocol can be displayed in table views if needed (optional, based on requirements)
+### 12. Frontend Component - Update Document Type Form Dialog
 
-#### Sub-tasks:
-
-- [x] 9.1: Review individual-processes-table.tsx for potential column addition
-  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/individual-processes-table.tsx`
-  - Location: Check if RNM fields are displayed in table columns
-  - Validation: Determine if rnmProtocol should be a table column (likely not needed based on existing pattern)
-  - Dependencies: 1.1 completed
-  - Note: This may not be necessary - RNM fields typically only show in detail view
-
-#### Quality Checklist:
-
-- [ ] Table performance maintained
-- [ ] Mobile responsiveness preserved
-- [ ] Only relevant fields shown in table
-- [ ] Detail view is primary location for rnmProtocol display
-
-### 10. Testing and Verification
-
-**Objective**: Comprehensively test the new rnmProtocol field across all touchpoints
+**Objective**: Add legal framework associations to document type form
 
 #### Sub-tasks:
 
-- [x] 10.1: Test database schema changes
-  - Validation: Create new individual process, verify rnmProtocol can be saved
-  - Validation: Load existing individual process, verify rnmProtocol displays if present
-  - Dependencies: All previous tasks completed
+- [x] 12.1: Import LegalFrameworkAssociationSection component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - Add import for new component
+  - Validation: Import path is correct
 
-- [x] 10.2: Test "Histórico de Andamento" functionality
-  - Validation: Add RNM status, verify rnmProtocol field appears in form
-  - Validation: Fill rnmProtocol in status form, verify it saves correctly
-  - Validation: Edit RNM status history, verify rnmProtocol value persists
-  - Dependencies: 10.1 completed
+- [x] 12.2: Add `allowedFileTypes` field to form
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - UI: Multi-select or tags input for file extensions
+  - Suggested options: `.pdf`, `.jpg`, `.jpeg`, `.png`, `.doc`, `.docx`
+  - Validation: Array of strings
 
-- [x] 10.3: Test "Informações do Processo" card display
-  - Validation: Individual process detail page shows rnmProtocol in RNM section
-  - Validation: Field appears below "Número do Protocolo" as specified
-  - Validation: Field only shows when rnmProtocol has a value
-  - Dependencies: 10.2 completed
+- [x] 12.3: Add `maxFileSizeMB` field to form
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - UI: Number input with MB unit label
+  - Suggested default: 10 MB
+  - Validation: Positive number
 
-- [x] 10.4: Test government protocol edit dialog
-  - Validation: Dialog loads existing rnmProtocol value
-  - Validation: Can edit and save rnmProtocol value
-  - Validation: Changes reflect immediately in detail view
-  - Dependencies: 10.3 completed
+- [x] 12.4: Integrate LegalFrameworkAssociationSection component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - Add component to form with proper form state binding
+  - Position: After basic fields, before submit button
+  - Validation: Form state properly managed
 
-- [x] 10.5: Test i18n translations
-  - Validation: Field label shows "Protocolo RNM" in Portuguese
-  - Validation: Field label shows "RNM Protocol" in English
-  - Validation: Translations appear in all relevant locations
-  - Dependencies: 10.4 completed
+- [x] 12.5: Update form submission to include new fields
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - Include `allowedFileTypes`, `maxFileSizeMB`, and `associations` in mutation call
+  - Validation: All fields properly submitted
 
-- [x] 10.6: Test mobile responsiveness
-  - Validation: Field displays correctly on mobile devices (sm breakpoint)
-  - Validation: Form inputs are touch-friendly (44x44px minimum)
-  - Validation: Layout doesn't break on small screens
-  - Dependencies: 10.5 completed
-
-- [x] 10.7: Test edge cases
-  - Validation: Empty rnmProtocol value doesn't cause errors
-  - Validation: Very long rnmProtocol values display properly
-  - Validation: Special characters in rnmProtocol are handled correctly
-  - Dependencies: 10.6 completed
+- [x] 12.6: Add i18n for new fields
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/document-types/document-type-form-dialog.tsx`
+  - Labels for allowed file types and max file size
+  - Section header for legal framework associations
+  - Validation: No hardcoded strings
 
 #### Quality Checklist:
 
-- [ ] All CRUD operations work correctly
-- [ ] No console errors or warnings
-- [ ] UI displays correctly across all viewports
-- [ ] i18n works in both languages
-- [ ] No breaking changes to existing functionality
-- [ ] Field integrates seamlessly with existing RNM fields
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod validation implemented
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable components utilized
+- [ ] Clean code principles followed
+- [ ] Error handling implemented
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
+
+---
+
+### 13. Frontend Component - Loose Document Upload Dialog
+
+**Objective**: Create dialog for uploading documents without document type
+
+#### Sub-tasks:
+
+- [x] 13.1: Create component file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - Create new component with TypeScript
+  - Import Dialog components from UI library
+  - Validation: File created in correct location with kebab-case
+
+- [x] 13.2: Implement component props interface
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - Props:
+    ```typescript
+    interface LooseDocumentUploadDialogProps {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      individualProcessId: string;
+      onSuccess?: () => void;
+    }
+    ```
+  - Validation: Proper TypeScript interface
+
+- [x] 13.3: Implement file upload field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - UI: File input with drag-and-drop support
+  - Validation: File size and basic type checking
+  - Show file preview/name after selection
+
+- [x] 13.4: Add optional expiry date field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - UI: Date picker for expiry date
+  - Validation: Optional field, future date only
+  - i18n: Use translation keys
+
+- [x] 13.5: Implement upload logic with Convex mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - Call: `uploadLoose` mutation
+  - Handle: File upload to Convex storage first, then create document record
+  - Validation: Loading states, error handling, success callback
+
+- [x] 13.6: Add i18n support
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/loose-document-upload-dialog.tsx`
+  - Use `useTranslations()` hook
+  - Keys: dialog title, labels, buttons, error messages
+  - Validation: No hardcoded strings
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod validation implemented (use `looseDocumentUploadSchema`)
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable components utilized (Dialog, Button, Input, DatePicker)
+- [ ] Clean code principles followed
+- [ ] Error handling implemented (file upload errors, mutation errors)
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
+- [ ] File upload progress indicator
+
+---
+
+### 14. Frontend Component - Typed Document Upload Dialog
+
+**Objective**: Create dialog for uploading documents with document type selection
+
+#### Sub-tasks:
+
+- [x] 14.1: Create component file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - Create new component with TypeScript
+  - Import Dialog components from UI library
+  - Validation: File created in correct location with kebab-case
+
+- [x] 14.2: Implement component props interface
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - Props:
+    ```typescript
+    interface TypedDocumentUploadDialogProps {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      individualProcessId: string;
+      legalFrameworkId?: string;
+      onSuccess?: () => void;
+    }
+    ```
+  - Validation: Proper TypeScript interface
+
+- [x] 14.3: Implement document type selector
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - UI: Combobox or Select for document types
+  - Query: Fetch document types (filtered by legal framework if provided)
+  - Validation: Required field
+  - Display: Show document type name and description
+
+- [x] 14.4: Display file validation rules based on selected type
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - Display: Show `allowedFileTypes` and `maxFileSizeMB` from selected document type
+  - UI: Info text or alert showing requirements
+  - Validation: Only show when document type is selected
+
+- [x] 14.5: Implement file upload field with validation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - UI: File input with drag-and-drop support
+  - Validation:
+    - Check file extension against `allowedFileTypes`
+    - Check file size against `maxFileSizeMB`
+    - Show clear error messages if validation fails
+  - Show file preview/name after selection
+
+- [x] 14.6: Add optional expiry date field
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - UI: Date picker for expiry date
+  - Validation: Optional field, future date only
+  - i18n: Use translation keys
+
+- [x] 14.7: Implement upload logic with Convex mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - Call: `uploadWithType` mutation
+  - Handle: File upload to Convex storage first, then create document record
+  - Validation: Loading states, error handling, success callback
+
+- [x] 14.8: Add i18n support
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/typed-document-upload-dialog.tsx`
+  - Use `useTranslations()` hook
+  - Keys: dialog title, labels, buttons, error messages, validation messages
+  - Validation: No hardcoded strings
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod validation implemented (use `typedDocumentUploadSchema`)
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable components utilized (Dialog, Select/Combobox, Button, Input, DatePicker)
+- [ ] Clean code principles followed
+- [ ] Error handling implemented (validation errors, upload errors)
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
+- [ ] Clear validation error messages for file type/size
+
+---
+
+### 15. Frontend Component - Assign Document Type Dialog
+
+**Objective**: Create dialog for converting loose documents to typed documents
+
+#### Sub-tasks:
+
+- [x] 15.1: Create component file
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Create new component with TypeScript
+  - Import Dialog components from UI library
+  - Validation: File created in correct location with kebab-case
+
+- [x] 15.2: Implement component props interface
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Props:
+    ```typescript
+    interface AssignDocumentTypeDialogProps {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      document: {
+        _id: string;
+        fileName: string;
+        fileSize: number;
+        mimeType: string;
+      };
+      legalFrameworkId?: string;
+      onSuccess?: () => void;
+    }
+    ```
+  - Validation: Proper TypeScript interface
+
+- [x] 15.3: Display current document information
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Display: File name, size, type
+  - UI: Read-only info section at top of dialog
+  - Validation: Proper formatting of file size (MB/KB)
+
+- [x] 15.4: Implement document type selector
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - UI: Combobox or Select for document types
+  - Query: Fetch document types (filtered by legal framework if provided)
+  - Validation: Required field
+  - Display: Show document type name and description
+
+- [x] 15.5: Show compatibility check
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Logic: Check if document file type and size match selected document type rules
+  - Display: Warning/error if incompatible, success message if compatible
+  - Validation: Prevent submission if incompatible
+
+- [x] 15.6: Implement assign logic with Convex mutation
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Call: `assignType` mutation
+  - Handle: Loading states, error handling, success callback
+  - Validation: Backend will also validate compatibility
+
+- [x] 15.7: Add i18n support
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/assign-document-type-dialog.tsx`
+  - Use `useTranslations()` hook
+  - Keys: dialog title, labels, buttons, compatibility messages
+  - Validation: No hardcoded strings
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] Zod validation implemented (use `assignDocumentTypeSchema`)
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable components utilized (Dialog, Select/Combobox, Button, Alert)
+- [ ] Clean code principles followed
+- [ ] Error handling implemented
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
+- [ ] Clear compatibility messages
+
+---
+
+### 16. Frontend Component - Update Document Checklist Card
+
+**Objective**: Update document checklist to show required, optional, and loose documents
+
+#### Sub-tasks:
+
+- [x] 16.1: Read existing component
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Understand current structure and queries
+  - Validation: Component exists and is functional
+
+- [x] 16.2: Update document query to group by category
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Query: Use updated `listByIndividualProcess` query
+  - Group documents:
+    - Required: `isRequired === true` and `documentTypeId` exists
+    - Optional: `isRequired === false` and `documentTypeId` exists
+    - Loose: `documentTypeId` is null
+  - Validation: Proper grouping logic
+
+- [x] 16.3: Create "Required Documents" section
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - UI: Collapsible section or card
+  - Display: List of required documents with status badges
+  - Show: Upload button for "not_started" documents
+  - Validation: Clear visual indication of required vs completed
+
+- [x] 16.4: Create "Optional Documents" section
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - UI: Collapsible section or card
+  - Display: List of optional documents with status badges
+  - Show: Upload button for "not_started" documents
+  - Validation: Clear visual distinction from required
+
+- [x] 16.5: Create "Loose Documents" section
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - UI: Collapsible section or card
+  - Display: List of loose documents with option to assign type
+  - Show: "Assign Type" button for each loose document
+  - Validation: Clear indication that these have no type
+
+- [x] 16.6: Add "Upload Loose" button
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - UI: Primary action button
+  - Action: Open `LooseDocumentUploadDialog`
+  - Position: In header or floating action button
+  - Validation: Button is accessible and visible
+
+- [x] 16.7: Add "Upload with Type" button
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - UI: Secondary action button
+  - Action: Open `TypedDocumentUploadDialog`
+  - Position: In header next to "Upload Loose"
+  - Validation: Button is accessible and visible
+
+- [x] 16.8: Integrate upload dialogs
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Import and add dialog components to the component tree
+  - State: Manage open/close state for each dialog
+  - Callback: Refresh document list on successful upload
+  - Validation: Dialogs open and close properly
+
+- [x] 16.9: Integrate assign type dialog
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Import and add `AssignDocumentTypeDialog` to component tree
+  - State: Track which document is being assigned
+  - Callback: Refresh document list on successful assignment
+  - Validation: Dialog opens with correct document data
+
+- [x] 16.10: Add i18n for new sections and buttons
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Keys: Section headers, button labels, status messages
+  - Validation: No hardcoded strings
+
+- [x] 16.11: Improve mobile responsiveness
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/document-checklist-card.tsx`
+  - Ensure sections collapse/expand properly on mobile
+  - Make action buttons touch-friendly (min 44x44px)
+  - Test on small screens
+  - Validation: Component works well on mobile devices
+
+#### Quality Checklist:
+
+- [ ] TypeScript types defined (no `any`)
+- [ ] i18n keys added for user-facing text
+- [ ] Reusable components utilized (Card, Collapsible, Button, Badge)
+- [ ] Clean code principles followed
+- [ ] Error handling implemented
+- [ ] Mobile responsiveness implemented (sm, md, lg breakpoints)
+- [ ] Touch-friendly UI elements (min 44x44px)
+- [ ] Clear visual hierarchy for required/optional/loose documents
+- [ ] Loading and empty states handled
+
+---
+
+### 17. Translations - Add i18n Keys
+
+**Objective**: Add all translation keys for new features
+
+#### Sub-tasks:
+
+- [x] 17.1: Add DocumentTypes translations to Portuguese
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Add keys under `DocumentTypes` namespace:
+    - `allowedFileTypes`: "Tipos de arquivo permitidos"
+    - `maxFileSizeMB`: "Tamanho máximo (MB)"
+    - `legalFrameworkAssociations`: "Associação com Amparos Legais"
+    - `selectAll`: "Marcar Todos"
+    - `deselectAll`: "Desmarcar Todos"
+    - `required`: "Obrigatório"
+    - `optional`: "Opcional"
+  - Validation: Keys added in correct namespace
+
+- [x] 17.2: Add DocumentTypes translations to English
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Add keys under `DocumentTypes` namespace:
+    - `allowedFileTypes`: "Allowed file types"
+    - `maxFileSizeMB`: "Maximum size (MB)"
+    - `legalFrameworkAssociations`: "Legal Framework Associations"
+    - `selectAll`: "Select All"
+    - `deselectAll`: "Deselect All"
+    - `required`: "Required"
+    - `optional`: "Optional"
+  - Validation: Keys match Portuguese keys exactly
+
+- [x] 17.3: Add DocumentsDelivered translations to Portuguese (as DocumentChecklist and DocumentUpload)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Add keys under `DocumentChecklist` and `DocumentUpload` namespaces:
+    - `uploadLoose`: "Upload Avulso"
+    - `uploadWithType`: "Upload com Tipo"
+    - `assignType`: "Atribuir Tipo"
+    - `looseDocument`: "Documento Avulso"
+    - `requiredDocuments`: "Documentos Obrigatórios"
+    - `optionalDocuments`: "Documentos Opcionais"
+    - `looseDocuments`: "Documentos Avulsos"
+    - `selectDocumentType`: "Selecione o tipo de documento"
+    - `fileValidation`: "Validação de arquivo"
+    - `fileSizeExceeded`: "Arquivo excede o tamanho máximo de {size}MB"
+    - `fileTypeNotAllowed`: "Tipo de arquivo não permitido. Tipos aceitos: {types}"
+    - `compatibilityCheck`: "Verificação de compatibilidade"
+    - `compatible`: "Arquivo compatível com o tipo selecionado"
+    - `notCompatible`: "Arquivo não compatível com o tipo selecionado"
+  - Validation: Keys added in correct namespace
+
+- [x] 17.4: Add DocumentsDelivered translations to English (as DocumentChecklist and DocumentUpload)
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Add keys under `DocumentChecklist` and `DocumentUpload` namespaces:
+    - `uploadLoose`: "Upload Loose"
+    - `uploadWithType`: "Upload with Type"
+    - `assignType`: "Assign Type"
+    - `looseDocument`: "Loose Document"
+    - `requiredDocuments`: "Required Documents"
+    - `optionalDocuments`: "Optional Documents"
+    - `looseDocuments`: "Loose Documents"
+    - `selectDocumentType`: "Select document type"
+    - `fileValidation`: "File validation"
+    - `fileSizeExceeded`: "File exceeds maximum size of {size}MB"
+    - `fileTypeNotAllowed`: "File type not allowed. Accepted types: {types}"
+    - `compatibilityCheck`: "Compatibility check"
+    - `compatible`: "File is compatible with selected type"
+    - `notCompatible`: "File is not compatible with selected type"
+  - Validation: Keys match Portuguese keys exactly
+
+- [x] 17.5: Add dialog and common translations to Portuguese
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json`
+  - Add additional keys:
+    - `uploadLooseDialog.title`: "Upload de Documento Avulso"
+    - `uploadLooseDialog.description`: "Faça upload de um documento sem tipo específico"
+    - `uploadTypedDialog.title`: "Upload de Documento com Tipo"
+    - `uploadTypedDialog.description`: "Selecione um tipo e faça upload do documento"
+    - `assignTypeDialog.title`: "Atribuir Tipo ao Documento"
+    - `assignTypeDialog.description`: "Converta um documento avulso em um documento tipado"
+    - `fileUpload.dragDrop`: "Arraste um arquivo ou clique para selecionar"
+    - `fileUpload.selected`: "Arquivo selecionado: {fileName}"
+  - Validation: Keys added for all dialogs
+
+- [x] 17.6: Add dialog and common translations to English
+  - File: `/Users/elberrd/Documents/Development/clientes/casys4/messages/en.json`
+  - Add additional keys:
+    - `uploadLooseDialog.title`: "Upload Loose Document"
+    - `uploadLooseDialog.description`: "Upload a document without a specific type"
+    - `uploadTypedDialog.title`: "Upload Typed Document"
+    - `uploadTypedDialog.description`: "Select a type and upload the document"
+    - `assignTypeDialog.title`: "Assign Type to Document"
+    - `assignTypeDialog.description`: "Convert a loose document into a typed document"
+    - `fileUpload.dragDrop`: "Drag a file or click to select"
+    - `fileUpload.selected`: "Selected file: {fileName}"
+  - Validation: Keys match Portuguese keys exactly
+
+#### Quality Checklist:
+
+- [ ] All keys added to both `pt.json` and `en.json`
+- [ ] Keys are properly nested in namespaces
+- [ ] Translations are accurate and natural
+- [ ] Keys support interpolation where needed (e.g., `{size}`, `{types}`)
+- [ ] No typos in key names
+- [ ] Consistent naming conventions (camelCase for keys)
+
+---
 
 ## Implementation Notes
 
-### Key Architectural Patterns Identified
+### Important Technical Considerations
 
-1. **Fillable Fields System**: The system uses a centralized pattern where case statuses (like "RNM") can specify which fields from individualProcesses can be edited when that status is active. This is managed through:
-   - `caseStatuses.fillableFields` array
-   - `lib/individual-process-fields.ts` for field metadata
-   - `individualProcessStatuses.filledFieldsData` for storing values
+1. **Data Migration**: Existing documents will have `documentTypeId` required, so the schema change to optional is backwards compatible. New loose documents will have `null` for this field.
 
-2. **Field Location**: Based on the government-protocol-card.tsx analysis, the rnmProtocol field should appear in the "RNM Information" section (around line 196), positioned between rnmNumber and rnmDeadline for logical grouping.
+2. **File Validation**: Implement client-side validation for better UX, but ALWAYS validate on the backend for security.
 
-3. **Naming Conventions**:
-   - Database field: `rnmProtocol` (camelCase)
-   - i18n key: `IndividualProcesses.fields.rnmProtocol`
-   - Display label: "Protocolo RNM" (Portuguese) / "RNM Protocol" (English)
+3. **Transaction Safety**: When creating associations, use Convex transactions to ensure atomicity.
 
-4. **Migration Pattern**: Follow the pattern established in `fixRnmFillableFields.ts` for updating case status fillableFields arrays.
+4. **Performance**: The document checklist generation may create many records. Consider batch operations if needed.
 
-### Technical Considerations
+5. **Storage**: Use Convex file storage API for file uploads. Remember to handle storage cleanup if documents are deleted.
 
-- The field should be optional (not required) like other RNM fields
-- Type should be string to match rnmNumber
-- No Zod validation beyond type checking is needed
-- Field should only be editable when RNM status is selected in "Histórico de Andamento"
-- Display should use font-mono class for consistency with other protocol/number fields
+6. **Status Management**: Document status flow:
+   - Pre-populated: `"not_started"` → `"uploaded"` (via `uploadForPending`)
+   - Loose: `"uploaded"` immediately (via `uploadLoose`)
+   - Typed: `"uploaded"` immediately (via `uploadWithType`)
+   - Assigned: Status remains `"uploaded"` (via `assignType`)
 
-### Related Files Reference
+7. **Legal Framework Changes**: If a process's legal framework changes, consider whether to regenerate the document checklist or keep existing documents.
 
-- Database Schema: `/Users/elberrd/Documents/Development/clientes/casys4/convex/schema.ts`
-- Field Metadata: `/Users/elberrd/Documents/Development/clientes/casys4/lib/individual-process-fields.ts`
-- Display Card: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-card.tsx`
-- Edit Dialog: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/government-protocol-edit-dialog.tsx`
-- Status Dialog: `/Users/elberrd/Documents/Development/clientes/casys4/components/individual-processes/add-status-dialog.tsx`
-- Translations: `/Users/elberrd/Documents/Development/clientes/casys4/messages/pt.json` and `/messages/en.json`
-- Validations: `/Users/elberrd/Documents/Development/clientes/casys4/convex/individualProcessStatuses.ts`
+---
 
 ## Definition of Done
 
-- [x] Project structure analyzed and file locations identified
-- [x] Database schema updated with rnmProtocol field
-- [x] Field metadata registered in fillable fields system
-- [x] i18n translations added for both languages
-- [x] Government protocol card displays rnmProtocol in correct location
-- [x] Government protocol edit dialog allows editing rnmProtocol
-- [x] RNM case status fillableFields updated via migration
-- [x] Validation schemas include rnmProtocol (if applicable)
-- [x] All queries and mutations handle rnmProtocol
-- [x] All tests passing
-- [x] Mobile responsive
-- [x] No console errors
-- [x] Feature works end-to-end (add status → edit field → view in detail page)
+- [ ] All schema changes applied and Convex dev running without errors
+- [ ] All backend API functions implemented and tested
+- [ ] All Zod validations created
+- [ ] All frontend components created and integrated
+- [ ] All translations added (Portuguese and English)
+- [ ] Manual testing completed:
+  - [ ] Create document type with legal framework associations
+  - [ ] Test "Select All" / "Deselect All" functionality
+  - [ ] Create individual process with legal framework
+  - [ ] Verify documents are auto-populated
+  - [ ] Upload loose document
+  - [ ] Upload typed document
+  - [ ] Assign type to loose document
+  - [ ] Upload file for pre-populated document
+- [ ] Code reviewed for quality:
+  - [ ] No `any` types
+  - [ ] All strings use i18n
+  - [ ] Error handling present
+  - [ ] Mobile responsive
+  - [ ] Clean code principles followed
+- [ ] Application builds and runs without errors
+
+---
+
+## Manual Testing Checklist
+
+### Test 1: Document Type with Legal Framework Associations
+- [ ] Navigate to Document Types management
+- [ ] Create new document type
+- [ ] Add allowed file types (e.g., `.pdf`, `.jpg`)
+- [ ] Set max file size (e.g., 5 MB)
+- [ ] Click "Select All" for legal frameworks
+- [ ] Mark some as "Required"
+- [ ] Save document type
+- [ ] Verify associations are saved
+- [ ] Edit document type and verify associations load correctly
+
+### Test 2: Individual Process Creation with Auto-Population
+- [ ] Create new individual process
+- [ ] Select a legal framework that has associated document types
+- [ ] Save the process
+- [ ] Open the process detail page
+- [ ] Verify documents are pre-populated in the checklist
+- [ ] Check that required documents are marked as required
+- [ ] Check that optional documents are marked as optional
+
+### Test 3: Upload Operations
+- [ ] Upload a loose document (no type)
+- [ ] Verify it appears in "Loose Documents" section
+- [ ] Upload a typed document (select type first)
+- [ ] Verify it appears in correct section
+- [ ] Upload file for a pre-populated document
+- [ ] Verify status changes from "not_started" to "uploaded"
+
+### Test 4: Type Assignment
+- [ ] Select a loose document
+- [ ] Click "Assign Type"
+- [ ] Select a document type
+- [ ] Verify compatibility check (if file matches type rules)
+- [ ] Assign the type
+- [ ] Verify document moves to appropriate section (required/optional)
+
+### Test 5: File Validation
+- [ ] Try to upload a file larger than max size
+- [ ] Verify error message appears
+- [ ] Try to upload a file with wrong extension
+- [ ] Verify error message appears
+- [ ] Upload a valid file
+- [ ] Verify success
+
+### Test 6: Mobile Responsiveness
+- [ ] Test on mobile device or browser DevTools mobile view
+- [ ] Verify all sections are collapsible
+- [ ] Verify buttons are touch-friendly (easy to tap)
+- [ ] Verify file upload works on mobile
+- [ ] Verify dialogs display correctly on mobile
+
+### Test 7: Internationalization
+- [ ] Switch language to English
+- [ ] Verify all new labels are translated
+- [ ] Switch back to Portuguese
+- [ ] Verify all labels are in Portuguese
+- [ ] Check that no hardcoded strings appear
+
+---
+
+## Next Steps After Completion
+
+1. **Monitoring**: Monitor document upload success rates and file storage usage
+2. **User Feedback**: Collect feedback on the document upload UX
+3. **Performance**: If many documents are created, consider adding pagination to document lists
+4. **Future Enhancements**:
+   - Document version history
+   - Bulk document upload
+   - Document preview in browser
+   - Document expiry notifications
+   - Document approval workflow
