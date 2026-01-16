@@ -58,6 +58,7 @@ async function canAccessDocument(
 
 /**
  * Query to list all documents with optional filters
+ * Includes both standalone documents (documents table) and process documents (documentsDelivered table)
  * Access control: Admins see all documents, clients see only their company's documents
  */
 export const list = query({
@@ -73,71 +74,84 @@ export const list = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Fetch documents from both tables
     let documents = await ctx.db.query("documents").collect();
+    let deliveredDocuments = await ctx.db.query("documentsDelivered").collect();
 
     // Filter by documentTypeId if provided
     if (args.documentTypeId !== undefined) {
       documents = documents.filter((d) => d.documentTypeId === args.documentTypeId);
+      deliveredDocuments = deliveredDocuments.filter((d) => d.documentTypeId === args.documentTypeId);
     }
 
     // Filter by personId if provided
     if (args.personId !== undefined) {
       documents = documents.filter((d) => d.personId === args.personId);
+      deliveredDocuments = deliveredDocuments.filter((d) => d.personId === args.personId);
     }
 
     // Filter by companyId if provided
     if (args.companyId !== undefined) {
       documents = documents.filter((d) => d.companyId === args.companyId);
+      // documentsDelivered doesn't have companyId directly, filter via individualProcess later
     }
 
     // Filter by individualProcessId if provided
     if (args.individualProcessId !== undefined) {
       documents = documents.filter((d) => d.individualProcessId === args.individualProcessId);
+      deliveredDocuments = deliveredDocuments.filter((d) => d.individualProcessId === args.individualProcessId);
     }
 
     // Filter by userApplicantId if provided
     if (args.userApplicantId !== undefined) {
       documents = documents.filter((d) => d.userApplicantId === args.userApplicantId);
+      // documentsDelivered doesn't have userApplicantId
     }
 
     // Apply role-based access control
+    let allowedPersonIds: Set<Id<"people">> | null = null;
     if (userProfile.role === "client") {
       if (!userProfile.companyId) {
         throw new Error("Client user must have a company assignment");
       }
 
       // Get all people associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
+      const clientCompanyId = userProfile.companyId;
       const companyPeople = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
         .collect();
 
-      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
+      allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId).filter((id): id is Id<"people"> => id !== undefined));
 
-      // Filter documents: keep only those tied to client's company or company's people
+      // Filter standalone documents
       documents = documents.filter((doc) => {
-        // Document is tied to client's company
         if (doc.companyId && doc.companyId === userProfile.companyId) {
           return true;
         }
-        // Document is tied to a person from client's company
-        if (doc.personId && allowedPersonIds.has(doc.personId)) {
+        if (doc.personId && allowedPersonIds!.has(doc.personId)) {
+          return true;
+        }
+        return false;
+      });
+
+      // Filter delivered documents by person
+      deliveredDocuments = deliveredDocuments.filter((doc) => {
+        if (doc.personId && allowedPersonIds!.has(doc.personId)) {
           return true;
         }
         return false;
       });
     }
 
-    // Fetch related data for each document
-    const documentsWithRelations = await Promise.all(
+    // Fetch related data for standalone documents
+    const standaloneDocsWithRelations = await Promise.all(
       documents.map(async (doc) => {
         const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
         const person = doc.personId ? await ctx.db.get(doc.personId) : null;
         const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
         const userApplicant = doc.userApplicantId ? await ctx.db.get(doc.userApplicantId) : null;
 
-        // Fetch individual process with person name
         let individualProcess = null;
         if (doc.individualProcessId) {
           const process = await ctx.db.get(doc.individualProcessId);
@@ -154,7 +168,6 @@ export const list = query({
           }
         }
 
-        // Get file URL if storageId exists
         let fileUrl = doc.fileUrl;
         if (doc.storageId) {
           fileUrl = (await ctx.storage.getUrl(doc.storageId)) ?? undefined;
@@ -162,6 +175,7 @@ export const list = query({
 
         return {
           ...doc,
+          source: "documents" as const,
           documentType: documentType
             ? { _id: documentType._id, name: documentType.name, category: documentType.category }
             : null,
@@ -174,21 +188,98 @@ export const list = query({
       })
     );
 
+    // Fetch related data for delivered documents (only latest versions)
+    const latestDeliveredDocs = deliveredDocuments.filter((d) => d.isLatest);
+    const deliveredDocsWithRelations = await Promise.all(
+      latestDeliveredDocs.map(async (doc) => {
+        const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
+        const person = doc.personId ? await ctx.db.get(doc.personId) : null;
+
+        let individualProcess = null;
+        let company = null;
+        if (doc.individualProcessId) {
+          const process = await ctx.db.get(doc.individualProcessId);
+          if (process) {
+            const processPerson = await ctx.db.get(process.personId);
+            const collectiveProcess = process.collectiveProcessId
+              ? await ctx.db.get(process.collectiveProcessId)
+              : null;
+
+            // Get company from collective process
+            if (collectiveProcess?.companyId) {
+              const companyData = await ctx.db.get(collectiveProcess.companyId);
+              company = companyData ? { _id: companyData._id, name: companyData.name } : null;
+            }
+
+            individualProcess = {
+              _id: process._id,
+              personName: processPerson?.fullName || "Unknown",
+              referenceNumber: collectiveProcess?.referenceNumber || null,
+            };
+          }
+        }
+
+        let fileUrl: string | undefined = doc.fileUrl ?? undefined;
+        if (doc.storageId) {
+          fileUrl = (await ctx.storage.getUrl(doc.storageId)) ?? undefined;
+        }
+
+        return {
+          _id: doc._id,
+          _creationTime: doc._creationTime,
+          name: doc.fileName || "Documento sem nome",
+          source: "documentsDelivered" as const,
+          documentTypeId: doc.documentTypeId,
+          personId: doc.personId,
+          companyId: null as Id<"companies"> | null,
+          individualProcessId: doc.individualProcessId,
+          userApplicantId: null as Id<"people"> | null,
+          storageId: doc.storageId,
+          fileName: doc.fileName,
+          fileSize: doc.fileSize,
+          fileType: doc.mimeType,
+          notes: null as string | null,
+          issueDate: null as string | null,
+          expiryDate: null as string | null,
+          isActive: true,
+          createdAt: doc.uploadedAt,
+          updatedAt: doc.uploadedAt,
+          status: doc.status,
+          documentType: documentType
+            ? { _id: documentType._id, name: documentType.name, category: documentType.category }
+            : null,
+          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          company,
+          individualProcess,
+          userApplicant: null,
+          fileUrl,
+        };
+      })
+    );
+
+    // Combine both document sources
+    const allDocuments = [...standaloneDocsWithRelations, ...deliveredDocsWithRelations];
+
+    // Sort by creation time descending
+    allDocuments.sort((a, b) => (b.createdAt || b._creationTime) - (a.createdAt || a._creationTime));
+
     // Apply search filter
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
-      return documentsWithRelations.filter((doc) => {
+      return allDocuments.filter((doc) => {
         const fileName = doc.fileName ? normalizeString(doc.fileName) : "";
         const documentTypeName = doc.documentType?.name ? normalizeString(doc.documentType.name) : "";
+        const name = doc.name ? normalizeString(doc.name) : "";
 
         return (
           fileName.includes(searchNormalized) ||
-          documentTypeName.includes(searchNormalized)
+          documentTypeName.includes(searchNormalized) ||
+          name.includes(searchNormalized)
         );
       });
     }
 
-    return documentsWithRelations;
+    return allDocuments;
   },
 });
 

@@ -41,9 +41,11 @@ import { DocumentFormDialog } from "./document-form-dialog";
 import { DocumentViewModal } from "./document-view-modal";
 
 type Document = {
-  _id: Id<"documents">;
+  _id: Id<"documents"> | Id<"documentsDelivered">;
   _creationTime: number;
   name: string;
+  source?: "documents" | "documentsDelivered";
+  status?: string;
   documentType: {
     _id: Id<"documentTypes">;
     name: string;
@@ -57,14 +59,19 @@ type Document = {
     _id: Id<"companies">;
     name: string;
   } | null;
+  individualProcess?: {
+    _id: Id<"individualProcesses">;
+    personName: string;
+    referenceNumber: string | null;
+  } | null;
   storageId?: Id<"_storage">;
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
   fileType?: string;
-  notes?: string;
-  issueDate?: string;
-  expiryDate?: string;
+  notes?: string | null;
+  issueDate?: string | null;
+  expiryDate?: string | null;
   isActive?: boolean;
 };
 
@@ -76,7 +83,7 @@ export function DocumentsTable() {
   const documents = useQuery(api.documents.list, {}) ?? [];
   const removeDocument = useMutation(api.documents.remove);
 
-  const [viewingDocument, setViewingDocument] = useState<Id<"documents"> | undefined>();
+  const [viewingDocument, setViewingDocument] = useState<{ id: Id<"documents"> | Id<"documentsDelivered">; source: "documents" | "documentsDelivered" } | undefined>();
   const [editingDocument, setEditingDocument] = useState<Id<"documents"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -216,11 +223,12 @@ export function DocumentsTable() {
         header: () => <span className="sr-only">{tCommon("actions")}</span>,
         cell: ({ row }) => {
           const document = row.original;
+          const isStandaloneDocument = document.source !== "documentsDelivered";
           const actions = [
             {
               label: tCommon('view'),
               icon: <Eye className="h-4 w-4" />,
-              onClick: () => setViewingDocument(document._id),
+              onClick: () => setViewingDocument({ id: document._id, source: document.source || "documents" }),
             },
             ...(document.fileUrl ? [{
               label: t("download") || "Download",
@@ -233,22 +241,24 @@ export function DocumentsTable() {
               variant: "default" as const,
               separator: true,
             }] : []),
-            {
+            // Edit only available for standalone documents
+            ...(isStandaloneDocument ? [{
               label: tCommon("edit"),
               icon: <Edit className="h-4 w-4" />,
               onClick: () => {
-                setEditingDocument(document._id);
+                setEditingDocument(document._id as Id<"documents">);
                 setIsFormOpen(true);
               },
               variant: "default" as const,
-            },
-            {
+            }] : []),
+            // Delete only available for standalone documents
+            ...(isStandaloneDocument ? [{
               label: tCommon("delete"),
               icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => deleteConfirmation.confirmDelete(document._id),
+              onClick: () => deleteConfirmation.confirmDelete(document._id as Id<"documents">),
               variant: "destructive" as const,
               separator: true,
-            },
+            }] : []),
           ];
 
           return <DataGridRowActions actions={actions} />;
@@ -287,7 +297,7 @@ export function DocumentsTable() {
         table={table}
         recordCount={documents.length}
         emptyMessage={t("noResults")}
-        onRowClick={(row) => setViewingDocument(row._id)}
+        onRowClick={(row) => setViewingDocument({ id: row._id, source: row.source || "documents" })}
         tableLayout={{
           columnsVisibility: true,
         }}
@@ -331,16 +341,24 @@ export function DocumentsTable() {
         </div>
       </DataGrid>
 
-      {viewingDocument && (
+      {viewingDocument && viewingDocument.source === "documents" && (
         <DocumentViewModal
-          documentId={viewingDocument}
+          documentId={viewingDocument.id as Id<"documents">}
           open={true}
           onOpenChange={(open) => !open && setViewingDocument(undefined)}
           onEdit={() => {
-            setEditingDocument(viewingDocument)
+            setEditingDocument(viewingDocument.id as Id<"documents">)
             setViewingDocument(undefined)
             setIsFormOpen(true)
           }}
+        />
+      )}
+      {viewingDocument && viewingDocument.source === "documentsDelivered" && (
+        <DocumentViewModal
+          documentId={viewingDocument.id as Id<"documentsDelivered">}
+          open={true}
+          onOpenChange={(open) => !open && setViewingDocument(undefined)}
+          isDeliveredDocument
         />
       )}
 
