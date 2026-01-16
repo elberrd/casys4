@@ -298,14 +298,11 @@ function ComboboxSingle<T extends string = string>({
                     disabled={option.disabled}
                     onSelect={handleSelect}
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedValue === option.value
-                          ? "opacity-100"
-                          : "opacity-0",
+                    <div className="mr-2 h-4 w-4 flex items-center justify-center">
+                      {selectedValue === option.value && (
+                        <Check className="h-4 w-4" />
                       )}
-                    />
+                    </div>
                     {option.icon && <span className="mr-2">{option.icon}</span>}
                     {option.label}
                   </CommandItem>
@@ -324,14 +321,11 @@ function ComboboxSingle<T extends string = string>({
                       disabled={option.disabled}
                       onSelect={handleSelect}
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedValue === option.value
-                            ? "opacity-100"
-                            : "opacity-0",
+                      <div className="mr-2 h-4 w-4 flex items-center justify-center">
+                        {selectedValue === option.value && (
+                          <Check className="h-4 w-4" />
                         )}
-                      />
+                      </div>
                       {option.icon && (
                         <span className="mr-2">{option.icon}</span>
                       )}

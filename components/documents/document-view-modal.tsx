@@ -26,15 +26,18 @@ export function DocumentViewModal({
   const tCommon = useTranslations("Common")
 
   const document = useQuery(api.documents.get, { id: documentId })
-  const documentType = document?.documentTypeId
-    ? useQuery(api.documentTypes.get, { id: document.documentTypeId })
-    : null
-  const person = document?.personId
-    ? useQuery(api.people.get, { id: document.personId })
-    : null
-  const company = document?.companyId
-    ? useQuery(api.companies.get, { id: document.companyId })
-    : null
+  const documentType = useQuery(
+    api.documentTypes.get,
+    document?.documentTypeId ? { id: document.documentTypeId } : "skip"
+  )
+  const person = useQuery(
+    api.people.get,
+    document?.personId ? { id: document.personId } : "skip"
+  )
+  const company = useQuery(
+    api.companies.get,
+    document?.companyId ? { id: document.companyId } : "skip"
+  )
 
   if (!document) {
     return (

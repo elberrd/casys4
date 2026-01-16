@@ -376,6 +376,8 @@ export default defineSchema({
     documentTypeId: v.optional(v.id("documentTypes")),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
+    individualProcessId: v.optional(v.id("individualProcesses")),
+    userApplicantId: v.optional(v.id("people")), // Requerente
     storageId: v.optional(v.id("_storage")),
     fileUrl: v.optional(v.string()),
     fileName: v.optional(v.string()),
@@ -391,6 +393,8 @@ export default defineSchema({
     .index("by_documentType", ["documentTypeId"])
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
+    .index("by_individualProcess", ["individualProcessId"])
+    .index("by_userApplicant", ["userApplicantId"])
     .index("by_active", ["isActive"])
     .index("by_storageId", ["storageId"]),
 

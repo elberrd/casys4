@@ -5,6 +5,8 @@ export const documentSchema = z.object({
   documentTypeId: z.string().min(1, "Document type ID must be valid").optional().or(z.literal("")),
   personId: z.string().optional(),
   companyId: z.string().optional(),
+  individualProcessId: z.string().optional(),
+  userApplicantId: z.string().optional(),
   storageId: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),

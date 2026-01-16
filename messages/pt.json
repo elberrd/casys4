@@ -1197,7 +1197,12 @@
     "downloadFile": "Baixar Arquivo",
     "status": "Status",
     "createdAt": "Criado em",
-    "updatedAt": "Atualizado em"
+    "updatedAt": "Atualizado em",
+    "individualProcess": "Processo Individual",
+    "selectIndividualProcess": "Selecione o processo individual (opcional)",
+    "noIndividualProcesses": "Nenhum processo individual encontrado",
+    "userApplicant": "Requerente",
+    "selectUserApplicant": "Selecione o requerente (opcional)"
   },
   "Tasks": {
     "title": "Tarefas",

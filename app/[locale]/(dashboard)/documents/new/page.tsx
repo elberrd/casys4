@@ -3,13 +3,15 @@
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { DocumentFormPage } from "@/components/documents/document-form-page"
 import { useTranslations } from "next-intl"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 
 export default function NewDocumentPage() {
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tDocuments = useTranslations('Documents')
   const params = useParams()
+  const searchParams = useSearchParams()
   const locale = params.locale as string
+  const individualProcessId = searchParams.get('individualProcessId') || undefined
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
@@ -21,7 +23,7 @@ export default function NewDocumentPage() {
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <DocumentFormPage />
+        <DocumentFormPage initialIndividualProcessId={individualProcessId} />
       </div>
     </>
   )

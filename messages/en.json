@@ -1198,7 +1198,12 @@
     "downloadFile": "Download File",
     "status": "Status",
     "createdAt": "Created At",
-    "updatedAt": "Updated At"
+    "updatedAt": "Updated At",
+    "individualProcess": "Individual Process",
+    "selectIndividualProcess": "Select individual process (optional)",
+    "noIndividualProcesses": "No individual processes found",
+    "userApplicant": "Applicant",
+    "selectUserApplicant": "Select applicant (optional)"
   },
   "Tasks": {
     "title": "Tasks",

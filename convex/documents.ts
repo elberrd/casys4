@@ -65,6 +65,8 @@ export const list = query({
     documentTypeId: v.optional(v.id("documentTypes")),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
+    individualProcessId: v.optional(v.id("individualProcesses")),
+    userApplicantId: v.optional(v.id("people")),
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -86,6 +88,16 @@ export const list = query({
     // Filter by companyId if provided
     if (args.companyId !== undefined) {
       documents = documents.filter((d) => d.companyId === args.companyId);
+    }
+
+    // Filter by individualProcessId if provided
+    if (args.individualProcessId !== undefined) {
+      documents = documents.filter((d) => d.individualProcessId === args.individualProcessId);
+    }
+
+    // Filter by userApplicantId if provided
+    if (args.userApplicantId !== undefined) {
+      documents = documents.filter((d) => d.userApplicantId === args.userApplicantId);
     }
 
     // Apply role-based access control
@@ -123,6 +135,24 @@ export const list = query({
         const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
         const person = doc.personId ? await ctx.db.get(doc.personId) : null;
         const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
+        const userApplicant = doc.userApplicantId ? await ctx.db.get(doc.userApplicantId) : null;
+
+        // Fetch individual process with person name
+        let individualProcess = null;
+        if (doc.individualProcessId) {
+          const process = await ctx.db.get(doc.individualProcessId);
+          if (process) {
+            const processPerson = await ctx.db.get(process.personId);
+            const collectiveProcess = process.collectiveProcessId
+              ? await ctx.db.get(process.collectiveProcessId)
+              : null;
+            individualProcess = {
+              _id: process._id,
+              personName: processPerson?.fullName || "Unknown",
+              referenceNumber: collectiveProcess?.referenceNumber || null,
+            };
+          }
+        }
 
         // Get file URL if storageId exists
         let fileUrl = doc.fileUrl;
@@ -137,6 +167,8 @@ export const list = query({
             : null,
           person: person ? { _id: person._id, fullName: person.fullName } : null,
           company: company ? { _id: company._id, name: company.name } : null,
+          individualProcess,
+          userApplicant: userApplicant ? { _id: userApplicant._id, fullName: userApplicant.fullName } : null,
           fileUrl,
         };
       })
@@ -181,6 +213,24 @@ export const get = query({
     const documentType = document.documentTypeId ? await ctx.db.get(document.documentTypeId) : null;
     const person = document.personId ? await ctx.db.get(document.personId) : null;
     const company = document.companyId ? await ctx.db.get(document.companyId) : null;
+    const userApplicant = document.userApplicantId ? await ctx.db.get(document.userApplicantId) : null;
+
+    // Fetch individual process with person name
+    let individualProcess = null;
+    if (document.individualProcessId) {
+      const process = await ctx.db.get(document.individualProcessId);
+      if (process) {
+        const processPerson = await ctx.db.get(process.personId);
+        const collectiveProcess = process.collectiveProcessId
+          ? await ctx.db.get(process.collectiveProcessId)
+          : null;
+        individualProcess = {
+          _id: process._id,
+          personName: processPerson?.fullName || "Unknown",
+          referenceNumber: collectiveProcess?.referenceNumber || null,
+        };
+      }
+    }
 
     // Get file URL if storageId exists
     let fileUrl = document.fileUrl;
@@ -195,6 +245,8 @@ export const get = query({
         : null,
       person: person ? { _id: person._id, fullName: person.fullName } : null,
       company: company ? { _id: company._id, name: company.name } : null,
+      individualProcess,
+      userApplicant: userApplicant ? { _id: userApplicant._id, fullName: userApplicant.fullName } : null,
       fileUrl,
     };
   },
@@ -219,6 +271,8 @@ export const create = mutation({
     documentTypeId: v.id("documentTypes"),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
+    individualProcessId: v.optional(v.id("individualProcesses")),
+    userApplicantId: v.optional(v.id("people")),
     storageId: v.optional(v.id("_storage")),
     fileName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
@@ -245,6 +299,8 @@ export const create = mutation({
       documentTypeId: args.documentTypeId,
       personId: args.personId,
       companyId: args.companyId,
+      individualProcessId: args.individualProcessId,
+      userApplicantId: args.userApplicantId,
       storageId: args.storageId,
       fileUrl,
       fileName: args.fileName,
@@ -272,6 +328,8 @@ export const update = mutation({
     documentTypeId: v.id("documentTypes"),
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
+    individualProcessId: v.optional(v.id("individualProcesses")),
+    userApplicantId: v.optional(v.id("people")),
     storageId: v.optional(v.id("_storage")),
     fileName: v.optional(v.string()),
     fileSize: v.optional(v.number()),

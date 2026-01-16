@@ -34,17 +34,20 @@ import { Switch } from "@/components/ui/switch";
 import { documentSchema, type DocumentFormData } from "@/lib/validations/documents";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { UserApplicantSelector } from "@/components/individual-processes/user-applicant-selector";
 
 interface DocumentFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId?: Id<"documents">;
+  initialIndividualProcessId?: string;
 }
 
 export function DocumentFormDialog({
   open,
   onOpenChange,
   documentId,
+  initialIndividualProcessId,
 }: DocumentFormDialogProps) {
   const t = useTranslations("Documents");
   const tCommon = useTranslations("Common");
@@ -59,6 +62,7 @@ export function DocumentFormDialog({
   const documentTypes = useQuery(api.documentTypes.list, {}) ?? [];
   const people = useQuery(api.people.list, {}) ?? [];
   const companies = useQuery(api.companies.list, {}) ?? [];
+  const individualProcesses = useQuery(api.individualProcesses.listForSelector, {}) ?? [];
 
   const createDocument = useMutation(api.documents.create);
   const updateDocument = useMutation(api.documents.update);
@@ -71,6 +75,8 @@ export function DocumentFormDialog({
       documentTypeId: "",
       personId: "",
       companyId: "",
+      individualProcessId: "",
+      userApplicantId: "",
       notes: "",
       issueDate: "",
       expiryDate: "",
@@ -101,6 +107,8 @@ export function DocumentFormDialog({
         documentTypeId: document.documentTypeId,
         personId: document.personId || "",
         companyId: document.companyId || "",
+        individualProcessId: document.individualProcessId || "",
+        userApplicantId: document.userApplicantId || "",
         storageId: document.storageId || "",
         fileName: document.fileName || "",
         fileSize: document.fileSize || 0,
@@ -119,6 +127,8 @@ export function DocumentFormDialog({
         documentTypeId: "",
         personId: "",
         companyId: "",
+        individualProcessId: initialIndividualProcessId || "",
+        userApplicantId: "",
         notes: "",
         issueDate: "",
         expiryDate: "",
@@ -126,7 +136,7 @@ export function DocumentFormDialog({
       });
       setUploadedStorageId(undefined);
     }
-  }, [document, form]);
+  }, [document, form, initialIndividualProcessId]);
 
   const handleFileUpload = async (file: File) => {
     setUploadingFile(true);
@@ -170,6 +180,8 @@ export function DocumentFormDialog({
         documentTypeId: data.documentTypeId as Id<"documentTypes">,
         personId: data.personId ? (data.personId as Id<"people">) : undefined,
         companyId: data.companyId ? (data.companyId as Id<"companies">) : undefined,
+        individualProcessId: data.individualProcessId ? (data.individualProcessId as Id<"individualProcesses">) : undefined,
+        userApplicantId: data.userApplicantId ? (data.userApplicantId as Id<"people">) : undefined,
         storageId: uploadedStorageId,
         fileName: data.fileName,
         fileSize: data.fileSize,
@@ -252,7 +264,32 @@ export function DocumentFormDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="individualProcessId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("individualProcess")}</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={individualProcesses.map((process) => ({
+                        label: process.label,
+                        value: process._id,
+                      }))}
+                      value={field.value || ""}
+                      onValueChange={field.onChange}
+                      placeholder={t("selectIndividualProcess")}
+                      searchPlaceholder={tCommon("search")}
+                      emptyText={t("noIndividualProcesses") || "No individual processes found"}
+                      showClearButton={true}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="personId"
@@ -270,6 +307,7 @@ export function DocumentFormDialog({
                         placeholder={t("selectPerson")}
                         searchPlaceholder={tCommon("search")}
                         emptyText={t("noPeople") || "No people found"}
+                        showClearButton={true}
                       />
                     </FormControl>
                     <FormMessage />
@@ -294,6 +332,7 @@ export function DocumentFormDialog({
                         placeholder={t("selectCompany")}
                         searchPlaceholder={tCommon("search")}
                         emptyText={t("noCompanies") || "No companies found"}
+                        showClearButton={true}
                       />
                     </FormControl>
                     <FormMessage />
@@ -301,6 +340,23 @@ export function DocumentFormDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="userApplicantId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("userApplicant")}</FormLabel>
+                  <FormControl>
+                    <UserApplicantSelector
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="space-y-2">
               <FormLabel>{t("file") || "File"}</FormLabel>
