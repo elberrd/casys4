@@ -1203,7 +1203,16 @@
     "selectIndividualProcess": "Select individual process (optional)",
     "noIndividualProcesses": "No individual processes found",
     "userApplicant": "Applicant",
-    "selectUserApplicant": "Select applicant (optional)"
+    "selectUserApplicant": "Select applicant (optional)",
+    "uploadedAt": "Uploaded At",
+    "reviewedAt": "Reviewed At",
+    "rejectionReason": "Rejection Reason",
+    "statusValues": {
+      "uploaded": "Uploaded",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "underReview": "Under Review"
+    }
   },
   "Tasks": {
     "title": "Tasks",

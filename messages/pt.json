@@ -1202,7 +1202,16 @@
     "selectIndividualProcess": "Selecione o processo individual (opcional)",
     "noIndividualProcesses": "Nenhum processo individual encontrado",
     "userApplicant": "Requerente",
-    "selectUserApplicant": "Selecione o requerente (opcional)"
+    "selectUserApplicant": "Selecione o requerente (opcional)",
+    "uploadedAt": "Enviado em",
+    "reviewedAt": "Revisado em",
+    "rejectionReason": "Motivo da Rejeição",
+    "statusValues": {
+      "uploaded": "Enviado",
+      "approved": "Aprovado",
+      "rejected": "Rejeitado",
+      "underReview": "Em Análise"
+    }
   },
   "Tasks": {
     "title": "Tarefas",

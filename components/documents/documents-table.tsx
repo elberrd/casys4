@@ -80,7 +80,8 @@ export function DocumentsTable() {
   const tCommon = useTranslations("Common");
   const router = useRouter();
 
-  const documents = useQuery(api.documents.list, {}) ?? [];
+  const documentsQuery = useQuery(api.documents.list, {});
+  const documents = (documentsQuery ?? []) as Document[];
   const removeDocument = useMutation(api.documents.remove);
 
   const [viewingDocument, setViewingDocument] = useState<{ id: Id<"documents"> | Id<"documentsDelivered">; source: "documents" | "documentsDelivered" } | undefined>();
@@ -96,10 +97,13 @@ export function DocumentsTable() {
     entityName: t("entityName"),
   })
 
-  // Bulk delete confirmation for multiple items
+  // Bulk delete confirmation for multiple items (only standalone documents can be deleted)
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
     onDelete: async (item: Document) => {
-      await removeDocument({ id: item._id })
+      // Only delete standalone documents
+      if (item.source !== "documentsDelivered") {
+        await removeDocument({ id: item._id as Id<"documents"> })
+      }
     },
     onSuccess: () => {
       setRowSelection({})

@@ -77,10 +77,10 @@ export function DocumentViewModal({
   if (isDeliveredDocument && deliveredDocument) {
     // Sections for delivered documents
     const statusLabels: Record<string, string> = {
-      uploaded: t("status.uploaded") || "Enviado",
-      approved: t("status.approved") || "Aprovado",
-      rejected: t("status.rejected") || "Rejeitado",
-      under_review: t("status.underReview") || "Em Análise",
+      uploaded: t("statusValues.uploaded") || "Enviado",
+      approved: t("statusValues.approved") || "Aprovado",
+      rejected: t("statusValues.rejected") || "Rejeitado",
+      under_review: t("statusValues.underReview") || "Em Análise",
     }
 
     sections.push({
