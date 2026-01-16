@@ -17,18 +17,13 @@ export async function generateDocumentChecklist(
   }
 
   // Get the main process to find the process type
-  if (!individualProcess.collectiveProcessId) {
-    throw new Error("Individual process has no main process");
-  }
-
-  const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
-  if (!collectiveProcess) {
-    throw new Error("Main process not found");
-  }
+  const collectiveProcess = individualProcess.collectiveProcessId
+    ? await ctx.db.get(individualProcess.collectiveProcessId)
+    : null;
 
   // Find matching document template
   // Match by processType and legalFramework (if specified)
-  if (!collectiveProcess.processTypeId) {
+  if (!collectiveProcess?.processTypeId) {
     // Cannot generate checklist without processTypeId
     return [];
   }

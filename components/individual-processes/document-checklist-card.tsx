@@ -244,16 +244,23 @@ export function DocumentChecklistCard({
     <div
       key={doc._id}
       className={cn(
-        "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors",
+        "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer",
         showCritical && doc.isRequired && "border-primary/50",
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
+      onClick={() => {
+        // Open review dialog for documents that have been uploaded
+        if (doc.status !== "not_started") {
+          openReviewDialog(doc._id)
+        }
+      }}
     >
       <div className="flex items-center gap-3 flex-1">
         {doc.status !== "not_started" && (
           <Checkbox
             checked={selectedDocumentIds.has(doc._id)}
             onCheckedChange={() => toggleDocumentSelection(doc._id)}
+            onClick={(e) => e.stopPropagation()}
             aria-label={`Select ${doc.documentType?.name || doc.fileName}`}
           />
         )}
@@ -292,7 +299,7 @@ export function DocumentChecklistCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 ml-3">
+      <div className="flex items-center gap-2 ml-3" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
 
         {doc.status === "not_started" ? (
@@ -311,6 +318,7 @@ export function DocumentChecklistCard({
               variant="ghost"
               onClick={() => openReviewDialog(doc._id)}
               title={t("viewDetails")}
+              className="cursor-pointer"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -320,6 +328,7 @@ export function DocumentChecklistCard({
                 variant="ghost"
                 onClick={() => openHistoryDialog(doc.documentTypeId, doc.documentRequirementId)}
                 title={t("viewHistory")}
+                className="cursor-pointer"
               >
                 <History className="h-4 w-4" />
               </Button>

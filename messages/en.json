@@ -2004,6 +2004,8 @@
     "typedUploadDescription": "Select a document type before uploading. The file will be validated against the type's restrictions.",
     "documentType": "Document Type",
     "selectDocumentType": "Select a document type",
+    "searchDocumentType": "Search document type...",
+    "noDocumentTypesFound": "No document types found.",
     "selectDocumentTypeFirst": "Please select a document type first",
     "assignTypeTitle": "Assign Document Type",
     "assignTypeDescription": "Convert this unclassified document to a specific type by selecting from the available options.",
@@ -2038,11 +2040,22 @@
     "unknown": "Unknown",
     "details": "Details",
     "history": "History",
+    "preview": "Preview",
     "documentHistory": "Document History",
+    "changeStatus": "Change Status",
+    "statusChanged": "Status changed successfully",
+    "errorChangeStatus": "Error changing status",
+    "requiredForRejection": "required for rejection",
+    "statusHistory": "Status History",
+    "noStatusHistory": "No status changes recorded yet",
+    "fileUploaded": "File Uploaded",
+    "looseDocument": "Loose Document",
     "status": {
       "approved": "Approved",
       "rejected": "Rejected",
-      "uploaded": "Uploaded"
+      "uploaded": "Uploaded",
+      "underReview": "Under Review",
+      "notStarted": "Not Started"
     }
   },
   "DocumentHistory": {

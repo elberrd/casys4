@@ -102,16 +102,11 @@ export const get = query({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.collectiveProcessId) {
-      throw new Error("Individual process has no main process");
-    }
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
 
-    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
-    if (!collectiveProcess) {
-      throw new Error("Main process not found");
-    }
-
-    if (collectiveProcess.companyId) {
+    if (collectiveProcess?.companyId) {
       const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view this document");
@@ -164,17 +159,12 @@ export const upload = mutation({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.collectiveProcessId) {
-      throw new Error("Individual process has no main process");
-    }
-
-    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
-    if (!collectiveProcess) {
-      throw new Error("Main process not found");
-    }
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
 
     // Check access control
-    if (collectiveProcess.companyId) {
+    if (collectiveProcess?.companyId) {
       const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to upload documents for this process");
@@ -224,7 +214,7 @@ export const upload = mutation({
       documentTypeId: args.documentTypeId,
       documentRequirementId: args.documentRequirementId,
       personId: individualProcess.personId,
-      companyId: collectiveProcess.companyId,
+      companyId: collectiveProcess?.companyId,
       fileName: args.fileName,
       fileUrl: fileUrl,
       fileSize: args.fileSize,
@@ -254,7 +244,7 @@ export const upload = mutation({
           fileSize: args.fileSize,
           documentType: documentType?.name,
           personName: person?.fullName,
-          collectiveProcessReference: collectiveProcess.referenceNumber,
+          collectiveProcessReference: collectiveProcess?.referenceNumber,
           version,
           isReplacement: version > 1,
         },
@@ -269,6 +259,7 @@ export const upload = mutation({
 
 /**
  * Mutation to approve a document (admin only)
+ * Now allows re-approval and records history
  */
 export const approve = mutation({
   args: {
@@ -283,8 +274,16 @@ export const approve = mutation({
       throw new Error("Document not found");
     }
 
-    if (document.status === "approved") {
-      throw new Error("Document is already approved");
+    // Can't approve a document that hasn't been uploaded yet
+    if (document.status === "not_started") {
+      throw new Error("Cannot approve a document that hasn't been uploaded yet");
+    }
+
+    const previousStatus = document.status;
+
+    // Skip if already approved (no change needed)
+    if (previousStatus === "approved") {
+      return id;
     }
 
     await ctx.db.patch(id, {
@@ -292,6 +291,19 @@ export const approve = mutation({
       reviewedBy: adminProfile.userId,
       reviewedAt: Date.now(),
       rejectionReason: undefined,
+    });
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: id,
+      previousStatus: previousStatus,
+      newStatus: "approved",
+      changedBy: adminProfile.userId!,
+      changedAt: Date.now(),
+      metadata: {
+        fileName: document.fileName,
+        version: document.version,
+      },
     });
 
     // Send notification to document uploader
@@ -331,7 +343,7 @@ export const approve = mutation({
             fileName: document.fileName,
             documentType: documentType?.name,
             personName: person?.fullName,
-            previousStatus: document.status,
+            previousStatus: previousStatus,
           },
         });
       }
@@ -345,6 +357,7 @@ export const approve = mutation({
 
 /**
  * Mutation to reject a document (admin only)
+ * Now allows re-rejection and records history
  */
 export const reject = mutation({
   args: {
@@ -364,11 +377,32 @@ export const reject = mutation({
       throw new Error("Document not found");
     }
 
+    // Can't reject a document that hasn't been uploaded yet
+    if (document.status === "not_started") {
+      throw new Error("Cannot reject a document that hasn't been uploaded yet");
+    }
+
+    const previousStatus = document.status;
+
     await ctx.db.patch(id, {
       status: "rejected",
       reviewedBy: adminProfile.userId,
       reviewedAt: Date.now(),
       rejectionReason: rejectionReason,
+    });
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: id,
+      previousStatus: previousStatus,
+      newStatus: "rejected",
+      changedBy: adminProfile.userId!,
+      changedAt: Date.now(),
+      notes: rejectionReason,
+      metadata: {
+        fileName: document.fileName,
+        version: document.version,
+      },
     });
 
     // Send notification to document uploader
@@ -409,7 +443,7 @@ export const reject = mutation({
             documentType: documentType?.name,
             personName: person?.fullName,
             rejectionReason,
-            previousStatus: document.status,
+            previousStatus: previousStatus,
           },
         });
       }
@@ -438,16 +472,11 @@ export const getVersionHistory = query({
       throw new Error("Individual process not found");
     }
 
-    if (!individualProcess.collectiveProcessId) {
-      throw new Error("Individual process has no main process");
-    }
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
 
-    const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
-    if (!collectiveProcess) {
-      throw new Error("Main process not found");
-    }
-
-    if (collectiveProcess.companyId) {
+    if (collectiveProcess?.companyId) {
       const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
       if (!hasAccess) {
         throw new Error("Access denied: You do not have permission to view this document history");
@@ -1169,6 +1198,7 @@ export const uploadWithType = mutation({
       expiryDate: args.expiryDate,
       version: version,
       isLatest: true,
+      isRequired: false, // Manual uploads with type are optional by default
     });
 
     // Log activity
@@ -1492,8 +1522,9 @@ export const listGroupedByCategory = query({
     const required = enrichedDocuments.filter(
       (doc) => doc.isRequired === true && doc.documentTypeId
     );
+    // Treat documents with isRequired === false OR undefined as optional (when they have a type)
     const optional = enrichedDocuments.filter(
-      (doc) => doc.isRequired === false && doc.documentTypeId
+      (doc) => doc.isRequired !== true && doc.documentTypeId
     );
     const loose = enrichedDocuments.filter(
       (doc) => !doc.documentTypeId
@@ -1513,5 +1544,194 @@ export const listGroupedByCategory = query({
         optionalApproved: optional.filter((d) => d.status === "approved").length,
       },
     };
+  },
+});
+
+/**
+ * Query to get status history of a document
+ * Returns all status changes sorted by date descending (newest first)
+ */
+export const getStatusHistory = query({
+  args: {
+    documentId: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, { documentId }) => {
+    // Get document to check access
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Get individual process for access control
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Check access control
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied: You do not have permission to view this document history");
+      }
+    }
+
+    // Get all status history entries
+    const history = await ctx.db
+      .query("documentStatusHistory")
+      .withIndex("by_document", (q) => q.eq("documentId", documentId))
+      .order("desc")
+      .collect();
+
+    // Enrich with user information
+    const enrichedHistory = await Promise.all(
+      history.map(async (entry) => {
+        const changedByUser = await ctx.db.get(entry.changedBy);
+        let changedByProfile = null;
+        if (changedByUser) {
+          changedByProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_userId", (q) => q.eq("userId", changedByUser._id))
+            .first();
+        }
+
+        return {
+          ...entry,
+          changedByUser,
+          changedByProfile,
+        };
+      })
+    );
+
+    return enrichedHistory;
+  },
+});
+
+/**
+ * Mutation to change document status (admin only)
+ * Allows changing to any valid status and records history
+ */
+export const changeStatus = mutation({
+  args: {
+    id: v.id("documentsDelivered"),
+    newStatus: v.union(
+      v.literal("uploaded"),
+      v.literal("under_review"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, newStatus, notes }) => {
+    // Require admin role
+    const adminProfile = await requireAdmin(ctx);
+
+    const document = await ctx.db.get(id);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Can't change status of not_started documents (need to upload first)
+    if (document.status === "not_started") {
+      throw new Error("Cannot change status of a document that hasn't been uploaded yet");
+    }
+
+    const previousStatus = document.status;
+
+    // If status is the same, do nothing
+    if (previousStatus === newStatus) {
+      return id;
+    }
+
+    // Update document status
+    await ctx.db.patch(id, {
+      status: newStatus,
+      reviewedBy: adminProfile.userId,
+      reviewedAt: Date.now(),
+      rejectionReason: newStatus === "rejected" ? notes : undefined,
+    });
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: id,
+      previousStatus: previousStatus,
+      newStatus: newStatus,
+      changedBy: adminProfile.userId!,
+      changedAt: Date.now(),
+      notes: notes,
+      metadata: {
+        fileName: document.fileName,
+        version: document.version,
+      },
+    });
+
+    // Send notification to document uploader
+    try {
+      const documentType = document.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
+      const documentTypeName = documentType?.name || "Document";
+
+      let notificationType = "document_status_changed";
+      let notificationTitle = "Document Status Changed";
+      let notificationMessage = `Your document "${documentTypeName}" status changed to ${newStatus}`;
+
+      if (newStatus === "approved") {
+        notificationType = "document_approved";
+        notificationTitle = "Document Approved";
+        notificationMessage = `Your document "${documentTypeName}" has been approved`;
+      } else if (newStatus === "rejected") {
+        notificationType = "document_rejected";
+        notificationTitle = "Document Rejected";
+        notificationMessage = notes
+          ? `Your document "${documentTypeName}" was rejected: ${notes}`
+          : `Your document "${documentTypeName}" was rejected`;
+      }
+
+      await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+        userId: document.uploadedBy,
+        type: notificationType,
+        title: notificationTitle,
+        message: notificationMessage,
+        entityType: "document",
+        entityId: id,
+      });
+    } catch (error) {
+      console.error("Failed to create notification:", error);
+    }
+
+    // Log activity
+    try {
+      if (adminProfile.userId) {
+        const [individualProcess, documentType, person] = await Promise.all([
+          ctx.db.get(document.individualProcessId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
+          document.personId ? ctx.db.get(document.personId) : null,
+        ]);
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "status_changed",
+          entityType: "document",
+          entityId: id,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType?.name,
+            personName: person?.fullName,
+            previousStatus,
+            newStatus,
+            notes,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return id;
   },
 });

@@ -2028,6 +2028,8 @@
     "typedUploadDescription": "Selecione um tipo de documento antes de enviar. O arquivo será validado de acordo com as restrições do tipo.",
     "documentType": "Tipo de Documento",
     "selectDocumentType": "Selecione um tipo de documento",
+    "searchDocumentType": "Buscar tipo de documento...",
+    "noDocumentTypesFound": "Nenhum tipo de documento encontrado.",
     "selectDocumentTypeFirst": "Por favor, selecione um tipo de documento primeiro",
     "assignTypeTitle": "Atribuir Tipo de Documento",
     "assignTypeDescription": "Converta este documento avulso para um tipo específico selecionando uma das opções disponíveis.",
@@ -2062,11 +2064,22 @@
     "unknown": "Desconhecido",
     "details": "Detalhes",
     "history": "Histórico",
+    "preview": "Visualizar",
     "documentHistory": "Histórico do Documento",
+    "changeStatus": "Alterar Status",
+    "statusChanged": "Status alterado com sucesso",
+    "errorChangeStatus": "Erro ao alterar status",
+    "requiredForRejection": "obrigatório para rejeição",
+    "statusHistory": "Histórico de Status",
+    "noStatusHistory": "Nenhuma alteração de status registrada ainda",
+    "fileUploaded": "Arquivo Enviado",
+    "looseDocument": "Documento Avulso",
     "status": {
       "approved": "Aprovado",
       "rejected": "Rejeitado",
-      "uploaded": "Enviado"
+      "uploaded": "Enviado",
+      "underReview": "Em Análise",
+      "notStarted": "Não Iniciado"
     }
   },
   "DocumentHistory": {

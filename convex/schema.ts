@@ -494,6 +494,21 @@ export default defineSchema({
     .index("by_latest", ["isLatest"])
     .index("by_isRequired", ["isRequired"]),
 
+  // Document status history - Tracks all status changes for documents
+  documentStatusHistory: defineTable({
+    documentId: v.id("documentsDelivered"),
+    previousStatus: v.optional(v.string()), // Status before the change (null for initial upload)
+    newStatus: v.string(), // Status after the change
+    changedBy: v.id("users"), // User who made the change
+    changedAt: v.number(), // Timestamp of the change
+    notes: v.optional(v.string()), // Optional notes (e.g., rejection reason)
+    metadata: v.optional(v.any()), // Additional metadata (e.g., file info for uploads)
+  })
+    .index("by_document", ["documentId"])
+    .index("by_changedBy", ["changedBy"])
+    .index("by_changedAt", ["changedAt"])
+    .index("by_document_changedAt", ["documentId", "changedAt"]),
+
   // Task management - Automates workflow and deadline tracking
   tasks: defineTable({
     individualProcessId: v.optional(v.id("individualProcesses")),

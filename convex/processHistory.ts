@@ -127,11 +127,9 @@ export const getByIndividualProcess = query({
         throw new Error("Client user must have a company assignment");
       }
 
-      if (!individualProcess.collectiveProcessId) {
-        throw new Error("Individual process has no main process");
-      }
-
-      const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+      const collectiveProcess = individualProcess.collectiveProcessId
+        ? await ctx.db.get(individualProcess.collectiveProcessId)
+        : null;
       if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied to this process");
       }

@@ -27,10 +27,20 @@ import {
   User,
   Calendar,
   Download,
+  History,
+  Upload,
+  Clock,
+  ArrowRight,
+  RotateCcw,
 } from "lucide-react"
 import { format } from "date-fns"
-import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FileViewer } from "@/components/ui/file-viewer"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 interface DocumentReviewDialogProps {
   open: boolean
@@ -51,14 +61,21 @@ export function DocumentReviewDialog({
   const [rejectionReason, setRejectionReason] = useState("")
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
+  const [showStatusActions, setShowStatusActions] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
     documentId ? { id: documentId } : "skip"
   )
 
+  const statusHistory = useQuery(
+    api.documentsDelivered.getStatusHistory,
+    documentId ? { documentId } : "skip"
+  )
+
   const approve = useMutation(api.documentsDelivered.approve)
   const reject = useMutation(api.documentsDelivered.reject)
+  const changeStatus = useMutation(api.documentsDelivered.changeStatus)
 
   const handleApprove = async () => {
     if (!documentId) return
@@ -69,7 +86,8 @@ export function DocumentReviewDialog({
       await approve({ id: documentId })
 
       toast.success(t("approveSuccess"))
-      onOpenChange(false)
+      setShowStatusActions(false)
+      setRejectionReason("")
 
       if (onSuccess) {
         onSuccess()
@@ -99,7 +117,7 @@ export function DocumentReviewDialog({
       })
 
       toast.success(t("rejectSuccess"))
-      onOpenChange(false)
+      setShowStatusActions(false)
       setRejectionReason("")
 
       if (onSuccess) {
@@ -110,6 +128,35 @@ export function DocumentReviewDialog({
       toast.error(t("errorReject"))
     } finally {
       setIsRejecting(false)
+    }
+  }
+
+  const handleChangeStatus = async (newStatus: "uploaded" | "under_review" | "approved" | "rejected") => {
+    if (!documentId) return
+
+    // For rejected status, need rejection reason
+    if (newStatus === "rejected" && !rejectionReason.trim()) {
+      toast.error(t("errorNoReason"))
+      return
+    }
+
+    try {
+      await changeStatus({
+        id: documentId,
+        newStatus,
+        notes: newStatus === "rejected" ? rejectionReason.trim() : undefined,
+      })
+
+      toast.success(t("statusChanged"))
+      setShowStatusActions(false)
+      setRejectionReason("")
+
+      if (onSuccess) {
+        onSuccess()
+      }
+    } catch (error) {
+      console.error("Error changing status:", error)
+      toast.error(t("errorChangeStatus"))
     }
   }
 
@@ -129,8 +176,27 @@ export function DocumentReviewDialog({
         return <Badge variant="destructive">{t("status.rejected")}</Badge>
       case "uploaded":
         return <Badge variant="info">{t("status.uploaded")}</Badge>
+      case "under_review":
+        return <Badge variant="warning">{t("status.underReview")}</Badge>
+      case "not_started":
+        return <Badge variant="outline">{t("status.notStarted")}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case "rejected":
+        return <XCircle className="h-4 w-4 text-destructive" />
+      case "uploaded":
+        return <Upload className="h-4 w-4 text-blue-500" />
+      case "under_review":
+        return <Clock className="h-4 w-4 text-yellow-500" />
+      default:
+        return <FileText className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -139,12 +205,13 @@ export function DocumentReviewDialog({
   }
 
   const isReviewed = document.status === "approved" || document.status === "rejected"
+  const canChangeStatus = document.status !== "not_started"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pr-8">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               <DialogTitle>{t("title")}</DialogTitle>
@@ -155,10 +222,22 @@ export function DocumentReviewDialog({
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details">{t("details")}</TabsTrigger>
+            <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
             <TabsTrigger value="history">{t("history")}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="preview" className="py-4">
+            {document.fileUrl && (
+              <FileViewer
+                fileUrl={document.fileUrl}
+                fileName={document.fileName}
+                mimeType={document.mimeType || ""}
+                className="rounded-lg border"
+              />
+            )}
+          </TabsContent>
 
           <TabsContent value="details" className="space-y-4 py-4">
           {/* Document info */}
@@ -166,7 +245,7 @@ export function DocumentReviewDialog({
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className="text-muted-foreground">{t("documentType")}</p>
-                <p className="font-medium">{document.documentType?.name}</p>
+                <p className="font-medium">{document.documentType?.name || t("looseDocument")}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t("version")}</p>
@@ -217,7 +296,7 @@ export function DocumentReviewDialog({
             </div>
           </div>
 
-          {/* Review info (if already reviewed) */}
+          {/* Current review info (if already reviewed) */}
           {isReviewed && document.reviewedBy && (
             <>
               <Separator />
@@ -261,40 +340,171 @@ export function DocumentReviewDialog({
             </Button>
           </div>
 
-          {/* Rejection reason input (for admin if not yet reviewed) */}
-          {!isReviewed && (
+          {/* Status change section */}
+          {canChangeStatus && (
             <>
               <Separator />
-              <div className="space-y-2">
-                <Label htmlFor="rejectionReason">
-                  {t("rejectionReason")} ({tCommon("optional")})
-                </Label>
-                <Textarea
-                  id="rejectionReason"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder={t("rejectionReasonPlaceholder")}
-                  disabled={isApproving || isRejecting}
-                  rows={3}
-                />
-              </div>
+              <Collapsible open={showStatusActions} onOpenChange={setShowStatusActions}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      {t("changeStatus")}
+                    </span>
+                    <ArrowRight className={`h-4 w-4 transition-transform ${showStatusActions ? "rotate-90" : ""}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                  {/* Rejection reason input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="rejectionReason">
+                      {t("rejectionReason")} ({t("requiredForRejection")})
+                    </Label>
+                    <Textarea
+                      id="rejectionReason"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder={t("rejectionReasonPlaceholder")}
+                      disabled={isApproving || isRejecting}
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Status change buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {document.status !== "uploaded" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChangeStatus("uploaded")}
+                        disabled={isApproving || isRejecting}
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        {t("status.uploaded")}
+                      </Button>
+                    )}
+                    {document.status !== "under_review" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChangeStatus("under_review")}
+                        disabled={isApproving || isRejecting}
+                      >
+                        <Clock className="h-4 w-4 mr-1" />
+                        {t("status.underReview")}
+                      </Button>
+                    )}
+                    {document.status !== "approved" && (
+                      <Button
+                        size="sm"
+                        onClick={handleApprove}
+                        disabled={isApproving || isRejecting}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isApproving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        {t("approve")}
+                      </Button>
+                    )}
+                    {document.status !== "rejected" && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleReject}
+                        disabled={isApproving || isRejecting || !rejectionReason.trim()}
+                      >
+                        {isRejecting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                        <XCircle className="h-4 w-4 mr-1" />
+                        {t("reject")}
+                      </Button>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
           </TabsContent>
 
           <TabsContent value="history" className="py-4">
-            {documentId && (
-              <EntityHistory
-                entityType="documentsDelivered"
-                entityId={documentId}
-                title={t("documentHistory")}
-              />
-            )}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <History className="h-4 w-4" />
+                {t("statusHistory")}
+              </h3>
+
+              {/* Status change timeline */}
+              {statusHistory && statusHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {statusHistory.map((entry, index) => (
+                    <div key={entry._id} className="flex gap-3 text-sm">
+                      <div className="flex flex-col items-center">
+                        {getStatusIcon(entry.newStatus)}
+                        {index < statusHistory.length - 1 && (
+                          <div className="w-px h-full bg-border mt-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {entry.previousStatus && (
+                            <>
+                              {getStatusBadge(entry.previousStatus)}
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                            </>
+                          )}
+                          {getStatusBadge(entry.newStatus)}
+                        </div>
+                        <div className="text-muted-foreground mt-1">
+                          <span className="font-medium">
+                            {entry.changedByProfile?.fullName || entry.changedByUser?.email || t("unknown")}
+                          </span>
+                          {" • "}
+                          {format(new Date(entry.changedAt), "PPP p")}
+                        </div>
+                        {entry.notes && (
+                          <div className="mt-1 p-2 bg-muted rounded text-sm">
+                            {entry.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">{t("noStatusHistory")}</p>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* File upload event */}
+              <div className="flex gap-3 text-sm">
+                <div className="flex flex-col items-center">
+                  <Upload className="h-4 w-4 text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="info">{t("fileUploaded")}</Badge>
+                  </div>
+                  <div className="text-muted-foreground mt-1">
+                    <span className="font-medium">
+                      {document.uploadedByUser?.email || t("unknown")}
+                    </span>
+                    {" • "}
+                    {format(new Date(document.uploadedAt), "PPP p")}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {document.fileName} ({formatFileSize(document.fileSize)})
+                  </div>
+                </div>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 
         <DialogFooter>
-          {!isReviewed ? (
+          {!isReviewed && !showStatusActions ? (
             <>
               <Button
                 type="button"
@@ -307,10 +517,9 @@ export function DocumentReviewDialog({
               <Button
                 type="button"
                 variant="destructive"
-                onClick={handleReject}
-                disabled={isApproving || isRejecting || !rejectionReason.trim()}
+                onClick={() => setShowStatusActions(true)}
+                disabled={isApproving || isRejecting}
               >
-                {isRejecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <XCircle className="mr-2 h-4 w-4" />
                 {t("reject")}
               </Button>

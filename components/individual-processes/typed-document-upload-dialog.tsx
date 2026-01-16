@@ -13,13 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -217,22 +211,19 @@ export function TypedDocumentUploadDialog({
             {!documentTypes ? (
               <Skeleton className="h-10 w-full" />
             ) : (
-              <Select
-                value={selectedDocumentTypeId}
-                onValueChange={setSelectedDocumentTypeId}
+              <Combobox
+                options={documentTypes.map((dt): ComboboxOption => ({
+                  value: dt._id,
+                  label: dt.name,
+                }))}
+                value={selectedDocumentTypeId || undefined}
+                onValueChange={(value) => setSelectedDocumentTypeId(value || "")}
+                placeholder={t("selectDocumentType")}
+                searchPlaceholder={t("searchDocumentType")}
+                emptyText={t("noDocumentTypesFound")}
                 disabled={isUploading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("selectDocumentType")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {documentTypes.map((dt) => (
-                    <SelectItem key={dt._id} value={dt._id}>
-                      {dt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                showClearButton={false}
+              />
             )}
           </div>
 
