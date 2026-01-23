@@ -391,11 +391,9 @@ export function IndividualProcessesTable({
         | RowSelectionState
         | ((old: RowSelectionState) => RowSelectionState),
     ) => {
-      // Only update if component is mounted
-      if (!isMountedRef.current) return;
-
       // Defer state update to next event loop tick to avoid updating during render
       // setTimeout(0) is more reliable than queueMicrotask as it runs after React's render cycle
+      // Check mounted status only inside the timeout to handle React strict mode double-rendering
       setTimeout(() => {
         if (isMountedRef.current) {
           setRowSelection(updaterOrValue);
@@ -412,10 +410,8 @@ export function IndividualProcessesTable({
         | VisibilityState
         | ((old: VisibilityState) => VisibilityState),
     ) => {
-      // Only update if component is mounted
-      if (!isMountedRef.current) return;
-
       // Defer state update to next event loop tick to avoid updating during render
+      // Check mounted status only inside the timeout to handle React strict mode double-rendering
       setTimeout(() => {
         if (isMountedRef.current) {
           setColumnVisibility(updaterOrValue);
@@ -430,7 +426,8 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: SortingState | ((old: SortingState) => SortingState),
     ) => {
-      if (!isMountedRef.current) return;
+      // Defer state update to next event loop tick to avoid updating during render
+      // Check mounted status only inside the timeout to handle React strict mode double-rendering
       setTimeout(() => {
         if (isMountedRef.current) {
           setSorting(updaterOrValue);
@@ -445,7 +442,8 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: GroupingState | ((old: GroupingState) => GroupingState),
     ) => {
-      if (!isMountedRef.current) return;
+      // Defer state update to next event loop tick to avoid updating during render
+      // Check mounted status only inside the timeout to handle React strict mode double-rendering
       setTimeout(() => {
         if (isMountedRef.current) {
           setGrouping(updaterOrValue);
@@ -460,7 +458,8 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: ExpandedState | ((old: ExpandedState) => ExpandedState),
     ) => {
-      if (!isMountedRef.current) return;
+      // Defer state update to next event loop tick to avoid updating during render
+      // Check mounted status only inside the timeout to handle React strict mode double-rendering
       setTimeout(() => {
         if (isMountedRef.current) {
           setExpanded(updaterOrValue);
