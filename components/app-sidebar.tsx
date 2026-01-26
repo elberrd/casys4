@@ -176,6 +176,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t('consulates'),
           url: "/consulates",
         },
+        {
+          title: t('documentTypeConditions'),
+          url: "/document-type-conditions",
+        },
       ],
     },
     {

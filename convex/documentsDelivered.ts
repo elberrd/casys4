@@ -227,6 +227,24 @@ export const upload = mutation({
       isLatest: true,
     });
 
+    // Auto-create conditions for this document based on document type
+    // Only for new documents (version 1), not replacements
+    if (version === 1) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documentDeliveredConditions.autoCreateForDocument,
+          {
+            documentsDeliveredId: documentId,
+            documentTypeId: args.documentTypeId,
+            individualProcessId: args.individualProcessId,
+          }
+        );
+      } catch (error) {
+        console.error("Failed to auto-create conditions:", error);
+      }
+    }
+
     // Log activity (non-blocking)
     try {
       const [person, documentType] = await Promise.all([
@@ -277,6 +295,45 @@ export const approve = mutation({
     // Can't approve a document that hasn't been uploaded yet
     if (document.status === "not_started") {
       throw new Error("Cannot approve a document that hasn't been uploaded yet");
+    }
+
+    // Validate conditions before approval
+    const conditions = await ctx.db
+      .query("documentDeliveredConditions")
+      .withIndex("by_documentDelivered", (q) => q.eq("documentsDeliveredId", id))
+      .collect();
+
+    if (conditions.length > 0) {
+      const now = Date.now();
+      const unfulfilledRequired: string[] = [];
+      const expiredConditions: string[] = [];
+
+      for (const condition of conditions) {
+        const conditionDef = await ctx.db.get(condition.documentTypeConditionId);
+        if (!conditionDef) continue;
+
+        // Check if required and not fulfilled
+        if (conditionDef.isRequired && !condition.isFulfilled) {
+          unfulfilledRequired.push(conditionDef.name);
+        }
+
+        // Check if expired
+        if (condition.expiresAt && condition.expiresAt < now) {
+          expiredConditions.push(conditionDef.name);
+        }
+      }
+
+      if (unfulfilledRequired.length > 0) {
+        throw new Error(
+          `Cannot approve: Required conditions not fulfilled: ${unfulfilledRequired.join(", ")}`
+        );
+      }
+
+      if (expiredConditions.length > 0) {
+        throw new Error(
+          `Cannot approve: Some conditions have expired: ${expiredConditions.join(", ")}`
+        );
+      }
     }
 
     const previousStatus = document.status;
@@ -1201,6 +1258,24 @@ export const uploadWithType = mutation({
       isRequired: false, // Manual uploads with type are optional by default
     });
 
+    // Auto-create conditions for this document based on document type
+    // Only for new documents (version 1), not replacements
+    if (version === 1) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documentDeliveredConditions.autoCreateForDocument,
+          {
+            documentsDeliveredId: documentId,
+            documentTypeId: args.documentTypeId,
+            individualProcessId: args.individualProcessId,
+          }
+        );
+      } catch (error) {
+        console.error("Failed to auto-create conditions:", error);
+      }
+    }
+
     // Log activity
     try {
       const person = await ctx.db.get(individualProcess.personId);
@@ -1427,6 +1502,34 @@ export const uploadForPending = mutation({
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
     });
+
+    // Auto-create conditions for this document based on document type
+    // Check if conditions already exist (from prior creation of pending document)
+    if (document.documentTypeId) {
+      const existingConditions = await ctx.db
+        .query("documentDeliveredConditions")
+        .withIndex("by_documentDelivered", (q) =>
+          q.eq("documentsDeliveredId", args.documentId)
+        )
+        .first();
+
+      // Only create conditions if none exist yet
+      if (!existingConditions) {
+        try {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.documentDeliveredConditions.autoCreateForDocument,
+            {
+              documentsDeliveredId: args.documentId,
+              documentTypeId: document.documentTypeId,
+              individualProcessId: document.individualProcessId,
+            }
+          );
+        } catch (error) {
+          console.error("Failed to auto-create conditions:", error);
+        }
+      }
+    }
 
     // Log activity
     try {

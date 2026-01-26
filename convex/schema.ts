@@ -267,6 +267,59 @@ export default defineSchema({
       "legalFrameworkId",
     ]),
 
+  // Document Type Conditions - Global conditions that can be linked to multiple document types (e.g., "legalizado", "apostilado")
+  // Conditions are now global and linked to document types via documentTypeConditionLinks junction table
+  // MIGRATION NOTE: documentTypeId is kept as optional for backward compatibility during migration
+  // After running the migration to create links, this field will be removed from existing documents
+  documentTypeConditions: defineTable({
+    documentTypeId: v.optional(v.id("documentTypes")), // DEPRECATED: kept for migration, will be removed
+    name: v.string(), // e.g., "Legalizado", "Apostilado"
+    code: v.optional(v.string()), // e.g., "LEGALIZADO", "APOSTILADO"
+    description: v.optional(v.string()),
+    isRequired: v.boolean(), // Default value when linking to a document type
+    relativeExpirationDays: v.optional(v.number()), // Days from individualProcess.createdAt for expiration
+    isActive: v.boolean(),
+    sortOrder: v.optional(v.number()), // Global sort order
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  })
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
+
+  // Junction table for many-to-many relationship between Document Types and Conditions
+  documentTypeConditionLinks: defineTable({
+    documentTypeId: v.id("documentTypes"),
+    documentTypeConditionId: v.id("documentTypeConditions"),
+    isRequired: v.boolean(), // Can override the default from documentTypeConditions
+    sortOrder: v.optional(v.number()), // Order specific to this document type
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_documentType", ["documentTypeId"])
+    .index("by_condition", ["documentTypeConditionId"])
+    .index("by_documentType_condition", ["documentTypeId", "documentTypeConditionId"]),
+
+  // Document Delivered Conditions - Track fulfillment of conditions for delivered documents
+  documentDeliveredConditions: defineTable({
+    documentsDeliveredId: v.id("documentsDelivered"),
+    documentTypeConditionId: v.id("documentTypeConditions"),
+    isFulfilled: v.boolean(), // Checkbox state
+    fulfilledAt: v.optional(v.number()), // Timestamp when fulfilled
+    fulfilledBy: v.optional(v.id("users")), // Who fulfilled it
+    expiresAt: v.optional(v.number()), // Calculated on creation: individualProcess.createdAt + relativeExpirationDays
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_documentDelivered", ["documentsDeliveredId"])
+    .index("by_condition", ["documentTypeConditionId"])
+    .index("by_documentDelivered_condition", [
+      "documentsDeliveredId",
+      "documentTypeConditionId",
+    ])
+    .index("by_fulfilled", ["isFulfilled"]),
+
   // Process management tables
   collectiveProcesses: defineTable({
     referenceNumber: v.string(),

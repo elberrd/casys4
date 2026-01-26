@@ -65,6 +65,29 @@ export function LegalFrameworkViewModal({
         },
       ],
     },
+    {
+      title: t("documentTypeAssociations"),
+      icon: <FileText className="h-5 w-5" />,
+      fields:
+        legalFramework.documentTypeAssociations &&
+        legalFramework.documentTypeAssociations.length > 0
+          ? legalFramework.documentTypeAssociations.map((assoc) => ({
+              label: assoc.documentTypeName,
+              value: (
+                <Badge variant={assoc.isRequired ? "default" : "secondary"}>
+                  {assoc.isRequired ? t("required") : tCommon("optional")}
+                </Badge>
+              ),
+              icon: <FileText className="h-4 w-4" />,
+            }))
+          : [
+              {
+                label: tCommon("noResults"),
+                value: "-",
+                fullWidth: true,
+              },
+            ],
+    },
   ]
 
   return (

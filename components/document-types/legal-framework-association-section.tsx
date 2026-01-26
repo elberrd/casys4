@@ -3,7 +3,6 @@
 import { useState, useMemo, ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { CheckCheck, X, AlertCircle, Search } from "lucide-react";
 import { fuzzyMatch } from "@/lib/fuzzy-search";
+import { AuthorizationTypeQuickSelector } from "./authorization-type-quick-selector";
 
 // Internal type that accepts string IDs from the form
 interface FormAssociation {
@@ -61,7 +61,6 @@ export function LegalFrameworkAssociationSection({
   onChange,
 }: LegalFrameworkAssociationSectionProps) {
   const t = useTranslations("DocumentTypes");
-  const tCommon = useTranslations("Common");
   const [searchFilter, setSearchFilter] = useState("");
 
   // Fetch all active legal frameworks
@@ -144,6 +143,16 @@ export function LegalFrameworkAssociationSection({
     onChange([]);
   };
 
+  // Handle selection from authorization type quick selector
+  const handleApplyAuthorizationTypeSelection = (legalFrameworkIds: string[]) => {
+    const currentIds = new Set(value.map((v) => v.legalFrameworkId));
+    const newAssociations = legalFrameworkIds
+      .filter((id) => !currentIds.has(id))
+      .map((id) => ({ legalFrameworkId: id, isRequired: false }));
+
+    onChange([...value, ...newAssociations]);
+  };
+
   const allSelected = legalFrameworks.every((lf) => isSelected(lf._id));
   const noneSelected = value.length === 0;
 
@@ -180,6 +189,11 @@ export function LegalFrameworkAssociationSection({
       <p className="text-sm text-muted-foreground">
         {t("legalFrameworkAssociationsDescription")}
       </p>
+
+      {/* Authorization Type Quick Selector */}
+      <AuthorizationTypeQuickSelector
+        onApplySelection={handleApplyAuthorizationTypeSelection}
+      />
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

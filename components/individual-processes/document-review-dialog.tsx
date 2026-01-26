@@ -32,6 +32,8 @@ import {
   Clock,
   ArrowRight,
   RotateCcw,
+  ClipboardCheck,
+  AlertTriangle,
 } from "lucide-react"
 import { format } from "date-fns"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -41,6 +43,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface DocumentReviewDialogProps {
   open: boolean
@@ -73,12 +76,35 @@ export function DocumentReviewDialog({
     documentId ? { documentId } : "skip"
   )
 
+  const conditions = useQuery(
+    api.documentDeliveredConditions.listByDocument,
+    documentId ? { documentsDeliveredId: documentId } : "skip"
+  )
+
+  const validationStatus = useQuery(
+    api.documentDeliveredConditions.getValidationStatus,
+    documentId ? { documentsDeliveredId: documentId } : "skip"
+  )
+
   const approve = useMutation(api.documentsDelivered.approve)
+  const toggleConditionFulfillment = useMutation(api.documentDeliveredConditions.toggleFulfillment)
   const reject = useMutation(api.documentsDelivered.reject)
   const changeStatus = useMutation(api.documentsDelivered.changeStatus)
 
   const handleApprove = async () => {
     if (!documentId) return
+
+    // Check conditions before approval
+    if (validationStatus) {
+      if (!validationStatus.allRequiredFulfilled) {
+        toast.error(t("errorConditionsNotFulfilled") || `Não é possível aprovar: condições obrigatórias não cumpridas: ${validationStatus.unfulfilledRequired.join(", ")}`)
+        return
+      }
+      if (validationStatus.hasExpiredConditions) {
+        toast.error(t("errorConditionsExpired") || `Não é possível aprovar: condições expiradas: ${validationStatus.expiredConditions.join(", ")}`)
+        return
+      }
+    }
 
     try {
       setIsApproving(true)
@@ -94,7 +120,14 @@ export function DocumentReviewDialog({
       }
     } catch (error) {
       console.error("Error approving document:", error)
-      toast.error(t("errorApprove"))
+      const errorMessage = error instanceof Error ? error.message : ""
+      if (errorMessage.includes("Required conditions not fulfilled")) {
+        toast.error(t("errorConditionsNotFulfilled") || errorMessage)
+      } else if (errorMessage.includes("conditions have expired")) {
+        toast.error(t("errorConditionsExpired") || errorMessage)
+      } else {
+        toast.error(t("errorApprove"))
+      }
     } finally {
       setIsApproving(false)
     }
@@ -128,6 +161,19 @@ export function DocumentReviewDialog({
       toast.error(t("errorReject"))
     } finally {
       setIsRejecting(false)
+    }
+  }
+
+  const handleToggleCondition = async (conditionId: string, isFulfilled: boolean) => {
+    try {
+      await toggleConditionFulfillment({
+        id: conditionId as any,
+        isFulfilled,
+      })
+      toast.success(isFulfilled ? t("conditionFulfilled") : t("conditionUnfulfilled"))
+    } catch (error) {
+      console.error("Error toggling condition:", error)
+      toast.error(t("errorToggleCondition"))
     }
   }
 
@@ -222,9 +268,20 @@ export function DocumentReviewDialog({
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">{t("details")}</TabsTrigger>
             <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
+            <TabsTrigger value="conditions" className="relative">
+              {t("conditions") || "Condições"}
+              {conditions && conditions.length > 0 && validationStatus && (
+                <Badge
+                  variant={validationStatus.allRequiredFulfilled ? "success" : "warning"}
+                  className="ml-1 h-5 min-w-5 px-1"
+                >
+                  {validationStatus.fulfilledCount}/{validationStatus.totalConditions}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="history">{t("history")}</TabsTrigger>
           </TabsList>
 
@@ -236,6 +293,110 @@ export function DocumentReviewDialog({
                 mimeType={document.mimeType || ""}
                 className="rounded-lg border"
               />
+            )}
+          </TabsContent>
+
+          <TabsContent value="conditions" className="py-4">
+            {conditions && conditions.length > 0 ? (
+              <div className="space-y-4">
+                {/* Validation status warning */}
+                {validationStatus && (!validationStatus.allRequiredFulfilled || validationStatus.hasExpiredConditions) && (
+                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5" />
+                      <div className="text-sm">
+                        {!validationStatus.allRequiredFulfilled && (
+                          <p className="text-yellow-800 dark:text-yellow-200">
+                            {t("conditionsNotFulfilled")}: {validationStatus.unfulfilledRequired.join(", ")}
+                          </p>
+                        )}
+                        {validationStatus.hasExpiredConditions && (
+                          <p className="text-yellow-800 dark:text-yellow-200">
+                            {t("conditionsExpired")}: {validationStatus.expiredConditions.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Conditions list */}
+                <div className="space-y-2">
+                  {conditions.map((condition) => (
+                    <div
+                      key={condition._id}
+                      className={`flex items-start gap-3 rounded-lg border p-3 ${
+                        condition.isExpired
+                          ? "border-destructive/50 bg-destructive/5"
+                          : condition.isFulfilled
+                            ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                            : ""
+                      }`}
+                    >
+                      <Checkbox
+                        id={condition._id}
+                        checked={condition.isFulfilled}
+                        onCheckedChange={(checked) => handleToggleCondition(condition._id, checked === true)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <label
+                            htmlFor={condition._id}
+                            className={`font-medium cursor-pointer ${
+                              condition.isFulfilled ? "line-through text-muted-foreground" : ""
+                            }`}
+                          >
+                            {condition.conditionDefinition?.name}
+                          </label>
+                          {condition.conditionDefinition?.isRequired && (
+                            <Badge variant="default" className="text-xs">
+                              {t("required") || "Obrigatório"}
+                            </Badge>
+                          )}
+                          {condition.isExpired && (
+                            <Badge variant="destructive" className="text-xs">
+                              {t("expired") || "Expirado"}
+                            </Badge>
+                          )}
+                          {condition.isFulfilled && !condition.isExpired && (
+                            <Badge variant="success" className="text-xs">
+                              {t("fulfilled") || "Cumprido"}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {condition.conditionDefinition?.description && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {condition.conditionDefinition.description}
+                          </p>
+                        )}
+
+                        {/* Expiration date */}
+                        {condition.expiresAt && (
+                          <p className={`text-xs mt-1 ${condition.isExpired ? "text-destructive" : "text-muted-foreground"}`}>
+                            {t("expiresAt") || "Expira em"}: {format(new Date(condition.expiresAt), "PPP")}
+                          </p>
+                        )}
+
+                        {/* Fulfillment info */}
+                        {condition.isFulfilled && condition.fulfilledAt && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {t("fulfilledBy") || "Cumprido por"}: {condition.fulfilledByUser?.fullName || condition.fulfilledByUser?.email || t("unknown")}
+                            {" • "}
+                            {format(new Date(condition.fulfilledAt), "PPP p")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">{t("noConditions") || "Este documento não possui condições definidas."}</p>
+              </div>
             )}
           </TabsContent>
 

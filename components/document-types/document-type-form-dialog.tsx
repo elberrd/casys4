@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
@@ -54,6 +54,7 @@ import {
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { LegalFrameworkAssociationSection } from "./legal-framework-association-section";
+import { ConditionsSection, ConditionsSectionRef } from "./conditions-section";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
@@ -101,6 +102,8 @@ export function DocumentTypeFormDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Track if user has manually edited the code field
   const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
+  // Ref to the conditions section for applying changes on save
+  const conditionsSectionRef = useRef<ConditionsSectionRef>(null);
   // State for inline category creation
   const [newCategoryName, setNewCategoryName] = useState("");
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -246,6 +249,12 @@ export function DocumentTypeFormDialog({
           isActive: data.isActive,
           legalFrameworkAssociations: associations,
         });
+
+        // Apply pending condition changes
+        if (conditionsSectionRef.current?.hasChanges()) {
+          await conditionsSectionRef.current.applyChanges();
+        }
+
         toast.success(t("updatedSuccess"));
       } else {
         await createDocumentType({
@@ -263,6 +272,7 @@ export function DocumentTypeFormDialog({
 
       form.reset();
       setIsCodeManuallyEdited(false);
+      conditionsSectionRef.current?.resetChanges();
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -455,6 +465,14 @@ export function DocumentTypeFormDialog({
                 </FormItem>
               )}
             />
+
+            {/* Conditions Section - Only show in edit mode */}
+            {documentTypeId && (
+              <>
+                <Separator className="my-4" />
+                <ConditionsSection ref={conditionsSectionRef} documentTypeId={documentTypeId} />
+              </>
+            )}
 
             <Separator className="my-4" />
 

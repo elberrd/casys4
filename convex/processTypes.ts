@@ -66,6 +66,29 @@ export const get = query({
 });
 
 /**
+ * Query to get legal framework IDs for an authorization type
+ * Returns only active legal framework IDs for quick selection
+ */
+export const getLegalFrameworkIds = query({
+  args: { processTypeId: v.id("processTypes") },
+  handler: async (ctx, { processTypeId }) => {
+    const links = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_processType", (q) => q.eq("processTypeId", processTypeId))
+      .collect();
+
+    const legalFrameworkIds = await Promise.all(
+      links.map(async (link) => {
+        const lf = await ctx.db.get(link.legalFrameworkId);
+        return lf && lf.isActive ? link.legalFrameworkId : null;
+      })
+    );
+
+    return legalFrameworkIds.filter((id): id is Id<"legalFrameworks"> => id !== null);
+  },
+});
+
+/**
  * Query to get legal frameworks for an authorization type
  */
 export const getLegalFrameworks = query({
