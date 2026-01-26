@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Filter, Trash2, Search, Pencil } from "lucide-react"
+import { Filter, Trash2, Search, Pencil, Check, X } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -37,15 +37,32 @@ interface SavedFiltersListProps {
   onApplyFilter: (filterCriteria: any, filterName: string) => void
   onEditFilter?: (filter: SavedFilter) => void
   selectedFilterName?: string | null
+  editingViewId?: Id<"savedFilters"> | null
+  editingViewName?: string
+  onEditingViewNameChange?: (name: string) => void
+  onCancelEdit?: () => void
+  onSaveEdit?: () => void
 }
 
-export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter, selectedFilterName }: SavedFiltersListProps) {
+export function SavedFiltersList({
+  filterType,
+  onApplyFilter,
+  onEditFilter,
+  selectedFilterName,
+  editingViewId,
+  editingViewName,
+  onEditingViewNameChange,
+  onCancelEdit,
+  onSaveEdit,
+}: SavedFiltersListProps) {
   const t = useTranslations("SavedFilters")
   const tCommon = useTranslations("Common")
   const locale = useLocale()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [filterToDelete, setFilterToDelete] = useState<Id<"savedFilters"> | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+
+  const isEditingMode = !!editingViewId
 
   const savedFilters = useQuery(api.savedFilters.listByType, { filterType }) ?? []
   const deleteMutation = useMutation(api.savedFilters.remove)
@@ -125,42 +142,90 @@ export function SavedFiltersList({ filterType, onApplyFilter, onEditFilter, sele
         <div className="space-y-1 p-2">
           {filteredFilters.map((filter) => {
             const isSelected = filter.name === selectedFilterName
+            const isBeingEdited = editingViewId === filter._id
             return (
           <div
             key={filter._id}
-            className={`flex items-center justify-between p-3 rounded-md hover:bg-accent cursor-pointer transition-colors ${
-              isSelected ? 'bg-primary/10 border-2 border-primary' : ''
+            className={`flex items-center justify-between p-3 rounded-md transition-colors ${
+              isBeingEdited
+                ? 'bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-500'
+                : isSelected
+                  ? 'bg-primary/10 border-2 border-primary'
+                  : 'hover:bg-accent cursor-pointer'
             }`}
-            onClick={() => handleApply(filter)}
+            onClick={() => !isBeingEdited && handleApply(filter)}
           >
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{filter.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(filter.createdAt), {
-                  addSuffix: true,
-                  locale: dateLocale,
-                })}
-              </p>
+              {isBeingEdited ? (
+                <Input
+                  value={editingViewName ?? ""}
+                  onChange={(e) => onEditingViewNameChange?.(e.target.value)}
+                  className="h-8 text-sm font-medium"
+                  placeholder={t("filterNamePlaceholder")}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <p className="font-medium text-sm truncate">{filter.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(filter.createdAt), {
+                      addSuffix: true,
+                      locale: dateLocale,
+                    })}
+                  </p>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-1 ml-2">
-              {onEditFilter && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => handleEditClick(e, filter)}
-                  className="h-8 w-8 p-0"
-                >
-                  <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                </Button>
+              {isBeingEdited ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSaveEdit?.()
+                    }}
+                    className="h-8 w-8 p-0"
+                    disabled={!editingViewName?.trim()}
+                  >
+                    <Check className="h-4 w-4 text-green-600 hover:text-green-700" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCancelEdit?.()
+                    }}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {onEditFilter && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleEditClick(e, filter)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteClick(e, filter._id)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => handleDeleteClick(e, filter._id)}
-                className="h-8 w-8 p-0"
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-              </Button>
             </div>
           </div>
             )

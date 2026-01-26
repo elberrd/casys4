@@ -24,15 +24,7 @@ import { Save, Loader2, AlertCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-
-interface SavedFilter {
-  _id: Id<"savedFilters">
-  name: string
-  filterType: "individualProcesses" | "collectiveProcesses"
-  filterCriteria: any
-}
 
 interface SaveFilterSheetProps {
   open: boolean
@@ -40,7 +32,6 @@ interface SaveFilterSheetProps {
   filterType: "individualProcesses" | "collectiveProcesses"
   currentFilters: any
   onSaveSuccess?: () => void
-  editingFilter?: SavedFilter | null
 }
 
 export function SaveFilterSheet({
@@ -49,7 +40,6 @@ export function SaveFilterSheet({
   filterType,
   currentFilters,
   onSaveSuccess,
-  editingFilter,
 }: SaveFilterSheetProps) {
   const t = useTranslations("SavedFilters")
   const tCommon = useTranslations("Common")
@@ -57,20 +47,13 @@ export function SaveFilterSheet({
   const [isSaving, setIsSaving] = useState(false)
 
   const createMutation = useMutation(api.savedFilters.create)
-  const updateMutation = useMutation(api.savedFilters.update)
 
-  const isEditMode = !!editingFilter
-
-  // Reset filter name when opening/closing or when editingFilter changes
+  // Reset filter name when opening/closing
   useEffect(() => {
     if (open) {
-      if (editingFilter) {
-        setFilterName(editingFilter.name)
-      } else {
-        setFilterName("")
-      }
+      setFilterName("")
     }
-  }, [open, editingFilter])
+  }, [open])
 
   const getFilterSummaryFromCriteria = (criteria: any) => {
     const summary: Array<{ key: string; label: string }> = []
@@ -142,9 +125,7 @@ export function SaveFilterSheet({
     return summary
   }
 
-  const filterSummary = isEditMode
-    ? getFilterSummaryFromCriteria(editingFilter.filterCriteria)
-    : getFilterSummaryFromCriteria(currentFilters)
+  const filterSummary = getFilterSummaryFromCriteria(currentFilters)
 
   const handleSave = async () => {
     if (!filterName.trim()) {
@@ -155,44 +136,34 @@ export function SaveFilterSheet({
     setIsSaving(true)
 
     try {
-      if (isEditMode) {
-        await updateMutation({
-          id: editingFilter._id,
-          name: filterName.trim(),
-        })
-        toast.success(t("success.filterUpdated"))
-      } else {
-        await createMutation({
-          name: filterName.trim(),
-          filterType,
-          filterCriteria: currentFilters,
-        })
-        toast.success(t("success.filterSaved"))
-      }
+      await createMutation({
+        name: filterName.trim(),
+        filterType,
+        filterCriteria: currentFilters,
+      })
+      toast.success(t("success.filterSaved"))
 
       setFilterName("")
       onSaveSuccess?.()
       onOpenChange(false)
     } catch (error) {
       console.error("Failed to save filter:", error)
-      toast.error(isEditMode ? t("errors.updateFailed") : t("errors.saveFailed"))
+      toast.error(t("errors.saveFailed"))
     } finally {
       setIsSaving(false)
     }
   }
 
   const remainingChars = 100 - filterName.length
-  const canSave = isEditMode
-    ? filterName.trim().length > 0
-    : filterName.trim().length > 0 && filterSummary.length > 0
+  const canSave = filterName.trim().length > 0 && filterSummary.length > 0
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col z-[100]">
         <SheetHeader className="px-6">
-          <SheetTitle>{isEditMode ? t("editFilter") : t("saveFilter")}</SheetTitle>
+          <SheetTitle>{t("saveFilter")}</SheetTitle>
           <SheetDescription>
-            {isEditMode ? t("editFilterDescription") : t("saveFilterDescription")}
+            {t("saveFilterDescription")}
           </SheetDescription>
         </SheetHeader>
 
@@ -200,7 +171,7 @@ export function SaveFilterSheet({
           {/* Active Filters Summary */}
           <div>
             <Label className="text-sm font-medium">
-              {isEditMode ? t("savedFilterCriteria") : t("activeFilters")}
+              {t("activeFilters")}
             </Label>
             {filterSummary.length > 0 ? (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -213,15 +184,13 @@ export function SaveFilterSheet({
             ) : (
               <>
                 <p className="text-sm text-muted-foreground mt-2">{t("noActiveFilters")}</p>
-                {!isEditMode && (
-                  <Alert variant="destructive" className="mt-3">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>{t("warnings.applyFiltersFirst")}</AlertTitle>
-                    <AlertDescription>
-                      {t("warnings.applyFiltersDescription")}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <Alert variant="destructive" className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>{t("warnings.applyFiltersFirst")}</AlertTitle>
+                  <AlertDescription>
+                    {t("warnings.applyFiltersDescription")}
+                  </AlertDescription>
+                </Alert>
               </>
             )}
           </div>

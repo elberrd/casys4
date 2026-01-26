@@ -11,7 +11,8 @@ import { FillFieldsModal } from "@/components/individual-processes/fill-fields-m
 import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
 import { Button } from "@/components/ui/button"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
-import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X } from "lucide-react"
+import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Id } from "@/convex/_generated/dataModel"
 import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"
 import type { ExcelColumnConfig, ExcelGroupConfig } from "@/lib/utils/excel-export-helpers"
@@ -55,10 +56,13 @@ export function IndividualProcessesClient() {
     filterType: "individualProcesses" | "collectiveProcesses"
     filterCriteria: any
   } | null>(null)
+  const [isEditingView, setIsEditingView] = useState(false)
+  const [editingViewName, setEditingViewName] = useState("")
 
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
   const createFromExisting = useMutation(api.individualProcesses.createFromExisting)
+  const updateSavedFilter = useMutation(api.savedFilters.update)
 
   // Fetch filter options
   const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
@@ -306,9 +310,39 @@ export function IndividualProcessesClient() {
     filterType: "individualProcesses" | "collectiveProcesses"
     filterCriteria: any
   }) => {
+    // Apply the filter criteria so user can see and modify them
+    handleApplySavedFilter(filter.filterCriteria, filter.name)
     setEditingFilter(filter)
-    setIsSaveFilterSheetOpen(true)
+    setEditingViewName(filter.name)
+    setIsEditingView(true)
+    // Don't open the Sheet - editing is done inline
+  }, [handleApplySavedFilter])
+
+  const handleCancelEditView = useCallback(() => {
+    setEditingFilter(null)
+    setEditingViewName("")
+    setIsEditingView(false)
   }, [])
+
+  const handleSaveEditView = useCallback(async () => {
+    if (!editingFilter || !editingViewName.trim()) return
+
+    try {
+      await updateSavedFilter({
+        id: editingFilter._id,
+        name: editingViewName.trim(),
+        filterCriteria: getCurrentFilterCriteria(),
+      })
+      toast.success(tSavedFilters("success.filterUpdated"))
+      setSelectedFilterName(editingViewName.trim())
+      setEditingFilter(null)
+      setEditingViewName("")
+      setIsEditingView(false)
+    } catch (error) {
+      console.error("Failed to update view:", error)
+      toast.error(tSavedFilters("errors.updateFailed"))
+    }
+  }, [editingFilter, editingViewName, getCurrentFilterCriteria, updateSavedFilter, tSavedFilters])
 
   // Apply filters to individual processes
   const filteredProcesses = useMemo(() => {
@@ -833,6 +867,11 @@ export function IndividualProcessesClient() {
                 onApplyFilter={handleApplySavedFilter}
                 onEditFilter={handleEditFilter}
                 selectedFilterName={selectedFilterName}
+                editingViewId={editingFilter?._id}
+                editingViewName={editingViewName}
+                onEditingViewNameChange={setEditingViewName}
+                onCancelEdit={handleCancelEditView}
+                onSaveEdit={handleSaveEditView}
               />
             </DropdownMenuContent>
           </DropdownMenu>
@@ -866,7 +905,45 @@ export function IndividualProcessesClient() {
           </Button>
         </ExcelExportDialog>
       </DashboardPageHeader>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 w-full max-w-full overflow-x-hidden">
+      <div className={cn(
+        "flex flex-1 flex-col gap-4 p-4 pt-0 w-full max-w-full overflow-x-hidden",
+        isEditingView && "ring-2 ring-blue-500 ring-inset rounded-lg bg-blue-50/30 dark:bg-blue-950/10"
+      )}>
+        {/* Edit Mode Banner */}
+        {isEditingView && (
+          <div className="flex items-center justify-between gap-4 p-3 rounded-lg bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700">
+            <div className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                {tSavedFilters("editMode")}
+              </span>
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                {tSavedFilters("editModeDescription")}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelEditView}
+                className="gap-1"
+              >
+                <X className="h-4 w-4" />
+                {tCommon("cancel")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveEditView}
+                disabled={!editingViewName.trim()}
+                className="gap-1 bg-blue-600 hover:bg-blue-700"
+              >
+                <Check className="h-4 w-4" />
+                {tSavedFilters("saveChanges")}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Page title and description */}
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>
@@ -942,21 +1019,12 @@ export function IndividualProcessesClient() {
           />
         )}
 
-        {/* Save Filter Sheet */}
+        {/* Save Filter Sheet - only for creating new views */}
         <SaveFilterSheet
           open={isSaveFilterSheetOpen}
-          onOpenChange={(open) => {
-            setIsSaveFilterSheetOpen(open)
-            if (!open) {
-              setEditingFilter(null)
-            }
-          }}
+          onOpenChange={setIsSaveFilterSheetOpen}
           filterType="individualProcesses"
           currentFilters={getCurrentFilterCriteria()}
-          onSaveSuccess={() => {
-            setEditingFilter(null)
-          }}
-          editingFilter={editingFilter}
         />
       </div>
     </>

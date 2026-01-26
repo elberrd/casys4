@@ -3060,20 +3060,23 @@
     "cancelButton": "Continuar editando"
   },
   "SavedFilters": {
-    "title": "Filtros Salvos",
-    "saveFilter": "Salvar Filtro",
-    "editFilter": "Editar Filtro",
-    "saveFilterDescription": "Salve sua configuração atual de filtros para aplicá-la rapidamente mais tarde.",
-    "editFilterDescription": "Atualize o nome deste filtro salvo.",
+    "title": "Views Salvas",
+    "saveFilter": "Salvar View",
+    "editFilter": "Editar View",
+    "saveFilterDescription": "Salve sua configuração atual de views para aplicá-la rapidamente mais tarde.",
+    "editFilterDescription": "Atualize o nome e critérios desta view salva.",
     "activeFilters": "Filtros Ativos",
-    "savedFilterCriteria": "Critérios do Filtro Salvo",
+    "savedFilterCriteria": "Critérios da View Salva",
     "noActiveFilters": "Nenhum filtro ativo",
-    "filterName": "Nome do Filtro",
-    "filterNamePlaceholder": "Digite um nome para este filtro...",
-    "searchPlaceholder": "Pesquisar filtros...",
-    "noResultsFound": "Nenhum filtro encontrado",
-    "noSavedFilters": "Nenhum filtro salvo ainda",
-    "deleteConfirm": "Tem certeza que deseja excluir este filtro?",
+    "filterName": "Nome da View",
+    "filterNamePlaceholder": "Digite um nome para esta view...",
+    "searchPlaceholder": "Pesquisar views...",
+    "noResultsFound": "Nenhuma view encontrada",
+    "noSavedFilters": "Nenhuma view salva ainda",
+    "deleteConfirm": "Tem certeza que deseja excluir esta view?",
+    "editMode": "Modo de Edição",
+    "editModeDescription": "Você está editando esta view. Altere os filtros na página e salve as mudanças.",
+    "saveChanges": "Salvar Alterações",
     "filterSummary": {
       "candidates": "{count} candidato(s)",
       "applicants": "{count} requerente(s)",
@@ -3087,22 +3090,22 @@
       "advancedFilters": "{count} filtro(s) avançado(s)"
     },
     "success": {
-      "filterSaved": "Filtro salvo com sucesso",
-      "filterUpdated": "Filtro atualizado com sucesso",
-      "filterDeleted": "Filtro excluído com sucesso",
-      "filterApplied": "Filtro aplicado com sucesso",
-      "filterCleared": "Filtro limpo com sucesso"
+      "filterSaved": "View salva com sucesso",
+      "filterUpdated": "View atualizada com sucesso",
+      "filterDeleted": "View excluída com sucesso",
+      "filterApplied": "View aplicada com sucesso",
+      "filterCleared": "View limpa com sucesso"
     },
     "errors": {
-      "nameRequired": "Nome do filtro é obrigatório",
-      "saveFailed": "Falha ao salvar filtro",
-      "updateFailed": "Falha ao atualizar filtro",
-      "deleteFailed": "Falha ao excluir filtro",
+      "nameRequired": "Nome da view é obrigatório",
+      "saveFailed": "Falha ao salvar view",
+      "updateFailed": "Falha ao atualizar view",
+      "deleteFailed": "Falha ao excluir view",
       "noFiltersActive": "Você precisa aplicar pelo menos um filtro antes de salvar"
     },
     "warnings": {
       "applyFiltersFirst": "Aplique filtros primeiro",
-      "applyFiltersDescription": "Para salvar um filtro, você precisa primeiro aplicar filtros na tabela acima. Depois que os filtros estiverem ativos, você poderá salvá-los aqui."
+      "applyFiltersDescription": "Para salvar uma view, você precisa primeiro aplicar filtros na tabela acima. Depois que os filtros estiverem ativos, você poderá salvá-los aqui."
     }
   },
   "RNMCalendar": {
