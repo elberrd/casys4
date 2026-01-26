@@ -1949,7 +1949,8 @@
     "applySelection": "Aplicar",
     "noAuthorizationTypes": "Nenhum tipo de autorização disponível",
     "authorizationTypeApplied": "{count} amparos legais de {authorizationType} foram automaticamente selecionados",
-    "noLegalFrameworksForAuthorizationType": "Nenhum amparo legal associado a este tipo de autorização"
+    "noLegalFrameworksForAuthorizationType": "Nenhum amparo legal associado a este tipo de autorização",
+    "ungroupedLegalFrameworks": "Outros Amparos Legais"
   },
   "DocumentCategories": {
     "title": "Categorias de Documento",
