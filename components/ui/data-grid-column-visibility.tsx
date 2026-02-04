@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Table } from "@tanstack/react-table"
-import { Settings2 } from "lucide-react"
+import { Table, VisibilityState } from "@tanstack/react-table"
+import { Settings2, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,10 +29,16 @@ export interface DataGridColumnVisibilityProps<TData> {
   showAllLabel?: string
   /** Label for hide all option */
   hideAllLabel?: string
+  /** Label for reset option */
+  resetLabel?: string
   /** Columns to exclude from visibility control */
   excludeColumns?: string[]
   /** Map of column IDs to display labels */
   columnLabels?: Record<string, string>
+  /** Default column visibility state to reset to */
+  defaultColumnVisibility?: VisibilityState
+  /** Callback when visibility is reset */
+  onReset?: () => void
 }
 
 /**
@@ -52,8 +58,11 @@ export function DataGridColumnVisibility<TData>({
   label = "Toggle columns",
   showAllLabel = "Show all",
   hideAllLabel = "Hide all",
+  resetLabel = "Reset",
   excludeColumns = ["select", "actions"],
   columnLabels = {},
+  defaultColumnVisibility,
+  onReset,
 }: DataGridColumnVisibilityProps<TData>) {
   // Get all columns that can be hidden
   const columns = table
@@ -71,12 +80,34 @@ export function DataGridColumnVisibility<TData>({
   // Check if no columns are visible
   const noneVisible = columns.every((column) => !column.getIsVisible())
 
+  // Check if current visibility matches default
+  const isDefaultState = React.useMemo(() => {
+    if (!defaultColumnVisibility) return true
+
+    return columns.every((column) => {
+      const defaultVisible = defaultColumnVisibility[column.id] ?? true
+      return column.getIsVisible() === defaultVisible
+    })
+  }, [columns, defaultColumnVisibility])
+
   const handleShowAll = () => {
     columns.forEach((column) => column.toggleVisibility(true))
   }
 
   const handleHideAll = () => {
     columns.forEach((column) => column.toggleVisibility(false))
+  }
+
+  const handleReset = () => {
+    if (onReset) {
+      onReset()
+    } else if (defaultColumnVisibility) {
+      // Apply default visibility directly
+      columns.forEach((column) => {
+        const defaultVisible = defaultColumnVisibility[column.id] ?? true
+        column.toggleVisibility(defaultVisible)
+      })
+    }
   }
 
   return (
@@ -141,6 +172,25 @@ export function DataGridColumnVisibility<TData>({
             </DropdownMenuCheckboxItem>
           )
         })}
+
+        {/* Reset button */}
+        {(defaultColumnVisibility || onReset) && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="p-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start h-8 px-2 gap-2"
+                onClick={handleReset}
+                disabled={isDefaultState && !onReset}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {resetLabel}
+              </Button>
+            </div>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

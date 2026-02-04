@@ -77,7 +77,8 @@
     "currentMonth": "Mês atual",
     "updated": "Atualizado",
     "showAll": "Mostrar todas",
-    "hideAll": "Ocultar todas"
+    "hideAll": "Ocultar todas",
+    "reset": "Restaurar"
   },
   "Navigation": {
     "dashboard": "Painel",
@@ -917,6 +918,7 @@
     "processStatus": "Status do Processo",
     "processStatusCurrent": "Atual",
     "processStatusPrevious": "Anterior",
+    "statusDate": "Data do Status",
     "selectProcessStatus": "Selecione o status do processo",
     "qualification": "Qualificação",
     "selectQualification": "Selecionar qualificação",

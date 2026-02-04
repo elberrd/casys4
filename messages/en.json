@@ -77,7 +77,8 @@
     "currentMonth": "Current month",
     "updated": "Updated",
     "showAll": "Show all",
-    "hideAll": "Hide all"
+    "hideAll": "Hide all",
+    "reset": "Reset"
   },
   "Navigation": {
     "dashboard": "Dashboard",
@@ -918,6 +919,7 @@
     "processStatus": "Process Status",
     "processStatusCurrent": "Current",
     "processStatusPrevious": "Previous",
+    "statusDate": "Status Date",
     "selectProcessStatus": "Select process status",
     "qualification": "Qualification",
     "selectQualification": "Select qualification",

@@ -257,6 +257,7 @@ export function IndividualProcessesTable({
     qualification: false,
     professionalExperience: false,
     notes: true,
+    groupedStatusDate: false, // Hidden by default, shown only in grouped mode
   };
 
   // Support both controlled and uncontrolled column visibility
@@ -380,19 +381,21 @@ export function IndividualProcessesTable({
       setGrouping(["caseStatus.name"]);
       // Set all groups to collapsed by default when entering grouped mode
       setExpanded({});
-      // Hide the caseStatus column when grouped mode is active
+      // Hide the caseStatus column and show groupedStatusDate when grouped mode is active
       setColumnVisibility(prev => ({
         ...prev,
-        "caseStatus.name": false
+        "caseStatus.name": false,
+        groupedStatusDate: true,
       }));
     } else {
       // Deactivate grouping
       setGrouping([]);
       setExpanded({});
-      // Restore the caseStatus column visibility when leaving grouped mode
+      // Restore the caseStatus column visibility and hide groupedStatusDate when leaving grouped mode
       setColumnVisibility(prev => ({
         ...prev,
-        "caseStatus.name": initialColumnVisibilityRef.current["caseStatus.name"] ?? true
+        "caseStatus.name": initialColumnVisibilityRef.current["caseStatus.name"] ?? true,
+        groupedStatusDate: false,
       }));
     }
   }, [isGroupedModeActive]);
@@ -495,6 +498,46 @@ export function IndividualProcessesTable({
   const columns = useMemo<ColumnDef<IndividualProcess>[]>(
     () => [
       createSelectColumn<IndividualProcess>(),
+      {
+        id: "groupedStatusDate",
+        accessorFn: (row) => {
+          const activeStatus = row.activeStatus;
+          if (!activeStatus) return null;
+          return activeStatus.date ||
+            new Date(activeStatus.changedAt).toISOString().split("T")[0];
+        },
+        minSize: 90,
+        maxSize: 110,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("statusDate")} />
+        ),
+        cell: ({ row }) => {
+          const activeStatus = row.original.activeStatus;
+
+          if (!activeStatus) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const displayDate = activeStatus.date ||
+            new Date(activeStatus.changedAt).toISOString().split("T")[0];
+          const datePart = displayDate.split("T")[0];
+          const [year, month, day] = datePart.split("-").map(Number);
+
+          if (!year || !month || !day) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const date = new Date(year, month - 1, day);
+          const formattedDate = date.toLocaleDateString(
+            locale === "en" ? "en-US" : "pt-BR",
+            { day: "2-digit", month: "2-digit", year: "numeric" }
+          );
+
+          return <span className="text-sm">{formattedDate}</span>;
+        },
+        enableSorting: true,
+        enableHiding: false,
+      },
       {
         accessorKey: "person.fullName",
         minSize: 100,
@@ -1588,6 +1631,9 @@ export function IndividualProcessesTable({
             label={tCommon("columns")}
             showAllLabel={tCommon("showAll")}
             hideAllLabel={tCommon("hideAll")}
+            resetLabel={tCommon("reset")}
+            defaultColumnVisibility={initialColumnVisibilityRef.current}
+            onReset={() => setColumnVisibility(initialColumnVisibilityRef.current)}
             columnLabels={{
               "person_fullName": t("personName"),
               "protocolNumber": t("protocol"),
