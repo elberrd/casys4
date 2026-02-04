@@ -75,7 +75,9 @@
     },
     "last7Days": "Últimos 7 dias",
     "currentMonth": "Mês atual",
-    "updated": "Atualizado"
+    "updated": "Atualizado",
+    "showAll": "Mostrar todas",
+    "hideAll": "Ocultar todas"
   },
   "Navigation": {
     "dashboard": "Painel",

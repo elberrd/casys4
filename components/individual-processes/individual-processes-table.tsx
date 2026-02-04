@@ -197,6 +197,9 @@ interface IndividualProcessesTableProps {
   onQualExpProfModeToggle?: () => void;
   // Grouped mode (computed from selectedProgressStatuses.length >= 2)
   isGroupedModeActive?: boolean;
+  // Column visibility props (controlled mode)
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (visibility: VisibilityState) => void;
 }
 
 export function IndividualProcessesTable({
@@ -232,6 +235,8 @@ export function IndividualProcessesTable({
   isQualExpProfModeActive = false,
   onQualExpProfModeToggle,
   isGroupedModeActive = false,
+  columnVisibility: controlledColumnVisibility,
+  onColumnVisibilityChange,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -254,7 +259,16 @@ export function IndividualProcessesTable({
     notes: true,
   };
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility);
+  // Support both controlled and uncontrolled column visibility
+  const [internalColumnVisibility, setInternalColumnVisibility] = useState<VisibilityState>(initialColumnVisibility);
+
+  // Use controlled visibility if provided, otherwise use internal state
+  const columnVisibility = controlledColumnVisibility ?? internalColumnVisibility;
+  const setColumnVisibility = useCallback((updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
+    const newValue = typeof updater === 'function' ? updater(columnVisibility) : updater;
+    setInternalColumnVisibility(newValue);
+    onColumnVisibilityChange?.(newValue);
+  }, [columnVisibility, onColumnVisibilityChange]);
 
   // Store the initial state in a ref for restoration
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility);
@@ -391,14 +405,9 @@ export function IndividualProcessesTable({
         | RowSelectionState
         | ((old: RowSelectionState) => RowSelectionState),
     ) => {
-      // Defer state update to next event loop tick to avoid updating during render
-      // setTimeout(0) is more reliable than queueMicrotask as it runs after React's render cycle
-      // Check mounted status only inside the timeout to handle React strict mode double-rendering
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setRowSelection(updaterOrValue);
-        }
-      }, 0);
+      // Skip updates during initial render (before mount)
+      if (!isMountedRef.current) return;
+      setRowSelection(updaterOrValue);
     },
     [],
   );
@@ -410,15 +419,11 @@ export function IndividualProcessesTable({
         | VisibilityState
         | ((old: VisibilityState) => VisibilityState),
     ) => {
-      // Defer state update to next event loop tick to avoid updating during render
-      // Check mounted status only inside the timeout to handle React strict mode double-rendering
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setColumnVisibility(updaterOrValue);
-        }
-      }, 0);
+      // Skip updates during initial render (before mount)
+      if (!isMountedRef.current) return;
+      setColumnVisibility(updaterOrValue);
     },
-    [],
+    [setColumnVisibility],
   );
 
   // Wrap setSorting to prevent state updates during render
@@ -426,13 +431,9 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: SortingState | ((old: SortingState) => SortingState),
     ) => {
-      // Defer state update to next event loop tick to avoid updating during render
-      // Check mounted status only inside the timeout to handle React strict mode double-rendering
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setSorting(updaterOrValue);
-        }
-      }, 0);
+      // Skip updates during initial render (before mount)
+      if (!isMountedRef.current) return;
+      setSorting(updaterOrValue);
     },
     [],
   );
@@ -442,13 +443,9 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: GroupingState | ((old: GroupingState) => GroupingState),
     ) => {
-      // Defer state update to next event loop tick to avoid updating during render
-      // Check mounted status only inside the timeout to handle React strict mode double-rendering
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setGrouping(updaterOrValue);
-        }
-      }, 0);
+      // Skip updates during initial render (before mount)
+      if (!isMountedRef.current) return;
+      setGrouping(updaterOrValue);
     },
     [],
   );
@@ -458,13 +455,9 @@ export function IndividualProcessesTable({
     (
       updaterOrValue: ExpandedState | ((old: ExpandedState) => ExpandedState),
     ) => {
-      // Defer state update to next event loop tick to avoid updating during render
-      // Check mounted status only inside the timeout to handle React strict mode double-rendering
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setExpanded(updaterOrValue);
-        }
-      }, 0);
+      // Skip updates during initial render (before mount)
+      if (!isMountedRef.current) return;
+      setExpanded(updaterOrValue);
     },
     [],
   );
@@ -1592,9 +1585,26 @@ export function IndividualProcessesTable({
           {/* Column visibility button */}
           <DataGridColumnVisibility
             table={table}
+            label={tCommon("columns")}
+            showAllLabel={tCommon("showAll")}
+            hideAllLabel={tCommon("hideAll")}
+            columnLabels={{
+              "person_fullName": t("personName"),
+              "protocolNumber": t("protocol"),
+              "companyApplicant_name": t("applicant"),
+              "processType_name": t("processType"),
+              "legalFramework_name": t("legalFramework"),
+              "qualification": t("qualification"),
+              "professionalExperience": t("professionalExperienceSince"),
+              "caseStatus.name": t("caseStatus"),
+              "filledFields": t("filledFields"),
+              "processStatus": t("processStatus"),
+              "rnmDeadline": t("fields.rnmDeadline"),
+              "notes": t("notes"),
+            }}
             trigger={
               <Button variant="outline" size="sm" className="flex-shrink-0">
-                Columns
+                {tCommon("columns")}
               </Button>
             }
           />

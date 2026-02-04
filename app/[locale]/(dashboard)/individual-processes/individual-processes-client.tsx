@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations, useLocale } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
@@ -14,6 +14,7 @@ import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/fi
 import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Id } from "@/convex/_generated/dataModel"
+import type { VisibilityState } from "@tanstack/react-table"
 import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"
 import type { ExcelColumnConfig, ExcelGroupConfig } from "@/lib/utils/excel-export-helpers"
 import { useRouter } from "next/navigation"
@@ -49,6 +50,19 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
+
+  // Column visibility state - synced with saved views
+  const initialColumnVisibility: VisibilityState = {
+    filledFields: false,
+    rnmDeadline: false,
+    protocolNumber: false,
+    processStatus: true,
+    qualification: false,
+    professionalExperience: false,
+    notes: true,
+  }
+  const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility)
   const [selectedFilterName, setSelectedFilterName] = useState<string | null>(null)
   const [editingFilter, setEditingFilter] = useState<{
     _id: Id<"savedFilters">
@@ -234,8 +248,10 @@ export function IndividualProcessesClient() {
     if (isUrgentModeActive) criteria.isUrgentModeActive = true
     if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
     if (filters.length > 0) criteria.advancedFilters = filters
+    // Always save column visibility state
+    criteria.columnVisibility = columnVisibility
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters, columnVisibility])
 
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
@@ -277,6 +293,12 @@ export function IndividualProcessesClient() {
     if (filterCriteria.advancedFilters) {
       setFilters(filterCriteria.advancedFilters)
     }
+    // Apply saved column visibility if present, otherwise reset to initial
+    if (filterCriteria.columnVisibility) {
+      setColumnVisibility(filterCriteria.columnVisibility)
+    } else {
+      setColumnVisibility(initialColumnVisibilityRef.current)
+    }
 
     // Store the selected filter name
     setSelectedFilterName(filterName)
@@ -298,6 +320,8 @@ export function IndividualProcessesClient() {
     setIsQualExpProfModeActive(false)
     setFilters([])
     setSelectedFilterName(null)
+    // Reset column visibility to initial state
+    setColumnVisibility(initialColumnVisibilityRef.current)
 
     toast.success(tSavedFilters("success.filterCleared"), {
       closeButton: true,
@@ -992,6 +1016,8 @@ export function IndividualProcessesClient() {
           isQualExpProfModeActive={isQualExpProfModeActive}
           onQualExpProfModeToggle={handleQualExpProfModeToggle}
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
         />
 
         <IndividualProcessFormDialog

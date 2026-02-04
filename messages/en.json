@@ -75,7 +75,9 @@
     },
     "last7Days": "Last 7 days",
     "currentMonth": "Current month",
-    "updated": "Updated"
+    "updated": "Updated",
+    "showAll": "Show all",
+    "hideAll": "Hide all"
   },
   "Navigation": {
     "dashboard": "Dashboard",

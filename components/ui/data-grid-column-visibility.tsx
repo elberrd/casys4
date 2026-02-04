@@ -31,6 +31,8 @@ export interface DataGridColumnVisibilityProps<TData> {
   hideAllLabel?: string
   /** Columns to exclude from visibility control */
   excludeColumns?: string[]
+  /** Map of column IDs to display labels */
+  columnLabels?: Record<string, string>
 }
 
 /**
@@ -51,6 +53,7 @@ export function DataGridColumnVisibility<TData>({
   showAllLabel = "Show all",
   hideAllLabel = "Hide all",
   excludeColumns = ["select", "actions"],
+  columnLabels = {},
 }: DataGridColumnVisibilityProps<TData>) {
   // Get all columns that can be hidden
   const columns = table
@@ -120,17 +123,19 @@ export function DataGridColumnVisibility<TData>({
 
         {/* Individual column toggles */}
         {columns.map((column) => {
+          // Priority: columnLabels prop > string header > column id
           const title =
-            typeof column.columnDef.header === "string"
+            columnLabels[column.id] ||
+            (typeof column.columnDef.header === "string"
               ? column.columnDef.header
-              : column.id
+              : column.id)
 
           return (
             <DropdownMenuCheckboxItem
               key={column.id}
-              className="capitalize"
               checked={column.getIsVisible()}
               onCheckedChange={(value) => column.toggleVisibility(!!value)}
+              onSelect={(e) => e.preventDefault()}
             >
               {title}
             </DropdownMenuCheckboxItem>
