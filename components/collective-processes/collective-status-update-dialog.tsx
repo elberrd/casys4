@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
@@ -31,6 +30,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowRight, Loader2, CheckCircle2, AlertCircle, Users } from "lucide-react";
 import { DynamicFieldRenderer } from "../individual-processes/dynamic-field-renderer";
 import { getFieldsMetadata } from "@/lib/individual-process-fields";
+import { Input } from "@/components/ui/input";
+
+// Helper function to get current datetime in ISO format for datetime-local input
+const getDefaultDateTime = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 interface CollectiveStatusUpdateDialogProps {
   collectiveProcessId: Id<"collectiveProcesses">;
@@ -59,7 +70,7 @@ export function CollectiveStatusUpdateDialog({
 
   const [step, setStep] = useState<UpdateStep>("configure");
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"caseStatuses"> | "">("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getDefaultDateTime());
   const [notes, setNotes] = useState("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,7 +146,7 @@ export function CollectiveStatusUpdateDialog({
       setFormData({});
       setSelectedStatusId("");
       setNotes("");
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getDefaultDateTime());
       setStep("configure");
       setUpdateResult(null);
     }
@@ -177,8 +188,8 @@ export function CollectiveStatusUpdateDialog({
       return;
     }
 
-    // Validate date format
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    // Validate date format (accepts date or datetime)
+    if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(date)) {
       toast.error(tIndividual("invalidDate"));
       return;
     }
@@ -198,7 +209,7 @@ export function CollectiveStatusUpdateDialog({
       const result = await updateCollectiveStatuses({
         collectiveProcessId,
         caseStatusId: selectedStatusId as Id<"caseStatuses">,
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || getDefaultDateTime(),
         notes: notes || undefined,
         filledFieldsData: Object.keys(filteredFormData).length > 0 ? filteredFormData : undefined,
       });
@@ -234,7 +245,7 @@ export function CollectiveStatusUpdateDialog({
   const handleClose = () => {
     setStep("configure");
     setSelectedStatusId("");
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getDefaultDateTime());
     setNotes("");
     setFormData({});
     setUpdateResult(null);
@@ -311,12 +322,15 @@ export function CollectiveStatusUpdateDialog({
           </Select>
         </div>
 
-        {/* Date */}
+        {/* Date and Time */}
         <div className="grid gap-2">
-          <Label htmlFor="date">{t("statusDate")}</Label>
-          <DatePicker
+          <Label htmlFor="date">{tIndividual("statusDateTime")}</Label>
+          <Input
+            id="date"
+            type="datetime-local"
             value={date}
-            onChange={(value) => setDate(value || "")}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full"
           />
         </div>
 

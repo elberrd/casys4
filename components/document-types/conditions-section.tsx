@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Edit, AlertCircle, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Trash2, Edit, AlertCircle, ChevronsUpDown } from "lucide-react";
 import {
   DocumentTypeConditionFormDialog,
   type CreatedConditionData,
@@ -89,14 +89,22 @@ export const ConditionsSection = forwardRef<ConditionsSectionRef, ConditionsSect
     const displayConditions: DisplayCondition[] = (() => {
       if (!serverLinkedConditions) return [];
 
+      // Track IDs already included to avoid duplicates
+      const includedIds = new Set<Id<"documentTypeConditions">>();
+
       // Start with server conditions that are not pending unlink
       const conditions: DisplayCondition[] = serverLinkedConditions
         .filter(c => !pendingUnlinks.has(c._id))
-        .map(c => ({ ...c, isPending: false }));
+        .map(c => {
+          includedIds.add(c._id);
+          return { ...c, isPending: false };
+        });
 
-      // Add pending links
+      // Add pending links (only if not already in server conditions)
       pendingLinks.forEach(condition => {
-        conditions.push({ ...condition, isPending: true });
+        if (!includedIds.has(condition._id)) {
+          conditions.push({ ...condition, isPending: true });
+        }
       });
 
       // Sort by sortOrder then name
@@ -108,10 +116,33 @@ export const ConditionsSection = forwardRef<ConditionsSectionRef, ConditionsSect
       });
     })();
 
-    // Available conditions = all available - pending links (since they're already in display)
-    const availableConditions = allAvailableConditions?.filter(
-      c => !pendingLinks.has(c._id)
-    ) ?? [];
+    // Available conditions = all available - conditions already displayed + conditions pending unlink
+    const availableConditions = (() => {
+      if (!allAvailableConditions || !serverLinkedConditions) return [];
+
+      // Get IDs of all currently displayed conditions
+      const displayedIds = new Set(displayConditions.map(c => c._id));
+
+      // Start with conditions from API (not linked in DB) that aren't displayed
+      const available = allAvailableConditions.filter(c => !displayedIds.has(c._id));
+
+      // Add back conditions that are pending unlink (they were removed from display but still in DB)
+      // These need to appear in dropdown so user can re-add them
+      const unlinkedConditions = serverLinkedConditions
+        .filter(c => pendingUnlinks.has(c._id))
+        .map(c => ({
+          _id: c._id,
+          name: c.name,
+          code: c.code,
+          description: c.description,
+          isRequired: c.isRequired,
+          relativeExpirationDays: c.relativeExpirationDays,
+          isActive: c.isActive,
+          sortOrder: c.sortOrder,
+        }));
+
+      return [...available, ...unlinkedConditions];
+    })();
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -326,14 +357,6 @@ export const ConditionsSection = forwardRef<ConditionsSectionRef, ConditionsSect
                               value={condition.name}
                               onSelect={() => handleSelectCondition(condition._id)}
                             >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedConditionId === condition._id
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
                               <div className="flex flex-col">
                                 <span>{condition.name}</span>
                                 {condition.code && (
