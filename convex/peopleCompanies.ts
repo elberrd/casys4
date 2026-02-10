@@ -4,6 +4,10 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list people-company relationships with optional filters
  * Access control: Admins see all relationships, clients see only their company's relationships
@@ -55,7 +59,7 @@ export const list = query({
           person: person
             ? {
                 _id: person._id,
-                fullName: person.fullName,
+                fullName: getFullName(person),
               }
             : null,
           company: company
@@ -73,7 +77,7 @@ export const list = query({
       const searchNormalized = normalizeString(args.search);
       return relationshipsWithData.filter((relationship) => {
         const role = normalizeString(relationship.role);
-        const personName = relationship.person?.fullName ? normalizeString(relationship.person.fullName) : "";
+        const personName = relationship.person ? normalizeString(relationship.person.fullName) : "";
         const companyName = relationship.company?.name ? normalizeString(relationship.company.name) : "";
 
         return (
@@ -250,7 +254,7 @@ export const listByCompany = query({
           person: person
             ? {
                 _id: person._id,
-                fullName: person.fullName,
+                fullName: getFullName(person),
               }
             : null,
         };
@@ -295,7 +299,7 @@ export const get = query({
       person: person
         ? {
             _id: person._id,
-            fullName: person.fullName,
+            fullName: getFullName(person),
           }
         : null,
       company: company

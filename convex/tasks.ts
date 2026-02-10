@@ -5,6 +5,10 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all tasks with optional filters
  * Access control: Admins see all tasks, clients see tasks for their assigned processes
@@ -180,7 +184,7 @@ export const list = query({
                 person: person
                   ? {
                       _id: person._id,
-                      fullName: person.fullName,
+                      fullName: getFullName(person),
                     }
                   : null,
               }
@@ -324,7 +328,7 @@ export const get = query({
             person: person
               ? {
                   _id: person._id,
-                  fullName: person.fullName,
+                  fullName: getFullName(person),
                 }
               : null,
           }
@@ -428,7 +432,7 @@ export const getMyTasks = query({
                 person: person
                   ? {
                       _id: person._id,
-                      fullName: person.fullName,
+                      fullName: getFullName(person),
                     }
                   : null,
               }
@@ -508,7 +512,7 @@ export const getOverdueTasks = query({
                 person: person
                   ? {
                       _id: person._id,
-                      fullName: person.fullName,
+                      fullName: getFullName(person),
                     }
                   : null,
               }
@@ -1018,7 +1022,7 @@ export const bulkCreateTasks = mutation({
             entityId: taskId,
             details: {
               title: args.title,
-              personName: person?.fullName,
+              personName: person ? getFullName(person) : undefined,
               dueDate: args.dueDate,
               priority: args.priority,
             },

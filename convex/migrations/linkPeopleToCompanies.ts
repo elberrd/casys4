@@ -61,7 +61,7 @@ export default mutation({
         // Find person by name
         const person = await ctx.db
           .query("people")
-          .filter((q) => q.eq(q.field("fullName"), link.name))
+          .filter((q) => q.eq(q.field("givenNames"), link.name))
           .first();
 
         if (!person) {

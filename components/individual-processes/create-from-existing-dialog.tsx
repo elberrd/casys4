@@ -16,6 +16,9 @@ import { AlertTriangle } from "lucide-react";
 interface SourceProcess {
   person: {
     fullName: string;
+    givenNames?: string;
+    middleName?: string;
+    surname?: string;
   } | null;
   processType?: {
     name: string;

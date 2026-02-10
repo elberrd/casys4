@@ -18,6 +18,10 @@ import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { internal } from "./_generated/api";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Bulk import people from CSV data
  * Returns summary of successful and failed imports
@@ -200,7 +204,7 @@ export const bulkImportPeople = mutation({
 
         // Create person record
         const personId = await ctx.db.insert("people", {
-          fullName: personData.fullName,
+          givenNames: personData.fullName,
           email: personData.email.toLowerCase(),
           cpf: personData.cpf || undefined,
           birthDate: personData.birthDate,
@@ -330,7 +334,7 @@ export const bulkCreateIndividualProcesses = mutation({
         if (duplicate) {
           results.failed.push({
             personId,
-            reason: `${person.fullName} is already in this main process`,
+            reason: `${getFullName(person)} is already in this main process`,
           });
           continue;
         }
@@ -373,7 +377,7 @@ export const bulkCreateIndividualProcesses = mutation({
             entityId: individualProcessId,
             details: {
               personId,
-              personName: person.fullName,
+              personName: getFullName(person),
               collectiveProcessId: args.collectiveProcessId,
               caseStatusId: args.caseStatusId,
               caseStatusName: caseStatus.name,
@@ -522,7 +526,7 @@ export const bulkUpdateIndividualProcessStatus = mutation({
             entityType: "individualProcesses",
             entityId: processId,
             details: {
-              personName: person?.fullName,
+              personName: person ? getFullName(person) : undefined,
               previousCaseStatusId: process.caseStatusId,
               previousCaseStatusName: oldCaseStatus?.name,
               previousStatus: process.status, // DEPRECATED: Keep for backward compatibility

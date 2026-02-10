@@ -24,6 +24,7 @@ import { SaveFilterButton } from "@/components/saved-filters/save-filter-button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { FixedActionButtons } from "@/components/fixed-action-buttons"
+import { getFullName } from "@/lib/utils/person-names"
 
 export function IndividualProcessesClient() {
   const t = useTranslations('IndividualProcesses')
@@ -102,7 +103,7 @@ export function IndividualProcessesClient() {
     const uniqueCandidates = new Map<string, string>()
     individualProcesses.forEach((process) => {
       if (process.person) {
-        uniqueCandidates.set(process.person._id, process.person.fullName)
+        uniqueCandidates.set(process.person._id, getFullName(process.person))
       }
     })
     return Array.from(uniqueCandidates.entries())
@@ -428,7 +429,7 @@ export function IndividualProcessesClient() {
 
         switch (field) {
           case "candidate": {
-            const candidateName = process.person?.fullName?.toLowerCase() || ""
+            const candidateName = process.person ? getFullName(process.person).toLowerCase() : ""
             const filterValue = values[0]?.toLowerCase() || ""
 
             switch (operator) {
@@ -610,7 +611,7 @@ export function IndividualProcessesClient() {
       const row: any = {}
 
       // Person Name
-      row.personName = process.person?.fullName || "-"
+      row.personName = process.person ? getFullName(process.person) : "-"
 
       // Process Type
       const processType = process.processType
@@ -749,7 +750,7 @@ export function IndividualProcessesClient() {
     if (selectedCandidates.length === 1) {
       const candidate = individualProcesses.find(p => p.person?._id === selectedCandidates[0])?.person
       if (candidate) {
-        parts.push(candidate.fullName.replace(/\s+/g, "_").toLowerCase())
+        parts.push(getFullName(candidate).replace(/\s+/g, "_").toLowerCase())
       }
     }
 

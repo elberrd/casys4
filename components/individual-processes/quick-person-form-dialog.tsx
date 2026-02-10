@@ -32,7 +32,9 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 
 // Simplified person schema for quick add
 const quickPersonSchema = z.object({
-  fullName: z.string().min(1, "Full name is required"),
+  givenNames: z.string().min(1, "Given names are required"),
+  middleName: z.string().optional().or(z.literal("")),
+  surname: z.string().optional().or(z.literal("")),
   email: z.string().email("Invalid email").or(z.literal("")),
   nationalityId: z.string().min(1, "Nationality is required"),
   birthDate: z.string().optional().or(z.literal("")),
@@ -62,7 +64,9 @@ export function QuickPersonFormDialog({
   const form = useForm<QuickPersonFormData>({
     resolver: zodResolver(quickPersonSchema),
     defaultValues: {
-      fullName: "",
+      givenNames: "",
+      middleName: "",
+      surname: "",
       email: "",
       nationalityId: "",
       birthDate: "",
@@ -88,7 +92,9 @@ export function QuickPersonFormDialog({
   const onSubmit = async (data: QuickPersonFormData) => {
     try {
       const personId = await createPerson({
-        fullName: data.fullName,
+        givenNames: data.givenNames,
+        middleName: data.middleName || undefined,
+        surname: data.surname || undefined,
         email: data.email || undefined,
         nationalityId: data.nationalityId as Id<"countries">,
         birthDate: data.birthDate || undefined,
@@ -123,17 +129,47 @@ export function QuickPersonFormDialog({
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="fullName"
+              name="givenNames"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("fullName")}</FormLabel>
+                  <FormLabel>{t("givenNames")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="John" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="middleName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("middleName")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="surname"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("surname")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

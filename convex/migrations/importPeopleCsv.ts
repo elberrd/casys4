@@ -242,14 +242,14 @@ export default mutation({
       stats.totalRows++;
       const row = parseCSVRow(lines[i]);
 
-      const fullName = row[colMap['Nome']]?.trim();
-      if (!fullName) {
+      const givenNames = row[colMap['Nome']]?.trim();
+      if (!givenNames) {
         stats.skippedInvalidData++;
         continue;
       }
 
       // Skip test data
-      if (isTestData(fullName)) {
+      if (isTestData(givenNames)) {
         stats.skippedTest++;
         continue;
       }
@@ -276,7 +276,7 @@ export default mutation({
           if (!isValidCPF(cpf)) {
             stats.errors.push({
               row: i + 1,
-              name: fullName,
+              name: givenNames,
               error: `Invalid CPF: ${rawCPF}`,
             });
             stats.skippedInvalidData++;
@@ -317,7 +317,7 @@ export default mutation({
 
         // Create person
         const personId = await ctx.db.insert("people", {
-          fullName,
+          givenNames,
           email,
           cpf,
           birthDate,
@@ -370,7 +370,7 @@ export default mutation({
       } catch (error) {
         stats.errors.push({
           row: i + 1,
-          name: fullName,
+          name: givenNames,
           error: error instanceof Error ? error.message : String(error),
         });
       }

@@ -9,16 +9,6 @@ export const listByDocumentType = query({
   args: {
     documentTypeId: v.id("documentTypes"),
   },
-  returns: v.array(
-    v.object({
-      _id: v.id("documentTypesLegalFrameworks"),
-      documentTypeId: v.id("documentTypes"),
-      legalFrameworkId: v.id("legalFrameworks"),
-      legalFrameworkName: v.string(),
-      isRequired: v.boolean(),
-      createdAt: v.number(),
-    })
-  ),
   handler: async (ctx, args) => {
     const associations = await ctx.db
       .query("documentTypesLegalFrameworks")
@@ -36,6 +26,13 @@ export const listByDocumentType = query({
           legalFrameworkId: assoc.legalFrameworkId,
           legalFrameworkName: legalFramework?.name ?? "",
           isRequired: assoc.isRequired,
+          responsibleParty: assoc.responsibleParty,
+          workflowType: assoc.workflowType,
+          validityDays: assoc.validityDays,
+          validityType: assoc.validityType,
+          sortOrder: assoc.sortOrder,
+          description: assoc.description,
+          notes: assoc.notes,
           createdAt: assoc.createdAt,
         };
       })
@@ -52,21 +49,6 @@ export const listByLegalFramework = query({
   args: {
     legalFrameworkId: v.id("legalFrameworks"),
   },
-  returns: v.array(
-    v.object({
-      _id: v.id("documentTypesLegalFrameworks"),
-      documentTypeId: v.id("documentTypes"),
-      documentTypeName: v.string(),
-      documentTypeCode: v.optional(v.string()),
-      documentTypeCategory: v.optional(v.string()),
-      documentTypeDescription: v.optional(v.string()),
-      allowedFileTypes: v.optional(v.array(v.string())),
-      maxFileSizeMB: v.optional(v.number()),
-      legalFrameworkId: v.id("legalFrameworks"),
-      isRequired: v.boolean(),
-      createdAt: v.number(),
-    })
-  ),
   handler: async (ctx, args) => {
     const associations = await ctx.db
       .query("documentTypesLegalFrameworks")
@@ -93,6 +75,13 @@ export const listByLegalFramework = query({
           maxFileSizeMB: documentType.maxFileSizeMB,
           legalFrameworkId: assoc.legalFrameworkId,
           isRequired: assoc.isRequired,
+          responsibleParty: assoc.responsibleParty,
+          workflowType: assoc.workflowType,
+          validityDays: assoc.validityDays,
+          validityType: assoc.validityType,
+          sortOrder: assoc.sortOrder,
+          description: assoc.description,
+          notes: assoc.notes,
           createdAt: assoc.createdAt,
         };
       })
@@ -115,6 +104,13 @@ export const updateAssociations = mutation({
       v.object({
         legalFrameworkId: v.id("legalFrameworks"),
         isRequired: v.boolean(),
+        responsibleParty: v.optional(v.string()),
+        workflowType: v.optional(v.string()),
+        validityDays: v.optional(v.number()),
+        validityType: v.optional(v.string()),
+        sortOrder: v.optional(v.number()),
+        description: v.optional(v.string()),
+        notes: v.optional(v.string()),
       })
     ),
   },
@@ -144,6 +140,13 @@ export const updateAssociations = mutation({
         documentTypeId: args.documentTypeId,
         legalFrameworkId: assoc.legalFrameworkId,
         isRequired: assoc.isRequired,
+        responsibleParty: assoc.responsibleParty,
+        workflowType: assoc.workflowType,
+        validityDays: assoc.validityDays,
+        validityType: assoc.validityType,
+        sortOrder: assoc.sortOrder,
+        description: assoc.description,
+        notes: assoc.notes,
         createdAt: now,
         createdBy: userProfile.userId,
       });
@@ -235,6 +238,45 @@ export const updateIsRequired = mutation({
     await ctx.db.patch(association._id, {
       isRequired: args.isRequired,
     });
+
+    return null;
+  },
+});
+
+/**
+ * Mutation to update metadata for a single association
+ */
+export const updateMetadata = mutation({
+  args: {
+    id: v.id("documentTypesLegalFrameworks"),
+    responsibleParty: v.optional(v.string()),
+    workflowType: v.optional(v.string()),
+    validityDays: v.optional(v.number()),
+    validityType: v.optional(v.string()),
+    sortOrder: v.optional(v.number()),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const { id, ...data } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Association not found");
+    }
+
+    const updates: Record<string, any> = {};
+    if (data.responsibleParty !== undefined) updates.responsibleParty = data.responsibleParty;
+    if (data.workflowType !== undefined) updates.workflowType = data.workflowType;
+    if (data.validityDays !== undefined) updates.validityDays = data.validityDays;
+    if (data.validityType !== undefined) updates.validityType = data.validityType;
+    if (data.sortOrder !== undefined) updates.sortOrder = data.sortOrder;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.notes !== undefined) updates.notes = data.notes;
+
+    await ctx.db.patch(id, updates);
 
     return null;
   },

@@ -6,6 +6,10 @@ import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { calculateCollectiveProcessStatus } from "./lib/statusCalculation";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all collective processes with optional filters
  * Access control: Admins see all processes, clients see only their company's processes
@@ -127,7 +131,7 @@ export const list = query({
             return {
               ...ip,
               caseStatus,
-              person,
+              person: person ? { ...person, fullName: getFullName(person) } : null,
               activeStatus,
             };
           })
@@ -138,14 +142,14 @@ export const list = query({
 
         // Create simplified list for table display (person name + date)
         const individualProcessesDisplay = individualProcesses.map(ip => ({
-          personName: ip.person?.fullName || "-",
+          personName: ip.person ? getFullName(ip.person) : "-",
           dateProcess: ip.dateProcess || "-",
         }));
 
         return {
           ...process,
           company,
-          contactPerson,
+          contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
           processType,
           workplaceCity,
           consulate,
@@ -165,7 +169,7 @@ export const list = query({
           normalizeString(process.referenceNumber).includes(searchNormalized) ||
           (process.notes && normalizeString(process.notes).includes(searchNormalized)) ||
           (process.company && normalizeString(process.company.name).includes(searchNormalized)) ||
-          (process.contactPerson && normalizeString(process.contactPerson.fullName).includes(searchNormalized))
+          (process.contactPerson && normalizeString(getFullName(process.contactPerson)).includes(searchNormalized))
       );
     }
 
@@ -260,11 +264,11 @@ export const get = query({
         return {
           ...ip,
           caseStatus,
-          person,
+          person: person ? { ...person, fullName: getFullName(person) } : null,
           processType: ipProcessType,
           legalFramework,
           companyApplicant,
-          userApplicant,
+          userApplicant: userApplicant ? { ...userApplicant, fullName: getFullName(userApplicant) } : null,
           activeStatus,
         };
       })
@@ -310,7 +314,7 @@ export const get = query({
     return {
       ...process,
       company,
-      contactPerson,
+      contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
       processType,
       workplaceCity,
       consulate,
@@ -664,7 +668,7 @@ export const addPeopleToCollectiveProcess = mutation({
         if (existingPersonIds.has(personId)) {
           results.failed.push({
             personId,
-            reason: `${person.fullName} is already in this collective process`,
+            reason: `${getFullName(person)} is already in this collective process`,
           });
           continue;
         }
@@ -727,7 +731,7 @@ export const addPeopleToCollectiveProcess = mutation({
             entityId: individualProcessId,
             details: {
               personId,
-              personName: person.fullName,
+              personName: getFullName(person),
               collectiveProcessId: args.collectiveProcessId,
               caseStatusId: args.caseStatusId,
               caseStatusName: caseStatus.name,
@@ -869,7 +873,7 @@ export const updateCollectiveProcessStatuses = mutation({
             entityType: "individualProcesses",
             entityId: process._id,
             details: {
-              personName: person?.fullName,
+              personName: person ? getFullName(person) : undefined,
               previousCaseStatusId: process.caseStatusId,
               previousCaseStatusName: oldCaseStatus?.name,
               newCaseStatusId: args.caseStatusId,

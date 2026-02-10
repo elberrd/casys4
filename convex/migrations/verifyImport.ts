@@ -11,7 +11,7 @@ export default internalQuery({
 
     // Get sample people
     const samples = people.slice(0, 5).map(person => ({
-      fullName: person.fullName,
+      givenNames: person.givenNames,
       email: person.email,
       cpf: person.cpf,
       birthDate: person.birthDate,

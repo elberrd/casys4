@@ -10,6 +10,10 @@ import { query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Export collective processes with related data
  */
@@ -85,7 +89,7 @@ export const exportCollectiveProcesses = query({
           referenceNumber: process.referenceNumber,
           companyName: company?.name || "",
           companyTaxId: company?.taxId || "",
-          contactPersonName: contactPerson?.fullName || "",
+          contactPersonName: contactPerson ? getFullName(contactPerson) : "",
           contactPersonEmail: contactPerson?.email || "",
           processType: processType?.name || "",
           workplaceCity: workplaceCity?.name || "",
@@ -203,7 +207,7 @@ export const exportIndividualProcesses = query({
           id: process._id,
           collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
-          personFullName: person?.fullName || "",
+          personFullName: person ? getFullName(person) : "",
           personEmail: person?.email || "",
           personCPF: person?.cpf || "",
           personBirthDate: person?.birthDate || "",
@@ -302,7 +306,7 @@ export const exportPeople = query({
 
         return {
           id: person._id,
-          fullName: person.fullName,
+          fullName: getFullName(person),
           email: person.email,
           cpf: person.cpf || "",
           birthDate: person.birthDate,
@@ -420,7 +424,7 @@ export const exportDocuments = query({
           id: doc._id,
           collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
-          personName: person?.fullName || "",
+          personName: person ? getFullName(person) : "",
           documentType: documentType?.name || "",
           documentTypeCode: documentType?.code || "",
           fileName: doc.fileName,
@@ -554,7 +558,7 @@ export const exportTasks = query({
           id: task._id,
           collectiveProcessReference: collectiveProcess?.referenceNumber || "",
           companyName: company?.name || "",
-          personName: person?.fullName || "",
+          personName: person ? getFullName(person) : "",
           title: task.title,
           description: task.description,
           dueDate: task.dueDate,

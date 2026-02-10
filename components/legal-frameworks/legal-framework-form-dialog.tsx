@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { DocumentTypeAssociationSection } from "./document-type-association-section"
+import { InfoRequirementsSection } from "./info-requirements-section"
 
 interface LegalFrameworkFormDialogProps {
   open: boolean
@@ -111,6 +112,8 @@ export function LegalFrameworkFormDialog({
         documentTypeAssociations: legalFramework.documentTypeAssociations?.map((a) => ({
           documentTypeId: a.documentTypeId,
           isRequired: a.isRequired,
+          validityType: a.validityType as "min_remaining" | "max_age" | undefined,
+          validityDays: a.validityDays,
         })) || [],
       })
     } else if (!legalFrameworkId) {
@@ -130,6 +133,8 @@ export function LegalFrameworkFormDialog({
       const documentTypeAssociations = data.documentTypeAssociations?.map((a) => ({
         documentTypeId: a.documentTypeId as Id<"documentTypes">,
         isRequired: a.isRequired,
+        validityType: a.validityType,
+        validityDays: a.validityDays,
       }))
 
       const submitData = {
@@ -262,6 +267,14 @@ export function LegalFrameworkFormDialog({
                 </FormItem>
               )}
             />
+
+            {/* Info Requirements Section - Only show in edit mode */}
+            {legalFrameworkId && (
+              <>
+                <Separator className="my-4" />
+                <InfoRequirementsSection legalFrameworkId={legalFrameworkId} />
+              </>
+            )}
 
             <Separator className="my-4" />
 

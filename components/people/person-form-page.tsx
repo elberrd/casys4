@@ -35,6 +35,7 @@ import { useCpfValidation } from "@/hooks/use-cpf-validation"
 import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
 import { useCountryTranslation } from "@/lib/i18n/countries"
 
+
 interface PersonFormPageProps {
   personId?: Id<"people">
   onSuccess?: () => void
@@ -72,7 +73,9 @@ export function PersonFormPage({
   const form = useForm<PersonFormData>({
     resolver: zodResolver(personSchema),
     defaultValues: {
-      fullName: "",
+      givenNames: "",
+      middleName: "",
+      surname: "",
       email: "",
       cpf: "",
       birthDate: "",
@@ -106,7 +109,9 @@ export function PersonFormPage({
   useEffect(() => {
     if (person) {
       form.reset({
-        fullName: person.fullName,
+        givenNames: person.givenNames,
+        middleName: person.middleName ?? "",
+        surname: person.surname ?? "",
         email: person.email,
         cpf: person.cpf ?? "",
         birthDate: person.birthDate,
@@ -254,17 +259,47 @@ export function PersonFormPage({
 
               <FormField
                 control={form.control}
-                name="fullName"
+                name="givenNames"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('fullName')}</FormLabel>
+                    <FormLabel>{t('givenNames')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} />
+                      <Input placeholder="John" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="middleName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('middleName')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="surname"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('surname')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField

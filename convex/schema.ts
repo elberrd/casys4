@@ -84,7 +84,9 @@ export default defineSchema({
 
   // Client and people management tables
   people: defineTable({
-    fullName: v.string(),
+    givenNames: v.string(),
+    middleName: v.optional(v.string()),
+    surname: v.optional(v.string()),
     email: v.optional(v.string()),
     cpf: v.optional(v.string()),
     birthDate: v.optional(v.string()),
@@ -98,6 +100,7 @@ export default defineSchema({
     phoneNumber: v.optional(v.string()),
     address: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
+    residenceSince: v.optional(v.string()), // YYYY-MM - since when residing in current city
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
     createdAt: v.number(),
@@ -257,6 +260,13 @@ export default defineSchema({
     documentTypeId: v.id("documentTypes"),
     legalFrameworkId: v.id("legalFrameworks"),
     isRequired: v.boolean(), // Whether this document is required for this legal framework
+    responsibleParty: v.optional(v.string()), // "client" | "admin" | "company"
+    workflowType: v.optional(v.string()), // "upload" | "prepare_and_sign" | "admin_prepare"
+    validityDays: v.optional(v.number()), // e.g., 90 days for criminal records
+    validityType: v.optional(v.string()), // "min_remaining" | "max_age"
+    sortOrder: v.optional(v.number()),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()), // Internal notes
     createdAt: v.number(),
     createdBy: v.id("users"),
   })
@@ -300,6 +310,47 @@ export default defineSchema({
     .index("by_documentType", ["documentTypeId"])
     .index("by_condition", ["documentTypeConditionId"])
     .index("by_documentType_condition", ["documentTypeId", "documentTypeConditionId"]),
+
+  // Document Type Field Mappings - Links info fields to document types
+  // Key piece: enables "document with linked info" pattern (e.g., Passport -> passportNumber, givenNames, etc.)
+  documentTypeFieldMappings: defineTable({
+    documentTypeId: v.id("documentTypes"),
+    entityType: v.string(), // "person" | "individualProcess" | "passport" | "company"
+    fieldPath: v.string(), // Field in schema: "passportNumber", "cpf", "taxId"
+    label: v.string(), // Display label in Portuguese
+    labelEn: v.optional(v.string()), // English label
+    fieldType: v.optional(v.string()), // "text" | "date" | "number" | "select" | "city" | "country"
+    isRequired: v.boolean(),
+    sortOrder: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_documentType", ["documentTypeId"])
+    .index("by_entityType_fieldPath", ["entityType", "fieldPath"])
+    .index("by_active", ["isActive"]),
+
+  // Legal Framework Info Requirements - Standalone info requirements per legal framework
+  // These are info fields not linked to any document (e.g., email, marital status)
+  legalFrameworkInfoRequirements: defineTable({
+    legalFrameworkId: v.id("legalFrameworks"),
+    entityType: v.string(), // "person" | "individualProcess" | "passport" | "company"
+    fieldPath: v.string(),
+    label: v.string(),
+    labelEn: v.optional(v.string()),
+    fieldType: v.optional(v.string()), // "text" | "date" | "number" | "select" | "city" | "country"
+    responsibleParty: v.string(), // "client" | "admin" | "company"
+    isRequired: v.boolean(),
+    sortOrder: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  })
+    .index("by_legalFramework", ["legalFrameworkId"])
+    .index("by_entityType_fieldPath", ["entityType", "fieldPath"])
+    .index("by_active", ["isActive"]),
 
   // Document Delivered Conditions - Track fulfillment of conditions for delivered documents
   documentDeliveredConditions: defineTable({
@@ -360,6 +411,7 @@ export default defineSchema({
     cboId: v.optional(v.id("cboCodes")),
     qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "superior", "naoPossui"
     professionalExperienceSince: v.optional(v.string()), // ISO date format YYYY-MM-DD - Professional experience start date
+    firstEntryDate: v.optional(v.string()), // ISO YYYY-MM-DD - Date of first entry into Brazil
     mreOfficeNumber: v.optional(v.string()),
     douNumber: v.optional(v.string()),
     douSection: v.optional(v.string()),
@@ -440,6 +492,10 @@ export default defineSchema({
     issueDate: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    version: v.optional(v.number()),
+    isLatest: v.optional(v.boolean()),
+    versionNotes: v.optional(v.string()),
+    originalDocumentId: v.optional(v.id("documents")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -449,7 +505,8 @@ export default defineSchema({
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_userApplicant", ["userApplicantId"])
     .index("by_active", ["isActive"])
-    .index("by_storageId", ["storageId"]),
+    .index("by_storageId", ["storageId"])
+    .index("by_originalDocument", ["originalDocumentId"]),
 
   // Process Request Workflow - Client users submit requests for admin approval
   processRequests: defineTable({
@@ -535,8 +592,10 @@ export default defineSchema({
     reviewedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
     version: v.number(),
     isLatest: v.boolean(),
+    versionNotes: v.optional(v.string()),
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])

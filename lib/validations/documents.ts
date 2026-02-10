@@ -18,3 +18,14 @@ export const documentSchema = z.object({
 });
 
 export type DocumentFormData = z.infer<typeof documentSchema>;
+
+export const documentNewVersionSchema = z.object({
+  storageId: z.string().min(1, "Storage ID is required"),
+  fileName: z.string().min(1, "File name is required"),
+  fileSize: z.number().min(1, "File size must be greater than 0"),
+  fileType: z.string().min(1, "File type is required"),
+  versionNotes: z.string().max(500).optional(),
+  expiryDate: z.string().optional(),
+});
+
+export type DocumentNewVersionFormData = z.infer<typeof documentNewVersionSchema>;

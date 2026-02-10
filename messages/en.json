@@ -954,6 +954,14 @@
       "allCollapsed": "All groups collapsed",
       "groupedBy": "Grouped by Status",
       "exitGroupedMode": "Exit grouped mode"
+    },
+    "requirementsChecklist": "Requirements Checklist",
+    "noLegalFramework": "No legal framework defined for this process",
+    "linkedToDocument": "Linked to: {documents}",
+    "validity": {
+      "expired": "Expired",
+      "expiringSoon": "Expiring",
+      "missingDate": "Missing date"
     }
   },
   "ProcessTimeline": {
@@ -993,6 +1001,11 @@
     "createDescription": "Fill in the information to create a new person",
     "deleteConfirm": "Are you sure you want to delete this person?",
     "fullName": "Full Name",
+    "givenNames": "Given Name(s)",
+    "middleName": "Middle Name",
+    "surname": "Surname",
+    "residenceSince": "Residing since",
+    "firstEntryDate": "Date of 1st entry in Brazil",
     "email": "Email",
     "cpf": "CPF",
     "invalidCpfFormat": "Invalid CPF format",
@@ -1196,6 +1209,11 @@
     "errorDelete": "Error deleting document",
     "errorUploadFile": "Error uploading file",
     "noResults": "No documents found",
+    "uploadNewVersion": "New Version",
+    "versionHistory": "Version History",
+    "version": "Version",
+    "newVersionSuccess": "New version uploaded successfully",
+    "newVersionError": "Error uploading new version",
     "documentDetails": "Document Details",
     "documentInformation": "Document Information",
     "relatedEntities": "Related Entities",
@@ -1800,7 +1818,17 @@
     "deselectAll": "Deselect All",
     "required": "Required",
     "selectedCount": "{count} selected",
-    "requiredCount": "{count} required"
+    "requiredCount": "{count} required",
+    "infoRequirements": "Information Requirements",
+    "infoRequirementsDescription": "Information fields that must be filled in for processes with this legal framework",
+    "validityType": "Validity Rule",
+    "noValidity": "No validity rule",
+    "minRemaining": "Min. remaining validity",
+    "maxAge": "Maximum age",
+    "validityDays": "Days",
+    "validityTypeTooltip": "Set a validity rule to automatically control whether uploaded documents are within the required timeframe.",
+    "minRemainingTooltip": "The document must have at least this many days before expiring. E.g.: passport with at least 90 days of remaining validity.",
+    "maxAgeTooltip": "The document must have been issued within this many days. E.g.: criminal record issued no more than 90 days ago."
   },
   "Passports": {
     "title": "Passports",
@@ -1930,7 +1958,14 @@
     "noAuthorizationTypes": "No authorization types available",
     "authorizationTypeApplied": "{count} legal frameworks from {authorizationType} were automatically selected",
     "noLegalFrameworksForAuthorizationType": "No legal frameworks associated with this authorization type",
-    "ungroupedLegalFrameworks": "Other Legal Frameworks"
+    "ungroupedLegalFrameworks": "Other Legal Frameworks",
+    "fieldMappings": "Linked Information Fields",
+    "fieldMappingsDescription": "Fields that must be filled in along with this document",
+    "responsibleParty": "Responsible Party",
+    "workflowType": "Workflow Type",
+    "validityDays": "Validity (days)",
+    "sortOrder": "Sort Order",
+    "internalNotes": "Internal Notes"
   },
   "DocumentCategories": {
     "title": "Document Categories",
@@ -2058,12 +2093,18 @@
     "uploadLoose": "Upload Unclassified",
     "uploadWithType": "Upload with Type",
     "assignType": "Assign Type",
+    "uploadNewVersion": "New Version",
     "status": {
       "notStarted": "Not Started",
       "uploaded": "Uploaded",
       "underReview": "Under Review",
       "approved": "Approved",
       "rejected": "Rejected"
+    },
+    "validity": {
+      "expired": "Expired",
+      "expiringSoon": "Expiring in {days} days",
+      "missingDate": "Missing date"
     }
   },
   "DocumentUpload": {
@@ -2099,7 +2140,17 @@
     "assignSuccess": "Document type assigned successfully",
     "assignError": "Error assigning document type",
     "incompatibleFile": "File is not compatible with this document type",
-    "compatibleFile": "File is compatible with the selected document type"
+    "compatibleFile": "File is compatible with the selected document type",
+    "versionNotes": "Notes",
+    "versionNotesPlaceholder": "Describe what changed in this version",
+    "uploadNewVersionTitle": "Upload New Version",
+    "currentVersion": "Current Version",
+    "versionUpgrade": "v{current} → v{next}",
+    "issueDate": "Issue Date",
+    "issueDateTooltip": "The date the document was officially issued or signed. Used to verify if the document does not exceed the maximum allowed age.",
+    "expiryDateTooltip": "The date when the document expires. Used to verify if the remaining validity meets the minimum requirement.",
+    "validityWarningInsufficient": "Remaining validity ({days} days) is less than the required minimum ({required} days)",
+    "validityWarningMaxAge": "Document was issued {days} days ago, exceeding the maximum allowed of {max} days"
   },
   "DocumentReview": {
     "title": "Review Document",
@@ -2156,7 +2207,36 @@
     "conditionUnfulfilled": "Condition unmarked",
     "errorToggleCondition": "Error updating condition",
     "errorConditionsNotFulfilled": "Cannot approve: there are required conditions not fulfilled",
-    "errorConditionsExpired": "Cannot approve: there are expired conditions"
+    "errorConditionsExpired": "Cannot approve: there are expired conditions",
+    "errorValidityFailed": "Cannot approve: the document does not meet the validity requirements",
+    "issueDate": "Issue Date",
+    "issueDateTooltip": "The date the document was officially issued. May affect approval if there is a maximum age rule.",
+    "expiryDateTooltip": "The document's expiration date. May affect approval if there is a minimum remaining validity rule.",
+    "linkedFields": "Fields",
+    "linkedFieldsDescription": "Information fields linked to this document type",
+    "noLinkedFields": "No fields linked to this document type.",
+    "notFilled": "Not filled",
+    "filled": "Filled",
+    "entityPerson": "Person",
+    "entityIndividualProcess": "Individual Process",
+    "entityPassport": "Passport",
+    "entityCompany": "Company",
+    "fieldsSaved": "Fields saved successfully",
+    "fieldsSaveError": "Error saving fields",
+    "selectVersion": "Select Version",
+    "currentVersion": "(current)",
+    "viewingOldVersion": "Viewing version {version}",
+    "officialVersion": "Official version: v{version}",
+    "backToCurrentVersion": "Back to current",
+    "newVersion": "New Version",
+    "versionNotes": "Version Notes",
+    "validity": {
+      "valid": "Valid",
+      "expired": "Expired",
+      "expiring_soon": "Expiring Soon",
+      "missing_date": "Missing Date",
+      "daysInfo": "{days} days remaining"
+    }
   },
   "DocumentHistory": {
     "title": "Document History",
@@ -2174,6 +2254,15 @@
     "expiryDate": "Expiry Date",
     "downloadVersion": "Download Version",
     "unknown": "Unknown",
+    "versionNotes": "Version Notes",
+    "noNotes": "No notes",
+    "restoreVersion": "Restore This Version",
+    "restoreVersionConfirm": "Are you sure you want to restore version {version}? A new version will be created with this version's content.",
+    "restoreSuccess": "Version restored successfully",
+    "restoreError": "Error restoring version",
+    "uploadNewVersion": "Upload New Version",
+    "restoredFrom": "Restored from version {version}",
+    "fileSizeChange": "Size change",
     "status": {
       "approved": "Approved",
       "rejected": "Rejected",

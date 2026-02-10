@@ -23,7 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCheck, X, AlertCircle, Search, Plus, FileText } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CheckCheck, X, AlertCircle, Search, Plus, FileText, Info } from "lucide-react";
 import { fuzzyMatch } from "@/lib/fuzzy-search";
 import { toast } from "sonner";
 
@@ -31,6 +37,8 @@ import { toast } from "sonner";
 interface FormAssociation {
   documentTypeId: string;
   isRequired: boolean;
+  validityType?: "min_remaining" | "max_age";
+  validityDays?: number;
 }
 
 interface DocumentTypeAssociationSectionProps {
@@ -194,6 +202,37 @@ export function DocumentTypeAssociationSection({
     return assoc?.isRequired ?? false;
   };
 
+  // Validity helpers
+  const getValidityType = (dtId: string) => {
+    const assoc = value.find((a) => a.documentTypeId === dtId);
+    return assoc?.validityType ?? "";
+  };
+
+  const getValidityDays = (dtId: string) => {
+    const assoc = value.find((a) => a.documentTypeId === dtId);
+    return assoc?.validityDays ?? undefined;
+  };
+
+  const updateValidityType = (dtId: string, vt: string) => {
+    onChange(
+      value.map((a) =>
+        a.documentTypeId === dtId
+          ? { ...a, validityType: (vt || undefined) as FormAssociation["validityType"], validityDays: vt ? a.validityDays : undefined }
+          : a
+      )
+    );
+  };
+
+  const updateValidityDays = (dtId: string, days: number | undefined) => {
+    onChange(
+      value.map((a) =>
+        a.documentTypeId === dtId
+          ? { ...a, validityDays: days }
+          : a
+      )
+    );
+  };
+
   // Toggle selection of a document type
   const toggleSelection = (dtId: string) => {
     if (isSelected(dtId)) {
@@ -233,6 +272,7 @@ export function DocumentTypeAssociationSection({
   const noneSelected = value.length === 0;
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <Label className="text-base font-medium flex items-center gap-2">
@@ -373,42 +413,85 @@ export function DocumentTypeAssociationSection({
             {filteredDocumentTypes.map((dt) => (
               <div
                 key={dt._id}
-                className="flex items-center justify-between gap-4 py-2 px-1 hover:bg-muted/50 rounded-md transition-colors"
+                className="py-2 px-1 hover:bg-muted/50 rounded-md transition-colors space-y-2"
               >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <Checkbox
-                    id={`dt-${dt._id}`}
-                    checked={isSelected(dt._id)}
-                    onCheckedChange={() => toggleSelection(dt._id)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <Label
-                      htmlFor={`dt-${dt._id}`}
-                      className="cursor-pointer truncate block"
-                    >
-                      {highlightText(dt.name, searchFilter)}
-                    </Label>
-                    {dt.code && (
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {highlightText(dt.code, searchFilter)}
-                      </span>
-                    )}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Checkbox
+                      id={`dt-${dt._id}`}
+                      checked={isSelected(dt._id)}
+                      onCheckedChange={() => toggleSelection(dt._id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <Label
+                        htmlFor={`dt-${dt._id}`}
+                        className="cursor-pointer truncate block"
+                      >
+                        {highlightText(dt.name, searchFilter)}
+                      </Label>
+                      {dt.code && (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {highlightText(dt.code, searchFilter)}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {isSelected(dt._id) && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`dt-required-${dt._id}`}
+                        checked={isRequiredDt(dt._id)}
+                        onCheckedChange={() => toggleRequired(dt._id)}
+                      />
+                      <Label
+                        htmlFor={`dt-required-${dt._id}`}
+                        className="cursor-pointer text-sm text-muted-foreground whitespace-nowrap"
+                      >
+                        {t("required")}
+                      </Label>
+                    </div>
+                  )}
                 </div>
 
+                {/* Validity rule controls */}
                 {isSelected(dt._id) && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`dt-required-${dt._id}`}
-                      checked={isRequiredDt(dt._id)}
-                      onCheckedChange={() => toggleRequired(dt._id)}
-                    />
-                    <Label
-                      htmlFor={`dt-required-${dt._id}`}
-                      className="cursor-pointer text-sm text-muted-foreground whitespace-nowrap"
+                  <div className="flex items-center gap-2 ml-8">
+                    <Select
+                      value={getValidityType(dt._id) || "none"}
+                      onValueChange={(val) => updateValidityType(dt._id, val === "none" ? "" : val)}
                     >
-                      {t("required")}
-                    </Label>
+                      <SelectTrigger className="h-7 text-xs w-[180px]">
+                        <SelectValue placeholder={t("noValidity")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t("noValidity")}</SelectItem>
+                        <SelectItem value="min_remaining">{t("minRemaining")}</SelectItem>
+                        <SelectItem value="max_age">{t("maxAge")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {getValidityType(dt._id) && (
+                      <Input
+                        type="number"
+                        min={1}
+                        className="h-7 text-xs w-[80px]"
+                        placeholder={t("validityDays")}
+                        value={getValidityDays(dt._id) ?? ""}
+                        onChange={(e) => updateValidityDays(dt._id, e.target.value ? Number(e.target.value) : undefined)}
+                      />
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[280px] text-xs">
+                        {getValidityType(dt._id) === "min_remaining"
+                          ? t("minRemainingTooltip")
+                          : getValidityType(dt._id) === "max_age"
+                            ? t("maxAgeTooltip")
+                            : t("validityTypeTooltip")}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 )}
               </div>
@@ -426,5 +509,6 @@ export function DocumentTypeAssociationSection({
         </p>
       )}
     </div>
+    </TooltipProvider>
   );
 }

@@ -114,6 +114,8 @@ export const get = query({
           documentTypeName: dt?.name ?? "",
           documentTypeCode: dt?.code,
           isRequired: link.isRequired,
+          validityType: link.validityType,
+          validityDays: link.validityDays,
         };
       })
     );
@@ -189,6 +191,8 @@ export const create = mutation({
         v.object({
           documentTypeId: v.id("documentTypes"),
           isRequired: v.boolean(),
+          validityType: v.optional(v.string()),
+          validityDays: v.optional(v.number()),
         })
       )
     ),
@@ -231,6 +235,8 @@ export const create = mutation({
           documentTypeId: assoc.documentTypeId,
           legalFrameworkId,
           isRequired: assoc.isRequired,
+          validityType: assoc.validityType,
+          validityDays: assoc.validityDays,
           createdAt: now,
           createdBy: adminProfile.userId!,
         });
@@ -256,6 +262,8 @@ export const update = mutation({
         v.object({
           documentTypeId: v.id("documentTypes"),
           isRequired: v.boolean(),
+          validityType: v.optional(v.string()),
+          validityDays: v.optional(v.number()),
         })
       )
     ),
@@ -326,6 +334,8 @@ export const update = mutation({
             documentTypeId: assoc.documentTypeId,
             legalFrameworkId: id,
             isRequired: assoc.isRequired,
+            validityType: assoc.validityType,
+            validityDays: assoc.validityDays,
             createdAt: now,
             createdBy: adminProfile.userId!,
           });

@@ -42,11 +42,17 @@ import { useToast } from "@/hooks/use-toast"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
 import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
 import { useCountryTranslation } from "@/lib/i18n/countries"
+import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator"
+import {
+  TooltipProvider,
+} from "@/components/ui/tooltip"
+
 
 interface PersonFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   personId?: Id<"people">
+  individualProcessId?: Id<"individualProcesses">
   onSuccess?: () => void
 }
 
@@ -54,6 +60,7 @@ export function PersonFormDialog({
   open,
   onOpenChange,
   personId,
+  individualProcessId,
   onSuccess,
 }: PersonFormDialogProps) {
   const t = useTranslations('People')
@@ -83,7 +90,9 @@ export function PersonFormDialog({
   const form = useForm<PersonFormData>({
     resolver: zodResolver(personSchema),
     defaultValues: {
-      fullName: "",
+      givenNames: "",
+      middleName: "",
+      surname: "",
       email: "",
       cpf: "",
       birthDate: "",
@@ -133,7 +142,9 @@ export function PersonFormDialog({
   useEffect(() => {
     if (person) {
       form.reset({
-        fullName: person.fullName,
+        givenNames: person.givenNames,
+        middleName: person.middleName ?? "",
+        surname: person.surname ?? "",
         email: person.email,
         cpf: person.cpf ?? "",
         birthDate: person.birthDate,
@@ -153,7 +164,9 @@ export function PersonFormDialog({
       })
     } else if (!personId) {
       form.reset({
-        fullName: "",
+        givenNames: "",
+        middleName: "",
+        surname: "",
         email: "",
         cpf: "",
         birthDate: "",
@@ -271,10 +284,19 @@ export function PersonFormDialog({
     label: company.name,
   }))
 
+  const DocIcon = ({ fieldPath }: { fieldPath: string }) => (
+    <LinkedDocIndicator
+      individualProcessId={individualProcessId}
+      entityType="person"
+      fieldPath={fieldPath}
+    />
+  )
+
   return (
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
+        <TooltipProvider>
         <DialogHeader>
           <DialogTitle>
             {personId ? t('editTitle') : t('createTitle')}
@@ -295,17 +317,47 @@ export function PersonFormDialog({
 
               <FormField
                 control={form.control}
-                name="fullName"
+                name="givenNames"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('fullName')}</FormLabel>
+                    <FormLabel>{t('givenNames')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} />
+                      <Input placeholder="John" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="middleName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('middleName')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="surname"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('surname')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
@@ -327,7 +379,7 @@ export function PersonFormDialog({
                   name="cpf"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('cpf')}</FormLabel>
+                      <FormLabel className="flex items-center">{t('cpf')}<DocIcon fieldPath="cpf" /></FormLabel>
                       <div className="relative">
                         <FormControl>
                           <CPFInput {...field} />
@@ -350,7 +402,7 @@ export function PersonFormDialog({
                   name="birthDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('birthDate')}</FormLabel>
+                      <FormLabel className="flex items-center">{t('birthDate')}<DocIcon fieldPath="birthDate" /></FormLabel>
                       <FormControl>
                         <DatePicker
                           value={field.value}
@@ -399,7 +451,7 @@ export function PersonFormDialog({
                 name="nationalityId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('nationality')}</FormLabel>
+                    <FormLabel className="flex items-center">{t('nationality')}<DocIcon fieldPath="nationalityId" /></FormLabel>
                     <FormControl>
                       <Combobox
                         options={countryOptions}
@@ -425,7 +477,7 @@ export function PersonFormDialog({
                 name="maritalStatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('maritalStatus')}</FormLabel>
+                    <FormLabel className="flex items-center">{t('maritalStatus')}<DocIcon fieldPath="maritalStatus" /></FormLabel>
                     <FormControl>
                       <Combobox
                         options={maritalStatusOptions.map((option) => ({
@@ -448,7 +500,7 @@ export function PersonFormDialog({
                 name="motherName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('motherName')}</FormLabel>
+                    <FormLabel className="flex items-center">{t('motherName')}<DocIcon fieldPath="motherName" /></FormLabel>
                     <FormControl>
                       <Input placeholder="Mother's full name" {...field} />
                     </FormControl>
@@ -462,7 +514,7 @@ export function PersonFormDialog({
                 name="fatherName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('fatherName')}</FormLabel>
+                    <FormLabel className="flex items-center">{t('fatherName')}<DocIcon fieldPath="fatherName" /></FormLabel>
                     <FormControl>
                       <Input placeholder="Father's full name" {...field} />
                     </FormControl>
@@ -483,7 +535,7 @@ export function PersonFormDialog({
                 name="profession"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('profession')}</FormLabel>
+                    <FormLabel className="flex items-center">{t('profession')}<DocIcon fieldPath="profession" /></FormLabel>
                     <FormControl>
                       <Input placeholder="Software Engineer" {...field} />
                     </FormControl>
@@ -632,6 +684,7 @@ export function PersonFormDialog({
             </DialogFooter>
           </form>
         </Form>
+        </TooltipProvider>
       </DialogContent>
 
       {/* Company Quick Create Dialog */}

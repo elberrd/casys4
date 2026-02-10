@@ -35,6 +35,7 @@ import { documentSchema, type DocumentFormData } from "@/lib/validations/documen
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { UserApplicantSelector } from "@/components/individual-processes/user-applicant-selector";
+import { DocumentVersionUploadDialog } from "./document-version-upload-dialog";
 
 interface DocumentFormDialogProps {
   open: boolean;
@@ -54,6 +55,7 @@ export function DocumentFormDialog({
 
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadedStorageId, setUploadedStorageId] = useState<Id<"_storage"> | undefined>();
+  const [showVersionUpload, setShowVersionUpload] = useState(false);
 
   const document = useQuery(
     api.documents.get,
@@ -361,25 +363,43 @@ export function DocumentFormDialog({
             <div className="space-y-2">
               <FormLabel>{t("file") || "File"}</FormLabel>
               <div className="border-2 border-dashed rounded-lg p-4">
-                <Input
-                  type="file"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleFileUpload(file);
-                    }
-                  }}
-                  disabled={uploadingFile}
-                />
-                {uploadingFile && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {t("uploadingFile") || "Uploading file..."}
-                  </p>
-                )}
-                {uploadedStorageId && !uploadingFile && (
-                  <p className="text-sm text-green-600 mt-2">
-                    {t("fileUploaded") || "File uploaded successfully"}: {form.watch("fileName")}
-                  </p>
+                {documentId && document?.storageId ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      {document.fileName}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowVersionUpload(true)}
+                    >
+                      {t("uploadNewVersion")}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload(file);
+                        }
+                      }}
+                      disabled={uploadingFile}
+                    />
+                    {uploadingFile && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {t("uploadingFile") || "Uploading file..."}
+                      </p>
+                    )}
+                    {uploadedStorageId && !uploadingFile && (
+                      <p className="text-sm text-green-600 mt-2">
+                        {t("fileUploaded") || "File uploaded successfully"}: {form.watch("fileName")}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -474,6 +494,20 @@ export function DocumentFormDialog({
       onConfirm={handleConfirmClose}
       onCancel={handleCancelClose}
     />
+
+    {/* Upload New Version Dialog */}
+    {showVersionUpload && documentId && document && (
+      <DocumentVersionUploadDialog
+        open={showVersionUpload}
+        onOpenChange={setShowVersionUpload}
+        documentId={documentId}
+        currentVersion={(document as any).version || 1}
+        currentFileName={document.fileName || ""}
+        currentFileSize={document.fileSize || 0}
+        documentName={document.name}
+        onSuccess={() => setShowVersionUpload(false)}
+      />
+    )}
     </>
   );
 }

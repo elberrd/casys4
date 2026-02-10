@@ -39,43 +39,37 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { UploadNewVersionDialog } from "./upload-new-version-dialog"
+import { DocumentVersionUploadDialog } from "./document-version-upload-dialog"
 
-interface DocumentHistoryDialogProps {
+interface DocumentVersionHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  individualProcessId: Id<"individualProcesses">
-  documentTypeId: Id<"documentTypes">
-  documentRequirementId?: Id<"documentRequirements">
+  documentId: Id<"documents">
+  documentName: string
   userRole?: "admin" | "client"
 }
 
-export function DocumentHistoryDialog({
+export function DocumentVersionHistoryDialog({
   open,
   onOpenChange,
-  individualProcessId,
-  documentTypeId,
-  documentRequirementId,
+  documentId,
+  documentName,
   userRole = "client",
-}: DocumentHistoryDialogProps) {
+}: DocumentVersionHistoryDialogProps) {
   const t = useTranslations("DocumentHistory")
   const tCommon = useTranslations("Common")
 
-  const [restoreDocId, setRestoreDocId] = useState<Id<"documentsDelivered"> | null>(null)
+  const [restoreDocId, setRestoreDocId] = useState<Id<"documents"> | null>(null)
   const [restoreVersion, setRestoreVersion] = useState<number>(0)
   const [isRestoring, setIsRestoring] = useState(false)
   const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
 
-  const documentHistory = useQuery(
-    api.documentsDelivered.getVersionHistory,
-    {
-      individualProcessId,
-      documentTypeId,
-      documentRequirementId,
-    }
+  const versionHistory = useQuery(
+    api.documents.getVersionHistory,
+    { documentId }
   )
 
-  const restoreVersionMutation = useMutation(api.documentsDelivered.restoreVersion)
+  const restoreVersionMutation = useMutation(api.documents.restoreVersion)
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -96,32 +90,6 @@ export function DocumentHistoryDialog({
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "rejected":
-        return <XCircle className="h-4 w-4 text-destructive" />
-      case "uploaded":
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      default:
-        return <FileText className="h-4 w-4 text-muted-foreground" />
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <Badge variant="success">{t("status.approved")}</Badge>
-      case "rejected":
-        return <Badge variant="destructive">{t("status.rejected")}</Badge>
-      case "uploaded":
-        return <Badge variant="info">{t("status.uploaded")}</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
   const handleRestore = async () => {
     if (!restoreDocId) return
     try {
@@ -137,8 +105,7 @@ export function DocumentHistoryDialog({
     }
   }
 
-  // Get current latest doc info for the upload dialog
-  const currentDoc = documentHistory?.find((doc) => doc.isLatest)
+  const currentDoc = versionHistory?.find((doc) => doc.isLatest === true)
 
   return (
     <>
@@ -160,34 +127,38 @@ export function DocumentHistoryDialog({
                 </Button>
               )}
             </div>
-            <DialogDescription>{t("description")}</DialogDescription>
+            <DialogDescription>
+              <span className="font-medium text-foreground">{documentName}</span>
+              {" - "}
+              {t("description")}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="overflow-y-auto max-h-[60vh] pr-2">
-            {documentHistory === undefined && (
+            {versionHistory === undefined && (
               <div className="text-center py-8 text-muted-foreground">
                 {tCommon("loading")}
               </div>
             )}
 
-            {documentHistory && documentHistory.length === 0 && (
+            {versionHistory && versionHistory.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>{t("noHistory")}</p>
               </div>
             )}
 
-            {documentHistory && documentHistory.length > 0 && (
+            {versionHistory && versionHistory.length > 0 && (
               <div className="relative">
                 {/* Timeline line */}
                 <div className="absolute left-[15px] top-6 bottom-6 w-0.5 bg-border" />
 
                 <div className="space-y-0">
-                  {documentHistory.map((doc, index) => {
-                    const previousDoc = documentHistory[index + 1]
-                    const sizeDiff = getFileSizeDiff(doc.fileSize, previousDoc?.fileSize)
-                    const uploaderName = doc.uploadedByProfile?.fullName || doc.uploadedByUser?.email || t("unknown")
-                    const reviewerName = doc.reviewedByProfile?.fullName || doc.reviewedByUser?.email
+                  {versionHistory.map((doc, index) => {
+                    const previousDoc = versionHistory[index + 1]
+                    const sizeDiff = doc.fileSize ? getFileSizeDiff(doc.fileSize, previousDoc?.fileSize) : null
+                    const isLatest = doc.isLatest === true || (doc.isLatest === undefined && index === 0)
+                    const version = doc.version || 1
 
                     return (
                       <div key={doc._id} className="relative pl-10 pb-6 last:pb-0">
@@ -195,7 +166,7 @@ export function DocumentHistoryDialog({
                         <div
                           className={cn(
                             "absolute left-[9px] top-1.5 w-[13px] h-[13px] rounded-full border-2 bg-background",
-                            doc.isLatest
+                            isLatest
                               ? "border-primary bg-primary"
                               : "border-muted-foreground"
                           )}
@@ -204,17 +175,17 @@ export function DocumentHistoryDialog({
                         <div
                           className={cn(
                             "border rounded-lg p-4 space-y-3",
-                            doc.isLatest && "border-primary bg-primary/5"
+                            isLatest && "border-primary bg-primary/5"
                           )}
                         >
                           {/* Version header */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              {getStatusIcon(doc.status)}
+                              <FileText className="h-4 w-4 text-muted-foreground" />
                               <span className="font-semibold text-sm">
-                                {t("version")} {doc.version}
+                                {t("version")} {version}
                               </span>
-                              {doc.isLatest && (
+                              {isLatest && (
                                 <Badge variant="outline" className="text-xs">
                                   {t("current")}
                                 </Badge>
@@ -230,7 +201,11 @@ export function DocumentHistoryDialog({
                                 </span>
                               )}
                             </div>
-                            {getStatusBadge(doc.status)}
+                            {doc.documentType && (
+                              <Badge variant="secondary" className="text-xs">
+                                {doc.documentType.name}
+                              </Badge>
+                            )}
                           </div>
 
                           {/* File info */}
@@ -239,7 +214,7 @@ export function DocumentHistoryDialog({
                               {doc.fileName}
                             </span>
                             <span className="text-muted-foreground whitespace-nowrap">
-                              {formatFileSize(doc.fileSize)}
+                              {doc.fileSize ? formatFileSize(doc.fileSize) : "-"}
                             </span>
                           </div>
 
@@ -253,45 +228,39 @@ export function DocumentHistoryDialog({
                             </div>
                           )}
 
-                          {/* Upload/review info */}
+                          {/* Metadata */}
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {uploaderName}
-                            </span>
+                            {doc.person && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {doc.person.fullName}
+                              </span>
+                            )}
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {format(new Date(doc.uploadedAt), "PPP p")}
+                              {format(new Date(doc.createdAt), "PPP p")}
                             </span>
                           </div>
 
-                          {/* Rejection info */}
-                          {doc.rejectionReason && (
-                            <div className="text-sm p-2 bg-destructive/10 rounded-md">
-                              <span className="font-medium text-destructive">
-                                {t("rejectionReason")}:
-                              </span>{" "}
-                              {doc.rejectionReason}
-                            </div>
-                          )}
-
                           {/* Actions */}
                           <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(doc.fileUrl, "_blank")}
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              {t("downloadVersion")}
-                            </Button>
-                            {!doc.isLatest && userRole === "admin" && (
+                            {doc.fileUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(doc.fileUrl!, "_blank")}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                {t("downloadVersion")}
+                              </Button>
+                            )}
+                            {!isLatest && userRole === "admin" && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
                                   setRestoreDocId(doc._id)
-                                  setRestoreVersion(doc.version)
+                                  setRestoreVersion(version)
                                 }}
                               >
                                 <RotateCcw className="h-3 w-3 mr-1" />
@@ -330,16 +299,14 @@ export function DocumentHistoryDialog({
 
       {/* Upload new version dialog */}
       {showUploadNewVersion && currentDoc && (
-        <UploadNewVersionDialog
+        <DocumentVersionUploadDialog
           open={showUploadNewVersion}
           onOpenChange={setShowUploadNewVersion}
-          individualProcessId={individualProcessId}
-          documentTypeId={documentTypeId}
-          documentRequirementId={documentRequirementId}
-          currentVersion={currentDoc.version}
-          currentFileName={currentDoc.fileName}
-          currentFileSize={currentDoc.fileSize}
-          currentStatus={currentDoc.status}
+          documentId={documentId}
+          currentVersion={currentDoc.version || 1}
+          currentFileName={currentDoc.fileName || ""}
+          currentFileSize={currentDoc.fileSize || 0}
+          documentName={documentName}
           onSuccess={() => setShowUploadNewVersion(false)}
         />
       )}

@@ -1,6 +1,10 @@
 import { query } from "./_generated/server";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to get process statistics
  * Admin sees all, client sees only their company's data
@@ -105,7 +109,7 @@ export const getDocumentReviewQueue = query({
         return {
           ...doc,
           documentType: documentType ? { _id: documentType._id, name: documentType.name } : null,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           collectiveProcess: collectiveProcess
             ? {
                 _id: collectiveProcess._id,
@@ -183,7 +187,7 @@ export const getOverdueTasks = query({
           person: person
             ? {
                 _id: person._id,
-                fullName: person.fullName,
+                fullName: getFullName(person),
               }
             : null,
         };
@@ -283,7 +287,7 @@ export const getUpcomingDeadlines = query({
 
         return {
           ...process,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           collectiveProcess: collectiveProcess
             ? {
                 _id: collectiveProcess._id,
@@ -428,7 +432,7 @@ export const getRecentActivity = query({
                 fullName: changedByProfile.fullName,
               }
             : null,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           collectiveProcess: collectiveProcess
             ? {
                 _id: collectiveProcess._id,
@@ -488,7 +492,7 @@ export const getCompanyDocumentStatus = query({
 
       return {
         personId: ip.personId,
-        personName: person?.fullName || "Unknown",
+        personName: person ? getFullName(person) : "Unknown",
         documents: docs,
       };
     });

@@ -11,6 +11,8 @@ export const looseDocumentUploadSchema = z.object({
   fileSize: z.number().min(1, "File size must be greater than 0"),
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
+  issueDate: z.string().optional(),
+  versionNotes: z.string().max(500).optional(),
 });
 
 export type LooseDocumentUploadData = {
@@ -33,6 +35,8 @@ export const typedDocumentUploadSchema = z.object({
   fileSize: z.number().min(1, "File size must be greater than 0"),
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
+  issueDate: z.string().optional(),
+  versionNotes: z.string().max(500).optional(),
 });
 
 export type TypedDocumentUploadData = {
@@ -68,6 +72,8 @@ export const pendingDocumentUploadSchema = z.object({
   fileSize: z.number().min(1, "File size must be greater than 0"),
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
+  issueDate: z.string().optional(),
+  versionNotes: z.string().max(500).optional(),
 });
 
 export type PendingDocumentUploadData = {

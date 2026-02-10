@@ -5,6 +5,10 @@ import { getCurrentUserProfile, requireAdmin, requireActiveUserProfile } from ".
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all companies with optional filtering
  * Access control: Admin sees all companies, clients see only their company
@@ -67,7 +71,7 @@ export const list = query({
           city,
           state,
           country,
-          contactPerson,
+          contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
         };
       })
     );
@@ -141,7 +145,7 @@ export const get = query({
       city,
       state,
       country,
-      contactPerson,
+      contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
     };
   },
 });
@@ -914,7 +918,7 @@ export const getProcessesWithMissingData = query({
           _id: ip._id,
           person: person ? {
             _id: person._id,
-            fullName: person.fullName,
+            fullName: getFullName(person),
           } : null,
           processType: processType ? {
             _id: processType._id,

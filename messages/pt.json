@@ -953,6 +953,14 @@
       "allCollapsed": "Todos os grupos recolhidos",
       "groupedBy": "Agrupado por Status",
       "exitGroupedMode": "Sair do modo agrupado"
+    },
+    "requirementsChecklist": "Checklist de Requisitos",
+    "noLegalFramework": "Nenhum amparo legal definido para este processo",
+    "linkedToDocument": "Vinculado a: {documents}",
+    "validity": {
+      "expired": "Vencido",
+      "expiringSoon": "Vencendo",
+      "missingDate": "Data ausente"
     }
   },
   "ProcessTimeline": {
@@ -992,6 +1000,11 @@
     "createDescription": "Preencha as informações para criar uma nova pessoa",
     "deleteConfirm": "Tem certeza de que deseja excluir esta pessoa?",
     "fullName": "Nome Completo",
+    "givenNames": "Nome(s)",
+    "middleName": "Nome do Meio",
+    "surname": "Sobrenome",
+    "residenceSince": "Residente desde",
+    "firstEntryDate": "Data do 1\u00ba ingresso no Brasil",
     "email": "E-mail",
     "cpf": "CPF",
     "invalidCpfFormat": "Formato de CPF inválido",
@@ -1195,6 +1208,11 @@
     "errorDelete": "Erro ao excluir documento",
     "errorUploadFile": "Erro ao enviar arquivo",
     "noResults": "Nenhum documento encontrado",
+    "uploadNewVersion": "Nova Versão",
+    "versionHistory": "Histórico de Versões",
+    "version": "Versão",
+    "newVersionSuccess": "Nova versão enviada com sucesso",
+    "newVersionError": "Erro ao enviar nova versão",
     "documentDetails": "Detalhes do Documento",
     "documentInformation": "Informações do Documento",
     "relatedEntities": "Entidades Relacionadas",
@@ -1824,7 +1842,17 @@
     "deselectAll": "Desmarcar Todos",
     "required": "Obrigatório",
     "selectedCount": "{count} selecionado(s)",
-    "requiredCount": "{count} obrigatório(s)"
+    "requiredCount": "{count} obrigatório(s)",
+    "infoRequirements": "Requisitos de Informação",
+    "infoRequirementsDescription": "Campos de informação que devem ser preenchidos para processos com este amparo legal",
+    "validityType": "Regra de Validade",
+    "noValidity": "Sem regra de validade",
+    "minRemaining": "Validade mín. restante",
+    "maxAge": "Idade máxima",
+    "validityDays": "Dias",
+    "validityTypeTooltip": "Defina uma regra de validade para controlar automaticamente se os documentos enviados estão dentro do prazo exigido.",
+    "minRemainingTooltip": "O documento deve ter no mínimo esta quantidade de dias antes de vencer. Ex: passaporte com pelo menos 90 dias de validade.",
+    "maxAgeTooltip": "O documento deve ter sido emitido no máximo há esta quantidade de dias. Ex: certidão criminal emitida há no máximo 90 dias."
   },
   "Passports": {
     "title": "Passaportes",
@@ -1954,7 +1982,14 @@
     "noAuthorizationTypes": "Nenhum tipo de autorização disponível",
     "authorizationTypeApplied": "{count} amparos legais de {authorizationType} foram automaticamente selecionados",
     "noLegalFrameworksForAuthorizationType": "Nenhum amparo legal associado a este tipo de autorização",
-    "ungroupedLegalFrameworks": "Outros Amparos Legais"
+    "ungroupedLegalFrameworks": "Outros Amparos Legais",
+    "fieldMappings": "Campos de Informação Vinculados",
+    "fieldMappingsDescription": "Campos que devem ser preenchidos junto com este documento",
+    "responsibleParty": "Responsável",
+    "workflowType": "Tipo de Workflow",
+    "validityDays": "Validade (dias)",
+    "sortOrder": "Ordem",
+    "internalNotes": "Notas Internas"
   },
   "DocumentCategories": {
     "title": "Categorias de Documento",
@@ -2082,12 +2117,18 @@
     "uploadLoose": "Enviar Avulso",
     "uploadWithType": "Enviar com Tipo",
     "assignType": "Atribuir Tipo",
+    "uploadNewVersion": "Nova Versão",
     "status": {
       "notStarted": "Não Iniciado",
       "uploaded": "Enviado",
       "underReview": "Em Revisão",
       "approved": "Aprovado",
       "rejected": "Rejeitado"
+    },
+    "validity": {
+      "expired": "Vencido",
+      "expiringSoon": "Vencendo em {days} dias",
+      "missingDate": "Data ausente"
     }
   },
   "DocumentUpload": {
@@ -2123,7 +2164,17 @@
     "assignSuccess": "Tipo de documento atribuído com sucesso",
     "assignError": "Erro ao atribuir tipo de documento",
     "incompatibleFile": "O arquivo não é compatível com este tipo de documento",
-    "compatibleFile": "O arquivo é compatível com o tipo de documento selecionado"
+    "compatibleFile": "O arquivo é compatível com o tipo de documento selecionado",
+    "versionNotes": "Observações",
+    "versionNotesPlaceholder": "Descreva o que mudou nesta versão",
+    "uploadNewVersionTitle": "Enviar Nova Versão",
+    "currentVersion": "Versão Atual",
+    "versionUpgrade": "v{current} → v{next}",
+    "issueDate": "Data de Emissão",
+    "issueDateTooltip": "Data em que o documento foi oficialmente emitido ou assinado. Usada para verificar se o documento não excede a idade máxima permitida.",
+    "expiryDateTooltip": "Data em que o documento perde a validade. Usada para verificar se a validade restante atende ao mínimo exigido.",
+    "validityWarningInsufficient": "A validade restante ({days} dias) é inferior ao mínimo exigido ({required} dias)",
+    "validityWarningMaxAge": "O documento foi emitido há {days} dias, excedendo o máximo permitido de {max} dias"
   },
   "DocumentReview": {
     "title": "Revisar Documento",
@@ -2180,7 +2231,36 @@
     "conditionUnfulfilled": "Condição desmarcada",
     "errorToggleCondition": "Erro ao atualizar condição",
     "errorConditionsNotFulfilled": "Não é possível aprovar: existem condições obrigatórias não cumpridas",
-    "errorConditionsExpired": "Não é possível aprovar: existem condições expiradas"
+    "errorConditionsExpired": "Não é possível aprovar: existem condições expiradas",
+    "errorValidityFailed": "Não é possível aprovar: o documento não atende aos requisitos de validade",
+    "issueDate": "Data de Emissão",
+    "issueDateTooltip": "Data em que o documento foi oficialmente emitido. Pode afetar a aprovação se houver regra de idade máxima.",
+    "expiryDateTooltip": "Data de expiração do documento. Pode afetar a aprovação se houver regra de validade mínima restante.",
+    "linkedFields": "Campos",
+    "linkedFieldsDescription": "Campos de informação vinculados a este tipo de documento",
+    "noLinkedFields": "Nenhum campo vinculado a este tipo de documento.",
+    "notFilled": "Não preenchido",
+    "filled": "Preenchido",
+    "entityPerson": "Pessoa",
+    "entityIndividualProcess": "Processo Individual",
+    "entityPassport": "Passaporte",
+    "entityCompany": "Empresa",
+    "fieldsSaved": "Campos salvos com sucesso",
+    "fieldsSaveError": "Erro ao salvar campos",
+    "selectVersion": "Selecionar Versão",
+    "currentVersion": "(atual)",
+    "viewingOldVersion": "Visualizando versão {version}",
+    "officialVersion": "Versão oficial: v{version}",
+    "backToCurrentVersion": "Voltar para atual",
+    "newVersion": "Nova Versão",
+    "versionNotes": "Observações da Versão",
+    "validity": {
+      "valid": "Válido",
+      "expired": "Vencido",
+      "expiring_soon": "Vencendo em Breve",
+      "missing_date": "Data Ausente",
+      "daysInfo": "{days} dias restantes"
+    }
   },
   "DocumentHistory": {
     "title": "Histórico do Documento",
@@ -2198,6 +2278,15 @@
     "expiryDate": "Data de Validade",
     "downloadVersion": "Baixar Versão",
     "unknown": "Desconhecido",
+    "versionNotes": "Observações da Versão",
+    "noNotes": "Sem observações",
+    "restoreVersion": "Restaurar Esta Versão",
+    "restoreVersionConfirm": "Tem certeza que deseja restaurar a versão {version}? Uma nova versão será criada com o conteúdo desta versão.",
+    "restoreSuccess": "Versão restaurada com sucesso",
+    "restoreError": "Erro ao restaurar versão",
+    "uploadNewVersion": "Enviar Nova Versão",
+    "restoredFrom": "Restaurado da versão {version}",
+    "fileSizeChange": "Alteração de tamanho",
     "status": {
       "approved": "Aprovado",
       "rejected": "Rejeitado",

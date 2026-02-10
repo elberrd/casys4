@@ -30,10 +30,13 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
+import { getFullName } from "@/lib/utils/person-names"
 
 interface Person {
   _id: Id<"people">
-  fullName: string
+  givenNames: string
+  middleName?: string
+  surname?: string
   email?: string
   cpf?: string
   birthDate?: string
@@ -94,12 +97,13 @@ export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTablePro
     () => [
       createSelectColumn<Person>(),
       {
-        accessorKey: "fullName",
+        id: "fullName",
+        accessorFn: (row) => getFullName(row),
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('fullName')} />
         ),
         cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.fullName} />
+          <DataGridHighlightedCell text={getFullName(row.original)} />
         ),
       },
       {

@@ -6,6 +6,10 @@ import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { normalizeString } from "./lib/stringUtils";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Helper function to determine if the current user can access a specific document
  * Access rules:
@@ -74,8 +78,9 @@ export const list = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Fetch documents from both tables
+    // Fetch documents from both tables (only latest versions for standalone docs)
     let documents = await ctx.db.query("documents").collect();
+    documents = documents.filter((d) => d.isLatest !== false); // treat undefined as true
     let deliveredDocuments = await ctx.db.query("documentsDelivered").collect();
 
     // Filter by documentTypeId if provided
@@ -162,7 +167,7 @@ export const list = query({
               : null;
             individualProcess = {
               _id: process._id,
-              personName: processPerson?.fullName || "Unknown",
+              personName: processPerson ? getFullName(processPerson) : "Unknown",
               referenceNumber: collectiveProcess?.referenceNumber || null,
             };
           }
@@ -179,10 +184,10 @@ export const list = query({
           documentType: documentType
             ? { _id: documentType._id, name: documentType.name, category: documentType.category }
             : null,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           company: company ? { _id: company._id, name: company.name } : null,
           individualProcess,
-          userApplicant: userApplicant ? { _id: userApplicant._id, fullName: userApplicant.fullName } : null,
+          userApplicant: userApplicant ? { _id: userApplicant._id, fullName: getFullName(userApplicant) } : null,
           fileUrl,
         };
       })
@@ -213,7 +218,7 @@ export const list = query({
 
             individualProcess = {
               _id: process._id,
-              personName: processPerson?.fullName || "Unknown",
+              personName: processPerson ? getFullName(processPerson) : "Unknown",
               referenceNumber: collectiveProcess?.referenceNumber || null,
             };
           }
@@ -248,7 +253,7 @@ export const list = query({
           documentType: documentType
             ? { _id: documentType._id, name: documentType.name, category: documentType.category }
             : null,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           company,
           individualProcess,
           userApplicant: null,
@@ -317,7 +322,7 @@ export const get = query({
           : null;
         individualProcess = {
           _id: process._id,
-          personName: processPerson?.fullName || "Unknown",
+          personName: processPerson ? getFullName(processPerson) : "Unknown",
           referenceNumber: collectiveProcess?.referenceNumber || null,
         };
       }
@@ -334,10 +339,10 @@ export const get = query({
       documentType: documentType
         ? { _id: documentType._id, name: documentType.name, category: documentType.category }
         : null,
-      person: person ? { _id: person._id, fullName: person.fullName } : null,
+      person: person ? { _id: person._id, fullName: getFullName(person) } : null,
       company: company ? { _id: company._id, name: company.name } : null,
       individualProcess,
-      userApplicant: userApplicant ? { _id: userApplicant._id, fullName: userApplicant.fullName } : null,
+      userApplicant: userApplicant ? { _id: userApplicant._id, fullName: getFullName(userApplicant) } : null,
       fileUrl,
     };
   },
@@ -443,10 +448,8 @@ export const update = mutation({
       throw new Error("Document not found");
     }
 
-    // If storageId changed, delete old file if it exists
-    if (existingDoc.storageId && args.storageId !== existingDoc.storageId) {
-      await ctx.storage.delete(existingDoc.storageId);
-    }
+    // Note: We no longer delete old storage files when storageId changes.
+    // Use uploadNewVersion for file replacements to preserve version history.
 
     // Get file URL if storageId exists
     let fileUrl: string | undefined = undefined;
@@ -509,5 +512,233 @@ export const bulkRemove = mutation({
       }
     }
     return args.ids;
+  },
+});
+
+/**
+ * Mutation to upload a new version of a standalone document (admin only)
+ * Creates a new document record linked to the original via originalDocumentId
+ */
+export const uploadNewVersion = mutation({
+  args: {
+    documentId: v.id("documents"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileSize: v.number(),
+    fileType: v.string(),
+    versionNotes: v.optional(v.string()),
+    expiryDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const existingDoc = await ctx.db.get(args.documentId);
+    if (!existingDoc) {
+      throw new Error("Document not found");
+    }
+
+    const now = Date.now();
+
+    // Determine the original document ID for grouping versions
+    const originalDocumentId = existingDoc.originalDocumentId || existingDoc._id;
+
+    // If the original document doesn't have version fields, backfill them
+    if (existingDoc.version === undefined) {
+      await ctx.db.patch(existingDoc._id, {
+        version: 1,
+        isLatest: false,
+        originalDocumentId: originalDocumentId,
+      });
+    } else {
+      // Mark current document as not latest
+      await ctx.db.patch(existingDoc._id, { isLatest: false });
+    }
+
+    // Find all versions to calculate next version number
+    const allVersions = await ctx.db
+      .query("documents")
+      .withIndex("by_originalDocument", (q) => q.eq("originalDocumentId", originalDocumentId))
+      .collect();
+
+    // Include the original doc itself if it's the root
+    const originalDoc = await ctx.db.get(originalDocumentId);
+    const existingVersions = allVersions.map((d) => d.version || 1);
+    if (originalDoc && !allVersions.some((d) => d._id === originalDocumentId)) {
+      existingVersions.push(originalDoc.version || 1);
+    }
+    const maxVersion = existingVersions.length > 0 ? Math.max(...existingVersions) : 1;
+    const newVersion = maxVersion + 1;
+
+    // Get file URL
+    const fileUrl = (await ctx.storage.getUrl(args.storageId)) ?? undefined;
+
+    // Create new version document
+    const newDocId = await ctx.db.insert("documents", {
+      name: existingDoc.name,
+      documentTypeId: existingDoc.documentTypeId,
+      personId: existingDoc.personId,
+      companyId: existingDoc.companyId,
+      individualProcessId: existingDoc.individualProcessId,
+      userApplicantId: existingDoc.userApplicantId,
+      storageId: args.storageId,
+      fileUrl,
+      fileName: args.fileName,
+      fileSize: args.fileSize,
+      fileType: args.fileType,
+      notes: existingDoc.notes,
+      issueDate: existingDoc.issueDate,
+      expiryDate: args.expiryDate || existingDoc.expiryDate,
+      isActive: existingDoc.isActive ?? true,
+      version: newVersion,
+      isLatest: true,
+      versionNotes: args.versionNotes,
+      originalDocumentId: originalDocumentId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return newDocId;
+  },
+});
+
+/**
+ * Query to get version history of a standalone document
+ * Returns all versions sorted by version descending
+ */
+export const getVersionHistory = query({
+  args: {
+    documentId: v.id("documents"),
+  },
+  handler: async (ctx, { documentId }) => {
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Determine the original document ID
+    const originalDocumentId = document.originalDocumentId || document._id;
+
+    // Get all versions via the index
+    const versions = await ctx.db
+      .query("documents")
+      .withIndex("by_originalDocument", (q) => q.eq("originalDocumentId", originalDocumentId))
+      .collect();
+
+    // Include the original document if it's not in the versions list
+    const originalDoc = await ctx.db.get(originalDocumentId);
+    if (originalDoc && !versions.some((v) => v._id === originalDocumentId)) {
+      versions.push(originalDoc);
+    }
+
+    // Enrich with related data
+    const enrichedVersions = await Promise.all(
+      versions.map(async (doc) => {
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
+        const person = doc.personId ? await ctx.db.get(doc.personId) : null;
+        const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
+
+        let fileUrl = doc.fileUrl;
+        if (doc.storageId) {
+          fileUrl = (await ctx.storage.getUrl(doc.storageId)) ?? undefined;
+        }
+
+        return {
+          ...doc,
+          documentType: documentType
+            ? { _id: documentType._id, name: documentType.name }
+            : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
+          company: company ? { _id: company._id, name: company.name } : null,
+          fileUrl,
+        };
+      })
+    );
+
+    // Sort by version descending (treat undefined as 1)
+    return enrichedVersions.sort((a, b) => (b.version || 1) - (a.version || 1));
+  },
+});
+
+/**
+ * Mutation to restore a previous version of a standalone document (admin only)
+ * Creates a NEW version reusing the storageId from the old version
+ */
+export const restoreVersion = mutation({
+  args: {
+    documentId: v.id("documents"),
+    versionNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const oldDocument = await ctx.db.get(args.documentId);
+    if (!oldDocument) {
+      throw new Error("Document not found");
+    }
+
+    // Cannot restore the current (latest) version
+    if (oldDocument.isLatest === true) {
+      throw new Error("Cannot restore the current version");
+    }
+
+    const now = Date.now();
+    const originalDocumentId = oldDocument.originalDocumentId || oldDocument._id;
+
+    // Find all versions
+    const allVersions = await ctx.db
+      .query("documents")
+      .withIndex("by_originalDocument", (q) => q.eq("originalDocumentId", originalDocumentId))
+      .collect();
+
+    const originalDoc = await ctx.db.get(originalDocumentId);
+    const allDocs = [...allVersions];
+    if (originalDoc && !allDocs.some((d) => d._id === originalDocumentId)) {
+      allDocs.push(originalDoc);
+    }
+
+    // Mark current latest as not latest
+    const currentLatest = allDocs.find((doc) => doc.isLatest === true);
+    if (currentLatest) {
+      await ctx.db.patch(currentLatest._id, { isLatest: false });
+    }
+
+    const maxVersion = Math.max(...allDocs.map((d) => d.version || 1));
+    const newVersion = maxVersion + 1;
+    const notes = args.versionNotes || `Restaurado da versão ${oldDocument.version || 1}`;
+
+    // Get file URL
+    let fileUrl = oldDocument.fileUrl;
+    if (oldDocument.storageId) {
+      fileUrl = (await ctx.storage.getUrl(oldDocument.storageId)) ?? undefined;
+    }
+
+    // Create new version reusing old storageId
+    const newDocId = await ctx.db.insert("documents", {
+      name: oldDocument.name,
+      documentTypeId: oldDocument.documentTypeId,
+      personId: oldDocument.personId,
+      companyId: oldDocument.companyId,
+      individualProcessId: oldDocument.individualProcessId,
+      userApplicantId: oldDocument.userApplicantId,
+      storageId: oldDocument.storageId,
+      fileUrl,
+      fileName: oldDocument.fileName,
+      fileSize: oldDocument.fileSize,
+      fileType: oldDocument.fileType,
+      notes: oldDocument.notes,
+      issueDate: oldDocument.issueDate,
+      expiryDate: oldDocument.expiryDate,
+      isActive: oldDocument.isActive ?? true,
+      version: newVersion,
+      isLatest: true,
+      versionNotes: notes,
+      originalDocumentId: originalDocumentId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return newDocId;
   },
 });

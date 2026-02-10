@@ -22,7 +22,13 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Loader2, Upload, File, X, CheckCircle, FileType } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Upload, File, X, CheckCircle, FileType, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   formatFileSize,
   validateFileType,
@@ -50,6 +56,8 @@ export function TypedDocumentUploadDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
+  const [issueDate, setIssueDate] = useState<string>("");
+  const [versionNotes, setVersionNotes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all active document types
@@ -157,6 +165,8 @@ export function TypedDocumentUploadDialog({
         fileSize: selectedFile.size,
         mimeType: selectedFile.type,
         expiryDate: expiryDate || undefined,
+        issueDate: issueDate || undefined,
+        versionNotes: versionNotes || undefined,
       });
 
       setUploadProgress(100);
@@ -172,6 +182,8 @@ export function TypedDocumentUploadDialog({
       handleRemoveFile();
       setSelectedDocumentTypeId("");
       setExpiryDate("");
+      setIssueDate("");
+      setVersionNotes("");
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -186,6 +198,8 @@ export function TypedDocumentUploadDialog({
       handleRemoveFile();
       setSelectedDocumentTypeId("");
       setExpiryDate("");
+      setIssueDate("");
+      setVersionNotes("");
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -293,9 +307,53 @@ export function TypedDocumentUploadDialog({
             </div>
           )}
 
+          {/* Version notes (optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="versionNotes">{t("versionNotes")} ({tCommon("optional")})</Label>
+            <Textarea
+              id="versionNotes"
+              value={versionNotes}
+              onChange={(e) => setVersionNotes(e.target.value)}
+              placeholder={t("versionNotesPlaceholder")}
+              maxLength={500}
+              rows={2}
+              disabled={isUploading}
+            />
+          </div>
+
+          {/* Issue date (optional) */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="issueDate">{t("issueDate")} ({tCommon("optional")})</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  {t("issueDateTooltip")}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <DatePicker
+              value={issueDate}
+              onChange={(value) => setIssueDate(value || "")}
+              disabled={isUploading}
+            />
+          </div>
+
           {/* Expiry date (optional) */}
           <div className="space-y-2">
-            <Label htmlFor="expiryDate">{t("expiryDate")} ({tCommon("optional")})</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="expiryDate">{t("expiryDate")} ({tCommon("optional")})</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  {t("expiryDateTooltip")}
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <DatePicker
               value={expiryDate}
               onChange={(value) => setExpiryDate(value || "")}

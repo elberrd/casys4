@@ -11,6 +11,10 @@ import { normalizeString } from "./lib/stringUtils";
 import { ensureSingleActiveStatus, getEmPreparacaoStatus } from "./lib/statusManagement";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all individual processes with optional filters
  * Access control: Admins see all processes, clients see only their company's processes (via collectiveProcess.companyId)
@@ -145,16 +149,17 @@ export const list = query({
           caseStatus,
         } : null;
 
-        // Enrich person with nationality
-        let person = rawPerson;
+        // Enrich person with nationality and computed fullName
+        let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
         if (rawPerson) {
           const nationality = rawPerson.nationalityId
             ? await ctx.db.get(rawPerson.nationalityId)
             : null;
           person = {
             ...rawPerson,
+            fullName: getFullName(rawPerson),
             nationality,
-          } as any;
+          };
         }
 
         // If passport exists, enrich it with issuing country
@@ -206,10 +211,10 @@ export const list = query({
               enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
             } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
               const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+              enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
             } else if (fieldName === "personId" && typeof fieldValue === "string") {
               const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+              enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
             } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
               const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
               enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
@@ -242,7 +247,7 @@ export const list = query({
           passport: enrichedPassport,
           processType, // Include process type details
           companyApplicant, // Include company applicant details
-          userApplicant, // Include user applicant details
+          userApplicant: userApplicant ? { ...userApplicant, fullName: getFullName(userApplicant) } : null, // Include user applicant details
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
         };
@@ -254,7 +259,7 @@ export const list = query({
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
       searchFilteredResults = enrichedResults.filter((item) => {
-        const personName = item.person?.fullName ? normalizeString(item.person.fullName) : "";
+        const personName = item.person ? normalizeString(getFullName(item.person)) : "";
         const protocolNumber = item.protocolNumber ? normalizeString(item.protocolNumber) : "";
         const mreOfficeNumber = item.mreOfficeNumber ? normalizeString(item.mreOfficeNumber) : "";
         const rnmNumber = item.rnmNumber ? normalizeString(item.rnmNumber) : "";
@@ -321,16 +326,17 @@ export const get = query({
       process.processTypeId ? ctx.db.get(process.processTypeId) : null,
     ]);
 
-    // Enrich person with nationality
-    let person = rawPerson;
+    // Enrich person with nationality and computed fullName
+    let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
     if (rawPerson) {
       const nationality = rawPerson.nationalityId
         ? await ctx.db.get(rawPerson.nationalityId)
         : null;
       person = {
         ...rawPerson,
+        fullName: getFullName(rawPerson),
         nationality,
-      } as any;
+      };
     }
 
     // Check access permissions for client users
@@ -392,6 +398,7 @@ export const get = query({
 
       enrichedUserApplicant = {
         ...userApplicant,
+        fullName: getFullName(userApplicant),
         company,
       };
     }
@@ -433,10 +440,10 @@ export const get = query({
           enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
         } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
           const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+          enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
         } else if (fieldName === "personId" && typeof fieldValue === "string") {
           const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc?.fullName || fieldValue;
+          enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
         } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
           const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
           enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
@@ -664,7 +671,7 @@ export const create = mutation({
         entityType: "individualProcess",
         entityId: processId,
         details: {
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           caseStatusName: caseStatus.name, // Log case status name
           caseStatusId: caseStatus._id, // Log case status ID
@@ -807,7 +814,7 @@ export const createFromExisting = mutation({
         entityType: "individualProcess",
         entityId: newProcessId,
         details: {
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           sourceProcessId: args.sourceProcessId,
           caseStatusName: emPreparacaoStatus.name,
           caseStatusId: emPreparacaoStatus._id,
@@ -827,7 +834,7 @@ export const createFromExisting = mutation({
         entityType: "individualProcess",
         entityId: args.sourceProcessId,
         details: {
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           newProcessId: newProcessId,
           reason: "New process created from this process",
         },
@@ -1067,7 +1074,7 @@ export const update = mutation({
             .withIndex("by_company", (q) => q.eq("companyId", collectiveProcess.companyId))
             .collect();
 
-          const personName = person.fullName;
+          const personName = getFullName(person);
 
           // Create notifications for all company users (only those with userId)
           for (const companyUser of companyUsers) {
@@ -1114,7 +1121,7 @@ export const update = mutation({
           entityType: "individualProcess",
           entityId: id,
           details: {
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             collectiveProcessReference: collectiveProcess?.referenceNumber,
             changes: changedFields,
           },
@@ -1201,7 +1208,7 @@ export const remove = mutation({
         entityType: "individualProcess",
         entityId: id,
         details: {
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           status: process.status,
           legalFrameworkId: process.legalFrameworkId,
@@ -1397,7 +1404,7 @@ export const updateUrgentForCollectiveGroup = mutation({
           entityType: "individualProcess",
           entityId: id,
           details: {
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             urgent,
           },
         });
@@ -1527,7 +1534,7 @@ export const updateAuthorizationForCollectiveGroup = mutation({
           entityType: "individualProcess",
           entityId: id,
           details: {
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             processTypeId,
             legalFrameworkId,
             deadlineUnit,
@@ -1658,14 +1665,15 @@ export const listForSelector = query({
           process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
         ]);
 
+        const personDisplayName = person ? getFullName(person) : "Unknown";
         const label = collectiveProcess?.referenceNumber
-          ? `${person?.fullName || "Unknown"} (${collectiveProcess.referenceNumber})`
-          : person?.fullName || "Unknown";
+          ? `${personDisplayName} (${collectiveProcess.referenceNumber})`
+          : personDisplayName;
 
         return {
           _id: process._id,
           label,
-          personName: person?.fullName || "Unknown",
+          personName: personDisplayName,
           referenceNumber: collectiveProcess?.referenceNumber || null,
         };
       })

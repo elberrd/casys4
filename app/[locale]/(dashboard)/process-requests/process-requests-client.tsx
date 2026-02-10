@@ -13,6 +13,7 @@ import { RejectRequestDialog } from "@/components/process-requests/reject-reques
 import { RequestDetailsDialog } from "@/components/process-requests/request-details-dialog";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
+import { getFullName } from "@/lib/utils/person-names";
 
 export function ProcessRequestsClient() {
   const t = useTranslations("ProcessRequests");
@@ -65,7 +66,7 @@ export function ProcessRequestsClient() {
     ? {
         company: selectedRequest.company?.name || "-",
         processType: selectedRequest.processType?.name || "-",
-        contactPerson: selectedRequest.contactPerson?.fullName || "-",
+        contactPerson: selectedRequest.contactPerson ? getFullName(selectedRequest.contactPerson) : "-",
       }
     : undefined;
 

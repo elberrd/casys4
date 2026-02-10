@@ -5,6 +5,11 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
 
+/** Constructs full display name from person name parts */
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all people with optional search
  * Access control: Admins see all people, clients see only people from their company
@@ -43,7 +48,7 @@ export const list = query({
       const searchNormalized = normalizeString(args.search);
       people = people.filter(
         (person) =>
-          normalizeString(person.fullName).includes(searchNormalized) ||
+          normalizeString(getFullName(person)).includes(searchNormalized) ||
           (person.email && normalizeString(person.email).includes(searchNormalized)) ||
           (person.cpf && person.cpf.includes(searchNormalized))
       );
@@ -81,6 +86,7 @@ export const list = query({
 
         return {
           ...person,
+          fullName: getFullName(person),
           birthCity,
           birthState,
           currentCity,
@@ -132,11 +138,12 @@ export const search = query({
     return people
       .filter(
         (person) =>
-          normalizeString(person.fullName).includes(queryNormalized) ||
+          normalizeString(getFullName(person)).includes(queryNormalized) ||
           (person.email && normalizeString(person.email).includes(queryNormalized)) ||
           (person.cpf && person.cpf.includes(queryNormalized))
       )
-      .slice(0, 10); // Limit to 10 results for performance
+      .slice(0, 10) // Limit to 10 results for performance
+      .map((person) => ({ ...person, fullName: getFullName(person) }));
   },
 });
 
@@ -179,8 +186,10 @@ export const listPeopleByCompany = query({
       })
     );
 
-    // Filter out null values and return
-    return people.filter((person): person is NonNullable<typeof person> => person !== null);
+    // Filter out null values and return with computed fullName
+    return people
+      .filter((person): person is NonNullable<typeof person> => person !== null)
+      .map((person) => ({ ...person, fullName: getFullName(person) }));
   },
 });
 
@@ -244,7 +253,7 @@ export const checkCpfDuplicate = query({
       isAvailable: false,
       existingPerson: {
         _id: existingPerson._id,
-        fullName: existingPerson.fullName,
+        fullName: getFullName(existingPerson),
       },
     };
   },
@@ -304,6 +313,7 @@ export const get = query({
 
     return {
       ...person,
+      fullName: getFullName(person),
       birthCity,
       birthState,
       currentCity,
@@ -318,7 +328,9 @@ export const get = query({
  */
 export const create = mutation({
   args: {
-    fullName: v.string(),
+    givenNames: v.string(),
+    middleName: v.optional(v.string()),
+    surname: v.optional(v.string()),
     email: v.optional(v.string()),
     cpf: v.optional(v.string()),
     birthDate: v.optional(v.string()),
@@ -332,6 +344,7 @@ export const create = mutation({
     phoneNumber: v.optional(v.string()),
     address: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
+    residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -351,7 +364,7 @@ export const create = mutation({
 
         if (existingPerson) {
           throw new Error(
-            `CPF ${args.cpf} is already registered to ${existingPerson.fullName}`
+            `CPF ${args.cpf} is already registered to ${getFullName(existingPerson)}`
           );
         }
       }
@@ -375,7 +388,9 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("people"),
-    fullName: v.string(),
+    givenNames: v.string(),
+    middleName: v.optional(v.string()),
+    surname: v.optional(v.string()),
     email: v.optional(v.string()),
     cpf: v.optional(v.string()),
     birthDate: v.optional(v.string()),
@@ -389,6 +404,7 @@ export const update = mutation({
     phoneNumber: v.optional(v.string()),
     address: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
+    residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -411,7 +427,7 @@ export const update = mutation({
         // If duplicate found and it's not the current person being updated
         if (existingPerson && existingPerson._id !== id) {
           throw new Error(
-            `CPF ${data.cpf} is already registered to ${existingPerson.fullName}`
+            `CPF ${data.cpf} is already registered to ${getFullName(existingPerson)}`
           );
         }
       }
@@ -429,11 +445,13 @@ export const update = mutation({
       _id: current._id,
       _creationTime: current._creationTime,
       createdAt: current.createdAt,
-      fullName: data.fullName,
+      givenNames: data.givenNames,
       updatedAt: Date.now(),
     };
 
     // Only include optional fields if they have non-empty values
+    if (data.middleName) replacement.middleName = data.middleName;
+    if (data.surname) replacement.surname = data.surname;
     if (data.email) replacement.email = data.email;
     if (data.cpf && data.cpf !== "") replacement.cpf = data.cpf;
     if (data.birthDate) replacement.birthDate = data.birthDate;
@@ -447,6 +465,7 @@ export const update = mutation({
     if (data.phoneNumber) replacement.phoneNumber = data.phoneNumber;
     if (data.address) replacement.address = data.address;
     if (data.currentCityId) replacement.currentCityId = data.currentCityId;
+    if (data.residenceSince) replacement.residenceSince = data.residenceSince;
     if (data.photoUrl) replacement.photoUrl = data.photoUrl;
     if (data.notes) replacement.notes = data.notes;
 
@@ -543,7 +562,7 @@ export const listPeopleWithCompanies = query({
 
         return {
           _id: person._id,
-          fullName: person.fullName,
+          fullName: getFullName(person),
           companyName: company.name,
           companyId: company._id,
           role: pc.role,

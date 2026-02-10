@@ -3,6 +3,10 @@ import { internalAction, internalMutation, internalQuery, query } from "./_gener
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Internal action to check for upcoming appointments and send reminders
  * Runs daily via cron job
@@ -55,7 +59,7 @@ export const sendAppointmentReminders = internalAction({
             {
               companyId: collectiveProcess.companyId,
               individualProcessId: process._id,
-              personName: person.fullName,
+              personName: getFullName(person),
               appointmentDateTime: process.appointmentDateTime!,
             }
           );
@@ -136,7 +140,7 @@ export const listUpcomingAppointments = query({
 
         return {
           individualProcess: process,
-          person: person ? { _id: person._id, fullName: person.fullName } : null,
+          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
           collectiveProcess: collectiveProcess
             ? { _id: collectiveProcess._id, referenceNumber: collectiveProcess.referenceNumber }
             : null,

@@ -4,6 +4,8 @@ import { z } from "zod";
 export const documentTypeAssociationSchema = z.object({
   documentTypeId: z.string(),
   isRequired: z.boolean(),
+  validityType: z.enum(["min_remaining", "max_age"]).optional(),
+  validityDays: z.number().min(1).optional(),
 });
 
 export type DocumentTypeAssociation = z.infer<typeof documentTypeAssociationSchema>;

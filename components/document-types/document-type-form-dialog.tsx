@@ -55,6 +55,7 @@ import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { LegalFrameworkAssociationSection } from "./legal-framework-association-section";
 import { ConditionsSection, ConditionsSectionRef } from "./conditions-section";
+import { FieldMappingsSection } from "./field-mappings-section";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
@@ -471,6 +472,14 @@ export function DocumentTypeFormDialog({
               <>
                 <Separator className="my-4" />
                 <ConditionsSection ref={conditionsSectionRef} documentTypeId={documentTypeId} />
+              </>
+            )}
+
+            {/* Field Mappings Section - Only show in edit mode */}
+            {documentTypeId && (
+              <>
+                <Separator className="my-4" />
+                <FieldMappingsSection documentTypeId={documentTypeId} />
               </>
             )}
 

@@ -3,6 +3,11 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile, canAccessCompany } from "./lib/auth";
 import { internal } from "./_generated/api";
+import { checkDocumentValidity } from "./lib/documentValidity";
+
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
 
 /**
  * Query to list documents delivered for an individual process
@@ -149,6 +154,8 @@ export const upload = mutation({
     fileSize: v.number(),
     mimeType: v.string(),
     expiryDate: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
+    versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -223,8 +230,10 @@ export const upload = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
+      issueDate: args.issueDate,
       version: version,
       isLatest: true,
+      versionNotes: args.versionNotes,
     });
 
     // Auto-create conditions for this document based on document type
@@ -261,7 +270,7 @@ export const upload = mutation({
           fileName: args.fileName,
           fileSize: args.fileSize,
           documentType: documentType?.name,
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           version,
           isReplacement: version > 1,
@@ -336,6 +345,29 @@ export const approve = mutation({
       }
     }
 
+    // Validate document validity (expiry/age rules)
+    if (document.documentTypeLegalFrameworkId) {
+      const association = await ctx.db.get(document.documentTypeLegalFrameworkId);
+      if (association && association.validityType && association.validityDays) {
+        const validityCheck = checkDocumentValidity(
+          association.validityType,
+          association.validityDays,
+          document.issueDate,
+          document.expiryDate,
+        );
+        if (validityCheck.status === "expired") {
+          throw new Error(
+            `Cannot approve: Document validity check failed (${validityCheck.messageKey})`
+          );
+        }
+        if (validityCheck.status === "missing_date") {
+          throw new Error(
+            `Cannot approve: Required date is missing for validity check (${validityCheck.messageKey})`
+          );
+        }
+      }
+    }
+
     const previousStatus = document.status;
 
     // Skip if already approved (no change needed)
@@ -399,7 +431,7 @@ export const approve = mutation({
           details: {
             fileName: document.fileName,
             documentType: documentType?.name,
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             previousStatus: previousStatus,
           },
         });
@@ -498,7 +530,7 @@ export const reject = mutation({
           details: {
             fileName: document.fileName,
             documentType: documentType?.name,
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             rejectionReason,
             previousStatus: previousStatus,
           },
@@ -553,24 +585,134 @@ export const getVersionHistory = query({
         doc.documentRequirementId === documentRequirementId
     );
 
-    // Enrich with related data
+    // Enrich with related data including user profile names
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
         const uploadedByUser = await ctx.db.get(doc.uploadedBy);
+        let uploadedByProfile = null;
+        if (uploadedByUser) {
+          uploadedByProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_userId", (q) => q.eq("userId", uploadedByUser._id))
+            .first();
+        }
         const reviewedByUser = doc.reviewedBy
           ? await ctx.db.get(doc.reviewedBy)
           : null;
+        let reviewedByProfile = null;
+        if (reviewedByUser) {
+          reviewedByProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_userId", (q) => q.eq("userId", reviewedByUser._id))
+            .first();
+        }
 
         return {
           ...doc,
           uploadedByUser,
+          uploadedByProfile,
           reviewedByUser,
+          reviewedByProfile,
         };
       }),
     );
 
     // Sort by version descending
     return enrichedDocuments.sort((a, b) => b.version - a.version);
+  },
+});
+
+/**
+ * Mutation to restore a previous version of a document (admin only)
+ * Creates a NEW version (append-only) reusing the storageId from the old version
+ */
+export const restoreVersion = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    versionNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const adminProfile = await requireAdmin(ctx);
+
+    const oldDocument = await ctx.db.get(args.documentId);
+    if (!oldDocument) {
+      throw new Error("Document not found");
+    }
+
+    // Cannot restore the current version
+    if (oldDocument.isLatest) {
+      throw new Error("Cannot restore the current version");
+    }
+
+    if (!adminProfile.userId) {
+      throw new Error("Admin user must have a userId");
+    }
+
+    // Find the current latest version for this document type + process
+    let allVersions = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", oldDocument.individualProcessId)
+      )
+      .collect();
+
+    allVersions = allVersions.filter(
+      (doc) =>
+        doc.documentTypeId === oldDocument.documentTypeId &&
+        doc.documentRequirementId === oldDocument.documentRequirementId
+    );
+
+    const currentLatest = allVersions.find((doc) => doc.isLatest);
+    const maxVersion = Math.max(...allVersions.map((doc) => doc.version));
+
+    // Mark current latest as not latest
+    if (currentLatest) {
+      await ctx.db.patch(currentLatest._id, { isLatest: false });
+    }
+
+    const newVersion = maxVersion + 1;
+    const notes = args.versionNotes || `Restaurado da versão ${oldDocument.version}`;
+
+    // Create new version reusing the old storageId
+    const newDocId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId: oldDocument.individualProcessId,
+      documentTypeId: oldDocument.documentTypeId,
+      documentRequirementId: oldDocument.documentRequirementId,
+      documentTypeLegalFrameworkId: oldDocument.documentTypeLegalFrameworkId,
+      isRequired: oldDocument.isRequired,
+      storageId: oldDocument.storageId,
+      personId: oldDocument.personId,
+      companyId: oldDocument.companyId,
+      fileName: oldDocument.fileName,
+      fileUrl: oldDocument.fileUrl,
+      fileSize: oldDocument.fileSize,
+      mimeType: oldDocument.mimeType,
+      status: "uploaded", // Reset to uploaded for re-review
+      uploadedBy: adminProfile.userId,
+      uploadedAt: Date.now(),
+      expiryDate: oldDocument.expiryDate,
+      version: newVersion,
+      isLatest: true,
+      versionNotes: notes,
+    });
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: newDocId,
+      previousStatus: undefined,
+      newStatus: "uploaded",
+      changedBy: adminProfile.userId,
+      changedAt: Date.now(),
+      notes: notes,
+      metadata: {
+        restoredFromVersion: oldDocument.version,
+        restoredFromDocumentId: oldDocument._id,
+        fileName: oldDocument.fileName,
+        version: newVersion,
+      },
+    });
+
+    return newDocId;
   },
 });
 
@@ -614,7 +756,7 @@ export const remove = mutation({
           details: {
             fileName: document.fileName,
             documentType: documentType?.name,
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             status: document.status,
             version: document.version,
           },
@@ -673,7 +815,7 @@ export const getDocumentsForBulkDownload = query({
       }
 
       const person = await ctx.db.get(individualProcess.personId);
-      const personName = person?.fullName || "Unknown";
+      const personName = person ? getFullName(person) : "Unknown";
 
       // Get documents for this individual process
       let documents = await ctx.db
@@ -798,7 +940,7 @@ export const bulkApprove = mutation({
               details: {
                 fileName: document.fileName,
                 documentType: documentType?.name,
-                personName: person?.fullName,
+                personName: person ? getFullName(person) : undefined,
                 notes: args.notes,
               },
             });
@@ -912,7 +1054,7 @@ export const bulkReject = mutation({
               details: {
                 fileName: document.fileName,
                 documentType: documentType?.name,
-                personName: person?.fullName,
+                personName: person ? getFullName(person) : undefined,
                 rejectionReason: args.rejectionReason,
               },
             });
@@ -1010,7 +1152,7 @@ export const bulkDelete = mutation({
               details: {
                 fileName: document.fileName,
                 documentType: documentType?.name,
-                personName: person?.fullName,
+                personName: person ? getFullName(person) : undefined,
                 status: document.status,
                 version: document.version,
               },
@@ -1058,6 +1200,8 @@ export const uploadLoose = mutation({
     fileSize: v.number(),
     mimeType: v.string(),
     expiryDate: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
+    versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1106,8 +1250,10 @@ export const uploadLoose = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
+      issueDate: args.issueDate,
       version: 1,
       isLatest: true,
+      versionNotes: args.versionNotes,
     });
 
     // Log activity
@@ -1122,7 +1268,7 @@ export const uploadLoose = mutation({
         details: {
           fileName: args.fileName,
           fileSize: args.fileSize,
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           isLooseDocument: true,
         },
@@ -1148,6 +1294,8 @@ export const uploadWithType = mutation({
     fileSize: v.number(),
     mimeType: v.string(),
     expiryDate: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
+    versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1253,9 +1401,11 @@ export const uploadWithType = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
+      issueDate: args.issueDate,
       version: version,
       isLatest: true,
       isRequired: false, // Manual uploads with type are optional by default
+      versionNotes: args.versionNotes,
     });
 
     // Auto-create conditions for this document based on document type
@@ -1289,7 +1439,7 @@ export const uploadWithType = mutation({
           fileName: args.fileName,
           fileSize: args.fileSize,
           documentType: documentType.name,
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           version,
           isReplacement: version > 1,
@@ -1394,7 +1544,7 @@ export const assignType = mutation({
           details: {
             fileName: document.fileName,
             documentType: documentType.name,
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
           },
         });
       }
@@ -1418,6 +1568,8 @@ export const uploadForPending = mutation({
     fileSize: v.number(),
     mimeType: v.string(),
     expiryDate: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
+    versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1501,6 +1653,8 @@ export const uploadForPending = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
+      issueDate: args.issueDate,
+      versionNotes: args.versionNotes,
     });
 
     // Auto-create conditions for this document based on document type
@@ -1547,7 +1701,7 @@ export const uploadForPending = mutation({
           fileName: args.fileName,
           fileSize: args.fileSize,
           documentType: documentType?.name,
-          personName: person?.fullName,
+          personName: person ? getFullName(person) : undefined,
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           isRequired: document.isRequired,
         },
@@ -1611,12 +1765,33 @@ export const listGroupedByCategory = query({
           ? await ctx.db.get(doc.reviewedBy)
           : null;
 
+        // Compute validity check if association exists
+        let validityCheck = undefined;
+        let validityRule = undefined;
+        if (doc.documentTypeLegalFrameworkId) {
+          const association = await ctx.db.get(doc.documentTypeLegalFrameworkId);
+          if (association && association.validityType && association.validityDays) {
+            validityRule = {
+              validityType: association.validityType,
+              validityDays: association.validityDays,
+            };
+            validityCheck = checkDocumentValidity(
+              association.validityType,
+              association.validityDays,
+              doc.issueDate,
+              doc.expiryDate,
+            );
+          }
+        }
+
         return {
           ...doc,
           documentType,
           documentRequirement,
           uploadedByUser,
           reviewedByUser,
+          validityCheck,
+          validityRule,
         };
       }),
     );
@@ -1824,7 +1999,7 @@ export const changeStatus = mutation({
           details: {
             fileName: document.fileName,
             documentType: documentType?.name,
-            personName: person?.fullName,
+            personName: person ? getFullName(person) : undefined,
             previousStatus,
             newStatus,
             notes,

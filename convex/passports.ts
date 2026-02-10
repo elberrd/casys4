@@ -4,6 +4,10 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { normalizeString } from "./lib/stringUtils";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 // Helper function to calculate passport status
 function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
   const today = new Date();
@@ -75,7 +79,7 @@ export const list = query({
           person: person
             ? {
                 _id: person._id,
-                fullName: person.fullName,
+                fullName: getFullName(person),
               }
             : null,
           issuingCountry: country
@@ -95,7 +99,7 @@ export const list = query({
       const searchNormalized = normalizeString(args.search);
       return passportsWithRelations.filter((passport) => {
         const passportNumber = passport.passportNumber ? normalizeString(passport.passportNumber) : "";
-        const personName = passport.person?.fullName ? normalizeString(passport.person.fullName) : "";
+        const personName = passport.person ? normalizeString(passport.person.fullName) : "";
 
         return (
           passportNumber.includes(searchNormalized) ||
@@ -308,7 +312,7 @@ export const get = query({
       person: person
         ? {
             _id: person._id,
-            fullName: person.fullName,
+            fullName: getFullName(person),
           }
         : null,
       issuingCountry: country

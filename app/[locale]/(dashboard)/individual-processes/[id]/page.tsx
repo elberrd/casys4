@@ -9,9 +9,16 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, RefreshCcw, ArrowLeft } from "lucide-react"
+import { Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
+import { RequirementsChecklistCard } from "@/components/individual-processes/requirements-checklist-card"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { GovernmentProtocolCard } from "@/components/individual-processes/government-protocol-card"
 import { ProcessTimeline } from "@/components/collective-processes/process-timeline"
 import { StatusUpdateDialog } from "@/components/collective-processes/status-update-dialog"
@@ -21,10 +28,12 @@ import { IndividualProcessStatusesSubtable } from "@/components/individual-proce
 import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 import { PersonFormDialog } from "@/components/people/person-form-dialog"
+import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog"
 import { formatDate } from "@/lib/format-field-value"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { translateCountryName } from "@/lib/utils/country-translations"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
+import { getFullName } from "@/lib/utils/person-names"
 
 interface IndividualProcessDetailPageProps {
   params: Promise<{
@@ -48,6 +57,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
   const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false)
+  const [reviewDocumentId, setReviewDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
 
   const processId = resolvedParams.id as Id<"individualProcesses">
   const collectiveProcessId = resolvedSearchParams.collectiveProcessId as Id<"collectiveProcesses"> | undefined
@@ -62,6 +72,36 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
     collectiveProcessId ? { id: collectiveProcessId } : "skip"
   )
 
+  // Fetch linked fields map for paperclip indicators
+  const linkedFieldsMap = useQuery(
+    api.documentTypeFieldMappings.getLinkedFieldsMap,
+    { individualProcessId: processId }
+  )
+
+  // Helper: small tooltip icon showing linked document types (clickable to open document)
+  function LinkedDocIcon({ entityType, fieldPath }: { entityType: string; fieldPath: string }) {
+    const key = `${entityType}:${fieldPath}`
+    const links = linkedFieldsMap?.[key]
+    if (!links?.length) return null
+    const firstWithDoc = links.find(l => l.deliveredDocumentId)
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center"
+            onClick={firstWithDoc ? () => setReviewDocumentId(firstWithDoc.deliveredDocumentId as Id<"documentsDelivered">) : undefined}
+          >
+            <Paperclip className={`h-3 w-3 inline-block ${firstWithDoc ? "text-primary cursor-pointer" : "text-muted-foreground"}`} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {t('linkedToDocument', { documents: links.map(l => l.documentTypeName).join(", ") })}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
   // Build breadcrumbs based on context
   const breadcrumbs = collectiveProcessId && collectiveProcess
     ? [
@@ -69,13 +109,13 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
         { label: tBreadcrumbs('processManagement') },
         { label: tBreadcrumbs('collectiveProcesses'), href: '/collective-processes' },
         { label: collectiveProcess.referenceNumber || '...', href: `/collective-processes/${collectiveProcessId}` },
-        { label: individualProcess?.person?.fullName || t('details') }
+        { label: individualProcess?.person ? getFullName(individualProcess.person) : t('details') }
       ]
     : [
         { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
         { label: tBreadcrumbs('processManagement') },
         { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
-        { label: individualProcess?.person?.fullName || t('details') }
+        { label: individualProcess?.person ? getFullName(individualProcess.person) : t('details') }
       ]
 
   if (individualProcess === undefined) {
@@ -120,7 +160,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
     : "outline"
 
   return (
-    <>
+    <TooltipProvider>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         {/* Back to Task button */}
@@ -138,7 +178,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">{individualProcess.person?.fullName || t('details')}</h1>
+            <h1 className="text-2xl font-bold">{individualProcess.person ? getFullName(individualProcess.person) : t('details')}</h1>
             <p className="text-muted-foreground">
               {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
             </p>
@@ -177,7 +217,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm font-medium">{t('userApplicant')}</div>
                 <div className="text-sm">
                   {individualProcess.userApplicant && individualProcess.userApplicant.company
-                    ? `${individualProcess.userApplicant.fullName} - ${individualProcess.userApplicant.company.name}`
+                    ? `${getFullName(individualProcess.userApplicant)} - ${individualProcess.userApplicant.company.name}`
                     : '-'}
                 </div>
 
@@ -188,7 +228,10 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                     : '-'}
                 </div>
 
-                <div className="text-sm font-medium">{t('funcao')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {t('funcao')}
+                  <LinkedDocIcon entityType="individualProcess" fieldPath="funcao" />
+                </div>
                 <div className="text-sm">{individualProcess.funcao || '-'}</div>
 
                 <div className="text-sm font-medium">{t('processType')}</div>
@@ -228,14 +271,20 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm font-medium">{t('protocolNumber')}</div>
                 <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
 
-                <div className="text-sm font-medium">{t('qualification')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {t('qualification')}
+                  <LinkedDocIcon entityType="individualProcess" fieldPath="qualification" />
+                </div>
                 <div className="text-sm">
                   {individualProcess.qualification
                     ? t(`qualificationOptions.${individualProcess.qualification}`)
                     : '-'}
                 </div>
 
-                <div className="text-sm font-medium">{t('professionalExperienceSince')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {t('professionalExperienceSince')}
+                  <LinkedDocIcon entityType="individualProcess" fieldPath="professionalExperienceSince" />
+                </div>
                 <div className="text-sm">
                   {individualProcess.professionalExperienceSince
                     ? (() => {
@@ -274,33 +323,54 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-sm font-medium">{tPeople('cpf')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('cpf')}
+                  <LinkedDocIcon entityType="person" fieldPath="cpf" />
+                </div>
                 <div className="text-sm">{individualProcess.person?.cpf ? formatCPF(individualProcess.person.cpf) : '-'}</div>
 
-                <div className="text-sm font-medium">{tPeople('nationality')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('nationality')}
+                  <LinkedDocIcon entityType="person" fieldPath="nationalityId" />
+                </div>
                 <div className="text-sm">{(individualProcess.person as any)?.nationality?.name ? translateCountryName((individualProcess.person as any).nationality.name, resolvedParams.locale) : '-'}</div>
 
-                <div className="text-sm font-medium">{tPeople('maritalStatus')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('maritalStatus')}
+                  <LinkedDocIcon entityType="person" fieldPath="maritalStatus" />
+                </div>
                 <div className="text-sm">
                   {individualProcess.person?.maritalStatus
                     ? tPeople(`maritalStatus${individualProcess.person.maritalStatus.charAt(0).toUpperCase() + individualProcess.person.maritalStatus.slice(1)}`)
                     : '-'}
                 </div>
 
-                <div className="text-sm font-medium">{tPeople('birthDate')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('birthDate')}
+                  <LinkedDocIcon entityType="person" fieldPath="birthDate" />
+                </div>
                 <div className="text-sm">
                   {individualProcess.person?.birthDate
                     ? formatDate(individualProcess.person.birthDate, resolvedParams.locale)
                     : '-'}
                 </div>
 
-                <div className="text-sm font-medium">{tPeople('fatherName')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('fatherName')}
+                  <LinkedDocIcon entityType="person" fieldPath="fatherName" />
+                </div>
                 <div className="text-sm">{individualProcess.person?.fatherName || '-'}</div>
 
-                <div className="text-sm font-medium">{tPeople('motherName')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('motherName')}
+                  <LinkedDocIcon entityType="person" fieldPath="motherName" />
+                </div>
                 <div className="text-sm">{individualProcess.person?.motherName || '-'}</div>
 
-                <div className="text-sm font-medium">{tPeople('profession')}</div>
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('profession')}
+                  <LinkedDocIcon entityType="person" fieldPath="profession" />
+                </div>
                 <div className="text-sm">{individualProcess.person?.profession || '-'}</div>
 
                 {individualProcess.lastSalaryAmount && (
@@ -332,7 +402,10 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
                 {individualProcess.monthlyAmountToReceive && (
                   <>
-                    <div className="text-sm font-medium">{t('monthlyAmountToReceive')}</div>
+                    <div className="text-sm font-medium flex items-center gap-1">
+                      {t('monthlyAmountToReceive')}
+                      <LinkedDocIcon entityType="individualProcess" fieldPath="monthlyAmountToReceive" />
+                    </div>
                     <div className="text-sm">
                       R$ {individualProcess.monthlyAmountToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
@@ -366,6 +439,9 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
             <ProcessTimeline individualProcessId={processId} />
           </CardContent>
         </Card>
+
+        {/* Requirements Checklist */}
+        <RequirementsChecklistCard individualProcessId={processId} />
 
         {/* Document Checklist Section */}
         <DocumentChecklistCard individualProcessId={processId} />
@@ -414,10 +490,23 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
         open={isPersonEditDialogOpen}
         onOpenChange={setIsPersonEditDialogOpen}
         personId={individualProcess.personId}
+        individualProcessId={processId}
         onSuccess={() => {
           setIsPersonEditDialogOpen(false)
         }}
       />
-    </>
+
+      {/* Document Review Dialog (opened from paperclip icons) */}
+      {reviewDocumentId && (
+        <DocumentReviewDialog
+          open={!!reviewDocumentId}
+          onOpenChange={(open) => {
+            if (!open) setReviewDocumentId(null)
+          }}
+          documentId={reviewDocumentId}
+          onSuccess={() => setReviewDocumentId(null)}
+        />
+      )}
+    </TooltipProvider>
   )
 }

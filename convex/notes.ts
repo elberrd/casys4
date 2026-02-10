@@ -4,6 +4,10 @@ import { Doc } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth";
 import { internal } from "./_generated/api";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list ALL notes across all processes with enriched process/candidate information
  * Used for the standalone Notes page
@@ -83,7 +87,7 @@ export const listAll = query({
             if (individualProcess.personId) {
               const person = await ctx.db.get(individualProcess.personId);
               if (person) {
-                candidateName = person.fullName;
+                candidateName = getFullName(person);
               }
             }
 

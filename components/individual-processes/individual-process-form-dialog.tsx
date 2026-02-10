@@ -54,6 +54,10 @@ import { FormDescription } from "@/components/ui/form"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Calculator, Loader2, RefreshCw } from "lucide-react"
 import { fetchExchangeRate } from "@/lib/api/exchange-rate"
+import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator"
+import {
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 
 interface IndividualProcessFormDialogProps {
   open: boolean
@@ -400,7 +404,7 @@ export function IndividualProcessFormDialog({
 
   const peopleOptions = people.map((person) => ({
     value: person._id,
-    label: person.fullName,
+    label: person.fullName || person.givenNames,
   }))
 
   const processTypeOptions = processTypes.map((processType) => ({
@@ -444,6 +448,7 @@ export function IndividualProcessFormDialog({
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
+        <TooltipProvider>
         <DialogHeader>
           <DialogTitle>
             {individualProcessId ? t("editTitle") : t("createTitle")}
@@ -593,7 +598,7 @@ export function IndividualProcessFormDialog({
                 name="funcao"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("funcao")}</FormLabel>
+                    <FormLabel className="flex items-center">{t("funcao")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="funcao" /></FormLabel>
                     <FormControl>
                       <Input placeholder={t("funcaoPlaceholder")} {...field} />
                     </FormControl>
@@ -608,7 +613,7 @@ export function IndividualProcessFormDialog({
                   name="qualification"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("qualification")}</FormLabel>
+                      <FormLabel className="flex items-center">{t("qualification")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="qualification" /></FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -640,7 +645,7 @@ export function IndividualProcessFormDialog({
                   name="professionalExperienceSince"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("professionalExperienceSince")}</FormLabel>
+                      <FormLabel className="flex items-center">{t("professionalExperienceSince")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="professionalExperienceSince" /></FormLabel>
                       <FormControl>
                         <DatePicker
                           value={field.value}
@@ -860,7 +865,7 @@ export function IndividualProcessFormDialog({
                   name="monthlyAmountToReceive"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("monthlyAmountToReceive")}</FormLabel>
+                      <FormLabel className="flex items-center">{t("monthlyAmountToReceive")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="monthlyAmountToReceive" /></FormLabel>
                       <FormControl>
                         <CurrencyInput
                           placeholder={t("enterMonthlyAmount")}
@@ -1205,6 +1210,7 @@ export function IndividualProcessFormDialog({
             </DialogFooter>
           </form>
         </Form>
+        </TooltipProvider>
       </DialogContent>
     </Dialog>
 

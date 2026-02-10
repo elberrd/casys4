@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getFullName } from "@/lib/utils/person-names";
 import {
   Popover,
   PopoverContent,
@@ -155,7 +156,7 @@ export function RNMCalendarClient() {
       .filter((appointment) => appointment.appointmentDateTime)
       .map((appointment) => ({
         id: appointment._id,
-        title: appointment.person?.fullName || t("noCandidate"),
+        title: appointment.person ? getFullName(appointment.person) : t("noCandidate"),
         start: new Date(appointment.appointmentDateTime!),
         // RNM appointments are point-in-time slots. We render them as 30min by default to avoid
         // visual overlap in week view when schedules are tight.

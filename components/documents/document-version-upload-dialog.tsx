@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import { useState, useRef } from "react";
-import { useMutation } from "convex/react";
-import { useTranslations } from "next-intl";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useState, useRef } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { useTranslations } from "next-intl"
+import { api } from "@/convex/_generated/api"
+import { Id } from "@/convex/_generated/dataModel"
 import {
   Dialog,
   DialogContent,
@@ -12,145 +12,142 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/date-picker";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, File, X, CheckCircle, FileQuestion } from "lucide-react";
-import { formatFileSize } from "@/lib/validations/documents-delivered";
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { Loader2, Upload, File, X, CheckCircle } from "lucide-react"
+import { formatFileSize } from "@/lib/validations/documents-delivered"
 
-interface LooseDocumentUploadDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  individualProcessId: Id<"individualProcesses">;
-  onSuccess?: () => void;
+interface DocumentVersionUploadDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  documentId: Id<"documents">
+  currentVersion: number
+  currentFileName: string
+  currentFileSize: number
+  documentName: string
+  onSuccess?: () => void
 }
 
-export function LooseDocumentUploadDialog({
+export function DocumentVersionUploadDialog({
   open,
   onOpenChange,
-  individualProcessId,
+  documentId,
+  currentVersion,
+  currentFileName,
+  currentFileSize,
+  documentName,
   onSuccess,
-}: LooseDocumentUploadDialogProps) {
-  const t = useTranslations("DocumentUpload");
-  const tCommon = useTranslations("Common");
+}: DocumentVersionUploadDialogProps) {
+  const t = useTranslations("DocumentUpload")
+  const tCommon = useTranslations("Common")
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [expiryDate, setExpiryDate] = useState<string>("");
-  const [versionNotes, setVersionNotes] = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [expiryDate, setExpiryDate] = useState<string>("")
+  const [versionNotes, setVersionNotes] = useState<string>("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
-  const uploadLoose = useMutation(api.documentsDelivered.uploadLoose);
+  const generateUploadUrl = useMutation(api.documents.generateUploadUrl)
+  const uploadNewVersion = useMutation(api.documents.uploadNewVersion)
 
-  // Default max size for loose documents (10MB)
-  const maxSizeMB = 10;
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  const nextVersion = currentVersion + 1
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file size
-    if (file.size > maxSizeBytes) {
-      toast.error(t("errorFileSize", { maxSize: maxSizeMB }));
-      return;
-    }
-
-    setSelectedFile(file);
-  };
+    const file = event.target.files?.[0]
+    if (!file) return
+    setSelectedFile(file)
+  }
 
   const handleRemoveFile = () => {
-    setSelectedFile(null);
+    setSelectedFile(null)
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = ""
     }
-  };
+  }
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error(t("errorNoFile"));
-      return;
+      toast.error(t("errorNoFile"))
+      return
     }
 
     try {
-      setIsUploading(true);
-      setUploadProgress(10);
+      setIsUploading(true)
+      setUploadProgress(10)
 
-      // Step 1: Get upload URL from Convex
-      const uploadUrl = await generateUploadUrl();
-      setUploadProgress(20);
+      const uploadUrl = await generateUploadUrl()
+      setUploadProgress(20)
 
-      // Step 2: Upload file to Convex storage
       const result = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": selectedFile.type },
         body: selectedFile,
-      });
+      })
 
       if (!result.ok) {
-        throw new Error("Failed to upload file");
+        throw new Error("Failed to upload file")
       }
 
-      const { storageId } = await result.json();
-      setUploadProgress(60);
+      const { storageId } = await result.json()
+      setUploadProgress(60)
 
-      // Step 3: Create loose document record in database
-      await uploadLoose({
-        individualProcessId,
+      await uploadNewVersion({
+        documentId,
         storageId,
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
-        mimeType: selectedFile.type,
+        fileType: selectedFile.type,
         expiryDate: expiryDate || undefined,
         versionNotes: versionNotes || undefined,
-      });
+      })
 
-      setUploadProgress(100);
+      setUploadProgress(100)
+      toast.success(t("successUpload"))
+      onOpenChange(false)
+      onSuccess?.()
 
-      toast.success(t("successUpload"));
-      onOpenChange(false);
-
-      if (onSuccess) {
-        onSuccess();
-      }
-
-      // Reset form
-      handleRemoveFile();
-      setExpiryDate("");
-      setVersionNotes("");
-      setUploadProgress(0);
+      handleRemoveFile()
+      setExpiryDate("")
+      setVersionNotes("")
+      setUploadProgress(0)
     } catch (error) {
-      console.error("Error uploading document:", error);
-      toast.error(t("errorUpload"));
+      console.error("Error uploading new version:", error)
+      toast.error(t("errorUpload"))
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
     }
-  };
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <FileQuestion className="h-5 w-5" />
-            <DialogTitle>{t("looseUploadTitle")}</DialogTitle>
+            <Upload className="h-5 w-5" />
+            <DialogTitle>{t("uploadNewVersionTitle")}</DialogTitle>
           </div>
           <DialogDescription>
-            {t("looseUploadDescription")}
+            <span className="block mt-1 font-medium text-foreground">{documentName}</span>
+            <Badge variant="secondary" className="mt-1">
+              {t("versionUpgrade", { current: currentVersion, next: nextVersion })}
+            </Badge>
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* File requirements */}
-          <div className="text-sm text-muted-foreground">
-            <p>{t("maxSize")}: {maxSizeMB} MB</p>
+          {/* Current version info */}
+          <div className="p-3 bg-muted rounded-lg space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">{t("currentVersion")}</p>
+            <p className="text-sm font-medium truncate">{currentFileName}</p>
+            <p className="text-xs text-muted-foreground">{formatFileSize(currentFileSize)}</p>
           </div>
 
           {/* File input */}
@@ -193,7 +190,7 @@ export function LooseDocumentUploadDialog({
             </div>
           )}
 
-          {/* Version notes (optional) */}
+          {/* Version notes */}
           <div className="space-y-2">
             <Label htmlFor="versionNotes">{t("versionNotes")} ({tCommon("optional")})</Label>
             <Textarea
@@ -202,12 +199,12 @@ export function LooseDocumentUploadDialog({
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
               maxLength={500}
-              rows={2}
+              rows={3}
               disabled={isUploading}
             />
           </div>
 
-          {/* Expiry date (optional) */}
+          {/* Expiry date */}
           <div className="space-y-2">
             <Label htmlFor="expiryDate">{t("expiryDate")} ({tCommon("optional")})</Label>
             <DatePicker
@@ -249,5 +246,5 @@ export function LooseDocumentUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

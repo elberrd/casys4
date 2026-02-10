@@ -108,6 +108,9 @@ interface IndividualProcess {
   person?: {
     _id: Id<"people">;
     fullName: string;
+    givenNames: string;
+    middleName?: string;
+    surname?: string;
     email?: string;
   } | null;
   collectiveProcess?: {
@@ -276,6 +279,8 @@ export function IndividualProcessesTable({
 
   // Track if component is mounted to prevent state updates during initial render
   const isMountedRef = useRef(false);
+  // Skip initial effect runs to avoid React 19 warning about state updates before mount
+  const isInitialRenderRef = useRef(true);
 
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -304,6 +309,8 @@ export function IndividualProcessesTable({
   // This prevents "state update on unmounted component" warnings
   useLayoutEffect(() => {
     isMountedRef.current = true;
+    // Clear initial render flag after mount so subsequent effects can run
+    isInitialRenderRef.current = false;
     return () => {
       isMountedRef.current = false;
     };
@@ -311,6 +318,8 @@ export function IndividualProcessesTable({
 
   // Handle RNM mode toggle - show/hide column and apply sorting
   useEffect(() => {
+    // Skip initial render - defaults are already correct in initialColumnVisibility
+    if (isInitialRenderRef.current) return;
     if (isRnmModeActive) {
       // Save current sorting before switching to RNM mode
       previousSortingRef.current = sorting;
@@ -334,6 +343,7 @@ export function IndividualProcessesTable({
 
   // Handle Urgent mode toggle - show Protocol column, hide Process Status column
   useEffect(() => {
+    if (isInitialRenderRef.current) return;
     if (isUrgentModeActive) {
       setColumnVisibility((prev) => ({
         ...prev,
@@ -353,6 +363,7 @@ export function IndividualProcessesTable({
 
   // Handle QUAL/EXP PROF mode toggle - show specific columns for qualification view
   useEffect(() => {
+    if (isInitialRenderRef.current) return;
     if (isQualExpProfModeActive) {
       setColumnVisibility((prev) => ({
         ...prev,
@@ -376,6 +387,7 @@ export function IndividualProcessesTable({
 
   // Handle Grouped Mode - activate grouping by status when multiple status filters are selected
   useEffect(() => {
+    if (isInitialRenderRef.current) return;
     if (isGroupedModeActive) {
       // Activate grouping by case status name
       setGrouping(["caseStatus.name"]);

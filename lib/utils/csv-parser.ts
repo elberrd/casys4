@@ -27,7 +27,9 @@ export interface ParsedCSVResult {
  * Expected CSV headers for people import
  */
 export const PEOPLE_CSV_HEADERS = [
-  'fullName',
+  'givenNames',
+  'middleName',
+  'surname',
   'email',
   'cpf',
   'birthDate',
@@ -48,7 +50,9 @@ export type PeopleCSVHeader = typeof PEOPLE_CSV_HEADERS[number];
 export function generatePeopleCSVTemplate(): string {
   const headers = PEOPLE_CSV_HEADERS.join(',');
   const example = [
-    'John Doe',
+    'John',
+    'Michael',
+    'Doe',
     'john.doe@example.com',
     '123.456.789-00',
     '1990-01-15',
@@ -208,8 +212,8 @@ function validatePeopleRow(
   const errors: string[] = [];
 
   // Required fields
-  if (!data.fullName || data.fullName.trim().length === 0) {
-    errors.push(`Row ${rowNumber}: fullName is required`);
+  if (!data.givenNames || data.givenNames.trim().length === 0) {
+    errors.push(`Row ${rowNumber}: givenNames is required`);
   }
 
   if (!data.email || data.email.trim().length === 0) {
@@ -310,7 +314,9 @@ function isValidPhone(phone: string): boolean {
  */
 export function csvRowToPersonData(rowData: Record<string, string>) {
   return {
-    fullName: rowData.fullName.trim(),
+    givenNames: rowData.givenNames.trim(),
+    middleName: rowData.middleName?.trim() || undefined,
+    surname: rowData.surname?.trim() || undefined,
     email: rowData.email.trim().toLowerCase(),
     cpf: rowData.cpf.replace(/[.\-\s]/g, ''), // Clean CPF format
     birthDate: rowData.birthDate.trim(),

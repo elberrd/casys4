@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
@@ -14,10 +14,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "sonner"
 import {
   Loader2,
@@ -34,8 +42,20 @@ import {
   RotateCcw,
   ClipboardCheck,
   AlertTriangle,
+  CheckCircle2,
+  Circle,
+  ListChecks,
+  Save,
+  Pencil,
+  Info,
 } from "lucide-react"
 import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileViewer } from "@/components/ui/file-viewer"
 import {
@@ -44,6 +64,102 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
+import { UploadNewVersionDialog } from "@/components/individual-processes/upload-new-version-dialog"
+
+const MARITAL_STATUS_OPTIONS = [
+  { value: "Single", label: "Solteiro(a)", labelEn: "Single" },
+  { value: "Married", label: "Casado(a)", labelEn: "Married" },
+  { value: "Divorced", label: "Divorciado(a)", labelEn: "Divorced" },
+  { value: "Widowed", label: "Viúvo(a)", labelEn: "Widowed" },
+]
+
+const QUALIFICATION_OPTIONS = [
+  { value: "medio", label: "Médio", labelEn: "High School" },
+  { value: "tecnico", label: "Técnico", labelEn: "Technical" },
+  { value: "superior", label: "Superior", labelEn: "College" },
+  { value: "naoPossui", label: "Não possui", labelEn: "None" },
+]
+
+/** Inline input component for editing linked field values */
+function LinkedFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: { fieldType: string; fieldPath: string; entityType: string }
+  value: string | number
+  onChange: (val: string | number) => void
+}) {
+  // Select fields
+  if (field.fieldPath === "maritalStatus") {
+    return (
+      <Select value={String(value)} onValueChange={onChange}>
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MARITAL_STATUS_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  if (field.fieldPath === "qualification") {
+    return (
+      <Select value={String(value)} onValueChange={onChange}>
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {QUALIFICATION_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  // Date fields
+  if (field.fieldType === "date") {
+    return (
+      <Input
+        type="date"
+        className="h-8 text-xs"
+        value={String(value)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )
+  }
+
+  // Number fields
+  if (field.fieldType === "number") {
+    return (
+      <Input
+        type="number"
+        className="h-8 text-xs"
+        value={value}
+        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+        step="0.01"
+      />
+    )
+  }
+
+  // Default: text input
+  return (
+    <Input
+      type="text"
+      className="h-8 text-xs"
+      value={String(value)}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  )
+}
 
 interface DocumentReviewDialogProps {
   open: boolean
@@ -65,10 +181,26 @@ export function DocumentReviewDialog({
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [showStatusActions, setShowStatusActions] = useState(false)
+  const [isEditingFields, setIsEditingFields] = useState(false)
+  const [isSavingFields, setIsSavingFields] = useState(false)
+  const [editedValues, setEditedValues] = useState<Record<string, string | number>>({})
+  const [selectedVersionId, setSelectedVersionId] = useState<Id<"documentsDelivered"> | null>(null)
+  const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
     documentId ? { id: documentId } : "skip"
+  )
+
+  const versionHistory = useQuery(
+    api.documentsDelivered.getVersionHistory,
+    document && document.documentTypeId
+      ? {
+          individualProcessId: document.individualProcessId,
+          documentTypeId: document.documentTypeId,
+          documentRequirementId: document.documentRequirementId,
+        }
+      : "skip"
   )
 
   const statusHistory = useQuery(
@@ -86,10 +218,81 @@ export function DocumentReviewDialog({
     documentId ? { documentsDeliveredId: documentId } : "skip"
   )
 
+  const linkedFields = useQuery(
+    api.documentTypeFieldMappings.getFieldsWithValues,
+    document?.documentTypeId && document?.individualProcessId
+      ? {
+          documentTypeId: document.documentTypeId,
+          individualProcessId: document.individualProcessId,
+        }
+      : "skip"
+  )
+
   const approve = useMutation(api.documentsDelivered.approve)
   const toggleConditionFulfillment = useMutation(api.documentDeliveredConditions.toggleFulfillment)
   const reject = useMutation(api.documentsDelivered.reject)
   const changeStatus = useMutation(api.documentsDelivered.changeStatus)
+  const updateFieldValues = useMutation(api.documentTypeFieldMappings.updateFieldValues)
+
+  // Reset editing state when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setIsEditingFields(false)
+      setEditedValues({})
+      setSelectedVersionId(null)
+      setShowUploadNewVersion(false)
+    }
+  }, [open])
+
+  // Derive the document to display based on selected version
+  const latestVersion = versionHistory?.find((v) => v.isLatest)
+  const selectedVersion = selectedVersionId
+    ? versionHistory?.find((v) => v._id === selectedVersionId) ?? null
+    : null
+  // When no version is explicitly selected, prefer the latest from history (handles new uploads)
+  const displayDocument = selectedVersion || latestVersion || document
+  const isViewingOldVersion = !!(selectedVersion && !selectedVersion.isLatest)
+
+  const getEditKey = (entityType: string, fieldPath: string) => `${entityType}:${fieldPath}`
+
+  const getFieldDisplayValue = useCallback((field: { entityType: string; fieldPath: string; currentValue: any; isFilled: boolean }) => {
+    const key = getEditKey(field.entityType, field.fieldPath)
+    if (key in editedValues) return editedValues[key]
+    return field.currentValue ?? ""
+  }, [editedValues])
+
+  const handleFieldChange = (entityType: string, fieldPath: string, value: string | number) => {
+    setEditedValues((prev) => ({
+      ...prev,
+      [getEditKey(entityType, fieldPath)]: value,
+    }))
+  }
+
+  const handleSaveFields = async () => {
+    if (!document?.individualProcessId || Object.keys(editedValues).length === 0) return
+
+    try {
+      setIsSavingFields(true)
+      const changes = Object.entries(editedValues).map(([key, value]) => {
+        const [entityType, fieldPath] = key.split(":")
+        return { entityType, fieldPath, value }
+      })
+
+      await updateFieldValues({
+        individualProcessId: document.individualProcessId,
+        changes,
+      })
+
+      toast.success(t("fieldsSaved") || "Campos salvos com sucesso")
+      setEditedValues({})
+      setIsEditingFields(false)
+    } catch (error) {
+      console.error("Error saving fields:", error)
+      toast.error(t("fieldsSaveError") || "Erro ao salvar campos")
+    } finally {
+      setIsSavingFields(false)
+    }
+  }
 
   const handleApprove = async () => {
     if (!documentId) return
@@ -125,6 +328,8 @@ export function DocumentReviewDialog({
         toast.error(t("errorConditionsNotFulfilled") || errorMessage)
       } else if (errorMessage.includes("conditions have expired")) {
         toast.error(t("errorConditionsExpired") || errorMessage)
+      } else if (errorMessage.includes("Document validity") || errorMessage.includes("validity check")) {
+        toast.error(t("errorValidityFailed") || errorMessage)
       } else {
         toast.error(t("errorApprove"))
       }
@@ -255,8 +460,8 @@ export function DocumentReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pr-8">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="pr-8 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -267,8 +472,71 @@ export function DocumentReviewDialog({
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+        {/* Version selector bar */}
+        <div className="mb-2 space-y-2 rounded-lg border bg-muted/50 p-2 sm:p-3 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {versionHistory && versionHistory.length > 1 ? (
+                <Select
+                  value={selectedVersionId ?? latestVersion?._id ?? document._id}
+                  onValueChange={(val) => {
+                    const isLatest = latestVersion?._id === val
+                    setSelectedVersionId(isLatest ? null : val as Id<"documentsDelivered">)
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] sm:w-[200px] h-8 text-sm">
+                    <SelectValue placeholder={t("selectVersion")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {versionHistory.map((v) => (
+                      <SelectItem key={v._id} value={v._id}>
+                        v{v.version} {v.isLatest ? t("currentVersion") : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge variant="secondary" className="text-xs">
+                  v{document.version} {t("currentVersion")}
+                </Badge>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setShowUploadNewVersion(true)}
+            >
+              <Upload className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("newVersion")}</span>
+            </Button>
+          </div>
+
+          {/* Warning banner when viewing old version */}
+          {isViewingOldVersion && latestVersion && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  {t("viewingOldVersion", { version: `v${selectedVersion?.version}` })}
+                  {" · "}
+                  {t("officialVersion", { version: String(latestVersion.version) })}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 h-7 text-xs"
+                onClick={() => setSelectedVersionId(null)}
+              >
+                {t("backToCurrentVersion")}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <Tabs defaultValue="details" className="w-full min-h-0 flex flex-col flex-1">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 shrink-0">
             <TabsTrigger value="details">{t("details")}</TabsTrigger>
             <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
             <TabsTrigger value="conditions" className="relative">
@@ -282,21 +550,32 @@ export function DocumentReviewDialog({
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="linkedFields" className="relative">
+              {t("linkedFields")}
+              {linkedFields && linkedFields.length > 0 && (
+                <Badge
+                  variant={linkedFields.every((f) => f.isFilled) ? "success" : "warning"}
+                  className="ml-1 h-5 min-w-5 px-1"
+                >
+                  {linkedFields.filter((f) => f.isFilled).length}/{linkedFields.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="history">{t("history")}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="preview" className="py-4">
-            {document.fileUrl && (
+          <TabsContent value="preview" className="py-4 overflow-y-auto max-h-[55vh]">
+            {displayDocument?.fileUrl && (
               <FileViewer
-                fileUrl={document.fileUrl}
-                fileName={document.fileName}
-                mimeType={document.mimeType || ""}
+                fileUrl={displayDocument.fileUrl}
+                fileName={displayDocument.fileName}
+                mimeType={displayDocument.mimeType || ""}
                 className="rounded-lg border"
               />
             )}
           </TabsContent>
 
-          <TabsContent value="conditions" className="py-4">
+          <TabsContent value="conditions" className="py-4 overflow-y-auto max-h-[55vh]">
             {conditions && conditions.length > 0 ? (
               <div className="space-y-4">
                 {/* Validation status warning */}
@@ -400,7 +679,124 @@ export function DocumentReviewDialog({
             )}
           </TabsContent>
 
-          <TabsContent value="details" className="space-y-4 py-4">
+          <TabsContent value="linkedFields" className="py-4 overflow-y-auto max-h-[55vh]">
+            {linkedFields && linkedFields.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {t("linkedFieldsDescription")}
+                  </p>
+                  {!isEditingFields ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingFields(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      {tCommon("edit")}
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingFields(false)
+                          setEditedValues({})
+                        }}
+                        disabled={isSavingFields}
+                      >
+                        {tCommon("cancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveFields}
+                        disabled={isSavingFields || Object.keys(editedValues).length === 0}
+                      >
+                        {isSavingFields ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {tCommon("save")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Group fields by entity type */}
+                {(["person", "individualProcess", "passport", "company"] as const).map((entityType) => {
+                  const fields = linkedFields.filter((f) => f.entityType === entityType)
+                  if (fields.length === 0) return null
+                  const entityLabel =
+                    entityType === "person" ? t("entityPerson")
+                    : entityType === "individualProcess" ? t("entityIndividualProcess")
+                    : entityType === "passport" ? t("entityPassport")
+                    : t("entityCompany")
+                  return (
+                    <div key={entityType} className="space-y-2">
+                      <h4 className="text-sm font-semibold text-muted-foreground">{entityLabel}</h4>
+                      <div className="space-y-1.5">
+                        {fields.map((field, fi) => {
+                          const editKey = getEditKey(field.entityType, field.fieldPath)
+                          const displayValue = getFieldDisplayValue(field)
+                          const hasEdit = editKey in editedValues
+                          const isFilled = hasEdit ? displayValue !== "" : field.isFilled
+
+                          return (
+                            <div
+                              key={fi}
+                              className={`flex items-center gap-3 rounded-md border px-3 py-2 ${
+                                isFilled
+                                  ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                                  : ""
+                              }`}
+                            >
+                              {isFilled ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              ) : (
+                                <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-medium">{field.label}</span>
+                                  {field.isRequired && (
+                                    <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                      {t("required")}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {isEditingFields ? (
+                                  <LinkedFieldInput
+                                    field={field}
+                                    value={displayValue}
+                                    onChange={(val) => handleFieldChange(field.entityType, field.fieldPath, val)}
+                                  />
+                                ) : (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {isFilled
+                                      ? String(displayValue)
+                                      : t("notFilled")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">{t("noLinkedFields")}</p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="details" className="space-y-4 py-4 overflow-y-auto max-h-[55vh]">
           {/* Document info */}
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -410,29 +806,105 @@ export function DocumentReviewDialog({
               </div>
               <div>
                 <p className="text-muted-foreground">{t("version")}</p>
-                <p className="font-medium">v{document.version}</p>
+                <p className="font-medium">v{displayDocument?.version}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className="text-muted-foreground">{t("fileName")}</p>
-                <p className="font-medium truncate" title={document.fileName}>
-                  {document.fileName}
+                <p className="font-medium truncate" title={displayDocument?.fileName}>
+                  {displayDocument?.fileName}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t("fileSize")}</p>
-                <p className="font-medium">{formatFileSize(document.fileSize)}</p>
+                <p className="font-medium">{formatFileSize(displayDocument?.fileSize ?? 0)}</p>
               </div>
             </div>
 
-            {document.expiryDate && (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {displayDocument?.issueDate && (
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-muted-foreground">{t("issueDate")}</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[240px] text-xs">
+                        {t("issueDateTooltip")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="font-medium">
+                    {format(new Date(displayDocument.issueDate), "PPP")}
+                  </p>
+                </div>
+              )}
+              {displayDocument?.expiryDate && (
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-muted-foreground">{t("expiryDate")}</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[240px] text-xs">
+                        {t("expiryDateTooltip")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="font-medium">
+                    {format(new Date(displayDocument.expiryDate), "PPP")}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Validity status */}
+            {displayDocument && "validityCheck" in displayDocument && (displayDocument as any).validityCheck && (displayDocument as any).validityCheck.status !== "no_rule" && (
+              <div className={cn(
+                "flex items-start gap-2 rounded-lg border p-3",
+                (displayDocument as any).validityCheck.status === "expired" && "border-destructive/50 bg-destructive/5",
+                (displayDocument as any).validityCheck.status === "expiring_soon" && "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950",
+                (displayDocument as any).validityCheck.status === "valid" && "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950",
+                (displayDocument as any).validityCheck.status === "missing_date" && "border-muted",
+              )}>
+                {(displayDocument as any).validityCheck.status === "expired" && (
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                )}
+                {(displayDocument as any).validityCheck.status === "expiring_soon" && (
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 shrink-0" />
+                )}
+                {(displayDocument as any).validityCheck.status === "valid" && (
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                )}
+                <div className="text-sm">
+                  <Badge
+                    variant={
+                      (displayDocument as any).validityCheck.status === "expired" ? "destructive"
+                      : (displayDocument as any).validityCheck.status === "expiring_soon" ? "warning"
+                      : (displayDocument as any).validityCheck.status === "valid" ? "success"
+                      : "outline"
+                    }
+                    className="text-xs"
+                  >
+                    {t(`validity.${(displayDocument as any).validityCheck.status}`)}
+                  </Badge>
+                  {(displayDocument as any).validityCheck.daysValue !== undefined && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("validity.daysInfo", { days: (displayDocument as any).validityCheck.daysValue })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {displayDocument?.versionNotes && (
               <div className="text-sm">
-                <p className="text-muted-foreground">{t("expiryDate")}</p>
-                <p className="font-medium">
-                  {format(new Date(document.expiryDate), "PPP")}
-                </p>
+                <p className="text-muted-foreground">{t("versionNotes")}</p>
+                <p className="font-medium">{displayDocument.versionNotes}</p>
               </div>
             )}
           </div>
@@ -445,43 +917,52 @@ export function DocumentReviewDialog({
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">{t("uploadedBy")}:</span>
               <span className="font-medium">
-                {document.uploadedByUser?.email || t("unknown")}
+                {displayDocument && "uploadedByProfile" in displayDocument
+                  ? (displayDocument.uploadedByProfile as any)?.fullName || (displayDocument.uploadedByUser as any)?.email || t("unknown")
+                  : displayDocument?.uploadedByUser?.email || t("unknown")}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">{t("uploadedAt")}:</span>
               <span className="font-medium">
-                {format(new Date(document.uploadedAt), "PPP p")}
+                {displayDocument?.uploadedAt
+                  ? format(new Date(displayDocument.uploadedAt), "PPP p")
+                  : t("unknown")}
               </span>
             </div>
           </div>
 
-          {/* Current review info (if already reviewed) */}
-          {isReviewed && document.reviewedBy && (
+          {/* Review info for displayed version */}
+          {displayDocument?.status && (displayDocument.status === "approved" || displayDocument.status === "rejected") && displayDocument.reviewedBy && (
             <>
               <Separator />
               <div className="space-y-2 text-sm bg-muted p-3 rounded-lg">
                 <div className="flex items-center gap-2">
+                  {getStatusBadge(displayDocument.status)}
+                </div>
+                <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">{t("reviewedBy")}:</span>
                   <span className="font-medium">
-                    {document.reviewedByUser?.email || t("unknown")}
+                    {displayDocument && "reviewedByProfile" in displayDocument
+                      ? (displayDocument.reviewedByProfile as any)?.fullName || (displayDocument.reviewedByUser as any)?.email || t("unknown")
+                      : (displayDocument as any)?.reviewedByUser?.email || t("unknown")}
                   </span>
                 </div>
-                {document.reviewedAt && (
+                {displayDocument.reviewedAt && (
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">{t("reviewedAt")}:</span>
                     <span className="font-medium">
-                      {format(new Date(document.reviewedAt), "PPP p")}
+                      {format(new Date(displayDocument.reviewedAt), "PPP p")}
                     </span>
                   </div>
                 )}
-                {document.rejectionReason && (
+                {displayDocument.rejectionReason && (
                   <div className="mt-2">
                     <p className="text-muted-foreground font-medium">{t("rejectionReason")}:</p>
-                    <p className="mt-1">{document.rejectionReason}</p>
+                    <p className="mt-1">{displayDocument.rejectionReason}</p>
                   </div>
                 )}
               </div>
@@ -493,7 +974,7 @@ export function DocumentReviewDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(document.fileUrl, "_blank")}
+              onClick={() => window.open(displayDocument?.fileUrl, "_blank")}
               className="flex-1"
             >
               <Download className="h-4 w-4 mr-2" />
@@ -501,8 +982,8 @@ export function DocumentReviewDialog({
             </Button>
           </div>
 
-          {/* Status change section */}
-          {canChangeStatus && (
+          {/* Status change section — only for current version */}
+          {!isViewingOldVersion && canChangeStatus && (
             <>
               <Separator />
               <Collapsible open={showStatusActions} onOpenChange={setShowStatusActions}>
@@ -586,7 +1067,7 @@ export function DocumentReviewDialog({
           )}
           </TabsContent>
 
-          <TabsContent value="history" className="py-4">
+          <TabsContent value="history" className="py-4 overflow-y-auto max-h-[55vh]">
             <div className="space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <History className="h-4 w-4" />
@@ -639,33 +1120,75 @@ export function DocumentReviewDialog({
 
               <Separator />
 
-              {/* File upload event */}
-              <div className="flex gap-3 text-sm">
-                <div className="flex flex-col items-center">
-                  <Upload className="h-4 w-4 text-blue-500" />
+              {/* File upload events — all versions */}
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                {t("documentHistory")}
+              </h3>
+              {versionHistory && versionHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {versionHistory.map((ver, index) => (
+                    <div key={ver._id} className="flex gap-3 text-sm">
+                      <div className="flex flex-col items-center">
+                        <Upload className="h-4 w-4 text-blue-500" />
+                        {index < versionHistory.length - 1 && (
+                          <div className="w-px h-full bg-border mt-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="info">{t("fileUploaded")}</Badge>
+                          <Badge variant={ver.isLatest ? "success" : "secondary"} className="text-xs">
+                            v{ver.version}{ver.isLatest ? ` ${t("currentVersion")}` : ""}
+                          </Badge>
+                        </div>
+                        <div className="text-muted-foreground mt-1">
+                          <span className="font-medium">
+                            {ver.uploadedByProfile?.fullName || ver.uploadedByUser?.email || t("unknown")}
+                          </span>
+                          {" • "}
+                          {format(new Date(ver.uploadedAt), "PPP p")}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {ver.fileName} ({formatFileSize(ver.fileSize)})
+                        </div>
+                        {ver.versionNotes && (
+                          <div className="mt-1 p-2 bg-muted rounded text-xs">
+                            {ver.versionNotes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="info">{t("fileUploaded")}</Badge>
+              ) : (
+                <div className="flex gap-3 text-sm">
+                  <div className="flex flex-col items-center">
+                    <Upload className="h-4 w-4 text-blue-500" />
                   </div>
-                  <div className="text-muted-foreground mt-1">
-                    <span className="font-medium">
-                      {document.uploadedByUser?.email || t("unknown")}
-                    </span>
-                    {" • "}
-                    {format(new Date(document.uploadedAt), "PPP p")}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {document.fileName} ({formatFileSize(document.fileSize)})
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="info">{t("fileUploaded")}</Badge>
+                    </div>
+                    <div className="text-muted-foreground mt-1">
+                      <span className="font-medium">
+                        {document.uploadedByUser?.email || t("unknown")}
+                      </span>
+                      {" • "}
+                      {format(new Date(document.uploadedAt), "PPP p")}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {document.fileName} ({formatFileSize(document.fileSize)})
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
 
         <DialogFooter>
-          {!isReviewed && !showStatusActions ? (
+          {!isViewingOldVersion && !isReviewed && !showStatusActions ? (
             <>
               <Button
                 type="button"
@@ -706,6 +1229,24 @@ export function DocumentReviewDialog({
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Upload New Version Dialog */}
+      {document && document.documentTypeId && (
+        <UploadNewVersionDialog
+          open={showUploadNewVersion}
+          onOpenChange={setShowUploadNewVersion}
+          individualProcessId={document.individualProcessId}
+          documentTypeId={document.documentTypeId}
+          documentRequirementId={document.documentRequirementId}
+          currentVersion={document.version}
+          currentFileName={document.fileName}
+          currentFileSize={document.fileSize}
+          currentStatus={document.status}
+          onSuccess={() => {
+            setSelectedVersionId(null)
+          }}
+        />
+      )}
     </Dialog>
   )
 }

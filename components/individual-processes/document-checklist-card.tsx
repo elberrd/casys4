@@ -29,6 +29,7 @@ import {
   Clock,
   FileText,
   AlertCircle,
+  AlertTriangle,
   Eye,
   History,
   FileQuestion,
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { DocumentUploadDialog } from "./document-upload-dialog"
 import { DocumentReviewDialog } from "./document-review-dialog"
 import { DocumentHistoryDialog } from "./document-history-dialog"
+import { UploadNewVersionDialog } from "./upload-new-version-dialog"
 import { BulkDocumentActionsMenu } from "./bulk-document-actions-menu"
 import { LooseDocumentUploadDialog } from "./loose-document-upload-dialog"
 import { TypedDocumentUploadDialog } from "./typed-document-upload-dialog"
@@ -57,6 +59,18 @@ type DialogState = {
     open: boolean
     documentTypeId: Id<"documentTypes"> | null
     documentRequirementId: Id<"documentRequirements"> | null
+  }
+  uploadNewVersion: {
+    open: boolean
+    document: {
+      individualProcessId: Id<"individualProcesses">
+      documentTypeId: Id<"documentTypes">
+      documentRequirementId?: Id<"documentRequirements">
+      currentVersion: number
+      currentFileName: string
+      currentFileSize: number
+      currentStatus: string
+    } | null
   }
   looseUpload: { open: boolean }
   typedUpload: { open: boolean }
@@ -92,6 +106,7 @@ export function DocumentChecklistCard({
     upload: { open: false, document: null },
     review: { open: false, documentId: null },
     history: { open: false, documentTypeId: null, documentRequirementId: null },
+    uploadNewVersion: { open: false, document: null },
     looseUpload: { open: false },
     typedUpload: { open: false },
     assignType: { open: false, document: null },
@@ -145,11 +160,30 @@ export function DocumentChecklistCard({
     }))
   }
 
+  const openUploadNewVersionDialog = (doc: any) => {
+    setDialogs(prev => ({
+      ...prev,
+      uploadNewVersion: {
+        open: true,
+        document: {
+          individualProcessId,
+          documentTypeId: doc.documentTypeId,
+          documentRequirementId: doc.documentRequirementId,
+          currentVersion: doc.version || 1,
+          currentFileName: doc.fileName || "",
+          currentFileSize: doc.fileSize || 0,
+          currentStatus: doc.status,
+        },
+      },
+    }))
+  }
+
   const closeAllDialogs = () => {
     setDialogs({
       upload: { open: false, document: null },
       review: { open: false, documentId: null },
       history: { open: false, documentTypeId: null, documentRequirementId: null },
+      uploadNewVersion: { open: false, document: null },
       looseUpload: { open: false },
       typedUpload: { open: false },
       assignType: { open: false, document: null },
@@ -302,6 +336,25 @@ export function DocumentChecklistCard({
       <div className="flex items-center gap-2 ml-3" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
 
+        {/* Validity badges */}
+        {doc.validityCheck && doc.validityCheck.status === "expired" && (
+          <Badge variant="destructive" className="gap-1 text-xs">
+            <AlertTriangle className="h-3 w-3" />
+            {t("validity.expired")}
+          </Badge>
+        )}
+        {doc.validityCheck && doc.validityCheck.status === "expiring_soon" && (
+          <Badge variant="warning" className="gap-1 text-xs">
+            <AlertTriangle className="h-3 w-3" />
+            {t("validity.expiringSoon", { days: doc.validityCheck.daysValue })}
+          </Badge>
+        )}
+        {doc.validityCheck && doc.validityCheck.status === "missing_date" && (
+          <Badge variant="outline" className="gap-1 text-xs">
+            {t("validity.missingDate")}
+          </Badge>
+        )}
+
         {doc.status === "not_started" ? (
           <Button
             size="sm"
@@ -331,6 +384,17 @@ export function DocumentChecklistCard({
                 className="cursor-pointer"
               >
                 <History className="h-4 w-4" />
+              </Button>
+            )}
+            {doc.documentTypeId && userRole === "admin" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openUploadNewVersionDialog(doc)}
+                title={t("uploadNewVersion")}
+                className="cursor-pointer"
+              >
+                <Upload className="h-4 w-4" />
               </Button>
             )}
             {isLoose && (
@@ -530,6 +594,7 @@ export function DocumentChecklistCard({
             maxSizeMB: dialogs.upload.document.documentType?.maxFileSizeMB,
             allowedFormats: dialogs.upload.document.documentType?.allowedFileTypes,
           }}
+          validityRule={dialogs.upload.document.validityRule}
           onSuccess={closeAllDialogs}
         />
       )}
@@ -554,6 +619,24 @@ export function DocumentChecklistCard({
           individualProcessId={individualProcessId}
           documentTypeId={dialogs.history.documentTypeId}
           documentRequirementId={dialogs.history.documentRequirementId || undefined}
+          userRole={userRole}
+        />
+      )}
+
+      {dialogs.uploadNewVersion.open && dialogs.uploadNewVersion.document && (
+        <UploadNewVersionDialog
+          open={dialogs.uploadNewVersion.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          individualProcessId={dialogs.uploadNewVersion.document.individualProcessId}
+          documentTypeId={dialogs.uploadNewVersion.document.documentTypeId}
+          documentRequirementId={dialogs.uploadNewVersion.document.documentRequirementId}
+          currentVersion={dialogs.uploadNewVersion.document.currentVersion}
+          currentFileName={dialogs.uploadNewVersion.document.currentFileName}
+          currentFileSize={dialogs.uploadNewVersion.document.currentFileSize}
+          currentStatus={dialogs.uploadNewVersion.document.currentStatus}
+          onSuccess={closeAllDialogs}
         />
       )}
 

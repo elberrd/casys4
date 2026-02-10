@@ -15,7 +15,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { FileIcon, Download, Edit, Trash2, Eye } from "lucide-react";
+import { FileIcon, Download, Edit, Trash2, Eye, Upload, History } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
@@ -39,6 +39,8 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 import { formatBytes } from "@/hooks/use-file-upload";
 import { DocumentFormDialog } from "./document-form-dialog";
 import { DocumentViewModal } from "./document-view-modal";
+import { DocumentVersionUploadDialog } from "./document-version-upload-dialog";
+import { DocumentVersionHistoryDialog } from "./document-version-history-dialog";
 
 type Document = {
   _id: Id<"documents"> | Id<"documentsDelivered">;
@@ -73,6 +75,7 @@ type Document = {
   issueDate?: string | null;
   expiryDate?: string | null;
   isActive?: boolean;
+  version?: number;
 };
 
 export function DocumentsTable() {
@@ -88,6 +91,17 @@ export function DocumentsTable() {
   const [editingDocument, setEditingDocument] = useState<Id<"documents"> | undefined>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [versionUploadDoc, setVersionUploadDoc] = useState<{
+    id: Id<"documents">
+    version: number
+    fileName: string
+    fileSize: number
+    name: string
+  } | null>(null)
+  const [versionHistoryDoc, setVersionHistoryDoc] = useState<{
+    id: Id<"documents">
+    name: string
+  } | null>(null)
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
@@ -245,6 +259,29 @@ export function DocumentsTable() {
               variant: "default" as const,
               separator: true,
             }] : []),
+            // Version actions only for standalone documents with files
+            ...(isStandaloneDocument && document.storageId ? [{
+              label: t("uploadNewVersion"),
+              icon: <Upload className="h-4 w-4" />,
+              onClick: () => setVersionUploadDoc({
+                id: document._id as Id<"documents">,
+                version: (document as any).version || 1,
+                fileName: document.fileName || "",
+                fileSize: document.fileSize || 0,
+                name: document.name,
+              }),
+              variant: "default" as const,
+            }] : []),
+            ...(isStandaloneDocument && document.storageId ? [{
+              label: t("versionHistory"),
+              icon: <History className="h-4 w-4" />,
+              onClick: () => setVersionHistoryDoc({
+                id: document._id as Id<"documents">,
+                name: document.name,
+              }),
+              variant: "default" as const,
+              separator: true,
+            }] : []),
             // Edit only available for standalone documents
             ...(isStandaloneDocument ? [{
               label: tCommon("edit"),
@@ -393,6 +430,29 @@ export function DocumentsTable() {
         count={bulkDeleteConfirmation.itemsToDelete.length}
         isDeleting={bulkDeleteConfirmation.isDeleting}
       />
+
+      {versionUploadDoc && (
+        <DocumentVersionUploadDialog
+          open={!!versionUploadDoc}
+          onOpenChange={(open) => !open && setVersionUploadDoc(null)}
+          documentId={versionUploadDoc.id}
+          currentVersion={versionUploadDoc.version}
+          currentFileName={versionUploadDoc.fileName}
+          currentFileSize={versionUploadDoc.fileSize}
+          documentName={versionUploadDoc.name}
+          onSuccess={() => setVersionUploadDoc(null)}
+        />
+      )}
+
+      {versionHistoryDoc && (
+        <DocumentVersionHistoryDialog
+          open={!!versionHistoryDoc}
+          onOpenChange={(open) => !open && setVersionHistoryDoc(null)}
+          documentId={versionHistoryDoc.id}
+          documentName={versionHistoryDoc.name}
+          userRole="admin"
+        />
+      )}
     </>
   );
 }

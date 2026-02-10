@@ -7,7 +7,9 @@ import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
 const cpfRegex = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
 
 export const personSchema = z.object({
-  fullName: z.string().min(2, "Full name must be at least 2 characters"),
+  givenNames: z.string().min(2, "Given names must be at least 2 characters"),
+  middleName: z.string().optional().or(z.literal("")),
+  surname: z.string().optional().or(z.literal("")),
   email: z.string().email("Invalid email format").optional().or(z.literal("")),
   cpf: z
     .union([
@@ -42,6 +44,7 @@ export const personSchema = z.object({
     message: "Current city ID must be valid",
   }).optional().or(z.literal("")),
   photoUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
+  residenceSince: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
   // Company relationship fields
   companyId: z.custom<Id<"companies">>((val) => typeof val === "string" && val.length > 0, {

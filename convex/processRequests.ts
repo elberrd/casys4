@@ -3,6 +3,10 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireClient } from "./lib/auth";
 
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
 /**
  * Query to list all process requests with optional filters
  * Access control: Admins see all requests, clients see only their company's requests
@@ -95,7 +99,7 @@ export const list = query({
         return {
           ...request,
           company,
-          contactPerson,
+          contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
           processType,
           workplaceCity,
           consulate,
@@ -169,7 +173,7 @@ export const get = query({
     return {
       ...request,
       company,
-      contactPerson,
+      contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
       processType,
       workplaceCity,
       consulate,

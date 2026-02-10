@@ -27,6 +27,7 @@ import {
   Edit,
 } from "lucide-react";
 import { formatDate } from "@/lib/format-field-value";
+import { getFullName } from "@/lib/utils/person-names";
 
 interface PersonDetailViewProps {
   personId: Id<"people">;
@@ -94,7 +95,7 @@ export function PersonDetailView({
               <div className="flex justify-center">
                 <img
                   src={person.photoUrl}
-                  alt={person.fullName}
+                  alt={getFullName(person)}
                   className="w-32 h-32 rounded-full object-cover border-4 border-border"
                 />
               </div>
@@ -113,7 +114,7 @@ export function PersonDetailView({
                   <p className="text-sm font-medium text-muted-foreground">
                     {t("fullName")}
                   </p>
-                  <p className="text-base mt-1">{person.fullName}</p>
+                  <p className="text-base mt-1">{getFullName(person)}</p>
                 </div>
                 {person.email && (
                   <div>

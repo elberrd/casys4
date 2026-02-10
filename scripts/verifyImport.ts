@@ -34,7 +34,8 @@ async function verifyImport() {
 
     const samples = people.slice(0, 5);
     for (const person of samples) {
-      console.log(`Name: ${person.fullName}`);
+      const fullName = [person.givenNames, (person as any).middleName, (person as any).surname].filter(Boolean).join(" ");
+      console.log(`Name: ${fullName}`);
       console.log(`  Email: ${person.email || "N/A"}`);
       console.log(`  CPF: ${person.cpf || "N/A"}`);
       console.log(`  Birth Date: ${person.birthDate || "N/A"}`);
