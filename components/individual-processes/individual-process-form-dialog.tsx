@@ -404,7 +404,7 @@ export function IndividualProcessFormDialog({
 
   const peopleOptions = people.map((person) => ({
     value: person._id,
-    label: person.fullName || person.givenNames || "",
+    label: person.fullName || person.givenNames,
   }))
 
   const processTypeOptions = processTypes.map((processType) => ({

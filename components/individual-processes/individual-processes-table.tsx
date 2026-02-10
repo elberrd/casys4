@@ -108,7 +108,7 @@ interface IndividualProcess {
   person?: {
     _id: Id<"people">;
     fullName: string;
-    givenNames?: string;
+    givenNames: string;
     middleName?: string;
     surname?: string;
     email?: string;

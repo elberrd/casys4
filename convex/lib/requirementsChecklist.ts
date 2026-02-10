@@ -4,8 +4,8 @@ import { Doc, Id } from "../_generated/dataModel";
 import { checkDocumentValidity, ValidityCheckResult } from "./documentValidity";
 
 /** Constructs full display name from person name parts */
-function getFullName(person: { givenNames?: string; fullName?: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames || person.fullName || "", person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
 }
 
 /**

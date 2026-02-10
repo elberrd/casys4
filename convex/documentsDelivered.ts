@@ -5,8 +5,8 @@ import { requireAdmin, getCurrentUserProfile, canAccessCompany } from "./lib/aut
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 
-function getFullName(person: { givenNames?: string; fullName?: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames || person.fullName || "", person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
 }
 
 /**

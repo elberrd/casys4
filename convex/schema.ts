@@ -84,8 +84,7 @@ export default defineSchema({
 
   // Client and people management tables
   people: defineTable({
-    fullName: v.optional(v.string()), // TEMPORARY: remove after migration
-    givenNames: v.optional(v.string()), // TEMPORARY: make required after migration
+    givenNames: v.string(),
     middleName: v.optional(v.string()),
     surname: v.optional(v.string()),
     email: v.optional(v.string()),
