@@ -34,7 +34,8 @@ import { getFullName } from "@/lib/utils/person-names"
 
 interface Person {
   _id: Id<"people">
-  givenNames: string
+  givenNames?: string
+  fullName?: string
   middleName?: string
   surname?: string
   email?: string

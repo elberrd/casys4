@@ -5,8 +5,8 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 
-function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: { givenNames?: string; fullName?: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames || person.fullName || "", person.middleName, person.surname].filter(Boolean).join(" ");
 }
 
 /**

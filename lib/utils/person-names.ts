@@ -3,11 +3,13 @@
  * Concatenates givenNames, middleName, and surname with spaces.
  */
 export function getFullName(person: {
-  givenNames: string
+  givenNames?: string | null
+  fullName?: string | null
   middleName?: string | null
   surname?: string | null
 }): string {
-  return [person.givenNames, person.middleName, person.surname]
+  const given = person.givenNames || person.fullName || ""
+  return [given, person.middleName, person.surname]
     .filter(Boolean)
     .join(" ")
 }
