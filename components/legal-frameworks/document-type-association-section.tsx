@@ -413,7 +413,12 @@ export function DocumentTypeAssociationSection({
             }}
           >
             <CommandInput placeholder={t("filterDocumentTypes")} />
-            <CommandList>
+            <CommandList
+              className="max-h-[340px] overflow-y-scroll overscroll-contain [scrollbar-gutter:stable]"
+              onWheelCapture={(event) => {
+                event.stopPropagation();
+              }}
+            >
               <CommandEmpty>{t("noDocumentTypesFound")}</CommandEmpty>
               <CommandGroup>
                 {availableDocumentTypes.map((dt) => (
@@ -427,11 +432,6 @@ export function DocumentTypeAssociationSection({
                       <p className="text-sm leading-snug whitespace-normal break-words">
                         {dt.name}
                       </p>
-                      {dt.code && (
-                        <p className="text-xs text-muted-foreground font-mono whitespace-normal break-all">
-                          {dt.code}
-                        </p>
-                      )}
                     </div>
                   </CommandItem>
                 ))}
@@ -467,11 +467,6 @@ export function DocumentTypeAssociationSection({
                       <p className="font-medium leading-snug whitespace-normal break-words">
                         {dt.name}
                       </p>
-                      {dt.code && (
-                        <span className="text-xs text-muted-foreground font-mono whitespace-normal break-all">
-                          {dt.code}
-                        </span>
-                      )}
                     </div>
                   </div>
 
