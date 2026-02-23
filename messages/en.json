@@ -9,6 +9,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "delete": "Delete",
+    "remove": "Remove",
     "edit": "Edit",
     "view": "View",
     "create": "Create",
@@ -1828,7 +1829,9 @@
     "validityDays": "Days",
     "validityTypeTooltip": "Set a validity rule to automatically control whether uploaded documents are within the required timeframe.",
     "minRemainingTooltip": "The document must have at least this many days before expiring. E.g.: passport with at least 90 days of remaining validity.",
-    "maxAgeTooltip": "The document must have been issued within this many days. E.g.: criminal record issued no more than 90 days ago."
+    "maxAgeTooltip": "The document must have been issued within this many days. E.g.: criminal record issued no more than 90 days ago.",
+    "selectDocumentTypes": "Select document types",
+    "noDocumentTypesSelected": "No document type selected"
   },
   "Passports": {
     "title": "Passports",

@@ -9,6 +9,7 @@
     "cancel": "Cancelar",
     "close": "Fechar",
     "delete": "Excluir",
+    "remove": "Remover",
     "edit": "Editar",
     "view": "Visualizar",
     "create": "Criar",
@@ -1852,7 +1853,9 @@
     "validityDays": "Dias",
     "validityTypeTooltip": "Defina uma regra de validade para controlar automaticamente se os documentos enviados estão dentro do prazo exigido.",
     "minRemainingTooltip": "O documento deve ter no mínimo esta quantidade de dias antes de vencer. Ex: passaporte com pelo menos 90 dias de validade.",
-    "maxAgeTooltip": "O documento deve ter sido emitido no máximo há esta quantidade de dias. Ex: certidão criminal emitida há no máximo 90 dias."
+    "maxAgeTooltip": "O documento deve ter sido emitido no máximo há esta quantidade de dias. Ex: certidão criminal emitida há no máximo 90 dias.",
+    "selectDocumentTypes": "Selecione os tipos de documento",
+    "noDocumentTypesSelected": "Nenhum tipo de documento selecionado"
   },
   "Passports": {
     "title": "Passaportes",

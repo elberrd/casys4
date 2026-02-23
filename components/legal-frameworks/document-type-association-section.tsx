@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useMemo, ReactNode, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useTranslations } from "next-intl";
+import { cn, normalizeString } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,8 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CheckCheck, X, AlertCircle, Search, Plus, FileText, Info } from "lucide-react";
-import { fuzzyMatch } from "@/lib/fuzzy-search";
+import { CheckCheck, ChevronsUpDown, X, AlertCircle, Plus, FileText, Info } from "lucide-react";
 import { toast } from "sonner";
 
 // Internal type that accepts string IDs from the form
@@ -64,36 +72,6 @@ function generateCodeFromName(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-// Highlight matched characters in text using fuzzy match result
-function highlightText(text: string, searchTerm: string): ReactNode {
-  if (!searchTerm || searchTerm.length === 0) {
-    return text;
-  }
-
-  const match = fuzzyMatch(text, searchTerm);
-
-  if (!match || match.matches.length === 0) {
-    return text;
-  }
-
-  const startIndex = match.matches[0];
-  const endIndex = match.matches[match.matches.length - 1] + 1;
-
-  const before = text.substring(0, startIndex);
-  const highlighted = text.substring(startIndex, endIndex);
-  const after = text.substring(endIndex);
-
-  return (
-    <span>
-      {before}
-      <mark className="bg-yellow-200 dark:bg-yellow-900/50 font-medium rounded-sm">
-        {highlighted}
-      </mark>
-      {after}
-    </span>
-  );
-}
-
 export function DocumentTypeAssociationSection({
   value,
   onChange,
@@ -101,9 +79,9 @@ export function DocumentTypeAssociationSection({
   const t = useTranslations("LegalFrameworks");
   const tDocTypes = useTranslations("DocumentTypes");
   const tCommon = useTranslations("Common");
-  const [searchFilter, setSearchFilter] = useState("");
 
   // Popover state for inline document type creation
+  const [documentTypeSelectorOpen, setDocumentTypeSelectorOpen] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [newDocTypeName, setNewDocTypeName] = useState("");
   const [newDocTypeDescription, setNewDocTypeDescription] = useState("");
@@ -113,6 +91,7 @@ export function DocumentTypeAssociationSection({
 
   // Fetch all active document types
   const documentTypes = useQuery(api.documentTypes.list, { isActive: true });
+  const allDocumentTypes = useMemo(() => documentTypes ?? [], [documentTypes]);
 
   // Fetch document categories for inline creation
   const documentCategories = useQuery(api.documentCategories.listActive, {}) ?? [];
@@ -170,27 +149,6 @@ export function DocumentTypeAssociationSection({
     }
   };
 
-  // Filter document types based on search (consecutive match, accent-insensitive)
-  const filteredDocumentTypes = useMemo(() => {
-    if (!documentTypes) return [];
-    if (!searchFilter.trim()) return documentTypes;
-
-    return documentTypes.filter((dt) => {
-      const nameMatch = fuzzyMatch(dt.name, searchFilter);
-      const codeMatch = dt.code ? fuzzyMatch(dt.code, searchFilter) : null;
-      return nameMatch !== null || codeMatch !== null;
-    });
-  }, [documentTypes, searchFilter]);
-
-  if (!documentTypes) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
-  }
-
   // Helper to check if a document type is selected
   const isSelected = (dtId: string) => {
     return value.some((a) => a.documentTypeId === dtId);
@@ -213,6 +171,23 @@ export function DocumentTypeAssociationSection({
     return assoc?.validityDays ?? undefined;
   };
 
+  const selectedDocumentTypes = useMemo(() => {
+    const documentTypeMap = new Map(allDocumentTypes.map((dt) => [dt._id as string, dt]));
+    return value
+      .map((association) => documentTypeMap.get(association.documentTypeId))
+      .filter((dt): dt is (typeof allDocumentTypes)[number] => Boolean(dt));
+  }, [allDocumentTypes, value]);
+
+  const selectedDocumentTypeIdSet = useMemo(
+    () => new Set(value.map((association) => association.documentTypeId)),
+    [value]
+  );
+
+  const availableDocumentTypes = useMemo(
+    () => allDocumentTypes.filter((dt) => !selectedDocumentTypeIdSet.has(dt._id)),
+    [allDocumentTypes, selectedDocumentTypeIdSet]
+  );
+
   const updateValidityType = (dtId: string, vt: string) => {
     onChange(
       value.map((a) =>
@@ -233,13 +208,13 @@ export function DocumentTypeAssociationSection({
     );
   };
 
-  // Toggle selection of a document type
-  const toggleSelection = (dtId: string) => {
+  const toggleDocumentTypeSelection = (dtId: string) => {
     if (isSelected(dtId)) {
-      onChange(value.filter((a) => a.documentTypeId !== dtId));
-    } else {
-      onChange([...value, { documentTypeId: dtId, isRequired: false }]);
+      onChange(value.filter((association) => association.documentTypeId !== dtId));
+      return;
     }
+
+    onChange([...value, { documentTypeId: dtId, isRequired: false }]);
   };
 
   // Toggle required status for a document type
@@ -253,10 +228,14 @@ export function DocumentTypeAssociationSection({
     );
   };
 
+  const removeSelection = (dtId: string) => {
+    onChange(value.filter((association) => association.documentTypeId !== dtId));
+  };
+
   // Select all document types
   const selectAll = () => {
     onChange(
-      documentTypes.map((dt) => ({
+      allDocumentTypes.map((dt) => ({
         documentTypeId: dt._id as string,
         isRequired: isRequiredDt(dt._id), // Preserve existing isRequired values
       }))
@@ -268,8 +247,17 @@ export function DocumentTypeAssociationSection({
     onChange([]);
   };
 
-  const allSelected = documentTypes.length > 0 && documentTypes.every((dt) => isSelected(dt._id));
+  const allSelected = allDocumentTypes.length > 0 && allDocumentTypes.every((dt) => isSelected(dt._id));
   const noneSelected = value.length === 0;
+
+  if (!documentTypes) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -363,7 +351,7 @@ export function DocumentTypeAssociationSection({
             variant="outline"
             size="sm"
             onClick={selectAll}
-            disabled={allSelected || documentTypes.length === 0}
+            disabled={allSelected || allDocumentTypes.length === 0}
           >
             <CheckCheck className="mr-2 h-4 w-4" />
             {t("selectAll")}
@@ -385,17 +373,75 @@ export function DocumentTypeAssociationSection({
         {t("documentTypeAssociationsDescription")}
       </p>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder={t("filterDocumentTypes")}
-          value={searchFilter}
-          onChange={(e) => setSearchFilter(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      <Popover open={documentTypeSelectorOpen} onOpenChange={setDocumentTypeSelectorOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={documentTypeSelectorOpen}
+            className={cn(
+              "w-full h-auto min-h-10 justify-between items-start gap-2 px-3 py-2",
+              selectedDocumentTypes.length === 0 && "text-muted-foreground",
+            )}
+          >
+            <div className="flex-1 min-w-0 text-left">
+              {value.length === 0 ? (
+                <span>{t("selectDocumentTypes")}</span>
+              ) : (
+                <span>{t("selectedCount", { count: value.length })}</span>
+              )}
+            </div>
+            <ChevronsUpDown className="mt-0.5 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className="p-0"
+          style={{ width: "var(--radix-popover-trigger-width)" }}
+        >
+          <Command
+            filter={(itemValue, search) => {
+              const searchNormalized = normalizeString(search);
+              if (!searchNormalized) return 1;
 
-      {documentTypes.length === 0 ? (
+              const docType = availableDocumentTypes.find((dt) => dt._id === itemValue);
+              if (!docType) return 0;
+
+              const labelNormalized = normalizeString(`${docType.name} ${docType.code ?? ""}`);
+              return labelNormalized.includes(searchNormalized) ? 1 : 0;
+            }}
+          >
+            <CommandInput placeholder={t("filterDocumentTypes")} />
+            <CommandList>
+              <CommandEmpty>{t("noDocumentTypesFound")}</CommandEmpty>
+              <CommandGroup>
+                {availableDocumentTypes.map((dt) => (
+                  <CommandItem
+                    key={dt._id}
+                    value={dt._id}
+                    onSelect={() => toggleDocumentTypeSelection(dt._id)}
+                    className="items-start gap-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm leading-snug whitespace-normal break-words">
+                        {dt.name}
+                      </p>
+                      {dt.code && (
+                        <p className="text-xs text-muted-foreground font-mono whitespace-normal break-all">
+                          {dt.code}
+                        </p>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {allDocumentTypes.length === 0 ? (
         <div className="rounded-lg border border-dashed p-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <AlertCircle className="h-4 w-4" />
@@ -403,41 +449,43 @@ export function DocumentTypeAssociationSection({
           </div>
         </div>
       ) : (
-        <ScrollArea className="h-[200px] rounded-md border p-4">
+        <ScrollArea className="h-[360px] rounded-md border p-4">
           <div className="space-y-3">
-            {filteredDocumentTypes.length === 0 && searchFilter.trim() && (
+            {selectedDocumentTypes.length === 0 && (
               <div className="text-center text-sm text-muted-foreground py-4">
-                {t("noDocumentTypesFound")}
+                {t("noDocumentTypesSelected")}
               </div>
             )}
-            {filteredDocumentTypes.map((dt) => (
+            {selectedDocumentTypes.map((dt) => (
               <div
                 key={dt._id}
                 className="py-2 px-1 hover:bg-muted/50 rounded-md transition-colors space-y-2"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Checkbox
-                      id={`dt-${dt._id}`}
-                      checked={isSelected(dt._id)}
-                      onCheckedChange={() => toggleSelection(dt._id)}
-                    />
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     <div className="flex-1 min-w-0">
-                      <Label
-                        htmlFor={`dt-${dt._id}`}
-                        className="cursor-pointer truncate block"
-                      >
-                        {highlightText(dt.name, searchFilter)}
-                      </Label>
+                      <p className="font-medium leading-snug whitespace-normal break-words">
+                        {dt.name}
+                      </p>
                       {dt.code && (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {highlightText(dt.code, searchFilter)}
+                        <span className="text-xs text-muted-foreground font-mono whitespace-normal break-all">
+                          {dt.code}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {isSelected(dt._id) && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeSelection(dt._id)}
+                      aria-label={tCommon("remove")}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id={`dt-required-${dt._id}`}
@@ -451,49 +499,47 @@ export function DocumentTypeAssociationSection({
                         {t("required")}
                       </Label>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Validity rule controls */}
-                {isSelected(dt._id) && (
-                  <div className="flex items-center gap-2 ml-8">
-                    <Select
-                      value={getValidityType(dt._id) || "none"}
-                      onValueChange={(val) => updateValidityType(dt._id, val === "none" ? "" : val)}
-                    >
-                      <SelectTrigger className="h-7 text-xs w-[180px]">
-                        <SelectValue placeholder={t("noValidity")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t("noValidity")}</SelectItem>
-                        <SelectItem value="min_remaining">{t("minRemaining")}</SelectItem>
-                        <SelectItem value="max_age">{t("maxAge")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {getValidityType(dt._id) && (
-                      <Input
-                        type="number"
-                        min={1}
-                        className="h-7 text-xs w-[80px]"
-                        placeholder={t("validityDays")}
-                        value={getValidityDays(dt._id) ?? ""}
-                        onChange={(e) => updateValidityDays(dt._id, e.target.value ? Number(e.target.value) : undefined)}
-                      />
-                    )}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[280px] text-xs">
-                        {getValidityType(dt._id) === "min_remaining"
-                          ? t("minRemainingTooltip")
-                          : getValidityType(dt._id) === "max_age"
-                            ? t("maxAgeTooltip")
-                            : t("validityTypeTooltip")}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={getValidityType(dt._id) || "none"}
+                    onValueChange={(val) => updateValidityType(dt._id, val === "none" ? "" : val)}
+                  >
+                    <SelectTrigger className="h-7 text-xs w-[180px]">
+                      <SelectValue placeholder={t("noValidity")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("noValidity")}</SelectItem>
+                      <SelectItem value="min_remaining">{t("minRemaining")}</SelectItem>
+                      <SelectItem value="max_age">{t("maxAge")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {getValidityType(dt._id) && (
+                    <Input
+                      type="number"
+                      min={1}
+                      className="h-7 text-xs w-[80px]"
+                      placeholder={t("validityDays")}
+                      value={getValidityDays(dt._id) ?? ""}
+                      onChange={(e) => updateValidityDays(dt._id, e.target.value ? Number(e.target.value) : undefined)}
+                    />
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[280px] text-xs">
+                      {getValidityType(dt._id) === "min_remaining"
+                        ? t("minRemainingTooltip")
+                        : getValidityType(dt._id) === "max_age"
+                          ? t("maxAgeTooltip")
+                          : t("validityTypeTooltip")}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             ))}
           </div>
