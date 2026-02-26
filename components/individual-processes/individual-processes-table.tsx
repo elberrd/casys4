@@ -80,6 +80,10 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import type {
+  ExcelColumnConfig,
+  ExcelGroupConfig,
+} from "@/lib/utils/excel-export-helpers";
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">;
@@ -149,6 +153,12 @@ interface CandidateFilterOption {
   label: string;
 }
 
+export interface IndividualProcessesExportSnapshot {
+  columns: ExcelColumnConfig[];
+  data: Array<Record<string, string>> | ExcelGroupConfig[];
+  grouped: boolean;
+}
+
 interface IndividualProcessesTableProps {
   individualProcesses: IndividualProcess[];
   onView?: (id: Id<"individualProcesses">) => void;
@@ -207,6 +217,8 @@ interface IndividualProcessesTableProps {
   // Column visibility props (controlled mode)
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
+  // Export snapshot callback (current table view: filters/search/sorting/visible columns)
+  onExportSnapshotChange?: (snapshot: IndividualProcessesExportSnapshot) => void;
 }
 
 export function IndividualProcessesTable({
@@ -247,6 +259,7 @@ export function IndividualProcessesTable({
   isGroupedModeActive = false,
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange,
+  onExportSnapshotChange,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -264,6 +277,7 @@ export function IndividualProcessesTable({
     rnmDeadline: false,
     protocolNumber: false,
     processStatus: true,
+    userApplicant_fullName: false,
     qualification: false,
     professionalExperience: false,
     notes: true,
@@ -294,6 +308,7 @@ export function IndividualProcessesTable({
   // Grouping and expansion state for grouped table mode
   const [grouping, setGrouping] = useState<GroupingState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [globalFilter, setGlobalFilter] = useState("");
   // Optimistic state for urgent flag toggles
   const [optimisticUrgent, setOptimisticUrgent] = useState<
     Map<Id<"individualProcesses">, boolean>
@@ -790,6 +805,34 @@ export function IndividualProcessesTable({
           return (
             <span className="text-sm">
               {companyApplicant.name}
+            </span>
+          );
+        },
+        enableHiding: true,
+      },
+      {
+        id: "userApplicant_fullName",
+        accessorFn: (row) => row.userApplicant?.fullName ?? "",
+        minSize: 100,
+        maxSize: 150,
+        header: ({ column }) => (
+          <DataGridColumnHeader
+            column={column}
+            title={t("userApplicant")}
+          />
+        ),
+        cell: ({ row }) => {
+          const { userApplicant } = row.original;
+          if (!userApplicant) {
+            return (
+              <span className="text-sm text-muted-foreground">
+                -
+              </span>
+            );
+          }
+          return (
+            <span className="text-sm">
+              {userApplicant.fullName}
             </span>
           );
         },
@@ -1475,6 +1518,7 @@ export function IndividualProcessesTable({
     onSortingChange: handleSortingChange,
     onGroupingChange: handleGroupingChange,
     onExpandedChange: handleExpandedChange,
+    onGlobalFilterChange: setGlobalFilter,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -1486,8 +1530,255 @@ export function IndividualProcessesTable({
       sorting,
       grouping,
       expanded,
+      globalFilter,
     },
   });
+
+  useEffect(() => {
+    if (!onExportSnapshotChange) return;
+
+    const isGroupedExport = grouping.includes("caseStatus.name");
+
+    const excludedColumnIds = new Set([
+      "select",
+      "actions",
+      "processTypeIndicator",
+      "urgent",
+    ]);
+
+    const headerByColumnId: Record<string, string> = {
+      groupedStatusDate: t("statusDate"),
+      person_fullName: t("personName"),
+      protocolNumber: t("protocol"),
+      companyApplicant_name: t("applicant"),
+      userApplicant_fullName: t("userApplicant"),
+      processType_name: t("processType"),
+      legalFramework_name: t("legalFramework"),
+      qualification: t("qualification"),
+      professionalExperience: t("professionalExperienceSince"),
+      "caseStatus.name": t("caseStatus"),
+      filledFields: t("filledFields"),
+      processStatus: t("processStatus"),
+      rnmDeadline: t("fields.rnmDeadline"),
+      notes: t("notes"),
+    };
+
+    const visibleColumns = table
+      .getVisibleLeafColumns()
+      .filter((column) => !excludedColumnIds.has(column.id));
+
+    const exportColumns: ExcelColumnConfig[] = visibleColumns.map((column) => ({
+      header: headerByColumnId[column.id] || column.id,
+      key: column.id,
+    }));
+
+    const formatIsoDate = (value?: string): string => {
+      if (!value) return "-";
+      const datePart = value.split("T")[0];
+      const [year, month, day] = datePart.split("-").map(Number);
+      if (!year || !month || !day) return "-";
+      const date = new Date(year, month - 1, day);
+      return date.toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    };
+
+    const formatCaseStatus = (process: IndividualProcess): string => {
+      const caseStatus = process.caseStatus;
+      if (!caseStatus) return "-";
+
+      const statusName =
+        locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name;
+      const activeStatus = process.activeStatus;
+      const statusDate = activeStatus?.date || (activeStatus
+        ? new Date(activeStatus.changedAt).toISOString().split("T")[0]
+        : undefined);
+      const formattedDate = formatIsoDate(statusDate);
+      return formattedDate === "-" ? statusName : `${formattedDate} - ${statusName}`;
+    };
+
+    const formatQualification = (process: IndividualProcess): string => {
+      if (!process.qualification) return "-";
+      return t(`qualificationOptions.${process.qualification}` as never);
+    };
+
+    const formatRnmDeadline = (process: IndividualProcess): string => {
+      const deadline = process.rnmDeadline;
+      if (!deadline) return "-";
+      const formattedDate = formatIsoDate(deadline);
+      if (formattedDate === "-") return "-";
+
+      const [year, month, day] = deadline.split("-").map(Number);
+      if (!year || !month || !day) return formattedDate;
+
+      const deadlineDate = new Date(year, month - 1, day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffTime = deadlineDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return `${formattedDate} (${diffDays} ${tCommon("days")})`;
+    };
+
+    const formatProcessStatus = (process: IndividualProcess): string => {
+      const processStatus =
+        process.processStatus || (process.isActive === false ? "Anterior" : "Atual");
+      return processStatus === "Atual"
+        ? t("processStatusCurrent")
+        : t("processStatusPrevious");
+    };
+
+    const formatFilledFields = (process: IndividualProcess): string => {
+      const filledFieldsData = process.activeStatus?.filledFieldsData;
+      const fillableFields = process.caseStatus?.fillableFields;
+
+      if (
+        !filledFieldsData ||
+        !fillableFields ||
+        fillableFields.length === 0 ||
+        Object.keys(filledFieldsData).length === 0
+      ) {
+        return t("noFieldsFilled");
+      }
+
+      const entries = Object.entries(filledFieldsData).filter(([key]) =>
+        fillableFields.includes(key),
+      );
+
+      if (entries.length === 0) return t("noFieldsFilled");
+
+      const summary = entries
+        .map(([fieldName, fieldValue]) => {
+          const metadata = getFieldMetadata(fieldName);
+          if (!metadata) return null;
+          const fieldLabel = t(`fields.${fieldName}` as never);
+          const formattedValue = formatFieldValue(
+            fieldValue,
+            metadata.fieldType,
+            locale,
+          );
+          return `${fieldLabel}: ${formattedValue}`;
+        })
+        .filter(Boolean);
+
+      return summary.length > 0 ? summary.join(" | ") : t("noFieldsFilled");
+    };
+
+    const getExportValue = (
+      process: IndividualProcess,
+      columnId: string,
+    ): string => {
+      switch (columnId) {
+        case "groupedStatusDate":
+          return formatIsoDate(
+            process.activeStatus?.date ||
+              (process.activeStatus
+                ? new Date(process.activeStatus.changedAt)
+                    .toISOString()
+                    .split("T")[0]
+                : undefined),
+          );
+        case "person_fullName":
+          return process.person?.fullName || "-";
+        case "protocolNumber":
+          return process.protocolNumber || "-";
+        case "companyApplicant_name":
+          return process.companyApplicant?.name || "-";
+        case "userApplicant_fullName":
+          return process.userApplicant?.fullName || "-";
+        case "processType_name":
+          return process.processType
+            ? locale === "en" && process.processType.nameEn
+              ? process.processType.nameEn
+              : process.processType.name
+            : "-";
+        case "legalFramework_name":
+          return process.legalFramework?.name || "-";
+        case "qualification":
+          return formatQualification(process);
+        case "professionalExperience":
+          return formatIsoDate(process.professionalExperienceSince);
+        case "caseStatus.name":
+          return formatCaseStatus(process);
+        case "filledFields":
+          return formatFilledFields(process);
+        case "processStatus":
+          return formatProcessStatus(process);
+        case "rnmDeadline":
+          return formatRnmDeadline(process);
+        case "notes":
+          return String(process.notesCount || 0);
+        default:
+          return "-";
+      }
+    };
+
+    const sortedRows = table.getSortedRowModel().rows;
+
+    if (isGroupedExport) {
+      const groupedMap = new Map<string, Array<Record<string, string>>>();
+
+      sortedRows.forEach((row) => {
+        const process = row.original;
+        const groupName = process.caseStatus
+          ? locale === "en" && process.caseStatus.nameEn
+            ? process.caseStatus.nameEn
+            : process.caseStatus.name
+          : "-";
+
+        const exportRow: Record<string, string> = {};
+        exportColumns.forEach((column) => {
+          exportRow[column.key] = getExportValue(process, column.key);
+        });
+
+        if (!groupedMap.has(groupName)) {
+          groupedMap.set(groupName, []);
+        }
+        groupedMap.get(groupName)!.push(exportRow);
+      });
+
+      const groupedData: ExcelGroupConfig[] = Array.from(groupedMap.entries()).map(
+        ([groupName, rows]) => ({
+          groupName,
+          rows,
+        }),
+      );
+
+      onExportSnapshotChange({
+        columns: exportColumns,
+        data: groupedData,
+        grouped: true,
+      });
+      return;
+    }
+
+    const flatData: Array<Record<string, string>> = sortedRows.map((row) => {
+      const process = row.original;
+      const exportRow: Record<string, string> = {};
+      exportColumns.forEach((column) => {
+        exportRow[column.key] = getExportValue(process, column.key);
+      });
+      return exportRow;
+    });
+
+    onExportSnapshotChange({
+      columns: exportColumns,
+      data: flatData,
+      grouped: false,
+    });
+  }, [
+    onExportSnapshotChange,
+    table,
+    grouping,
+    columnVisibility,
+    sorting,
+    globalFilter,
+    individualProcesses,
+    locale,
+    t,
+    tCommon,
+  ]);
 
   // Expand/Collapse all groups functions
   const expandAll = useCallback(() => {
@@ -1657,6 +1948,7 @@ export function IndividualProcessesTable({
               "person_fullName": t("personName"),
               "protocolNumber": t("protocol"),
               "companyApplicant_name": t("applicant"),
+              "userApplicant_fullName": t("userApplicant"),
               "processType_name": t("processType"),
               "legalFramework_name": t("legalFramework"),
               "qualification": t("qualification"),

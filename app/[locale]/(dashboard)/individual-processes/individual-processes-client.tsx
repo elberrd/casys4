@@ -5,7 +5,10 @@ import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations, useLocale } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { IndividualProcessesTable } from "@/components/individual-processes/individual-processes-table"
+import {
+  IndividualProcessesTable,
+  type IndividualProcessesExportSnapshot,
+} from "@/components/individual-processes/individual-processes-table"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
 import { FillFieldsModal } from "@/components/individual-processes/fill-fields-modal"
 import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
@@ -16,7 +19,6 @@ import { cn } from "@/lib/utils"
 import { Id } from "@/convex/_generated/dataModel"
 import type { VisibilityState } from "@tanstack/react-table"
 import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"
-import type { ExcelColumnConfig, ExcelGroupConfig } from "@/lib/utils/excel-export-helpers"
 import { useRouter } from "next/navigation"
 import { SaveFilterSheet } from "@/components/saved-filters/save-filter-sheet"
 import { SavedFiltersList } from "@/components/saved-filters/saved-filters-list"
@@ -52,6 +54,11 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
+  const [excelSnapshot, setExcelSnapshot] = useState<IndividualProcessesExportSnapshot>({
+    columns: [],
+    data: [],
+    grouped: false,
+  })
 
   // Column visibility state - synced with saved views
   const initialColumnVisibility: VisibilityState = {
@@ -59,6 +66,7 @@ export function IndividualProcessesClient() {
     rnmDeadline: false,
     protocolNumber: false,
     processStatus: true,
+    userApplicant_fullName: false,
     qualification: false,
     professionalExperience: false,
     notes: true,
@@ -591,190 +599,12 @@ export function IndividualProcessesClient() {
     })
   }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive])
 
-  // Excel export functions (must be after filteredProcesses declaration)
-  const prepareExcelColumns = useCallback((): ExcelColumnConfig[] => {
-    const tIndProc = t
-    const columns: ExcelColumnConfig[] = []
-
-    // Always include these base columns
-    columns.push(
-      { header: tIndProc("personName"), key: "personName", width: 25 },
-      { header: tIndProc("processType"), key: "processType", width: 25 }
-    )
-
-    // Protocol Number - shown in Urgent mode
-    if (isUrgentModeActive) {
-      columns.push({ header: tIndProc("protocol"), key: "protocolNumber", width: 18 })
-    }
-
-    // Applicant
-    columns.push({ header: tIndProc("applicant"), key: "applicant", width: 25 })
-
-    // Legal Framework
-    columns.push({ header: tIndProc("legalFramework"), key: "legalFramework", width: 30 })
-
-    // Qualification and Professional Experience - shown in QUAL/EXP PROF mode
-    if (isQualExpProfModeActive) {
-      columns.push(
-        { header: tIndProc("qualification"), key: "qualification", width: 20 },
-        { header: tIndProc("professionalExperienceSince"), key: "professionalExperience", width: 18 }
-      )
-    }
-
-    // Case Status - hidden in Urgent mode when not grouped
-    if (!isUrgentModeActive || selectedProgressStatuses.length >= 2) {
-      columns.push({ header: tIndProc("caseStatus"), key: "caseStatus", width: 22 })
-    }
-
-    // RNM Deadline - shown in RNM mode
-    if (isRnmModeActive) {
-      columns.push({ header: tIndProc("rnmDeadline"), key: "rnmDeadline", width: 18 })
-    }
-
-    return columns
-  }, [t, isUrgentModeActive, isQualExpProfModeActive, isRnmModeActive, selectedProgressStatuses])
-
-  const prepareExcelData = useCallback(() => {
-    const tIndProc = t
-    const isGrouped = selectedProgressStatuses.length >= 2
-
-    // Helper function to format a process row
-    const formatProcessRow = (process: any) => {
-      const row: any = {}
-
-      // Person Name
-      row.personName = process.person ? getFullName(process.person) : "-"
-
-      // Process Type
-      const processType = process.processType
-      if (processType) {
-        row.processType = locale === "en" && processType.nameEn ? processType.nameEn : processType.name
-      } else {
-        row.processType = "-"
-      }
-
-      // Protocol Number (Urgent mode)
-      if (isUrgentModeActive) {
-        row.protocolNumber = process.protocolNumber || "-"
-      }
-
-      // Applicant
-      row.applicant = process.companyApplicant?.name || "-"
-
-      // Legal Framework
-      row.legalFramework = process.legalFramework?.name || "-"
-
-      // Qualification and Professional Experience (QUAL/EXP PROF mode)
-      if (isQualExpProfModeActive) {
-        const qualification = process.qualification
-        if (qualification) {
-          row.qualification = tIndProc(`qualificationOptions.${qualification}` as any)
-        } else {
-          row.qualification = "-"
-        }
-
-        const experienceDate = process.professionalExperienceSince
-        if (experienceDate) {
-          const [year, month, day] = experienceDate.split("-").map(Number)
-          if (year && month && day) {
-            const date = new Date(year, month - 1, day)
-            row.professionalExperience = date.toLocaleDateString(
-              locale === "en" ? "en-US" : "pt-BR",
-              { day: "2-digit", month: "2-digit", year: "numeric" }
-            )
-          } else {
-            row.professionalExperience = "-"
-          }
-        } else {
-          row.professionalExperience = "-"
-        }
-      }
-
-      // Case Status (not shown in Urgent mode unless grouped)
-      if (!isUrgentModeActive || isGrouped) {
-        const caseStatus = process.caseStatus
-        if (caseStatus) {
-          const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
-          const activeStatus = process.activeStatus
-          let dateStr = ""
-          if (activeStatus) {
-            const displayDate = activeStatus.date || new Date(activeStatus.changedAt).toISOString().split("T")[0]
-            const [year, month, day] = displayDate.split("-").map(Number)
-            if (year && month && day) {
-              const date = new Date(year, month - 1, day)
-              dateStr = date.toLocaleDateString(
-                locale === "en" ? "en-US" : "pt-BR",
-                { day: "2-digit", month: "2-digit", year: "numeric" }
-              )
-            }
-          }
-          row.caseStatus = dateStr ? `${statusName} (${dateStr})` : statusName
-        } else {
-          row.caseStatus = "-"
-        }
-      }
-
-      // RNM Deadline (RNM mode)
-      if (isRnmModeActive) {
-        const rnmDeadline = process.rnmDeadline
-        if (rnmDeadline) {
-          const [year, month, day] = rnmDeadline.split("-").map(Number)
-          if (year && month && day) {
-            const date = new Date(year, month - 1, day)
-            row.rnmDeadline = date.toLocaleDateString(
-              locale === "en" ? "en-US" : "pt-BR",
-              { day: "2-digit", month: "2-digit", year: "numeric" }
-            )
-          } else {
-            row.rnmDeadline = "-"
-          }
-        } else {
-          row.rnmDeadline = "-"
-        }
-      }
-
-      return row
-    }
-
-    if (isGrouped) {
-      // Grouped export by case status
-      const groups: ExcelGroupConfig[] = []
-
-      // Get unique case statuses from filtered processes
-      const statusMap = new Map<string, any[]>()
-
-      for (const process of filteredProcesses) {
-        const caseStatus = process.caseStatus
-        if (!caseStatus) continue
-
-        const statusKey = caseStatus._id
-        const statusName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
-
-        if (!statusMap.has(statusKey)) {
-          statusMap.set(statusKey, [])
-        }
-        statusMap.get(statusKey)!.push(process)
-      }
-
-      // Convert to groups array
-      for (const [, processes] of statusMap) {
-        if (processes.length === 0) continue
-
-        const caseStatus = processes[0].caseStatus
-        const groupName = locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name
-
-        groups.push({
-          groupName,
-          rows: processes.map(formatProcessRow)
-        })
-      }
-
-      return groups
-    } else {
-      // Non-grouped export
-      return filteredProcesses.map(formatProcessRow)
-    }
-  }, [filteredProcesses, selectedProgressStatuses, isUrgentModeActive, isQualExpProfModeActive, isRnmModeActive, locale, t])
+  const handleExportSnapshotChange = useCallback(
+    (snapshot: IndividualProcessesExportSnapshot) => {
+      setExcelSnapshot(snapshot)
+    },
+    [],
+  )
 
   const getExcelFilename = useCallback(() => {
     const parts = ["processos_individuais"]
@@ -951,10 +781,10 @@ export function IndividualProcessesClient() {
         />
 
         <ExcelExportDialog
-          columns={prepareExcelColumns()}
-          data={prepareExcelData()}
+          columns={excelSnapshot.columns}
+          data={excelSnapshot.data}
           defaultFilename={getExcelFilename()}
-          grouped={selectedProgressStatuses.length >= 2}
+          grouped={excelSnapshot.grouped}
         >
           <Button variant="outline" size="sm" className="gap-2">
             <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
@@ -1054,6 +884,7 @@ export function IndividualProcessesClient() {
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          onExportSnapshotChange={handleExportSnapshotChange}
         />
 
         <IndividualProcessFormDialog
