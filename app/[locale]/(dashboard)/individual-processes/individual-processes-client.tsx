@@ -44,6 +44,7 @@ export function IndividualProcessesClient() {
   const [filters, setFilters] = useState<Filter<string>[]>([])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([])
+  const [selectedUserApplicants, setSelectedUserApplicants] = useState<string[]>([])
   const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
   const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>([])
   const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>([])
@@ -107,6 +108,22 @@ export function IndividualProcessesClient() {
       }
     })
     return Array.from(uniqueCandidates.entries())
+      .map(([id, name]) => ({
+        value: id,
+        label: name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [individualProcesses])
+
+  // Get unique user applicants (solicitantes) from the individual processes data
+  const userApplicantOptions = useMemo(() => {
+    const uniqueUserApplicants = new Map<string, string>()
+    individualProcesses.forEach((process) => {
+      if (process.userApplicant) {
+        uniqueUserApplicants.set(process.userApplicant._id, process.userApplicant.fullName)
+      }
+    })
+    return Array.from(uniqueUserApplicants.entries())
       .map(([id, name]) => ({
         value: id,
         label: name,
@@ -221,6 +238,7 @@ export function IndividualProcessesClient() {
     return (
       selectedCandidates.length > 0 ||
       selectedApplicants.length > 0 ||
+      selectedUserApplicants.length > 0 ||
       selectedProgressStatuses.length > 0 ||
       selectedAuthorizationTypes.length > 0 ||
       selectedLegalFrameworks.length > 0 ||
@@ -229,7 +247,7 @@ export function IndividualProcessesClient() {
       isQualExpProfModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -242,6 +260,7 @@ export function IndividualProcessesClient() {
     const criteria: any = {}
     if (selectedCandidates.length > 0) criteria.selectedCandidates = selectedCandidates
     if (selectedApplicants.length > 0) criteria.selectedApplicants = selectedApplicants
+    if (selectedUserApplicants.length > 0) criteria.selectedUserApplicants = selectedUserApplicants
     if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
     if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes
     if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
@@ -252,12 +271,13 @@ export function IndividualProcessesClient() {
     // Always save column visibility state
     criteria.columnVisibility = columnVisibility
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters, columnVisibility])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters, columnVisibility])
 
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
     setSelectedCandidates([])
     setSelectedApplicants([])
+    setSelectedUserApplicants([])
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
@@ -272,6 +292,9 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedApplicants) {
       setSelectedApplicants(filterCriteria.selectedApplicants)
+    }
+    if (filterCriteria.selectedUserApplicants) {
+      setSelectedUserApplicants(filterCriteria.selectedUserApplicants)
     }
     if (filterCriteria.selectedProgressStatuses) {
       setSelectedProgressStatuses(filterCriteria.selectedProgressStatuses)
@@ -313,6 +336,7 @@ export function IndividualProcessesClient() {
     // Clear all filters
     setSelectedCandidates([])
     setSelectedApplicants([])
+    setSelectedUserApplicants([])
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
@@ -386,6 +410,14 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const applicantId = process.companyApplicant?._id
         return applicantId && selectedApplicants.includes(applicantId)
+      })
+    }
+
+    // Apply user applicant (solicitante) multi-select filter
+    if (selectedUserApplicants.length > 0) {
+      result = result.filter((process) => {
+        const userApplicantId = process.userApplicant?._id
+        return userApplicantId && selectedUserApplicants.includes(userApplicantId)
       })
     }
 
@@ -557,7 +589,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive])
 
   // Excel export functions (must be after filteredProcesses declaration)
   const prepareExcelColumns = useCallback((): ExcelColumnConfig[] => {
@@ -1001,6 +1033,9 @@ export function IndividualProcessesClient() {
           applicantOptions={applicantOptions}
           selectedApplicants={selectedApplicants}
           onApplicantFilterChange={setSelectedApplicants}
+          userApplicantOptions={userApplicantOptions}
+          selectedUserApplicants={selectedUserApplicants}
+          onUserApplicantFilterChange={setSelectedUserApplicants}
           progressStatusOptions={progressStatusOptions}
           selectedProgressStatuses={selectedProgressStatuses}
           onProgressStatusFilterChange={setSelectedProgressStatuses}

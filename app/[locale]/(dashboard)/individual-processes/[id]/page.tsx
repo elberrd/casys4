@@ -368,6 +368,12 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 <div className="text-sm">{individualProcess.person?.motherName || '-'}</div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('email')}
+                  <LinkedDocIcon entityType="person" fieldPath="email" />
+                </div>
+                <div className="text-sm break-all">{individualProcess.person?.email || '-'}</div>
+
+                <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople('profession')}
                   <LinkedDocIcon entityType="person" fieldPath="profession" />
                 </div>

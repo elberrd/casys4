@@ -177,6 +177,10 @@ interface IndividualProcessesTableProps {
   applicantOptions?: Array<{ value: string; label: string }>;
   selectedApplicants?: string[];
   onApplicantFilterChange?: (applicants: string[]) => void;
+  // User applicant (solicitante) filter props
+  userApplicantOptions?: Array<{ value: string; label: string }>;
+  selectedUserApplicants?: string[];
+  onUserApplicantFilterChange?: (applicants: string[]) => void;
   // Progress status filter props
   progressStatusOptions?: Array<{ value: string; label: string }>;
   selectedProgressStatuses?: string[];
@@ -219,6 +223,9 @@ export function IndividualProcessesTable({
   applicantOptions = [],
   selectedApplicants = [],
   onApplicantFilterChange,
+  userApplicantOptions = [],
+  selectedUserApplicants = [],
+  onUserApplicantFilterChange,
   candidateOptions = [],
   selectedCandidates = [],
   onCandidateFilterChange,
@@ -1667,8 +1674,8 @@ export function IndividualProcessesTable({
             }
           />
         </div>
-        {/* Second row: Applicant, Candidate, and Progress Status filters */}
-        {(onApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange) && (
+        {/* Second row: Select filters */}
+        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange) && (
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             {onApplicantFilterChange && applicantOptions.length > 0 && (
               <Combobox
@@ -1677,6 +1684,20 @@ export function IndividualProcessesTable({
                 value={selectedApplicants}
                 onValueChange={onApplicantFilterChange}
                 placeholder={t("filters.selectApplicants")}
+                searchPlaceholder={t("filters.searchApplicants")}
+                emptyText={t("filters.noApplicantsFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearApplicants")}
+              />
+            )}
+            {onUserApplicantFilterChange && (
+              <Combobox
+                multiple
+                options={userApplicantOptions as ComboboxOption<string>[]}
+                value={selectedUserApplicants}
+                onValueChange={onUserApplicantFilterChange}
+                placeholder={`${t("userApplicant")}...`}
                 searchPlaceholder={t("filters.searchApplicants")}
                 emptyText={t("filters.noApplicantsFound")}
                 triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
