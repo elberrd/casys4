@@ -325,6 +325,7 @@ export function IndividualProcessesTable({
   const [selectedProcessIdForNotes, setSelectedProcessIdForNotes] = useState<
     Id<"individualProcesses"> | undefined
   >(undefined);
+  const lastExportSnapshotKeyRef = useRef("");
 
   // Set mounted flag when component mounts
   // Use useLayoutEffect to ensure the flag is set before any microtasks run
@@ -1745,11 +1746,15 @@ export function IndividualProcessesTable({
         }),
       );
 
-      onExportSnapshotChange({
+      const groupedSnapshot: IndividualProcessesExportSnapshot = {
         columns: exportColumns,
         data: groupedData,
         grouped: true,
-      });
+      };
+      const snapshotKey = JSON.stringify(groupedSnapshot);
+      if (snapshotKey === lastExportSnapshotKeyRef.current) return;
+      lastExportSnapshotKeyRef.current = snapshotKey;
+      onExportSnapshotChange(groupedSnapshot);
       return;
     }
 
@@ -1762,11 +1767,15 @@ export function IndividualProcessesTable({
       return exportRow;
     });
 
-    onExportSnapshotChange({
+    const flatSnapshot: IndividualProcessesExportSnapshot = {
       columns: exportColumns,
       data: flatData,
       grouped: false,
-    });
+    };
+    const snapshotKey = JSON.stringify(flatSnapshot);
+    if (snapshotKey === lastExportSnapshotKeyRef.current) return;
+    lastExportSnapshotKeyRef.current = snapshotKey;
+    onExportSnapshotChange(flatSnapshot);
   }, [
     onExportSnapshotChange,
     table,
