@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -128,7 +129,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Allow any authenticated user to create cities
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
 
     // Check if state exists (when provided)
     if (args.stateId) {
@@ -153,6 +154,24 @@ export const create = mutation({
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
+    const [state, country] = await Promise.all([
+      args.stateId ? ctx.db.get(args.stateId) : null,
+      args.countryId ? ctx.db.get(args.countryId) : null,
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "created",
+      entityType: "city",
+      entityId: cityId,
+      details: {
+        name: args.name,
+        stateName: state?.name,
+        countryName: country?.name,
+        hasFederalPolice: args.hasFederalPolice ?? false,
+      },
+    });
+
     return cityId;
   },
 });
@@ -169,7 +188,11 @@ export const update = mutation({
     hasFederalPolice: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("City not found");
+    }
 
     // Check if state exists (when provided)
     if (args.stateId) {
@@ -194,6 +217,41 @@ export const update = mutation({
       hasFederalPolice: args.hasFederalPolice ?? false,
     });
 
+    const [previousState, previousCountry, nextState, nextCountry] = await Promise.all([
+      existing.stateId ? ctx.db.get(existing.stateId) : null,
+      existing.countryId ? ctx.db.get(existing.countryId) : null,
+      args.stateId ? ctx.db.get(args.stateId) : null,
+      args.countryId ? ctx.db.get(args.countryId) : null,
+    ]);
+
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        state: previousState?.name ?? null,
+        country: previousCountry?.name ?? null,
+        hasFederalPolice: existing.hasFederalPolice ?? false,
+      },
+      {
+        name: args.name,
+        state: nextState?.name ?? null,
+        country: nextCountry?.name ?? null,
+        hasFederalPolice: args.hasFederalPolice ?? false,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "city",
+        entityId: id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -204,10 +262,31 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("cities") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("City not found");
+    }
 
     // Note: Add cascade checks here if there are related tables
     // For now, we'll just delete the city
     await ctx.db.delete(id);
+
+    const [state, country] = await Promise.all([
+      existing.stateId ? ctx.db.get(existing.stateId) : null,
+      existing.countryId ? ctx.db.get(existing.countryId) : null,
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "city",
+      entityId: id,
+      details: {
+        name: existing.name,
+        stateName: state?.name,
+        countryName: country?.name,
+      },
+    });
   },
 });

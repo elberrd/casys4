@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -219,6 +220,20 @@ export const create = mutation({
       }
     }
 
+    await logActivitySafely(ctx, {
+      userId: user.userId,
+      action: "created",
+      entityType: "processType",
+      entityId: processTypeId,
+      details: {
+        name: args.name,
+        estimatedDays: args.estimatedDays ?? 0,
+        isActive: args.isActive ?? true,
+        sortOrder,
+        legalFrameworksCount: args.legalFrameworkIds?.length ?? 0,
+      },
+    });
+
     return processTypeId;
   },
 });
@@ -256,15 +271,15 @@ export const update = mutation({
 
     await ctx.db.patch(id, updates);
 
+    const existingLinksBefore = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_processType", (q) => q.eq("processTypeId", id))
+      .collect();
+
     // Update legal frameworks if provided
     if (legalFrameworkIds !== undefined) {
       // Remove all existing links
-      const existingLinks = await ctx.db
-        .query("processTypesLegalFrameworks")
-        .withIndex("by_processType", (q) => q.eq("processTypeId", id))
-        .collect();
-
-      for (const link of existingLinks) {
+      for (const link of existingLinksBefore) {
         await ctx.db.delete(link._id);
       }
 
@@ -282,6 +297,43 @@ export const update = mutation({
       }
     }
 
+    const changes = buildChangedFields(
+      {
+        name: current.name,
+        description: current.description,
+        estimatedDays: current.estimatedDays,
+        isActive: current.isActive,
+        sortOrder: current.sortOrder,
+      },
+      {
+        name: updates.name,
+        description: updates.description ?? current.description,
+        estimatedDays: updates.estimatedDays ?? current.estimatedDays,
+        isActive: updates.isActive ?? current.isActive,
+        sortOrder: updates.sortOrder,
+      }
+    );
+
+    if (legalFrameworkIds !== undefined) {
+      changes.legalFrameworksCount = {
+        before: existingLinksBefore.length,
+        after: legalFrameworkIds.length,
+      };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: user.userId,
+        action: "updated",
+        entityType: "processType",
+        entityId: id,
+        details: {
+          name: current.name,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -293,7 +345,11 @@ export const remove = mutation({
   args: { id: v.id("processTypes") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Authorization type not found");
+    }
 
     // Delete all junction table records first
     const existingLinks = await ctx.db
@@ -307,6 +363,16 @@ export const remove = mutation({
 
     // Delete the authorization type
     await ctx.db.delete(id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "processType",
+      entityId: id,
+      details: {
+        name: existing.name,
+      },
+    });
   },
 });
 
@@ -324,10 +390,20 @@ export const reorder = mutation({
   },
   handler: async (ctx, { updates }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     for (const update of updates) {
       await ctx.db.patch(update.id, { sortOrder: update.sortOrder });
     }
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "reordered",
+      entityType: "processType",
+      entityId: "bulk",
+      details: {
+        updatedCount: updates.length,
+      },
+    });
   },
 });

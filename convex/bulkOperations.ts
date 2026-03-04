@@ -17,6 +17,7 @@ import { generateDocumentChecklist } from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { internal } from "./_generated/api";
+import { formatNowDateTime } from "./lib/statusDateTime";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -358,13 +359,15 @@ export const bulkCreateIndividualProcesses = mutation({
 
         // Create initial status record with case status ID (only if admin has userId)
         if (admin.userId) {
+          const statusNow = Date.now();
           await ctx.db.insert("individualProcessStatuses", {
             individualProcessId,
             caseStatusId: args.caseStatusId, // NEW: Store case status ID
             statusName: caseStatus.name, // Store case status name
             isActive: true,
-            createdAt: Date.now(),
-            changedAt: Date.now(),
+            date: formatNowDateTime(statusNow),
+            createdAt: statusNow,
+            changedAt: statusNow,
             changedBy: admin.userId,
             notes: "Initial status on bulk creation",
           });
@@ -500,13 +503,15 @@ export const bulkUpdateIndividualProcessStatus = mutation({
 
         // Create new status record with case status ID (only if admin has userId)
         if (newCaseStatus && admin.userId) {
+          const statusNow = Date.now();
           await ctx.db.insert("individualProcessStatuses", {
             individualProcessId: processId,
             caseStatusId: args.newCaseStatusId!,
             statusName: newCaseStatus.name,
             isActive: true,
-            createdAt: Date.now(),
-            changedAt: Date.now(),
+            date: formatNowDateTime(statusNow),
+            createdAt: statusNow,
+            changedAt: statusNow,
             changedBy: admin.userId,
             notes: args.reason || "Bulk status update",
           });

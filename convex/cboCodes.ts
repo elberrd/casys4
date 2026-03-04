@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
@@ -58,7 +59,7 @@ export const create = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     // Check for duplicate code only if code is provided
     if (args.code) {
@@ -72,11 +73,24 @@ export const create = mutation({
       }
     }
 
-    return await ctx.db.insert("cboCodes", {
+    const cboCodeId = await ctx.db.insert("cboCodes", {
       code: args.code,
       title: args.title,
       description: args.description,
     });
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "cboCode",
+      entityId: cboCodeId,
+      details: {
+        code: args.code,
+        title: args.title,
+      },
+    });
+
+    return cboCodeId;
   },
 });
 
@@ -91,9 +105,13 @@ export const update = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("CBO code not found");
+    }
 
     // Check for duplicate code (excluding current record) only if code is provided
     if (args.code) {
@@ -108,6 +126,32 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updateData);
+
+    const changes = buildChangedFields(
+      {
+        code: existing.code,
+        title: existing.title,
+        description: existing.description,
+      },
+      {
+        code: updateData.code,
+        title: updateData.title,
+        description: updateData.description,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "cboCode",
+        entityId: id,
+        details: {
+          title: existing.title,
+          changes,
+        },
+      });
+    }
   },
 });
 
@@ -117,10 +161,25 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("cboCodes") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("CBO code not found");
+    }
 
     // TODO: Add cascade check when individual processes table is implemented
     // Check if any individual processes reference this CBO code
     await ctx.db.delete(args.id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "cboCode",
+      entityId: args.id,
+      details: {
+        code: existing.code,
+        title: existing.title,
+      },
+    });
   },
 });

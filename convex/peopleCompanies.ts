@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -326,7 +327,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const isCurrent = args.isCurrent ?? true;
 
@@ -363,7 +364,7 @@ export const create = mutation({
       throw new Error("Current employment cannot have an end date");
     }
 
-    return await ctx.db.insert("peopleCompanies", {
+    const relationshipId = await ctx.db.insert("peopleCompanies", {
       personId: args.personId,
       companyId: args.companyId,
       role: args.role,
@@ -371,6 +372,26 @@ export const create = mutation({
       endDate: args.endDate,
       isCurrent,
     });
+
+    const [person, company] = await Promise.all([
+      ctx.db.get(args.personId),
+      ctx.db.get(args.companyId),
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "peopleCompany",
+      entityId: relationshipId,
+      details: {
+        personName: person ? getFullName(person) : undefined,
+        companyName: company?.name,
+        role: args.role,
+        isCurrent,
+      },
+    });
+
+    return relationshipId;
   },
 });
 
@@ -389,7 +410,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
     const existing = await ctx.db.get(id);
@@ -437,6 +458,44 @@ export const update = mutation({
       ...updateData,
       isCurrent,
     });
+
+    const [oldPerson, newPerson, oldCompany, newCompany] = await Promise.all([
+      existing.personId ? ctx.db.get(existing.personId) : null,
+      updateData.personId ? ctx.db.get(updateData.personId) : null,
+      existing.companyId ? ctx.db.get(existing.companyId) : null,
+      updateData.companyId ? ctx.db.get(updateData.companyId) : null,
+    ]);
+
+    const changes = buildChangedFields(
+      {
+        person: oldPerson ? getFullName(oldPerson) : null,
+        company: oldCompany?.name ?? null,
+        role: existing.role,
+        startDate: existing.startDate,
+        endDate: existing.endDate,
+        isCurrent: existing.isCurrent ?? false,
+      },
+      {
+        person: newPerson ? getFullName(newPerson) : null,
+        company: newCompany?.name ?? null,
+        role: updateData.role,
+        startDate: updateData.startDate,
+        endDate: updateData.endDate,
+        isCurrent,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "peopleCompany",
+        entityId: id,
+        details: {
+          changes,
+        },
+      });
+    }
   },
 });
 
@@ -447,9 +506,30 @@ export const remove = mutation({
   args: { id: v.id("peopleCompanies") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Employment relationship not found");
+    }
 
     await ctx.db.delete(args.id);
+
+    const [person, company] = await Promise.all([
+      existing.personId ? ctx.db.get(existing.personId) : null,
+      existing.companyId ? ctx.db.get(existing.companyId) : null,
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "peopleCompany",
+      entityId: args.id,
+      details: {
+        personName: person ? getFullName(person) : undefined,
+        companyName: company?.name,
+        role: existing.role,
+      },
+    });
   },
 });
 

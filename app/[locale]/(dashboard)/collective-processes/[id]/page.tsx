@@ -209,7 +209,7 @@ export default function CollectiveProcessDetailPage() {
 
         {/* Activity History */}
         <EntityHistory
-          entityType="collectiveProcesses"
+          entityType="collectiveProcess"
           entityId={collectiveProcessId}
           title={t('activityHistory')}
         />

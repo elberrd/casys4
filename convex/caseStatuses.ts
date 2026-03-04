@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 
 /**
  * Query to list all case statuses
@@ -95,7 +96,7 @@ export const create = mutation({
     fillableFields: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     // Check if code already exists
     const existingByCode = await ctx.db
@@ -135,6 +136,20 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "caseStatus",
+      entityId: caseStatusId,
+      details: {
+        name: args.name,
+        code: args.code,
+        category: args.category,
+        sortOrder: args.sortOrder,
+        isActive: true,
+      },
+    });
+
     return caseStatusId;
   },
 });
@@ -157,7 +172,7 @@ export const update = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -206,6 +221,47 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        nameEn: existing.nameEn,
+        code: existing.code,
+        description: existing.description,
+        category: existing.category,
+        color: existing.color,
+        sortOrder: existing.sortOrder,
+        orderNumber: existing.orderNumber,
+        fillableFields: JSON.stringify(existing.fillableFields ?? []),
+        isActive: existing.isActive,
+      },
+      {
+        name: args.name ?? existing.name,
+        nameEn: args.nameEn ?? existing.nameEn,
+        code: args.code ?? existing.code,
+        description: args.description ?? existing.description,
+        category: args.category ?? existing.category,
+        color: args.color ?? existing.color,
+        sortOrder: args.sortOrder ?? existing.sortOrder,
+        orderNumber: args.orderNumber ?? existing.orderNumber,
+        fillableFields: JSON.stringify(args.fillableFields ?? existing.fillableFields ?? []),
+        isActive: args.isActive ?? existing.isActive,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "caseStatus",
+        entityId: id,
+        details: {
+          name: existing.name,
+          code: existing.code,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -217,7 +273,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("caseStatuses") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -242,6 +298,17 @@ export const remove = mutation({
       updatedAt: Date.now(),
     });
 
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "caseStatus",
+      entityId: id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+      },
+    });
+
     return id;
   },
 });
@@ -260,7 +327,7 @@ export const reorder = mutation({
     ),
   },
   handler: async (ctx, { updates }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     // Update all statuses with new sortOrder
     for (const update of updates) {
@@ -269,6 +336,16 @@ export const reorder = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "reordered",
+      entityType: "caseStatus",
+      entityId: "bulk",
+      details: {
+        updatedCount: updates.length,
+      },
+    });
 
     return { updated: updates.length };
   },
@@ -283,7 +360,7 @@ export const toggleActive = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, { id, isActive }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -307,6 +384,19 @@ export const toggleActive = mutation({
     await ctx.db.patch(id, {
       isActive,
       updatedAt: Date.now(),
+    });
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: isActive ? "activated" : "deactivated",
+      entityType: "caseStatus",
+      entityId: id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+        previousIsActive: existing.isActive,
+        newIsActive: isActive,
+      },
     });
 
     return id;

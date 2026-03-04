@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
 
@@ -350,7 +351,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     // Check for duplicate CPF if provided
     if (args.cpf) {
@@ -376,6 +377,18 @@ export const create = mutation({
       ...args,
       createdAt: now,
       updatedAt: now,
+    });
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "person",
+      entityId: personId,
+      details: {
+        fullName: getFullName(args),
+        cpf: args.cpf,
+        email: args.email,
+      },
     });
 
     return personId;
@@ -410,7 +423,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const { id, ...data } = args;
 
@@ -471,6 +484,42 @@ export const update = mutation({
 
     await ctx.db.replace(id, replacement);
 
+    const changes = buildChangedFields(
+      {
+        givenNames: current.givenNames,
+        middleName: current.middleName,
+        surname: current.surname,
+        cpf: current.cpf,
+        email: current.email,
+        birthDate: current.birthDate,
+        phoneNumber: current.phoneNumber,
+        profession: current.profession,
+      },
+      {
+        givenNames: replacement.givenNames,
+        middleName: replacement.middleName,
+        surname: replacement.surname,
+        cpf: replacement.cpf,
+        email: replacement.email,
+        birthDate: replacement.birthDate,
+        phoneNumber: replacement.phoneNumber,
+        profession: replacement.profession,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "person",
+        entityId: id,
+        details: {
+          fullName: getFullName(current),
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -482,7 +531,11 @@ export const remove = mutation({
   args: { id: v.id("people") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const person = await ctx.db.get(id);
+    if (!person) {
+      throw new Error("Person not found");
+    }
 
     // Check if there are individual processes associated with this person
     const individualProcesses = await ctx.db
@@ -515,6 +568,18 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "person",
+      entityId: id,
+      details: {
+        fullName: getFullName(person),
+        cpf: person.cpf,
+        email: person.email,
+      },
+    });
   },
 });
 

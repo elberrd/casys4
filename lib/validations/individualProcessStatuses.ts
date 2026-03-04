@@ -3,13 +3,14 @@ import { Id } from "@/convex/_generated/dataModel";
 import { FILLABLE_FIELDS } from "@/lib/individual-process-fields";
 
 /**
- * Date validation schema for status dates (ISO 8601 format: YYYY-MM-DD)
+ * Date validation schema for status dates
+ * Accepts ISO date-time (YYYY-MM-DDTHH:mm) and legacy date-only (YYYY-MM-DD)
  */
 export const dateStringSchema = z
   .string()
   .regex(
-    /^\d{4}-\d{2}-\d{2}$/,
-    "Date must be in YYYY-MM-DD format"
+    /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/,
+    "Date must be in YYYY-MM-DD or YYYY-MM-DDTHH:mm format"
   )
   .refine(
     (dateStr) => {

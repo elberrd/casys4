@@ -5,6 +5,7 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { calculateCollectiveProcessStatus } from "./lib/statusCalculation";
+import { formatNowDateTime, normalizeStatusDateTime } from "./lib/statusDateTime";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -690,10 +691,6 @@ export const addPeopleToCollectiveProcess = mutation({
 
         // Create initial status record
         if (userProfile.userId) {
-          // Format date with time for initial status
-          const nowDate = new Date(now);
-          const dateTime = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}T${String(nowDate.getHours()).padStart(2, '0')}:${String(nowDate.getMinutes()).padStart(2, '0')}`;
-
           await ctx.db.insert("individualProcessStatuses", {
             individualProcessId,
             caseStatusId: args.caseStatusId,
@@ -703,7 +700,7 @@ export const addPeopleToCollectiveProcess = mutation({
             changedAt: now,
             changedBy: userProfile.userId,
             notes: "Initial status on creation",
-            date: dateTime,
+            date: formatNowDateTime(now),
           });
         }
 
@@ -812,6 +809,7 @@ export const updateCollectiveProcessStatuses = mutation({
     };
 
     const now = Date.now();
+    const statusDateTime = normalizeStatusDateTime(args.date, now);
 
     // Process each individual process
     for (const process of individualProcesses) {
@@ -839,7 +837,7 @@ export const updateCollectiveProcessStatuses = mutation({
             changedAt: now,
             changedBy: userProfile.userId,
             notes: args.notes || "Bulk status update from collective process",
-            date: args.date,
+            date: statusDateTime,
             filledFieldsData: args.filledFieldsData,
           });
         }

@@ -283,8 +283,9 @@ export function DocumentChecklistCard({
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
       onClick={() => {
-        // Open review dialog for documents that have been uploaded
-        if (doc.status !== "not_started") {
+        if (doc.status === "not_started") {
+          openUploadDialog(doc)
+        } else {
           openReviewDialog(doc._id)
         }
       }}

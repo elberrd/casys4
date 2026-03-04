@@ -461,7 +461,7 @@ export default defineSchema({
     individualProcessId: v.id("individualProcesses"),
     statusName: v.string(), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.id("caseStatuses"), // Reference to case status (required)
-    date: v.optional(v.string()), // ISO date format YYYY-MM-DD - user-editable status date
+    date: v.optional(v.string()), // ISO date-time format YYYY-MM-DDTHH:mm (legacy YYYY-MM-DD accepted on input)
     isActive: v.boolean(), // Only ONE can be true at a time per process
     notes: v.optional(v.string()),
     fillableFields: v.optional(v.array(v.string())), // Array of field names from individualProcesses that can be filled for this status

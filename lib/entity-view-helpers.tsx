@@ -232,7 +232,7 @@ export function createJsonField(
   return {
     label,
     value: data ? (
-      <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48">
+      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-[60vh] whitespace-pre-wrap break-all">
         {JSON.stringify(data, null, 2)}
       </pre>
     ) : (

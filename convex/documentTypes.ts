@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
@@ -200,6 +201,20 @@ export const create = mutation({
       }
     }
 
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "created",
+      entityType: "documentType",
+      entityId: documentTypeId,
+      details: {
+        name: args.name,
+        code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
+        category: args.category,
+        isActive: args.isActive ?? true,
+        legalFrameworksCount: args.legalFrameworkAssociations?.length ?? 0,
+      },
+    });
+
     return documentTypeId;
   },
 });
@@ -234,6 +249,14 @@ export const update = mutation({
     }
 
     const { id, legalFrameworkAssociations, ...updateData } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Document type not found");
+    }
+    const existingAssociationsBefore = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_documentType", (q) => q.eq("documentTypeId", id))
+      .collect();
 
     // Check for duplicate code (excluding current record) if provided
     if (args.code) {
@@ -268,12 +291,7 @@ export const update = mutation({
     // Update legal framework associations if provided
     if (legalFrameworkAssociations !== undefined) {
       // Delete existing associations
-      const existingAssociations = await ctx.db
-        .query("documentTypesLegalFrameworks")
-        .withIndex("by_documentType", (q) => q.eq("documentTypeId", id))
-        .collect();
-
-      for (const assoc of existingAssociations) {
+      for (const assoc of existingAssociationsBefore) {
         await ctx.db.delete(assoc._id);
       }
 
@@ -289,6 +307,48 @@ export const update = mutation({
         });
       }
     }
+
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        code: existing.code,
+        category: existing.category,
+        description: existing.description,
+        maxFileSizeMB: existing.maxFileSizeMB,
+        isActive: existing.isActive,
+      },
+      {
+        name: updateData.name,
+        code:
+          updateData.code !== undefined
+            ? updateData.code.toUpperCase().replace(/\s+/g, "")
+            : existing.code,
+        category: updateData.category ?? existing.category,
+        description: updateData.description ?? existing.description,
+        maxFileSizeMB: updateData.maxFileSizeMB ?? existing.maxFileSizeMB,
+        isActive: updateData.isActive ?? existing.isActive,
+      }
+    );
+
+    if (legalFrameworkAssociations !== undefined) {
+      changes.legalFrameworksCount = {
+        before: existingAssociationsBefore.length,
+        after: legalFrameworkAssociations.length,
+      };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "documentType",
+        entityId: id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
   },
 });
 
@@ -299,10 +359,25 @@ export const remove = mutation({
   args: { id: v.id("documentTypes") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const userProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Document type not found");
+    }
 
     // TODO: Add cascade check when document requirements table is implemented
     // Check if any document requirements reference this document type
     await ctx.db.delete(args.id);
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "deleted",
+      entityType: "documentType",
+      entityId: args.id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+      },
+    });
   },
 });

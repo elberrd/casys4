@@ -10,8 +10,11 @@ import { ActivityLogsTable } from "@/components/activity-logs/activity-logs-tabl
 import { ActivityLogFilters } from "@/components/activity-logs/activity-log-filters"
 import { ActivityLogViewModal } from "@/components/activity-logs/activity-log-view-modal"
 import { Button } from "@/components/ui/button"
-import { FileDown, FileSpreadsheet, FileJson } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { FileSpreadsheet, FileJson, Plus } from "lucide-react"
 import { toast } from "sonner"
+
+const INITIAL_LIMIT = 300
 
 export function ActivityLogsClient() {
   const t = useTranslations('ActivityLogs')
@@ -24,9 +27,13 @@ export function ActivityLogsClient() {
   const [action, setAction] = useState<string | undefined>()
   const [startDate, setStartDate] = useState<number | undefined>()
   const [endDate, setEndDate] = useState<number | undefined>()
+  const [limit, setLimit] = useState(INITIAL_LIMIT)
 
   // State for view modal
   const [viewingLog, setViewingLog] = useState<Id<"activityLogs"> | undefined>()
+
+  // Filter options
+  const filterOptions = useQuery(api.activityLogs.getFilterOptions, {})
 
   // Fetch activity logs with filters
   const logsResult = useQuery(api.activityLogs.getActivityLogs, {
@@ -36,7 +43,15 @@ export function ActivityLogsClient() {
     action,
     startDate,
     endDate,
-    limit: 100,
+    limit,
+  })
+
+  const summary = useQuery(api.activityLogs.getAuditSummary, {
+    userId,
+    entityType,
+    action,
+    startDate,
+    endDate,
   })
 
   // Export action
@@ -47,7 +62,7 @@ export function ActivityLogsClient() {
     { label: tBreadcrumbs('activityLogs') }
   ]
 
-  const handleViewDetails = (log: any) => {
+  const handleViewDetails = (log: { _id: Id<"activityLogs"> }) => {
     setViewingLog(log._id)
   }
 
@@ -77,8 +92,9 @@ export function ActivityLogsClient() {
       document.body.removeChild(a)
 
       toast.success(t('exportSuccess'))
-    } catch (error: any) {
-      toast.error(error.message || t('exportError'))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t('exportError')
+      toast.error(message || t('exportError'))
     }
   }
 
@@ -96,6 +112,7 @@ export function ActivityLogsClient() {
     setAction(filters.action)
     setStartDate(filters.startDate)
     setEndDate(filters.endDate)
+    setLimit(INITIAL_LIMIT)
   }
 
   const handleClearFilters = () => {
@@ -105,10 +122,11 @@ export function ActivityLogsClient() {
     setAction(undefined)
     setStartDate(undefined)
     setEndDate(undefined)
+    setLimit(INITIAL_LIMIT)
   }
 
   // Check if any filter is active
-  const hasActiveFilters = entityType || entityId || action || startDate || endDate
+  const hasActiveFilters = userId || entityType || entityId || action || startDate || endDate
 
   return (
     <>
@@ -143,10 +161,47 @@ export function ActivityLogsClient() {
 
         {/* Filters */}
         <ActivityLogFilters
+          filterOptions={filterOptions}
           onFiltersChange={handleFiltersChange}
           onClearFilters={handleClearFilters}
           hasActiveFilters={!!hasActiveFilters}
         />
+
+        <Card className="overflow-hidden border-dashed bg-gradient-to-b from-muted/20 to-background">
+          <CardContent className="p-4 sm:p-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("totalLogs")}</p>
+                <p className="text-xl font-semibold">{summary?.total ?? 0}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("createdCount")}</p>
+                <p className="text-xl font-semibold text-emerald-600">{summary?.created ?? 0}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("updatedCount")}</p>
+                <p className="text-xl font-semibold text-blue-600">{summary?.updated ?? 0}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("deletedCount")}</p>
+                <p className="text-xl font-semibold text-red-600">{summary?.deleted ?? 0}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("usersWithActivity")}</p>
+                <p className="text-xl font-semibold">{summary?.uniqueUsers ?? 0}</p>
+              </div>
+              <div className="rounded-lg border bg-background/70 p-3">
+                <p className="text-xs text-muted-foreground">{t("entitiesWithActivity")}</p>
+                <p className="text-xl font-semibold">{summary?.uniqueEntities ?? 0}</p>
+              </div>
+            </div>
+            {!!summary?.logsWithoutProfile && (
+              <p className="mt-3 text-xs text-amber-600">
+                {t("logsWithoutProfileWarning", { count: summary.logsWithoutProfile })}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Table */}
         <ActivityLogsTable
@@ -154,6 +209,20 @@ export function ActivityLogsClient() {
           onViewDetails={handleViewDetails}
           totalCount={logsResult?.total}
         />
+
+        {logsResult?.hasMore && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLimit((current) => current + INITIAL_LIMIT)}
+              className="h-9 px-4"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t("loadMore")}
+            </Button>
+          </div>
+        )}
 
         {/* View Modal */}
         {viewingLog && (

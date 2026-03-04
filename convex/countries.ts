@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -45,13 +46,24 @@ export const create = mutation({
     flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const countryId = await ctx.db.insert("countries", {
       name: args.name,
       code: "",
       iso3: "",
       flag: args.flag,
+    });
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "country",
+      entityId: countryId,
+      details: {
+        name: args.name,
+        flag: args.flag,
+      },
     });
 
     return countryId;
@@ -68,12 +80,40 @@ export const update = mutation({
     flag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Country not found");
+    }
 
     await ctx.db.patch(args.id, {
       name: args.name,
       flag: args.flag,
     });
+
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        flag: existing.flag,
+      },
+      {
+        name: args.name,
+        flag: args.flag,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "country",
+        entityId: args.id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
 
     return args.id;
   },
@@ -85,7 +125,11 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("countries") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Country not found");
+    }
 
     // Check if there are states associated with this country
     const states = await ctx.db
@@ -98,5 +142,17 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "country",
+      entityId: id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+        iso3: existing.iso3,
+      },
+    });
   },
 });

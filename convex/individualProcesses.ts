@@ -10,6 +10,7 @@ import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { ensureSingleActiveStatus, getEmPreparacaoStatus } from "./lib/statusManagement";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { formatNowDateTime, normalizeStatusDateTime } from "./lib/statusDateTime";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -606,17 +607,14 @@ export const create = mutation({
 
     // Create initial status record in the new status system with current date
     try {
-      // Format current date as ISO date string (YYYY-MM-DD)
-      const currentDate = new Date(now).toISOString().split('T')[0];
-
-      // Use provided dateProcess or default to today for "em preparação" status
-      const statusDate = args.dateProcess || currentDate;
+      // Use provided dateProcess or default to now for "em preparação" status
+      const statusDate = normalizeStatusDateTime(args.dateProcess, now);
 
       await ctx.db.insert("individualProcessStatuses", {
         individualProcessId: processId,
         caseStatusId: caseStatus._id, // Store case status ID
         statusName: caseStatus.name, // DEPRECATED: Store case status name for backward compatibility
-        date: statusDate, // ISO date format YYYY-MM-DD - sync with dateProcess
+        date: statusDate, // ISO date-time format YYYY-MM-DDTHH:mm
         isActive: true,
         notes: `Initial status: ${caseStatus.name}`,
         changedBy: userId,
@@ -723,7 +721,7 @@ export const createFromExisting = mutation({
       throw new Error("Em Preparação status not found");
     }
 
-    // Format current date as ISO date string (YYYY-MM-DD)
+    // Keep process-level date field as date-only, but status records always use datetime.
     const currentDate = new Date(now).toISOString().split("T")[0];
 
     // Create the new process with copied fields
@@ -759,7 +757,7 @@ export const createFromExisting = mutation({
         individualProcessId: newProcessId,
         caseStatusId: emPreparacaoStatus._id,
         statusName: emPreparacaoStatus.name, // DEPRECATED but keep for compatibility
-        date: currentDate,
+        date: formatNowDateTime(now),
         isActive: true,
         notes: `Initial status: ${emPreparacaoStatus.name} (created from existing process)`,
         changedBy: userId,
@@ -1002,7 +1000,7 @@ export const update = mutation({
       const emPreparacaoStatus = await getEmPreparacaoStatus(ctx, id);
       if (emPreparacaoStatus && emPreparacaoStatus.date !== args.dateProcess) {
         await ctx.db.patch(emPreparacaoStatus._id, {
-          date: args.dateProcess,
+          date: normalizeStatusDateTime(args.dateProcess, Date.now()),
         });
       }
     }
@@ -1026,15 +1024,17 @@ export const update = mutation({
 
       // Create new status record with case status ID
       try {
+        const statusNow = Date.now();
         const newStatusId = await ctx.db.insert("individualProcessStatuses", {
           individualProcessId: id,
           caseStatusId: newCaseStatus._id, // NEW: Store case status ID
           statusName: newCaseStatus.name, // Store case status name
+          date: normalizeStatusDateTime(args.dateProcess, statusNow),
           isActive: true,
           notes: `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`,
           changedBy: userId,
-          changedAt: Date.now(),
-          createdAt: Date.now(),
+          changedAt: statusNow,
+          createdAt: statusNow,
         });
 
         // Ensure only one status is active

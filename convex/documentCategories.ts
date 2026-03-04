@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -123,6 +124,18 @@ export const create = mutation({
       createdBy: userProfile.userId,
     });
 
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "created",
+      entityType: "documentCategory",
+      entityId: categoryId,
+      details: {
+        name: args.name,
+        code: normalizedCode,
+        isActive: args.isActive ?? true,
+      },
+    });
+
     return categoryId;
   },
 });
@@ -146,6 +159,10 @@ export const update = mutation({
     }
 
     const { id, ...updateData } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Document category not found");
+    }
 
     // If code is being updated, check for duplicates
     if (updateData.code !== undefined) {
@@ -173,6 +190,34 @@ export const update = mutation({
       updatedBy: userProfile.userId,
     });
 
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        code: existing.code,
+        description: existing.description,
+        isActive: existing.isActive,
+      },
+      {
+        name: updateData.name ?? existing.name,
+        code: updateData.code ?? existing.code,
+        description: updateData.description ?? existing.description,
+        isActive: updateData.isActive ?? existing.isActive,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: userProfile.userId,
+        action: "updated",
+        entityType: "documentCategory",
+        entityId: id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -189,11 +234,27 @@ export const remove = mutation({
       throw new Error("User must be activated");
     }
 
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Document category not found");
+    }
+
     // Soft delete by setting isActive to false
     await ctx.db.patch(args.id, {
       isActive: false,
       updatedAt: Date.now(),
       updatedBy: userProfile.userId,
+    });
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "deleted",
+      entityType: "documentCategory",
+      entityId: args.id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+      },
     });
   },
 });
@@ -219,6 +280,19 @@ export const toggleActive = mutation({
       isActive: !category.isActive,
       updatedAt: Date.now(),
       updatedBy: userProfile.userId,
+    });
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: category.isActive ? "deactivated" : "activated",
+      entityType: "documentCategory",
+      entityId: args.id,
+      details: {
+        name: category.name,
+        code: category.code,
+        previousIsActive: category.isActive,
+        newIsActive: !category.isActive,
+      },
     });
   },
 });

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -26,7 +26,6 @@ import {
   Edit,
   Plus,
   UserPlus,
-  Calendar,
   RefreshCw,
   XCircle,
   Upload,
@@ -54,7 +53,7 @@ interface ActivityLog {
   action: string
   entityType: string
   entityId: string
-  details?: any
+  details?: Record<string, unknown>
   ipAddress?: string
   userAgent?: string
   createdAt: number
@@ -110,6 +109,10 @@ export function ActivityLogsTable({
         return <RefreshCw className="h-3 w-3" />
       case "deactivated":
         return <Ban className="h-3 w-3" />
+      case "activated":
+        return <CheckCircle className="h-3 w-3" />
+      case "reordered":
+        return <RefreshCw className="h-3 w-3" />
       default:
         return <FileText className="h-3 w-3" />
     }
@@ -140,20 +143,26 @@ export function ActivityLogsTable({
         return { variant: "outline", className: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20" }
       case "deactivated":
         return { variant: "outline", className: "bg-gray-500/15 text-gray-700 dark:text-gray-400 border-gray-500/20 hover:bg-gray-500/20" }
+      case "activated":
+        return { variant: "default", className: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20 hover:bg-green-500/20" }
+      case "reordered":
+        return { variant: "outline", className: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/20 hover:bg-slate-500/20" }
       default:
         return { variant: "outline", className: "" }
     }
   }
 
   // Helper to format entity type
-  const formatEntityType = (entityType: string) => {
-    return t(`entityTypes.${entityType}`, { defaultValue: entityType })
-  }
+  const formatEntityType = useCallback(
+    (entityType: string) => t(`entityTypes.${entityType}`, { defaultValue: entityType }),
+    [t]
+  )
 
   // Helper to format action
-  const formatAction = (action: string) => {
-    return t(`actions.${action}`, { defaultValue: action })
-  }
+  const formatAction = useCallback(
+    (action: string) => t(`actions.${action}`, { defaultValue: action }),
+    [t]
+  )
 
   // Helper to get user initials
   const getUserInitials = (name: string) => {
@@ -201,7 +210,8 @@ export function ActivityLogsTable({
         size: 180,
       },
       {
-        accessorKey: "user",
+        id: "user",
+        accessorFn: (row) => `${row.user?.fullName ?? ""} ${row.user?.email ?? ""}`.trim(),
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('user')} />
         ),
@@ -342,7 +352,7 @@ export function ActivityLogsTable({
         size: 50,
       },
     ],
-    [t, tCommon, locale, onViewDetails]
+    [t, tCommon, locale, onViewDetails, formatAction, formatEntityType]
   )
 
   const table = useReactTable({
@@ -364,20 +374,42 @@ export function ActivityLogsTable({
     globalFilterFn: globalFuzzyFilter,
   })
 
+  const loadedCount = logs.length
+  const hasRemoteMore = typeof totalCount === "number" && totalCount > loadedCount
+
   return (
-    <DataGridContainer>
-      <DataGrid table={table} recordCount={totalCount || logs.length} onRowClick={onViewDetails ? (row) => onViewDetails(row) : undefined}>
-        <DataGridFilter
-          table={table}
-          placeholder={t('searchPlaceholder')}
-        />
-        <div className="rounded-md border">
-          <ScrollArea className="h-[calc(100vh-420px)] min-h-[400px]">
-            <DataGridTable />
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+    <DataGridContainer className="overflow-hidden">
+      <DataGrid
+        table={table}
+        recordCount={loadedCount}
+        onRowClick={onViewDetails ? (row) => onViewDetails(row) : undefined}
+      >
+        <div className="border-b bg-muted/20 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <DataGridFilter
+              table={table}
+              placeholder={t('searchPlaceholder')}
+              className="w-full max-w-3xl"
+            />
+            <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+              {t("showingResults", { count: loadedCount, total: loadedCount })}
+            </div>
+          </div>
+          {hasRemoteMore && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("loadedCount", { loaded: loadedCount, total: totalCount ?? loadedCount })}
+            </p>
+          )}
         </div>
-        <DataGridPagination />
+
+        <ScrollArea className="w-full">
+          <DataGridTable />
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+
+        <div className="border-t bg-background/90 px-2 py-1 sm:px-3">
+          <DataGridPagination sizes={[50, 100, 200]} />
+        </div>
       </DataGrid>
     </DataGridContainer>
   )

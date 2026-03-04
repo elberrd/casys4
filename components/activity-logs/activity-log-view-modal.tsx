@@ -36,6 +36,10 @@ const getActionStyle = (action: string): { variant: "default" | "secondary" | "d
     case "status_changed":
     case "status_added":
       return { variant: "outline", className: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/20" }
+    case "activated":
+      return { variant: "default", className: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20" }
+    case "reordered":
+      return { variant: "outline", className: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/20" }
     default:
       return { variant: "outline", className: "" }
   }
@@ -103,6 +107,14 @@ export function ActivityLogViewModal({
       title: t("userInformation"),
       icon: <User className="h-5 w-5" />,
       fields: [
+        {
+          label: t("user"),
+          value: activityLog.user?.fullName || tCommon("unknown"),
+        },
+        {
+          label: t("email"),
+          value: activityLog.user?.email || <span className="text-muted-foreground">-</span>,
+        },
         {
           label: t("ipAddress"),
           value: activityLog.ipAddress ? (

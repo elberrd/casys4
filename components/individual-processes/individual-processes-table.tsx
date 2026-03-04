@@ -435,6 +435,57 @@ export function IndividualProcessesTable({
     }
   }, [isGroupedModeActive]);
 
+  // Build reset visibility based on currently active mode(s)
+  const getResetColumnVisibility = useCallback((): VisibilityState => {
+    const resetVisibility: VisibilityState = {
+      ...initialColumnVisibilityRef.current,
+    };
+
+    // Grouped mode adjustments
+    if (isGroupedModeActive) {
+      resetVisibility["caseStatus.name"] = false;
+      resetVisibility.groupedStatusDate = true;
+    } else {
+      resetVisibility["caseStatus.name"] =
+        initialColumnVisibilityRef.current["caseStatus.name"] ?? true;
+      resetVisibility.groupedStatusDate = false;
+    }
+
+    // RNM mode adjustments
+    if (isRnmModeActive) {
+      resetVisibility.rnmDeadline = true;
+    }
+
+    // Alerts mode adjustments
+    if (isUrgentModeActive) {
+      resetVisibility.protocolNumber = true;
+      resetVisibility.processStatus = false;
+      resetVisibility.notes = true;
+    }
+
+    // QUAL / EXP PROF mode adjustments
+    if (isQualExpProfModeActive) {
+      resetVisibility.companyApplicant_name = false;
+      resetVisibility["caseStatus.name"] = false;
+      resetVisibility.processStatus = false;
+      resetVisibility.protocolNumber = false;
+      resetVisibility.rnmDeadline = false;
+      resetVisibility.person_fullName = true;
+      resetVisibility.processType_name = true;
+      resetVisibility.legalFramework_name = true;
+      resetVisibility.qualification = true;
+      resetVisibility.professionalExperience = true;
+      resetVisibility.notes = true;
+    }
+
+    return resetVisibility;
+  }, [
+    isGroupedModeActive,
+    isRnmModeActive,
+    isUrgentModeActive,
+    isQualExpProfModeActive,
+  ]);
+
 
   // Wrap setRowSelection to prevent state updates during render
   const handleRowSelectionChange = useCallback(
@@ -1952,7 +2003,7 @@ export function IndividualProcessesTable({
             hideAllLabel={tCommon("hideAll")}
             resetLabel={tCommon("reset")}
             defaultColumnVisibility={initialColumnVisibilityRef.current}
-            onReset={() => setColumnVisibility(initialColumnVisibilityRef.current)}
+            onReset={() => setColumnVisibility(getResetColumnVisibility())}
             columnLabels={{
               "person_fullName": t("personName"),
               "protocolNumber": t("protocol"),

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -342,7 +343,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const now = Date.now();
     const isActive = args.isActive ?? true;
@@ -366,7 +367,7 @@ export const create = mutation({
       );
     }
 
-    return await ctx.db.insert("passports", {
+    const passportId = await ctx.db.insert("passports", {
       personId: args.personId,
       passportNumber: args.passportNumber,
       issuingCountryId: args.issuingCountryId,
@@ -377,6 +378,26 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    const [person, country] = await Promise.all([
+      ctx.db.get(args.personId),
+      ctx.db.get(args.issuingCountryId),
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "passport",
+      entityId: passportId,
+      details: {
+        passportNumber: args.passportNumber,
+        personName: person ? getFullName(person) : undefined,
+        issuingCountry: country?.name,
+        isActive,
+      },
+    });
+
+    return passportId;
   },
 });
 
@@ -397,11 +418,15 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const { id, ...updateData } = args;
     const now = Date.now();
     const isActive = updateData.isActive ?? true;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Passport not found");
+    }
 
     // If setting this passport as active, deactivate all other passports for this person
     if (isActive) {
@@ -429,6 +454,45 @@ export const update = mutation({
       isActive,
       updatedAt: now,
     });
+
+    const [previousPerson, nextPerson, previousCountry, nextCountry] = await Promise.all([
+      existing.personId ? ctx.db.get(existing.personId) : null,
+      updateData.personId ? ctx.db.get(updateData.personId) : null,
+      existing.issuingCountryId ? ctx.db.get(existing.issuingCountryId) : null,
+      updateData.issuingCountryId ? ctx.db.get(updateData.issuingCountryId) : null,
+    ]);
+
+    const changes = buildChangedFields(
+      {
+        passportNumber: existing.passportNumber,
+        person: previousPerson ? getFullName(previousPerson) : null,
+        issuingCountry: previousCountry?.name ?? null,
+        issueDate: existing.issueDate,
+        expiryDate: existing.expiryDate,
+        isActive: existing.isActive ?? true,
+      },
+      {
+        passportNumber: updateData.passportNumber,
+        person: nextPerson ? getFullName(nextPerson) : null,
+        issuingCountry: nextCountry?.name ?? null,
+        issueDate: updateData.issueDate,
+        expiryDate: updateData.expiryDate,
+        isActive,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "passport",
+        entityId: id,
+        details: {
+          passportNumber: existing.passportNumber,
+          changes,
+        },
+      });
+    }
   },
 });
 
@@ -439,8 +503,29 @@ export const remove = mutation({
   args: { id: v.id("passports") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Passport not found");
+    }
 
     await ctx.db.delete(args.id);
+
+    const [person, country] = await Promise.all([
+      existing.personId ? ctx.db.get(existing.personId) : null,
+      existing.issuingCountryId ? ctx.db.get(existing.issuingCountryId) : null,
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "passport",
+      entityId: args.id,
+      details: {
+        passportNumber: existing.passportNumber,
+        personName: person ? getFullName(person) : undefined,
+        issuingCountry: country?.name,
+      },
+    });
   },
 });

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -243,6 +244,19 @@ export const create = mutation({
       }
     }
 
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "legalFramework",
+      entityId: legalFrameworkId,
+      details: {
+        name: args.name,
+        isActive: args.isActive ?? true,
+        processTypesCount: args.processTypeIds?.length ?? 0,
+        documentTypesCount: args.documentTypeAssociations?.length ?? 0,
+      },
+    });
+
     return legalFrameworkId;
   },
 });
@@ -271,6 +285,10 @@ export const update = mutation({
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Legal framework not found");
+    }
 
     // Ensure userId exists if we need to update junction table records
     const hasProcessTypes = args.processTypeIds !== undefined && args.processTypeIds.length > 0;
@@ -289,16 +307,19 @@ export const update = mutation({
     await ctx.db.patch(id, updates);
 
     const now = Date.now();
+    const existingProcessTypeLinks = await ctx.db
+      .query("processTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
+    const existingDocTypeLinks = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
+      .collect();
 
     // Update junction table records for authorization types
     if (args.processTypeIds !== undefined) {
       // Delete all existing links
-      const existingLinks = await ctx.db
-        .query("processTypesLegalFrameworks")
-        .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
-        .collect();
-
-      for (const link of existingLinks) {
+      for (const link of existingProcessTypeLinks) {
         await ctx.db.delete(link._id);
       }
 
@@ -318,12 +339,7 @@ export const update = mutation({
     // Update junction table records for document types
     if (args.documentTypeAssociations !== undefined) {
       // Delete all existing links
-      const existingDocLinks = await ctx.db
-        .query("documentTypesLegalFrameworks")
-        .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", id))
-        .collect();
-
-      for (const link of existingDocLinks) {
+      for (const link of existingDocTypeLinks) {
         await ctx.db.delete(link._id);
       }
 
@@ -343,6 +359,46 @@ export const update = mutation({
       }
     }
 
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        description: existing.description,
+        isActive: existing.isActive,
+      },
+      {
+        name: updates.name,
+        description: updates.description ?? existing.description,
+        isActive: updates.isActive ?? existing.isActive,
+      }
+    );
+
+    if (args.processTypeIds !== undefined) {
+      changes.processTypesCount = {
+        before: existingProcessTypeLinks.length,
+        after: args.processTypeIds.length,
+      };
+    }
+
+    if (args.documentTypeAssociations !== undefined) {
+      changes.documentTypesCount = {
+        before: existingDocTypeLinks.length,
+        after: args.documentTypeAssociations.length,
+      };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "legalFramework",
+        entityId: id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -354,7 +410,11 @@ export const remove = mutation({
   args: { id: v.id("legalFrameworks") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Legal framework not found");
+    }
 
     // Delete all process types junction table records
     const existingProcessTypeLinks = await ctx.db
@@ -378,5 +438,15 @@ export const remove = mutation({
 
     // Delete the legal framework
     await ctx.db.delete(id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "legalFramework",
+      entityId: id,
+      details: {
+        name: existing.name,
+      },
+    });
   },
 });

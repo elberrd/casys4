@@ -1,7 +1,86 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalMutation } from "./_generated/server";
+import { query, action, internalMutation, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+
+const ENTITY_TYPE_GROUPS: Record<string, string[]> = {
+  collectiveprocess: ["collectiveProcess", "collectiveProcesses"],
+  individualprocess: ["individualProcess", "individualProcesses"],
+  individualprocessstatus: ["individualProcessStatus", "individualProcessStatuses"],
+  document: ["document", "documents", "documentsDelivered"],
+  task: ["task", "tasks"],
+  userprofile: ["userProfile", "userProfiles"],
+  company: ["company", "companies"],
+  person: ["person", "people"],
+  passport: ["passport", "passports"],
+  processrequest: ["processRequest", "processRequests"],
+  note: ["note", "notes"],
+  savedfilter: ["savedFilter", "savedFilters"],
+  economicactivity: ["economicActivity", "economicActivities"],
+  country: ["country", "countries"],
+  state: ["state", "states"],
+  city: ["city", "cities"],
+  casestatus: ["caseStatus", "caseStatuses"],
+  processtype: ["processType", "processTypes"],
+  legalframework: ["legalFramework", "legalFrameworks"],
+  cbocode: ["cboCode", "cboCodes"],
+  consulate: ["consulate", "consulates"],
+  documentcategory: ["documentCategory", "documentCategories"],
+  documenttype: ["documentType", "documentTypes"],
+  peoplecompany: ["peopleCompany", "peopleCompanies"],
+};
+
+const ENTITY_TYPE_CANONICAL = new Map<string, string>();
+for (const aliases of Object.values(ENTITY_TYPE_GROUPS)) {
+  const canonical = aliases[0];
+  for (const alias of aliases) {
+    ENTITY_TYPE_CANONICAL.set(alias.replace(/[^a-z0-9]/gi, "").toLowerCase(), canonical);
+  }
+}
+
+function normalizeEntityType(entityType: string): string {
+  const key = entityType.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return ENTITY_TYPE_CANONICAL.get(key) ?? entityType;
+}
+
+function getEntityTypeCandidates(entityType: string): string[] {
+  const key = entityType.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const canonical = ENTITY_TYPE_CANONICAL.get(key) ?? entityType;
+  const canonicalKey = canonical.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return ENTITY_TYPE_GROUPS[canonicalKey] ?? [canonical];
+}
+
+async function enrichLogUser<T extends { userId: Id<"users"> }>(
+  ctx: QueryCtx,
+  log: T
+): Promise<
+  T & {
+    user: {
+      _id: Id<"userProfiles">;
+      fullName: string;
+      email: string;
+    } | null;
+  }
+> {
+  const user = await ctx.db.get(log.userId);
+  const userProfile = user
+    ? await ctx.db
+        .query("userProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", user._id))
+        .first()
+    : null;
+
+  return {
+    ...log,
+    user: userProfile
+      ? {
+          _id: userProfile._id,
+          fullName: userProfile.fullName,
+          email: userProfile.email,
+        }
+      : null,
+  };
+}
 
 /**
  * Internal mutation to create an activity log entry
@@ -21,7 +100,7 @@ export const logActivity = internalMutation({
     const logId = await ctx.db.insert("activityLogs", {
       userId: args.userId,
       action: args.action,
-      entityType: args.entityType,
+      entityType: normalizeEntityType(args.entityType),
       entityId: args.entityId,
       details: args.details,
       ipAddress: args.ipAddress,
@@ -53,25 +132,7 @@ export const get = query({
       return null;
     }
 
-    // Enrich with user details
-    const user = await ctx.db.get(activityLog.userId);
-    const userProfileData = user
-      ? await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (q) => q.eq("userId", user._id))
-          .first()
-      : null;
-
-    return {
-      ...activityLog,
-      user: userProfileData
-        ? {
-            _id: userProfileData._id,
-            fullName: userProfileData.fullName,
-            email: userProfileData.email,
-          }
-        : null,
-    };
+    return await enrichLogUser(ctx, activityLog);
   },
 });
 
@@ -109,7 +170,8 @@ export const getActivityLogs = query({
     }
 
     if (args.entityType) {
-      results = results.filter((log) => log.entityType === args.entityType);
+      const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
+      results = results.filter((log) => entityTypeCandidates.includes(log.entityType));
     }
 
     if (args.entityId) {
@@ -131,29 +193,7 @@ export const getActivityLogs = query({
     // Apply pagination
     const paginatedResults = results.slice(offset, offset + limit);
 
-    // Enrich with user details
-    const enrichedResults = await Promise.all(
-      paginatedResults.map(async (log) => {
-        const user = await ctx.db.get(log.userId);
-        const userProfile = user
-          ? await ctx.db
-              .query("userProfiles")
-              .withIndex("by_userId", (q) => q.eq("userId", user._id))
-              .first()
-          : null;
-
-        return {
-          ...log,
-          user: userProfile
-            ? {
-                _id: userProfile._id,
-                fullName: userProfile.fullName,
-                email: userProfile.email,
-              }
-            : null,
-        };
-      })
-    );
+    const enrichedResults = await Promise.all(paginatedResults.map((log) => enrichLogUser(ctx, log)));
 
     return {
       logs: enrichedResults,
@@ -175,19 +215,54 @@ export const getEntityHistory = query({
   handler: async (ctx, args) => {
     await getCurrentUserProfile(ctx); // Ensure authenticated
 
-    const logs = await ctx.db
-      .query("activityLogs")
-      .withIndex("by_entity_createdAt", (q) =>
-        q.eq("entityType", args.entityType).eq("entityId", args.entityId)
+    const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
+    const logsByType = await Promise.all(
+      entityTypeCandidates.map((entityType) =>
+        ctx.db
+          .query("activityLogs")
+          .withIndex("by_entity_createdAt", (q) =>
+            q.eq("entityType", entityType).eq("entityId", args.entityId)
+          )
+          .order("desc")
+          .collect()
       )
-      .order("desc")
-      .collect();
+    );
 
-    // Enrich with user details
-    const enrichedLogs = await Promise.all(
-      logs.map(async (log) => {
-        const user = await ctx.db.get(log.userId);
-        const userProfile = user
+    const logs = logsByType.flat().sort((a, b) => b.createdAt - a.createdAt);
+    const enrichedLogs = await Promise.all(logs.map((log) => enrichLogUser(ctx, log)));
+
+    return enrichedLogs;
+  },
+});
+
+/**
+ * Query to get available filter options from current logs
+ * Includes only users/entities the current viewer can access
+ */
+export const getFilterOptions = query({
+  args: {},
+  handler: async (ctx) => {
+    const currentUser = await getCurrentUserProfile(ctx);
+
+    let logs = await ctx.db.query("activityLogs").order("desc").collect();
+    if (currentUser.role !== "admin") {
+      logs = logs.filter((log) => log.userId === currentUser.userId);
+    }
+
+    const actionSet = new Set<string>();
+    const entityTypeSet = new Set<string>();
+    const userIdSet = new Set<Id<"users">>();
+
+    for (const log of logs) {
+      actionSet.add(log.action);
+      entityTypeSet.add(log.entityType);
+      userIdSet.add(log.userId);
+    }
+
+    const users = await Promise.all(
+      Array.from(userIdSet).map(async (userId) => {
+        const user = await ctx.db.get(userId);
+        const profile = user
           ? await ctx.db
               .query("userProfiles")
               .withIndex("by_userId", (q) => q.eq("userId", user._id))
@@ -195,19 +270,108 @@ export const getEntityHistory = query({
           : null;
 
         return {
-          ...log,
-          user: userProfile
-            ? {
-                _id: userProfile._id,
-                fullName: userProfile.fullName,
-                email: userProfile.email,
-              }
-            : null,
+          userId,
+          fullName: profile?.fullName ?? "Usuário removido",
+          email: profile?.email,
         };
       })
     );
 
-    return enrichedLogs;
+    users.sort((a, b) => {
+      const aKey = `${a.fullName} ${a.email ?? ""}`.toLowerCase();
+      const bKey = `${b.fullName} ${b.email ?? ""}`.toLowerCase();
+      return aKey.localeCompare(bKey);
+    });
+
+    return {
+      actions: Array.from(actionSet).sort((a, b) => a.localeCompare(b)),
+      entityTypes: Array.from(entityTypeSet).sort((a, b) => a.localeCompare(b)),
+      users,
+    };
+  },
+});
+
+/**
+ * Query to summarize activity logs with the current filters
+ */
+export const getAuditSummary = query({
+  args: {
+    userId: v.optional(v.id("users")),
+    entityType: v.optional(v.string()),
+    action: v.optional(v.string()),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await getCurrentUserProfile(ctx);
+
+    let logs = await ctx.db.query("activityLogs").order("desc").collect();
+
+    if (currentUser.role !== "admin") {
+      logs = logs.filter((log) => log.userId === currentUser.userId);
+    }
+
+    if (args.userId) {
+      logs = logs.filter((log) => log.userId === args.userId);
+    }
+
+    if (args.entityType) {
+      const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
+      logs = logs.filter((log) => entityTypeCandidates.includes(log.entityType));
+    }
+
+    if (args.action) {
+      logs = logs.filter((log) => log.action === args.action);
+    }
+
+    if (args.startDate !== undefined) {
+      const startDate = args.startDate;
+      logs = logs.filter((log) => log.createdAt >= startDate);
+    }
+
+    if (args.endDate !== undefined) {
+      const endDate = args.endDate;
+      logs = logs.filter((log) => log.createdAt <= endDate);
+    }
+
+    const uniqueUsers = new Set(logs.map((log) => log.userId));
+    const uniqueEntities = new Set(logs.map((log) => `${log.entityType}:${log.entityId}`));
+
+    const actionCounts = logs.reduce(
+      (acc, log) => {
+        if (log.action === "created") acc.created += 1;
+        if (log.action === "updated") acc.updated += 1;
+        if (log.action === "deleted") acc.deleted += 1;
+        return acc;
+      },
+      { created: 0, updated: 0, deleted: 0 }
+    );
+
+    const uniqueUserArray = Array.from(uniqueUsers);
+    const userProfiles = await Promise.all(
+      uniqueUserArray.map(async (userId) => {
+        const user = await ctx.db.get(userId);
+        return user
+          ? ctx.db
+              .query("userProfiles")
+              .withIndex("by_userId", (q) => q.eq("userId", user._id))
+              .first()
+          : null;
+      })
+    );
+
+    const logsWithoutProfile = uniqueUserArray.length - userProfiles.filter(Boolean).length;
+
+    return {
+      total: logs.length,
+      created: actionCounts.created,
+      updated: actionCounts.updated,
+      deleted: actionCounts.deleted,
+      uniqueUsers: uniqueUsers.size,
+      uniqueEntities: uniqueEntities.size,
+      logsWithoutProfile,
+      latestAt: logs.length > 0 ? logs[0].createdAt : null,
+    };
   },
 });
 
@@ -268,7 +432,7 @@ export const exportActivityLogs = action({
       "IP Address",
     ];
 
-    const rows = result.logs.map((log: any) => [
+    const rows = result.logs.map((log) => [
       new Date(log.createdAt).toISOString(),
       log.user?.fullName || "Unknown",
       log.user?.email || "Unknown",

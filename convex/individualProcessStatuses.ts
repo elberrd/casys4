@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { normalizeStatusDateTime } from "./lib/statusDateTime";
 
 /**
  * Query to list all statuses for an individual process
@@ -268,15 +269,7 @@ export const addStatus = mutation({
     const now = Date.now();
     const isActive = args.isActive ?? true;
 
-    // Default date to current datetime if not provided (YYYY-MM-DDTHH:mm format)
-    const nowDate = new Date(now);
-    const defaultDateTime = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}T${String(nowDate.getHours()).padStart(2, '0')}:${String(nowDate.getMinutes()).padStart(2, '0')}`;
-    const statusDate = args.date || defaultDateTime;
-
-    // Validate date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
-    if (args.date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(args.date)) {
-      throw new Error("Invalid date format. Expected YYYY-MM-DD or YYYY-MM-DDTHH:mm");
-    }
+    const statusDate = normalizeStatusDateTime(args.date, now);
 
     // If this new status is active, deactivate all other statuses
     if (isActive) {
@@ -298,7 +291,7 @@ export const addStatus = mutation({
       individualProcessId: args.individualProcessId,
       caseStatusId: args.caseStatusId, // Store case status ID
       statusName: args.statusName || caseStatus.name, // DEPRECATED: Backward compatibility
-      date: statusDate, // ISO date format YYYY-MM-DD
+      date: statusDate, // ISO date-time format YYYY-MM-DDTHH:mm
       isActive,
       notes: args.notes,
       fillableFields: caseStatus.fillableFields, // Copy fillable fields from case status
@@ -385,11 +378,6 @@ export const updateStatus = mutation({
       throw new Error("Status record not found");
     }
 
-    // Validate date format if provided (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
-    if (args.date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(args.date)) {
-      throw new Error("Invalid date format. Expected YYYY-MM-DD or YYYY-MM-DDTHH:mm");
-    }
-
     // Get case status if caseStatusId is provided
     let caseStatus = null;
     if (args.caseStatusId) {
@@ -433,7 +421,7 @@ export const updateStatus = mutation({
         updates.fillableFields = caseStatus.fillableFields;
       }
     }
-    if (args.date !== undefined) updates.date = args.date;
+    if (args.date !== undefined) updates.date = normalizeStatusDateTime(args.date, now);
     if (args.statusName !== undefined) updates.statusName = args.statusName;
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.isActive !== undefined) updates.isActive = args.isActive;

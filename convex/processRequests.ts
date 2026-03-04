@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireClient } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -217,6 +218,25 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    const [company, contactPerson, processType] = await Promise.all([
+      ctx.db.get(companyId),
+      ctx.db.get(args.contactPersonId),
+      ctx.db.get(args.processTypeId),
+    ]);
+
+    await logActivitySafely(ctx, {
+      userId: profile.userId,
+      action: "created",
+      entityType: "processRequest",
+      entityId: requestId,
+      details: {
+        companyName: company?.name,
+        contactPersonName: contactPerson ? getFullName(contactPerson) : undefined,
+        processTypeName: processType?.name,
+        isUrgent: args.isUrgent,
+      },
+    });
+
     return requestId;
   },
 });
@@ -274,6 +294,18 @@ export const approve = mutation({
       updatedAt: now,
     });
 
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "approved",
+      entityType: "processRequest",
+      entityId: id,
+      details: {
+        previousStatus: request.status,
+        newStatus: "approved",
+        approvedCollectiveProcessId: collectiveProcessId,
+      },
+    });
+
     return collectiveProcessId;
   },
 });
@@ -313,6 +345,18 @@ export const reject = mutation({
       updatedAt: now,
     });
 
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "rejected",
+      entityType: "processRequest",
+      entityId: id,
+      details: {
+        previousStatus: request.status,
+        newStatus: "rejected",
+        rejectionReason,
+      },
+    });
+
     return id;
   },
 });
@@ -333,7 +377,7 @@ export const update = mutation({
   },
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const request = await ctx.db.get(id);
     if (!request) {
@@ -362,6 +406,40 @@ export const update = mutation({
 
     await ctx.db.patch(id, updates);
 
+    const changes = buildChangedFields(
+      {
+        contactPersonId: request.contactPersonId,
+        processTypeId: request.processTypeId,
+        workplaceCityId: request.workplaceCityId,
+        consulateId: request.consulateId,
+        isUrgent: request.isUrgent,
+        requestDate: request.requestDate,
+        notes: request.notes,
+      },
+      {
+        contactPersonId: updates.contactPersonId ?? request.contactPersonId,
+        processTypeId: updates.processTypeId ?? request.processTypeId,
+        workplaceCityId: updates.workplaceCityId ?? request.workplaceCityId,
+        consulateId: updates.consulateId ?? request.consulateId,
+        isUrgent: updates.isUrgent ?? request.isUrgent,
+        requestDate: updates.requestDate ?? request.requestDate,
+        notes: updates.notes ?? request.notes,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "processRequest",
+        entityId: id,
+        details: {
+          status: request.status,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -373,7 +451,7 @@ export const remove = mutation({
   args: { id: v.id("processRequests") },
   handler: async (ctx, { id }) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const request = await ctx.db.get(id);
     if (!request) {
@@ -387,6 +465,19 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "processRequest",
+      entityId: id,
+      details: {
+        status: request.status,
+        requestDate: request.requestDate,
+        isUrgent: request.isUrgent,
+      },
+    });
+
     return id;
   },
 });

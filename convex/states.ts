@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -89,7 +90,7 @@ export const create = mutation({
     countryId: v.optional(v.id("countries")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     // Check if country exists (when provided)
     if (args.countryId) {
@@ -117,6 +118,19 @@ export const create = mutation({
       countryId: args.countryId,
     });
 
+    const country = args.countryId ? await ctx.db.get(args.countryId) : null;
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "state",
+      entityId: stateId,
+      details: {
+        name: args.name,
+        code: args.code ? args.code.toUpperCase() : undefined,
+        countryName: country?.name,
+      },
+    });
+
     return stateId;
   },
 });
@@ -132,7 +146,11 @@ export const update = mutation({
     countryId: v.optional(v.id("countries")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("State not found");
+    }
 
     // Check if country exists (when provided)
     if (args.countryId) {
@@ -160,6 +178,37 @@ export const update = mutation({
       countryId: args.countryId,
     });
 
+    const [previousCountry, nextCountry] = await Promise.all([
+      existing.countryId ? ctx.db.get(existing.countryId) : null,
+      args.countryId ? ctx.db.get(args.countryId) : null,
+    ]);
+
+    const changes = buildChangedFields(
+      {
+        name: existing.name,
+        code: existing.code,
+        country: previousCountry?.name ?? null,
+      },
+      {
+        name: args.name,
+        code: args.code ? args.code.toUpperCase() : undefined,
+        country: nextCountry?.name ?? null,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "state",
+        entityId: args.id,
+        details: {
+          name: existing.name,
+          changes,
+        },
+      });
+    }
+
     return args.id;
   },
 });
@@ -170,7 +219,11 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("states") },
   handler: async (ctx, { id }) => {
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("State not found");
+    }
 
     // Check if there are cities associated with this state
     const cities = await ctx.db
@@ -183,5 +236,18 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(id);
+
+    const country = existing.countryId ? await ctx.db.get(existing.countryId) : null;
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "state",
+      entityId: id,
+      details: {
+        name: existing.name,
+        code: existing.code,
+        countryName: country?.name,
+      },
+    });
   },
 });

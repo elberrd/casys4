@@ -474,7 +474,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
         {/* Activity History */}
         <EntityHistory
-          entityType="individualProcesses"
+          entityType="individualProcess"
           entityId={processId}
           title={t('activityHistory')}
         />

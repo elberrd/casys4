@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
+import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -380,7 +381,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const now = Date.now();
 
@@ -410,6 +411,20 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    const documentType = await ctx.db.get(args.documentTypeId);
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "created",
+      entityType: "document",
+      entityId: documentId,
+      details: {
+        name: args.name,
+        documentTypeName: documentType?.name,
+        fileName: args.fileName,
+        isActive: args.isActive ?? true,
+      },
+    });
+
     return documentId;
   },
 });
@@ -437,7 +452,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const { id, ...updates } = args;
     const now = Date.now();
@@ -464,6 +479,47 @@ export const update = mutation({
       updatedAt: now,
     });
 
+    const [oldType, newType] = await Promise.all([
+      existingDoc.documentTypeId
+        ? ctx.db.get(existingDoc.documentTypeId)
+        : Promise.resolve(null),
+      updates.documentTypeId
+        ? ctx.db.get(updates.documentTypeId)
+        : Promise.resolve(null),
+    ]);
+
+    const changes = buildChangedFields(
+      {
+        name: existingDoc.name,
+        documentType: oldType?.name ?? null,
+        fileName: existingDoc.fileName,
+        issueDate: existingDoc.issueDate,
+        expiryDate: existingDoc.expiryDate,
+        isActive: existingDoc.isActive ?? true,
+      },
+      {
+        name: updates.name,
+        documentType: newType?.name ?? null,
+        fileName: updates.fileName,
+        issueDate: updates.issueDate,
+        expiryDate: updates.expiryDate,
+        isActive: updates.isActive ?? true,
+      }
+    );
+
+    if (Object.keys(changes).length > 0) {
+      await logActivitySafely(ctx, {
+        userId: adminProfile.userId,
+        action: "updated",
+        entityType: "document",
+        entityId: id,
+        details: {
+          name: existingDoc.name,
+          changes,
+        },
+      });
+    }
+
     return id;
   },
 });
@@ -475,7 +531,7 @@ export const remove = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
     const document = await ctx.db.get(args.id);
     if (!document) {
@@ -488,6 +544,22 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+
+    const documentType = document.documentTypeId
+      ? await ctx.db.get(document.documentTypeId)
+      : null;
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "deleted",
+      entityType: "document",
+      entityId: args.id,
+      details: {
+        name: document.name,
+        documentTypeName: documentType?.name,
+        fileName: document.fileName,
+      },
+    });
+
     return args.id;
   },
 });
@@ -499,8 +571,9 @@ export const bulkRemove = mutation({
   args: { ids: v.array(v.id("documents")) },
   handler: async (ctx, args) => {
     // Require admin role
-    await requireAdmin(ctx);
+    const adminProfile = await requireAdmin(ctx);
 
+    let deletedCount = 0;
     for (const id of args.ids) {
       const document = await ctx.db.get(id);
       if (document) {
@@ -509,8 +582,21 @@ export const bulkRemove = mutation({
           await ctx.storage.delete(document.storageId);
         }
         await ctx.db.delete(id);
+        deletedCount += 1;
       }
     }
+
+    await logActivitySafely(ctx, {
+      userId: adminProfile.userId,
+      action: "bulk_deleted",
+      entityType: "document",
+      entityId: "bulk",
+      details: {
+        requestedCount: args.ids.length,
+        deletedCount,
+      },
+    });
+
     return args.ids;
   },
 });
