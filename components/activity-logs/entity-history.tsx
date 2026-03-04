@@ -220,9 +220,9 @@ export function EntityHistory({
           return value
         }
       }
-      // Truncate convex IDs to be readable
-      if (value.length > 30 && value.includes(":")) {
-        return value.slice(0, 20) + "..."
+      // Hide raw Convex IDs - they should have been resolved to names
+      if (/^[a-z0-9]{20,}$/.test(value) || (value.length > 30 && value.includes(":"))) {
+        return "..."
       }
       return value
     }

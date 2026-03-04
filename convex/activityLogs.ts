@@ -1,7 +1,144 @@
 import { v } from "convex/values";
 import { query, action, internalMutation, QueryCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Id, DataModel } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+
+function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
+  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+// Mapping of ID fields to their table and display name resolver
+const ID_FIELD_RESOLVERS: Record<string, {
+  table: keyof DataModel;
+  resolve: (doc: any) => string;
+  // If the display name requires a nested lookup (e.g., consulate → city)
+  nestedLookup?: (ctx: QueryCtx, doc: any) => Promise<string | null>;
+}> = {
+  cboId: {
+    table: "cboCodes",
+    resolve: (doc) => doc.code ? `${doc.code} - ${doc.title}` : doc.title,
+  },
+  consulateId: {
+    table: "consulates",
+    resolve: () => "", // handled by nestedLookup
+    nestedLookup: async (ctx, doc) => {
+      if (!doc.cityId) return doc.address || null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const city = await (ctx.db as any).get(doc.cityId);
+      return city?.name || doc.address || null;
+    },
+  },
+  companyApplicantId: {
+    table: "companies",
+    resolve: (doc) => doc.name,
+  },
+  userApplicantId: {
+    table: "people",
+    resolve: (doc) => getFullName(doc),
+  },
+  personId: {
+    table: "people",
+    resolve: (doc) => getFullName(doc),
+  },
+  collectiveProcessId: {
+    table: "collectiveProcesses",
+    resolve: (doc) => doc.referenceNumber,
+  },
+  contactPersonId: {
+    table: "people",
+    resolve: (doc) => getFullName(doc),
+  },
+  processTypeId: {
+    table: "processTypes",
+    resolve: (doc) => doc.name,
+  },
+  legalFrameworkId: {
+    table: "legalFrameworks",
+    resolve: (doc) => doc.name,
+  },
+  caseStatusId: {
+    table: "caseStatuses",
+    resolve: (doc) => doc.name,
+  },
+  nationalityId: {
+    table: "countries",
+    resolve: (doc) => doc.name,
+  },
+  currentCityId: {
+    table: "cities",
+    resolve: (doc) => doc.name,
+  },
+  cityId: {
+    table: "cities",
+    resolve: (doc) => doc.name,
+  },
+  stateId: {
+    table: "states",
+    resolve: (doc) => doc.name,
+  },
+  countryId: {
+    table: "countries",
+    resolve: (doc) => doc.name,
+  },
+  companyId: {
+    table: "companies",
+    resolve: (doc) => doc.name,
+  },
+};
+
+/**
+ * Resolve a single ID value to its display name
+ */
+async function resolveIdValue(
+  ctx: QueryCtx,
+  fieldName: string,
+  value: unknown
+): Promise<string | null> {
+  if (!value || typeof value !== "string") return null;
+  const resolver = ID_FIELD_RESOLVERS[fieldName];
+  if (!resolver) return null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc = await (ctx.db as any).get(value);
+    if (!doc) return null;
+    if (resolver.nestedLookup) {
+      return await resolver.nestedLookup(ctx, doc);
+    }
+    return resolver.resolve(doc);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Process activity log changes to resolve ID fields to display names
+ */
+async function resolveChangesIds(
+  ctx: QueryCtx,
+  details: any
+): Promise<any> {
+  if (!details?.changes || typeof details.changes !== "object") return details;
+
+  const resolvedChanges = { ...details.changes };
+
+  for (const [field, change] of Object.entries(resolvedChanges)) {
+    if (!ID_FIELD_RESOLVERS[field] || !change || typeof change !== "object") continue;
+    const { before, after } = change as { before: unknown; after: unknown };
+
+    const [resolvedBefore, resolvedAfter] = await Promise.all([
+      resolveIdValue(ctx, field, before),
+      resolveIdValue(ctx, field, after),
+    ]);
+
+    resolvedChanges[field] = {
+      before: resolvedBefore ?? before,
+      after: resolvedAfter ?? after,
+    };
+  }
+
+  return { ...details, changes: resolvedChanges };
+}
 
 const ENTITY_TYPE_GROUPS: Record<string, string[]> = {
   collectiveprocess: ["collectiveProcess", "collectiveProcesses"],
@@ -229,7 +366,16 @@ export const getEntityHistory = query({
     );
 
     const logs = logsByType.flat().sort((a, b) => b.createdAt - a.createdAt);
-    const enrichedLogs = await Promise.all(logs.map((log) => enrichLogUser(ctx, log)));
+    const enrichedLogs = await Promise.all(
+      logs.map(async (log) => {
+        const enriched = await enrichLogUser(ctx, log);
+        // Resolve ID fields in changes to display names
+        if (enriched.details) {
+          enriched.details = await resolveChangesIds(ctx, enriched.details);
+        }
+        return enriched;
+      })
+    );
 
     return enrichedLogs;
   },
