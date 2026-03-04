@@ -2241,6 +2241,10 @@
     "backToCurrentVersion": "Back to current",
     "newVersion": "New Version",
     "versionNotes": "Version Notes",
+    "deleteDocument": "Delete Document",
+    "deleteDocumentConfirm": "Are you sure you want to delete this document? This action cannot be undone.",
+    "deleteSuccess": "Document deleted successfully",
+    "deleteError": "Error deleting document",
     "validity": {
       "valid": "Valid",
       "expired": "Expired",

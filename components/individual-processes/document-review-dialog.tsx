@@ -48,6 +48,7 @@ import {
   Save,
   Pencil,
   Info,
+  Trash2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -65,6 +66,7 @@ import {
 } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { UploadNewVersionDialog } from "@/components/individual-processes/upload-new-version-dialog"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 
 const MARITAL_STATUS_OPTIONS = [
   { value: "Single", label: "Solteiro(a)", labelEn: "Single" },
@@ -186,6 +188,8 @@ export function DocumentReviewDialog({
   const [editedValues, setEditedValues] = useState<Record<string, string | number>>({})
   const [selectedVersionId, setSelectedVersionId] = useState<Id<"documentsDelivered"> | null>(null)
   const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
@@ -233,6 +237,28 @@ export function DocumentReviewDialog({
   const reject = useMutation(api.documentsDelivered.reject)
   const changeStatus = useMutation(api.documentsDelivered.changeStatus)
   const updateFieldValues = useMutation(api.documentTypeFieldMappings.updateFieldValues)
+  const removeDocument = useMutation(api.documentsDelivered.remove)
+
+  const isManuallyAdded = document
+    ? !document.documentTypeLegalFrameworkId && !document.documentRequirementId
+    : false
+  const canDelete = isManuallyAdded && document?.status !== "approved"
+
+  const handleDelete = useCallback(async () => {
+    if (!documentId) return
+    setIsDeleting(true)
+    try {
+      await removeDocument({ id: documentId })
+      toast.success(t("deleteSuccess"))
+      onOpenChange(false)
+      onSuccess?.()
+    } catch {
+      toast.error(t("deleteError"))
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }, [documentId, removeDocument, t, onOpenChange, onSuccess])
 
   // Reset editing state when dialog opens/closes
   useEffect(() => {
@@ -1188,6 +1214,23 @@ export function DocumentReviewDialog({
         </Tabs>
 
         <DialogFooter>
+          {canDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {t("deleteDocument")}
+            </Button>
+          )}
           {!isViewingOldVersion && !isReviewed && !showStatusActions ? (
             <>
               <Button
@@ -1247,6 +1290,13 @@ export function DocumentReviewDialog({
           }}
         />
       )}
+      <DeleteConfirmationDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDelete}
+        title={t("deleteDocument")}
+        description={t("deleteDocumentConfirm")}
+      />
     </Dialog>
   )
 }

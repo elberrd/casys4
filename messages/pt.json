@@ -2265,6 +2265,10 @@
     "backToCurrentVersion": "Voltar para atual",
     "newVersion": "Nova Versão",
     "versionNotes": "Observações da Versão",
+    "deleteDocument": "Remover Documento",
+    "deleteDocumentConfirm": "Tem certeza que deseja remover este documento? Esta ação não pode ser desfeita.",
+    "deleteSuccess": "Documento removido com sucesso",
+    "deleteError": "Erro ao remover documento",
     "validity": {
       "valid": "Válido",
       "expired": "Vencido",
