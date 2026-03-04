@@ -967,7 +967,12 @@
       "expired": "Expired",
       "expiringSoon": "Expiring",
       "missingDate": "Missing date"
-    }
+    },
+    "addToDocumentList": "Add",
+    "addAllMissing": "Add {count} missing",
+    "addMissingSuccess": "Document added to list",
+    "addAllMissingSuccess": "{count} document(s) added to list",
+    "addMissingError": "Error adding document"
   },
   "ProcessTimeline": {
     "title": "Process History",
@@ -1923,6 +1928,8 @@
     "description": "Description",
     "isActive": "Active",
     "isActiveDescription": "Enable or disable this document type",
+    "isCompanyDocument": "Company Document",
+    "isCompanyDocumentDescription": "Company documents can be reused across processes of the same company",
     "codeFormat": "Uppercase letters, numbers, and underscores only",
     "selectCategory": "Select a category",
     "categoryIdentity": "Identity",
@@ -1972,7 +1979,11 @@
     "workflowType": "Workflow Type",
     "validityDays": "Validity (days)",
     "sortOrder": "Sort Order",
-    "internalNotes": "Internal Notes"
+    "internalNotes": "Internal Notes",
+    "documentScope": "Document Scope",
+    "documentScopeDescription": "Company documents can be reused across processes of the same company",
+    "documentScopeIndividual": "Individual",
+    "documentScopeCompany": "Company"
   },
   "DocumentCategories": {
     "title": "Document Categories",
@@ -2116,7 +2127,30 @@
       "expired": "Expired",
       "expiringSoon": "Expiring in {days} days",
       "missingDate": "Missing date"
-    }
+    },
+    "companyDocument": "Company",
+    "reuseExisting": "Reuse Existing",
+    "reuseDialogTitle": "Reuse Company Document",
+    "reuseDialogDescription": "Select an existing document from this company to reuse in this process",
+    "noCompanyDocuments": "No documents of this type found for this company",
+    "reuseSuccess": "Document reused successfully",
+    "reuseError": "Error reusing document",
+    "reuseFrom": "Reused from {personName}'s process",
+    "reusedDocument": "Reused Document",
+    "sourceProcess": "Source process",
+    "selectToReuse": "Select",
+    "previewTitle": "Document Details",
+    "previewFileName": "File",
+    "previewVersion": "Version",
+    "previewSize": "Size",
+    "previewProcess": "Process",
+    "previewUploadDate": "Upload Date",
+    "previewIssueDate": "Issue Date",
+    "previewExpiryDate": "Expiry Date",
+    "previewDownload": "Download",
+    "reuseHint": "{count, plural, one {There is # document from this company that can be reused. Click to view.} other {There are # documents from this company that can be reused. Click to view.}}",
+    "documentScopeCompany": "Company",
+    "documentScopeIndividual": "Individual"
   },
   "DocumentUpload": {
     "title": "Upload Document",
@@ -2251,7 +2285,9 @@
       "expiring_soon": "Expiring Soon",
       "missing_date": "Missing Date",
       "daysInfo": "{days} days remaining"
-    }
+    },
+    "reusedFrom": "Reused from {personName}'s process",
+    "reusedDocument": "Reused Document"
   },
   "DocumentHistory": {
     "title": "Document History",

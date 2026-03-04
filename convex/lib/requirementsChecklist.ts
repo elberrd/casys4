@@ -179,6 +179,7 @@ export const getChecklist = query({
           isRequired: assoc.isRequired,
           completionStatus,
           document: {
+            associationId: assoc._id,
             documentTypeId: assoc.documentTypeId,
             documentTypeName: documentType.name,
             documentTypeCode: documentType.code,

@@ -61,6 +61,7 @@ import type * as migrations_forceRnmCacheInvalidation from "../migrations/forceR
 import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.js";
 import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeopleToCompanies.js";
 import type * as migrations_migrateConditionsToLinks from "../migrations/migrateConditionsToLinks.js";
+import type * as migrations_migrateDocumentScopeToDocumentType from "../migrations/migrateDocumentScopeToDocumentType.js";
 import type * as migrations_migrateIndividualProcessStatuses from "../migrations/migrateIndividualProcessStatuses.js";
 import type * as migrations_migrateProcessStatus from "../migrations/migrateProcessStatus.js";
 import type * as migrations_migrateToCaseStatuses from "../migrations/migrateToCaseStatuses.js";
@@ -163,6 +164,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/importPeopleCsv": typeof migrations_importPeopleCsv;
   "migrations/linkPeopleToCompanies": typeof migrations_linkPeopleToCompanies;
   "migrations/migrateConditionsToLinks": typeof migrations_migrateConditionsToLinks;
+  "migrations/migrateDocumentScopeToDocumentType": typeof migrations_migrateDocumentScopeToDocumentType;
   "migrations/migrateIndividualProcessStatuses": typeof migrations_migrateIndividualProcessStatuses;
   "migrations/migrateProcessStatus": typeof migrations_migrateProcessStatus;
   "migrations/migrateToCaseStatuses": typeof migrations_migrateToCaseStatuses;

@@ -966,7 +966,12 @@
       "expired": "Vencido",
       "expiringSoon": "Vencendo",
       "missingDate": "Data ausente"
-    }
+    },
+    "addToDocumentList": "Adicionar",
+    "addAllMissing": "Adicionar {count} faltante(s)",
+    "addMissingSuccess": "Documento adicionado à lista",
+    "addAllMissingSuccess": "{count} documento(s) adicionado(s) à lista",
+    "addMissingError": "Erro ao adicionar documento"
   },
   "ProcessTimeline": {
     "title": "Histórico do Processo",
@@ -1947,6 +1952,8 @@
     "description": "Descrição",
     "isActive": "Ativo",
     "isActiveDescription": "Ativar ou desativar este tipo de documento",
+    "isCompanyDocument": "Documento de Empresa",
+    "isCompanyDocumentDescription": "Documentos de empresa podem ser reutilizados entre processos da mesma empresa",
     "codeFormat": "Somente letras maiúsculas, números e sublinhados",
     "selectCategory": "Selecione uma categoria",
     "categoryIdentity": "Identidade",
@@ -1996,7 +2003,11 @@
     "workflowType": "Tipo de Workflow",
     "validityDays": "Validade (dias)",
     "sortOrder": "Ordem",
-    "internalNotes": "Notas Internas"
+    "internalNotes": "Notas Internas",
+    "documentScope": "Escopo do Documento",
+    "documentScopeDescription": "Documentos de empresa podem ser reutilizados entre processos da mesma empresa",
+    "documentScopeIndividual": "Individual",
+    "documentScopeCompany": "Empresa"
   },
   "DocumentCategories": {
     "title": "Categorias de Documento",
@@ -2140,7 +2151,30 @@
       "expired": "Vencido",
       "expiringSoon": "Vencendo em {days} dias",
       "missingDate": "Data ausente"
-    }
+    },
+    "companyDocument": "Empresa",
+    "reuseExisting": "Reutilizar Existente",
+    "reuseDialogTitle": "Reutilizar Documento da Empresa",
+    "reuseDialogDescription": "Selecione um documento existente desta empresa para reutilizar neste processo",
+    "noCompanyDocuments": "Nenhum documento deste tipo encontrado para esta empresa",
+    "reuseSuccess": "Documento reutilizado com sucesso",
+    "reuseError": "Erro ao reutilizar documento",
+    "reuseFrom": "Reutilizado do processo de {personName}",
+    "reusedDocument": "Documento Reutilizado",
+    "sourceProcess": "Processo de origem",
+    "selectToReuse": "Selecionar",
+    "previewTitle": "Detalhes do Documento",
+    "previewFileName": "Arquivo",
+    "previewVersion": "Versão",
+    "previewSize": "Tamanho",
+    "previewProcess": "Processo",
+    "previewUploadDate": "Data de Envio",
+    "previewIssueDate": "Data de Emissão",
+    "previewExpiryDate": "Data de Validade",
+    "previewDownload": "Baixar",
+    "reuseHint": "{count, plural, one {Existe # documento desta empresa que pode ser reutilizado. Clique para ver.} other {Existem # documentos desta empresa que podem ser reutilizados. Clique para ver.}}",
+    "documentScopeCompany": "Empresa",
+    "documentScopeIndividual": "Individual"
   },
   "DocumentUpload": {
     "title": "Enviar Documento",
@@ -2275,7 +2309,9 @@
       "expiring_soon": "Vencendo em Breve",
       "missing_date": "Data Ausente",
       "daysInfo": "{days} dias restantes"
-    }
+    },
+    "reusedFrom": "Reutilizado do processo de {personName}",
+    "reusedDocument": "Documento Reutilizado"
   },
   "DocumentHistory": {
     "title": "Histórico do Documento",

@@ -63,9 +63,9 @@ export function GovernmentProtocolCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 {t('governmentProtocol')}
@@ -77,7 +77,7 @@ export function GovernmentProtocolCard({
             <CardDescription>{t('governmentProtocolDescription')}</CardDescription>
           </div>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={handleEdit}>
+            <Button variant="outline" size="sm" onClick={handleEdit} className="self-start">
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>
@@ -109,8 +109,8 @@ export function GovernmentProtocolCard({
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span>{t('mreOffice')}</span>
                 </div>
-                <div className="pl-6">
-                  <div className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                <div className="pl-0 sm:pl-6">
+                  <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-2">
                     <span className="text-muted-foreground">{t('mreOfficeNumber')}</span>
                     <span className="font-mono">{individualProcess.mreOfficeNumber}</span>
                   </div>
@@ -128,13 +128,13 @@ export function GovernmentProtocolCard({
                   <Newspaper className="h-4 w-4 text-muted-foreground" />
                   <span>{t('douPublication')}</span>
                   {individualProcess.douDate && (
-                    <Badge variant="secondary" className="ml-auto">
+                    <Badge variant="secondary" className="sm:ml-auto">
                       {t('published')}
                     </Badge>
                   )}
                 </div>
-                <div className="pl-6">
-                  <div className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                <div className="pl-0 sm:pl-6">
+                  <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-2">
                     {individualProcess.douNumber && (
                       <>
                         <span className="text-muted-foreground">{t('douNumber')}</span>
@@ -170,12 +170,12 @@ export function GovernmentProtocolCard({
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <FileText className="h-4 w-4 text-muted-foreground" />
                   <span>{t('protocolSubmission')}</span>
-                  <Badge variant="default" className="ml-auto">
+                  <Badge variant="default" className="sm:ml-auto">
                     {t('submitted')}
                   </Badge>
                 </div>
-                <div className="pl-6">
-                  <div className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                <div className="pl-0 sm:pl-6">
+                  <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-2">
                     <span className="text-muted-foreground">{t('protocolNumber')}</span>
                     <span className="font-mono">{individualProcess.protocolNumber}</span>
                   </div>
@@ -190,13 +190,13 @@ export function GovernmentProtocolCard({
                   <FileText className="h-4 w-4 text-muted-foreground" />
                   <span>{t('rnmInformation')}</span>
                   {individualProcess.rnmNumber && (
-                    <Badge variant="default" className="ml-auto bg-green-500">
+                    <Badge variant="default" className="bg-green-500 sm:ml-auto">
                       {t('approved')}
                     </Badge>
                   )}
                 </div>
-                <div className="pl-6">
-                  <div className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                <div className="pl-0 sm:pl-6">
+                  <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-2">
                     {individualProcess.rnmNumber && (
                       <>
                         <span className="text-muted-foreground">{t('rnmNumber')}</span>
@@ -227,8 +227,8 @@ export function GovernmentProtocolCard({
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>{t('appointmentScheduled')}</span>
                 </div>
-                <div className="pl-6">
-                  <div className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                <div className="pl-0 sm:pl-6">
+                  <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-2">
                     <span className="text-muted-foreground">{t('appointmentDateTime')}</span>
                     <span>{new Date(individualProcess.appointmentDateTime).toLocaleString()}</span>
                   </div>

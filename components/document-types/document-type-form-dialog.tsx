@@ -38,7 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Plus } from "lucide-react";
+import { Plus, Building2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -163,6 +163,7 @@ export function DocumentTypeFormDialog({
       allowedFileTypes: documentType?.allowedFileTypes ?? [...commonFileTypes],
       maxFileSizeMB: documentType?.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
       isActive: documentType?.isActive ?? true,
+      isCompanyDocument: documentType?.isCompanyDocument ?? false,
       legalFrameworkAssociations: documentType?.legalFrameworkAssociations?.map((a) => ({
         legalFrameworkId: a.legalFrameworkId,
         isRequired: a.isRequired,
@@ -198,6 +199,7 @@ export function DocumentTypeFormDialog({
         allowedFileTypes: documentType.allowedFileTypes ?? [...commonFileTypes],
         maxFileSizeMB: documentType.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
         isActive: documentType.isActive,
+        isCompanyDocument: documentType.isCompanyDocument ?? false,
         legalFrameworkAssociations: documentType.legalFrameworkAssociations?.map((a) => ({
           legalFrameworkId: a.legalFrameworkId,
           isRequired: a.isRequired,
@@ -248,6 +250,7 @@ export function DocumentTypeFormDialog({
           allowedFileTypes: data.allowedFileTypes,
           maxFileSizeMB: data.maxFileSizeMB,
           isActive: data.isActive,
+          isCompanyDocument: data.isCompanyDocument,
           legalFrameworkAssociations: associations,
         });
 
@@ -266,6 +269,7 @@ export function DocumentTypeFormDialog({
           allowedFileTypes: data.allowedFileTypes,
           maxFileSizeMB: data.maxFileSizeMB,
           isActive: data.isActive,
+          isCompanyDocument: data.isCompanyDocument,
           legalFrameworkAssociations: associations,
         });
         toast.success(t("createdSuccess"));
@@ -484,6 +488,30 @@ export function DocumentTypeFormDialog({
             )}
 
             <Separator className="my-4" />
+
+            <FormField
+              control={form.control}
+              name="isCompanyDocument"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      {t("isCompanyDocument")}
+                    </FormLabel>
+                    <FormDescription>
+                      {t("isCompanyDocumentDescription")}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

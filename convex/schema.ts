@@ -249,6 +249,7 @@ export default defineSchema({
     allowedFileTypes: v.optional(v.array(v.string())), // [".pdf", ".jpg", ".png", etc.]
     maxFileSizeMB: v.optional(v.number()), // Maximum file size in MB
     isActive: v.optional(v.boolean()),
+    isCompanyDocument: v.optional(v.boolean()),
   })
     .index("by_code", ["code"])
     .index("by_category", ["category"])
@@ -267,6 +268,7 @@ export default defineSchema({
     sortOrder: v.optional(v.number()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()), // Internal notes
+    documentScope: v.optional(v.string()), // "individual" | "company" (default: "individual")
     createdAt: v.number(),
     createdBy: v.id("users"),
   })
@@ -596,6 +598,7 @@ export default defineSchema({
     version: v.number(),
     isLatest: v.boolean(),
     versionNotes: v.optional(v.string()),
+    reusedFromDocumentId: v.optional(v.id("documentsDelivered")), // Reference to the original reused document
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])

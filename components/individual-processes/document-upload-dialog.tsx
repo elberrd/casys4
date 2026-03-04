@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useMemo } from "react"
-import { useMutation } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info } from "lucide-react"
+import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, RotateCcw } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +45,12 @@ interface DocumentUploadDialogProps {
     validityType: string
     validityDays: number
   }
+  companyReuse?: {
+    companyApplicantId: Id<"companies">
+    targetDocumentId: Id<"documentsDelivered">
+    documentTypeName: string
+  }
+  onReuseClick?: () => void
   onSuccess?: () => void
 }
 
@@ -56,9 +62,12 @@ export function DocumentUploadDialog({
   documentRequirementId,
   documentInfo,
   validityRule,
+  companyReuse,
+  onReuseClick,
   onSuccess,
 }: DocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload")
+  const tChecklist = useTranslations("DocumentChecklist")
   const tCommon = useTranslations("Common")
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -68,6 +77,17 @@ export function DocumentUploadDialog({
   const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const reusableDocuments = useQuery(
+    api.documentsDelivered.listCompanyDocumentsForReuse,
+    companyReuse
+      ? {
+          companyApplicantId: companyReuse.companyApplicantId,
+          documentTypeId,
+          excludeProcessId: individualProcessId,
+        }
+      : "skip"
+  )
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
   const uploadDocument = useMutation(api.documentsDelivered.upload)
@@ -214,15 +234,29 @@ export function DocumentUploadDialog({
           </div>
           <DialogDescription>
             {documentInfo?.name && (
-              <div className="mt-2">
-                <p className="font-medium text-foreground">{documentInfo.name}</p>
+              <span className="mt-2 block">
+                <span className="font-medium text-foreground">{documentInfo.name}</span>
                 {documentInfo.description && (
-                  <p className="text-sm mt-1">{documentInfo.description}</p>
+                  <span className="text-sm mt-1 block">{documentInfo.description}</span>
                 )}
-              </div>
+              </span>
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Reuse hint for company documents */}
+        {companyReuse && reusableDocuments && reusableDocuments.length > 0 && onReuseClick && (
+          <button
+            type="button"
+            onClick={onReuseClick}
+            className="flex w-full items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-left text-sm transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:hover:bg-blue-900 cursor-pointer"
+          >
+            <RotateCcw className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="flex-1 text-blue-800 dark:text-blue-200">
+              {tChecklist("reuseHint", { count: reusableDocuments.length })}
+            </span>
+          </button>
+        )}
 
         <div className="space-y-4 py-4">
           {/* File requirements */}

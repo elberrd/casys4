@@ -8,7 +8,7 @@ import { Id } from "@/convex/_generated/dataModel"
 
 interface UserApplicantSelectorProps {
   value: string
-  onChange: (value: string) => void
+  onChange: (value: string, companyId?: string) => void
   disabled?: boolean
 }
 
@@ -44,7 +44,10 @@ export function UserApplicantSelector({
     <Combobox
       options={options}
       value={value || undefined}
-      onValueChange={(newValue) => onChange(newValue || "")}
+      onValueChange={(newValue) => {
+        const selected = people.find((p) => p._id === newValue)
+        onChange(newValue || "", selected?.companyId)
+      }}
       placeholder={t("selectUserApplicant")}
       searchPlaceholder={t("selectUserApplicant")}
       emptyText={t("noApplicantsFound")}

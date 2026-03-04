@@ -97,13 +97,13 @@ export function ProcessTasksSection({
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <ListTodo className="h-5 w-5" />
             {t("title")}
           </CardTitle>
           {canAddTask && (
-            <Button onClick={handleAddTask} size="sm">
+            <Button onClick={handleAddTask} size="sm" className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               {t("newTask")}
             </Button>

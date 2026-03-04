@@ -149,6 +149,7 @@ export const create = mutation({
     allowedFileTypes: v.optional(v.array(v.string())),
     maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    isCompanyDocument: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -185,6 +186,7 @@ export const create = mutation({
       allowedFileTypes: args.allowedFileTypes ?? [],
       maxFileSizeMB: args.maxFileSizeMB ?? 10,
       isActive: args.isActive ?? true,
+      isCompanyDocument: args.isCompanyDocument ?? false,
     });
 
     // Create legal framework associations if provided
@@ -232,6 +234,7 @@ export const update = mutation({
     allowedFileTypes: v.optional(v.array(v.string())),
     maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    isCompanyDocument: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -286,6 +289,7 @@ export const update = mutation({
         maxFileSizeMB: updateData.maxFileSizeMB,
       }),
       ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
+      ...(updateData.isCompanyDocument !== undefined && { isCompanyDocument: updateData.isCompanyDocument }),
     });
 
     // Update legal framework associations if provided

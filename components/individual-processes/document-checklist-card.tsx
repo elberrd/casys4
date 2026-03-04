@@ -37,6 +37,8 @@ import {
   Plus,
   ChevronDown,
   Trash2,
+  Building2,
+  RotateCcw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -49,6 +51,8 @@ import { BulkDocumentActionsMenu } from "./bulk-document-actions-menu"
 import { LooseDocumentUploadDialog } from "./loose-document-upload-dialog"
 import { TypedDocumentUploadDialog } from "./typed-document-upload-dialog"
 import { AssignDocumentTypeDialog } from "./assign-document-type-dialog"
+import { CompanyDocumentReuseDialog } from "./company-document-reuse-dialog"
+import { RequirementsChecklistSheet, ChecklistTriggerButton } from "./requirements-checklist-card"
 
 interface DocumentChecklistCardProps {
   individualProcessId: Id<"individualProcesses">
@@ -86,6 +90,14 @@ type DialogState = {
       mimeType: string
     } | null
   }
+  reuse: {
+    open: boolean
+    document: {
+      targetDocumentId: Id<"documentsDelivered">
+      documentTypeId: Id<"documentTypes">
+      documentTypeName: string
+    } | null
+  }
 }
 
 export function DocumentChecklistCard({
@@ -114,6 +126,7 @@ export function DocumentChecklistCard({
     looseUpload: { open: false },
     typedUpload: { open: false },
     assignType: { open: false, document: null },
+    reuse: { open: false, document: null },
   })
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
@@ -123,6 +136,7 @@ export function DocumentChecklistCard({
     documentName: string
   }>({ open: false, documentId: null, documentName: "" })
   const [isDeleting, setIsDeleting] = useState(false)
+  const [checklistOpen, setChecklistOpen] = useState(false)
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -153,6 +167,21 @@ export function DocumentChecklistCard({
 
   const openTypedUploadDialog = () => {
     setDialogs(prev => ({ ...prev, typedUpload: { open: true } }))
+  }
+
+  const openReuseDialog = (doc: any) => {
+    if (!doc.documentTypeId) return
+    setDialogs(prev => ({
+      ...prev,
+      reuse: {
+        open: true,
+        document: {
+          targetDocumentId: doc._id,
+          documentTypeId: doc.documentTypeId,
+          documentTypeName: doc.documentType?.name || "",
+        },
+      },
+    }))
   }
 
   const openAssignTypeDialog = (doc: any) => {
@@ -197,6 +226,7 @@ export function DocumentChecklistCard({
       looseUpload: { open: false },
       typedUpload: { open: false },
       assignType: { open: false, document: null },
+      reuse: { open: false, document: null },
     })
   }
 
@@ -252,7 +282,7 @@ export function DocumentChecklistCard({
     )
   }
 
-  const { required, optional, loose, summary } = groupedDocuments
+  const { required, optional, loose, summary, companyApplicantId } = groupedDocuments
 
   // Derived summary values for UI
   const requiredCompleted = summary.requiredApproved
@@ -302,7 +332,7 @@ export function DocumentChecklistCard({
     <div
       key={doc._id}
       className={cn(
-        "flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer",
+        "flex cursor-pointer flex-col gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between",
         showCritical && doc.isRequired && "border-primary/50",
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
@@ -314,7 +344,7 @@ export function DocumentChecklistCard({
         }
       }}
     >
-      <div className="flex items-center gap-3 flex-1">
+      <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
         {doc.status !== "not_started" && (
           <Checkbox
             checked={selectedDocumentIds.has(doc._id)}
@@ -329,13 +359,19 @@ export function DocumentChecklistCard({
           getStatusIcon(doc.status)
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium truncate">
               {doc.documentType?.name || doc.fileName || t("looseDocument")}
             </p>
             {showCritical && doc.isRequired && (
               <Badge variant="default" className="text-xs">
                 {t("required")}
+              </Badge>
+            )}
+            {doc.documentType?.isCompanyDocument === true && (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <Building2 className="h-3 w-3" />
+                {t("companyDocument")}
               </Badge>
             )}
             {isLoose && (
@@ -358,7 +394,7 @@ export function DocumentChecklistCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 ml-3" onClick={(e) => e.stopPropagation()}>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
 
         {/* Validity badges */}
@@ -381,16 +417,28 @@ export function DocumentChecklistCard({
         )}
 
         {doc.status === "not_started" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => openUploadDialog(doc)}
-          >
-            <Upload className="h-4 w-4 mr-1" />
-            {t("upload")}
-          </Button>
+          <div className="flex flex-wrap gap-1">
+            {doc.documentType?.isCompanyDocument === true && companyApplicantId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openReuseDialog(doc)}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                {t("reuseExisting")}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openUploadDialog(doc)}
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              {t("upload")}
+            </Button>
+          </div>
         ) : (
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             <Button
               size="sm"
               variant="ghost"
@@ -467,9 +515,9 @@ export function DocumentChecklistCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
-            <CardTitle className="flex items-center gap-3">
+            <CardTitle className="flex flex-wrap items-center gap-3">
               {selectableDocs.length > 0 && (
                 <Checkbox
                   checked={allSelectableSelected}
@@ -484,7 +532,7 @@ export function DocumentChecklistCard({
             </CardTitle>
             <CardDescription className="mt-2">{t("description")}</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {selectedDocuments.length > 0 && (
               <BulkDocumentActionsMenu
                 selectedDocuments={selectedDocuments.map(doc => ({
@@ -498,26 +546,33 @@ export function DocumentChecklistCard({
                 userRole={userRole}
               />
             )}
+            {/* Checklist sidebar trigger */}
+            <ChecklistTriggerButton
+              individualProcessId={individualProcessId}
+              onClick={() => setChecklistOpen(true)}
+            />
             {/* Upload dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  {t("addDocument")}
-                  <ChevronDown className="h-4 w-4 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openLooseUploadDialog}>
-                  <FileQuestion className="h-4 w-4 mr-2" />
-                  {t("uploadLoose")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={openTypedUploadDialog}>
-                  <FileType className="h-4 w-4 mr-2" />
-                  {t("uploadWithType")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="w-full sm:w-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="w-full sm:w-auto">
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t("addDocument")}
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={openLooseUploadDialog}>
+                    <FileQuestion className="h-4 w-4 mr-2" />
+                    {t("uploadLoose")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openTypedUploadDialog}>
+                    <FileType className="h-4 w-4 mr-2" />
+                    {t("uploadWithType")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -544,10 +599,10 @@ export function DocumentChecklistCard({
         {/* Required Documents */}
         {required.length > 0 && (
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
+            <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               {t("requiredDocuments")}
-              <Badge variant="secondary" className="ml-auto">
+              <Badge variant="secondary" className="sm:ml-auto">
                 {required.filter(d => d.status === "approved").length} / {required.length}
               </Badge>
             </h3>
@@ -562,10 +617,10 @@ export function DocumentChecklistCard({
           <>
             <Separator />
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
                 <FileText className="h-4 w-4" />
                 {t("optionalDocuments")}
-                <Badge variant="outline" className="ml-auto">
+                <Badge variant="outline" className="sm:ml-auto">
                   {optional.filter(d => d.status === "approved").length} / {optional.length}
                 </Badge>
               </h3>
@@ -581,10 +636,10 @@ export function DocumentChecklistCard({
           <>
             <Separator />
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
                 <FileQuestion className="h-4 w-4" />
                 {t("looseDocuments")}
-                <Badge variant="outline" className="ml-auto">
+                <Badge variant="outline" className="sm:ml-auto">
                   {loose.length}
                 </Badge>
               </h3>
@@ -604,12 +659,12 @@ export function DocumentChecklistCard({
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="text-sm">{t("noDocuments")}</p>
             <p className="text-xs mt-2">{t("noDocumentsHint")}</p>
-            <div className="flex justify-center gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={openLooseUploadDialog}>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button variant="outline" size="sm" onClick={openLooseUploadDialog} className="w-full sm:w-auto">
                 <FileQuestion className="h-4 w-4 mr-1" />
                 {t("uploadLoose")}
               </Button>
-              <Button variant="outline" size="sm" onClick={openTypedUploadDialog}>
+              <Button variant="outline" size="sm" onClick={openTypedUploadDialog} className="w-full sm:w-auto">
                 <FileType className="h-4 w-4 mr-1" />
                 {t("uploadWithType")}
               </Button>
@@ -635,6 +690,22 @@ export function DocumentChecklistCard({
             allowedFormats: dialogs.upload.document.documentType?.allowedFileTypes,
           }}
           validityRule={dialogs.upload.document.validityRule}
+          companyReuse={
+            dialogs.upload.document.documentType?.isCompanyDocument && companyApplicantId
+              ? {
+                  companyApplicantId,
+                  targetDocumentId: dialogs.upload.document._id,
+                  documentTypeName: dialogs.upload.document.documentType?.name || "",
+                }
+              : undefined
+          }
+          onReuseClick={() => {
+            const doc = dialogs.upload.document
+            if (doc) {
+              closeAllDialogs()
+              openReuseDialog(doc)
+            }
+          }}
           onSuccess={closeAllDialogs}
         />
       )}
@@ -709,6 +780,21 @@ export function DocumentChecklistCard({
         />
       )}
 
+      {dialogs.reuse.open && dialogs.reuse.document && companyApplicantId && (
+        <CompanyDocumentReuseDialog
+          open={dialogs.reuse.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          companyApplicantId={companyApplicantId}
+          documentTypeId={dialogs.reuse.document.documentTypeId}
+          targetDocumentId={dialogs.reuse.document.targetDocumentId}
+          individualProcessId={individualProcessId}
+          documentTypeName={dialogs.reuse.document.documentTypeName}
+          onSuccess={closeAllDialogs}
+        />
+      )}
+
       <DeleteConfirmationDialog
         open={deleteConfirm.open}
         onOpenChange={(open) => {
@@ -718,6 +804,14 @@ export function DocumentChecklistCard({
         title={t("deleteDocument")}
         description={t("deleteDocumentDescription")}
         isDeleting={isDeleting}
+      />
+
+      {/* Requirements Checklist Sidebar */}
+      <RequirementsChecklistSheet
+        open={checklistOpen}
+        onOpenChange={setChecklistOpen}
+        individualProcessId={individualProcessId}
+        userRole={userRole}
       />
     </Card>
   )

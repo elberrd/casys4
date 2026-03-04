@@ -5,17 +5,101 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 import { enUS, ptBR } from "date-fns/locale"
-import { Plus, Edit, Trash2, CheckCircle, UserPlus, Calendar, FileText } from "lucide-react"
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  CheckCircle,
+  UserPlus,
+  ArrowRightLeft,
+  FileText,
+  AlertTriangle,
+  Copy,
+  Shield,
+  ArrowRight,
+  Clock,
+} from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface EntityHistoryProps {
   entityType: string
   entityId: string
   title?: string
+}
+
+// Fields to skip when rendering changed fields
+const SKIP_FIELDS = new Set([
+  "personName",
+  "collectiveProcessReference",
+  "changes",
+  "statusFrom",
+  "statusTo",
+  "message",
+  "documentType",
+  "taskTitle",
+  "relatedDataDeleted",
+  "caseStatusId",
+  "legalFrameworkId",
+  "processTypeId",
+  "sourceProcessId",
+  "newProcessId",
+  "caseStatusName",
+  "affectedProcesses",
+])
+
+// Human-readable field labels
+const FIELD_LABELS: Record<string, Record<string, string>> = {
+  pt: {
+    status: "Status",
+    urgent: "Urgente",
+    funcao: "Funcao",
+    qualification: "Qualificacao",
+    protocolNumber: "Protocolo",
+    deadlineDate: "Prazo",
+    deadlineUnit: "Unidade do prazo",
+    deadlineQuantity: "Quantidade do prazo",
+    deadlineSpecificDate: "Data especifica do prazo",
+    professionalExperienceSince: "Experiencia profissional desde",
+    lastSalaryAmount: "Ultimo salario",
+    lastSalaryCurrency: "Moeda do salario",
+    exchangeRateToBRL: "Taxa de cambio para BRL",
+    salaryInBRL: "Salario em BRL",
+    monthlyAmountToReceive: "Valor mensal a receber",
+    dateProcess: "Data do processo",
+    cboId: "CBO",
+    consulateId: "Consulado",
+    companyApplicantId: "Empresa requerente",
+    userApplicantId: "Usuario requerente",
+    personId: "Pessoa",
+    collectiveProcessId: "Processo coletivo",
+  },
+  en: {
+    status: "Status",
+    urgent: "Urgent",
+    funcao: "Role",
+    qualification: "Qualification",
+    protocolNumber: "Protocol",
+    deadlineDate: "Deadline",
+    deadlineUnit: "Deadline unit",
+    deadlineQuantity: "Deadline quantity",
+    deadlineSpecificDate: "Specific deadline date",
+    professionalExperienceSince: "Professional experience since",
+    lastSalaryAmount: "Last salary",
+    lastSalaryCurrency: "Salary currency",
+    exchangeRateToBRL: "Exchange rate to BRL",
+    salaryInBRL: "Salary in BRL",
+    monthlyAmountToReceive: "Monthly amount to receive",
+    dateProcess: "Process date",
+    cboId: "CBO",
+    consulateId: "Consulate",
+    companyApplicantId: "Applicant company",
+    userApplicantId: "Applicant user",
+    personId: "Person",
+    collectiveProcessId: "Collective process",
+  },
 }
 
 export function EntityHistory({
@@ -32,52 +116,78 @@ export function EntityHistory({
     entityId,
   })
 
-  // Helper to get action icon
   const getActionIcon = (action: string) => {
     switch (action) {
       case "created":
-        return <Plus className="h-4 w-4" />
+        return <Plus className="h-3.5 w-3.5" />
+      case "created_from_existing":
+        return <Copy className="h-3.5 w-3.5" />
       case "updated":
-        return <Edit className="h-4 w-4" />
+      case "fillable_fields_updated":
+      case "filled_fields_saved":
+        return <Pencil className="h-3.5 w-3.5" />
       case "deleted":
-        return <Trash2 className="h-4 w-4" />
+      case "bulk_deleted":
+        return <Trash2 className="h-3.5 w-3.5" />
       case "approved":
-        return <CheckCircle className="h-4 w-4" />
+      case "completed":
+        return <CheckCircle className="h-3.5 w-3.5" />
       case "rejected":
-        return <Trash2 className="h-4 w-4" />
+        return <AlertTriangle className="h-3.5 w-3.5" />
       case "assigned":
       case "reassigned":
-        return <UserPlus className="h-4 w-4" />
-      case "completed":
-        return <CheckCircle className="h-4 w-4" />
+        return <UserPlus className="h-3.5 w-3.5" />
       case "status_changed":
-        return <Calendar className="h-4 w-4" />
+      case "status_added":
+      case "status_updated":
+        return <ArrowRightLeft className="h-3.5 w-3.5" />
+      case "urgent_update":
+      case "bulk_urgent_update":
+        return <AlertTriangle className="h-3.5 w-3.5" />
+      case "authorization_update":
+      case "bulk_authorization_update":
+        return <Shield className="h-3.5 w-3.5" />
+      case "marked_as_previous":
+        return <Clock className="h-3.5 w-3.5" />
       default:
-        return <FileText className="h-4 w-4" />
+        return <FileText className="h-3.5 w-3.5" />
     }
   }
 
-  // Helper to get action color
-  const getActionColor = (action: string) => {
+  const getActionStyle = (action: string): { bg: string; text: string; badge: string } => {
     switch (action) {
       case "created":
-        return "text-blue-600 dark:text-blue-400"
+      case "created_from_existing":
+        return { bg: "bg-blue-100 dark:bg-blue-950", text: "text-blue-700 dark:text-blue-300", badge: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300" }
       case "updated":
-        return "text-yellow-600 dark:text-yellow-400"
+      case "fillable_fields_updated":
+      case "filled_fields_saved":
+      case "authorization_update":
+      case "bulk_authorization_update":
+        return { bg: "bg-amber-100 dark:bg-amber-950", text: "text-amber-700 dark:text-amber-300", badge: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300" }
       case "deleted":
-        return "text-red-600 dark:text-red-400"
-      case "approved":
-        return "text-green-600 dark:text-green-400"
+      case "bulk_deleted":
       case "rejected":
-        return "text-red-600 dark:text-red-400"
+        return { bg: "bg-red-100 dark:bg-red-950", text: "text-red-700 dark:text-red-300", badge: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300" }
+      case "approved":
       case "completed":
-        return "text-green-600 dark:text-green-400"
+        return { bg: "bg-green-100 dark:bg-green-950", text: "text-green-700 dark:text-green-300", badge: "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300" }
+      case "status_changed":
+      case "status_added":
+      case "status_updated":
+      case "status_deleted":
+        return { bg: "bg-purple-100 dark:bg-purple-950", text: "text-purple-700 dark:text-purple-300", badge: "border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300" }
+      case "urgent_update":
+      case "bulk_urgent_update":
+        return { bg: "bg-orange-100 dark:bg-orange-950", text: "text-orange-700 dark:text-orange-300", badge: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300" }
+      case "assigned":
+      case "reassigned":
+        return { bg: "bg-indigo-100 dark:bg-indigo-950", text: "text-indigo-700 dark:text-indigo-300", badge: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300" }
       default:
-        return "text-gray-600 dark:text-gray-400"
+        return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-700 dark:text-gray-300", badge: "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" }
     }
   }
 
-  // Helper to get user initials
   const getUserInitials = (name: string) => {
     return name
       .split(" ")
@@ -87,33 +197,200 @@ export function EntityHistory({
       .slice(0, 2)
   }
 
-  // Helper to format action message
-  const formatActionMessage = (log: any) => {
-    const action = t(`actions.${log.action}`, { defaultValue: log.action })
-    const user = log.user?.fullName || tCommon('unknown')
+  const formatFieldValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "-"
+    if (typeof value === "boolean") return value ? (locale === "pt" ? "Sim" : "Yes") : (locale === "pt" ? "Nao" : "No")
+    if (typeof value === "number") {
+      // Check if it looks like a timestamp (> year 2000 in ms)
+      if (value > 946684800000) {
+        try {
+          return format(new Date(value), locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy")
+        } catch {
+          return String(value)
+        }
+      }
+      return String(value)
+    }
+    if (typeof value === "string") {
+      // Check if it's an ISO date or date-like string
+      if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+        try {
+          return format(new Date(value), locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy")
+        } catch {
+          return value
+        }
+      }
+      // Truncate convex IDs to be readable
+      if (value.length > 30 && value.includes(":")) {
+        return value.slice(0, 20) + "..."
+      }
+      return value
+    }
+    return String(value)
+  }
 
-    if (log.details?.statusFrom && log.details?.statusTo) {
-      return t('statusChangedMessage', {
-        user,
-        from: log.details.statusFrom,
-        to: log.details.statusTo,
+  const getFieldLabel = (field: string): string => {
+    const labels = FIELD_LABELS[locale] || FIELD_LABELS.en
+    return labels[field] || field.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim()
+  }
+
+  // Build renderable detail items from a log
+  const getDetailItems = (log: any): { type: string; content: React.ReactNode }[] => {
+    const items: { type: string; content: React.ReactNode }[] = []
+    const details = log.details
+    if (!details) return items
+
+    // Status change
+    if (details.statusFrom && details.statusTo) {
+      items.push({
+        type: "status",
+        content: (
+          <div className="flex items-center gap-2 text-xs">
+            <Badge variant="outline" className="text-xs font-normal">
+              {details.statusFrom}
+            </Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge className="text-xs font-normal">
+              {details.statusTo}
+            </Badge>
+          </div>
+        ),
       })
     }
 
-    return `${user} ${action.toLowerCase()}`
+    // Case status name (for created)
+    if (details.caseStatusName && log.action === "created") {
+      items.push({
+        type: "info",
+        content: (
+          <span className="text-xs text-muted-foreground">
+            Status: <span className="font-medium text-foreground">{details.caseStatusName}</span>
+          </span>
+        ),
+      })
+    }
+
+    // Document type
+    if (details.documentType) {
+      items.push({
+        type: "info",
+        content: (
+          <span className="text-xs text-muted-foreground">
+            {t('documentType')}: <span className="font-medium text-foreground">{details.documentType}</span>
+          </span>
+        ),
+      })
+    }
+
+    // Task title
+    if (details.taskTitle) {
+      items.push({
+        type: "info",
+        content: (
+          <span className="text-xs text-muted-foreground">
+            {t('taskTitle')}: <span className="font-medium text-foreground">{details.taskTitle}</span>
+          </span>
+        ),
+      })
+    }
+
+    // Urgency
+    if (details.urgent !== undefined) {
+      items.push({
+        type: "info",
+        content: (
+          <span className="text-xs text-muted-foreground">
+            {locale === "pt" ? "Urgente" : "Urgent"}: <span className="font-medium text-foreground">{details.urgent ? (locale === "pt" ? "Sim" : "Yes") : (locale === "pt" ? "Nao" : "No")}</span>
+          </span>
+        ),
+      })
+    }
+
+    // Message
+    if (details.message) {
+      items.push({
+        type: "message",
+        content: (
+          <span className="text-xs text-muted-foreground italic">{details.message}</span>
+        ),
+      })
+    }
+
+    // Related data deleted (for delete actions)
+    if (details.relatedDataDeleted) {
+      const rd = details.relatedDataDeleted as Record<string, number>
+      const parts = Object.entries(rd)
+        .filter(([, count]) => count > 0)
+        .map(([key, count]) => `${count} ${key}`)
+      if (parts.length > 0) {
+        items.push({
+          type: "info",
+          content: (
+            <span className="text-xs text-muted-foreground">
+              {locale === "pt" ? "Dados relacionados removidos" : "Related data removed"}: <span className="font-medium text-foreground">{parts.join(", ")}</span>
+            </span>
+          ),
+        })
+      }
+    }
+
+    // Changed fields (before/after)
+    if (details.changes && typeof details.changes === "object") {
+      const changes = details.changes as Record<string, { before: unknown; after: unknown }>
+      const changeEntries = Object.entries(changes).filter(([key]) => !SKIP_FIELDS.has(key))
+      if (changeEntries.length > 0) {
+        items.push({
+          type: "changes",
+          content: (
+            <div className="space-y-1">
+              {changeEntries.slice(0, 5).map(([field, change]) => (
+                <div key={field} className="flex items-baseline gap-1.5 text-xs">
+                  <span className="text-muted-foreground font-medium shrink-0">{getFieldLabel(field)}:</span>
+                  <span className="text-muted-foreground line-through">{formatFieldValue(change.before)}</span>
+                  <ArrowRight className="h-2.5 w-2.5 text-muted-foreground shrink-0 translate-y-px" />
+                  <span className="font-medium text-foreground">{formatFieldValue(change.after)}</span>
+                </div>
+              ))}
+              {changeEntries.length > 5 && (
+                <span className="text-xs text-muted-foreground">
+                  +{changeEntries.length - 5} {locale === "pt" ? "mais alteracoes" : "more changes"}
+                </span>
+              )}
+            </div>
+          ),
+        })
+      }
+    }
+
+    // Remaining flat detail fields not already handled
+    for (const [key, value] of Object.entries(details)) {
+      if (SKIP_FIELDS.has(key)) continue
+      if (key === "urgent") continue // already handled above
+      if (typeof value === "object" && value !== null) continue // skip nested objects
+      items.push({
+        type: "info",
+        content: (
+          <span className="text-xs text-muted-foreground">
+            {getFieldLabel(key)}: <span className="font-medium text-foreground">{formatFieldValue(value)}</span>
+          </span>
+        ),
+      })
+    }
+
+    return items
   }
 
   if (history === undefined) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{title || t('entityHistory')}</CardTitle>
+          <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex gap-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
+                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />
@@ -130,7 +407,7 @@ export function EntityHistory({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{title || t('entityHistory')}</CardTitle>
+          <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground text-center py-8">
@@ -146,89 +423,66 @@ export function EntityHistory({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title || t('entityHistory')}</CardTitle>
+        <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[500px] pr-4">
-          <div className="relative">
-            {/* Timeline line */}
-            <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
+          <div className="space-y-0">
+            {history.map((log, index) => {
+              const style = getActionStyle(log.action)
+              const isLast = index === history.length - 1
+              const user = log.user?.fullName || tCommon('unknown')
+              const actionLabel = t(`actions.${log.action}`, { defaultValue: log.action })
+              const detailItems = getDetailItems(log)
 
-            {/* Timeline items */}
-            <div className="space-y-6">
-              {history.map((log, index) => (
-                <div key={log._id} className="relative flex gap-3">
-                  {/* Avatar */}
-                  <div className="relative z-10">
-                    <Avatar className="h-10 w-10 border-2 border-background">
-                      <AvatarFallback className={getActionColor(log.action)}>
-                        {log.user?.fullName
-                          ? getUserInitials(log.user.fullName)
-                          : "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    {/* Icon badge */}
-                    <div className={`absolute -bottom-1 -right-1 rounded-full bg-background p-1 ${getActionColor(log.action)}`}>
+              return (
+                <div key={log._id} className="relative flex gap-3 group">
+                  {/* Timeline connector */}
+                  <div className="flex flex-col items-center">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${style.bg} ${style.text}`}>
                       {getActionIcon(log.action)}
                     </div>
+                    {!isLast && (
+                      <div className="w-px flex-1 bg-border" />
+                    )}
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 pb-6">
+                  <div className={`flex-1 ${isLast ? "pb-0" : "pb-5"}`}>
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {formatActionMessage(log)}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm">
+                          <span className="font-medium">{user}</span>
+                          <span className="text-muted-foreground"> &middot; {actionLabel.toLowerCase()}</span>
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDistanceToNow(new Date(log.createdAt), {
-                            addSuffix: true,
-                            locale: dateLocale,
-                          })}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(log.createdAt), locale === "pt" ? "dd/MM/yyyy 'as' HH:mm" : "MMM d, yyyy 'at' h:mm a", { locale: dateLocale })}
+                          {" "}
+                          <span className="text-muted-foreground/60">
+                            ({formatDistanceToNow(new Date(log.createdAt), {
+                              addSuffix: true,
+                              locale: dateLocale,
+                            })})
+                          </span>
                         </p>
-                        {log.details?.message && (
-                          <p className="text-sm text-muted-foreground mt-2">
-                            {log.details.message}
-                          </p>
-                        )}
                       </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {t(`actions.${log.action}`, { defaultValue: log.action })}
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${style.badge}`}>
+                        {actionLabel}
                       </Badge>
                     </div>
 
-                    {/* Additional details */}
-                    {log.details && Object.keys(log.details).length > 0 && (
-                      <div className="mt-3 p-3 bg-muted rounded-md text-xs">
-                        {log.details.statusFrom && log.details.statusTo && (
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {log.details.statusFrom}
-                            </Badge>
-                            <span>→</span>
-                            <Badge variant="default" className="text-xs">
-                              {log.details.statusTo}
-                            </Badge>
-                          </div>
-                        )}
-                        {log.details.documentType && (
-                          <p className="mt-1">
-                            <span className="font-semibold">{t('documentType')}:</span>{" "}
-                            {log.details.documentType}
-                          </p>
-                        )}
-                        {log.details.taskTitle && (
-                          <p className="mt-1">
-                            <span className="font-semibold">{t('taskTitle')}:</span>{" "}
-                            {log.details.taskTitle}
-                          </p>
-                        )}
+                    {/* Detail items */}
+                    {detailItems.length > 0 && (
+                      <div className="mt-2 space-y-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                        {detailItems.map((item, i) => (
+                          <div key={i}>{item.content}</div>
+                        ))}
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
         </ScrollArea>
       </CardContent>

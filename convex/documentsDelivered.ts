@@ -130,12 +130,30 @@ export const get = query({
       ? await ctx.db.get(document.reviewedBy)
       : null;
 
+    // Enrich reused document info
+    let reusedFromInfo = null;
+    if (document.reusedFromDocumentId) {
+      const sourceDoc = await ctx.db.get(document.reusedFromDocumentId);
+      if (sourceDoc) {
+        const sourceProcess = await ctx.db.get(sourceDoc.individualProcessId);
+        if (sourceProcess) {
+          const sourcePerson = await ctx.db.get(sourceProcess.personId);
+          reusedFromInfo = {
+            documentId: document.reusedFromDocumentId,
+            personName: sourcePerson ? getFullName(sourcePerson) : undefined,
+            processId: sourceDoc.individualProcessId,
+          };
+        }
+      }
+    }
+
     return {
       ...document,
       documentType,
       documentRequirement,
       uploadedByUser,
       reviewedByUser,
+      reusedFromInfo,
     };
   },
 });
@@ -1770,17 +1788,19 @@ export const listGroupedByCategory = query({
         let validityRule = undefined;
         if (doc.documentTypeLegalFrameworkId) {
           const association = await ctx.db.get(doc.documentTypeLegalFrameworkId);
-          if (association && association.validityType && association.validityDays) {
-            validityRule = {
-              validityType: association.validityType,
-              validityDays: association.validityDays,
-            };
-            validityCheck = checkDocumentValidity(
-              association.validityType,
-              association.validityDays,
-              doc.issueDate,
-              doc.expiryDate,
-            );
+          if (association) {
+            if (association.validityType && association.validityDays) {
+              validityRule = {
+                validityType: association.validityType,
+                validityDays: association.validityDays,
+              };
+              validityCheck = checkDocumentValidity(
+                association.validityType,
+                association.validityDays,
+                doc.issueDate,
+                doc.expiryDate,
+              );
+            }
           }
         }
 
@@ -1812,6 +1832,7 @@ export const listGroupedByCategory = query({
       required,
       optional,
       loose,
+      companyApplicantId: individualProcess.companyApplicantId,
       summary: {
         totalRequired: required.length,
         totalOptional: optional.length,
@@ -2011,5 +2032,400 @@ export const changeStatus = mutation({
     }
 
     return id;
+  },
+});
+
+/**
+ * Query to list company documents available for reuse
+ * Finds documents of the same type from other processes of the same company
+ */
+export const listCompanyDocumentsForReuse = query({
+  args: {
+    companyApplicantId: v.id("companies"),
+    documentTypeId: v.id("documentTypes"),
+    excludeProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { companyApplicantId, documentTypeId, excludeProcessId }) => {
+    // Find all individual processes for this company
+    const processes = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", companyApplicantId))
+      .collect();
+
+    // Exclude current process
+    const otherProcesses = processes.filter((p) => p._id !== excludeProcessId);
+
+    if (otherProcesses.length === 0) {
+      return [];
+    }
+
+    // For each process, find matching documents
+    const reusableDocuments: Array<{
+      _id: Id<"documentsDelivered">;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      fileUrl: string;
+      status: string;
+      version: number;
+      uploadedAt: number;
+      issueDate?: string;
+      expiryDate?: string;
+      personName?: string;
+      processId: Id<"individualProcesses">;
+    }> = [];
+
+    for (const process of otherProcesses) {
+      const docs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", process._id))
+        .collect();
+
+      const matchingDocs = docs.filter(
+        (doc) =>
+          doc.documentTypeId === documentTypeId &&
+          doc.isLatest &&
+          (doc.storageId || doc.fileUrl) &&
+          ["uploaded", "approved", "under_review"].includes(doc.status)
+      );
+
+      if (matchingDocs.length > 0) {
+        const person = await ctx.db.get(process.personId);
+        const personName = person ? getFullName(person) : undefined;
+
+        for (const doc of matchingDocs) {
+          // Resolve fileUrl from storageId if needed
+          let resolvedFileUrl = doc.fileUrl;
+          if (!resolvedFileUrl && doc.storageId) {
+            resolvedFileUrl = await ctx.storage.getUrl(doc.storageId) ?? "";
+          }
+          reusableDocuments.push({
+            _id: doc._id,
+            fileName: doc.fileName,
+            fileSize: doc.fileSize,
+            mimeType: doc.mimeType,
+            fileUrl: resolvedFileUrl ?? "",
+            status: doc.status,
+            version: doc.version,
+            uploadedAt: doc.uploadedAt,
+            issueDate: doc.issueDate,
+            expiryDate: doc.expiryDate,
+            personName,
+            processId: process._id,
+          });
+        }
+      }
+    }
+
+    // Sort by uploadedAt descending (newest first)
+    reusableDocuments.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+    return reusableDocuments;
+  },
+});
+
+/**
+ * Mutation to reuse a company document from another process
+ * Copies file reference and metadata to the target document
+ */
+export const reuseCompanyDocument = mutation({
+  args: {
+    targetDocumentId: v.id("documentsDelivered"),
+    sourceDocumentId: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, { targetDocumentId, sourceDocumentId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get target document (the not_started one in current process)
+    const targetDoc = await ctx.db.get(targetDocumentId);
+    if (!targetDoc) {
+      throw new Error("Target document not found");
+    }
+    if (targetDoc.status !== "not_started") {
+      throw new Error("Target document already has a file uploaded");
+    }
+
+    // Get source document (the one to reuse)
+    const sourceDoc = await ctx.db.get(sourceDocumentId);
+    if (!sourceDoc) {
+      throw new Error("Source document not found");
+    }
+    if (!sourceDoc.storageId && !sourceDoc.fileUrl) {
+      throw new Error("Source document has no file");
+    }
+
+    // Validate both belong to the same company
+    const targetProcess = await ctx.db.get(targetDoc.individualProcessId);
+    const sourceProcess = await ctx.db.get(sourceDoc.individualProcessId);
+    if (!targetProcess || !sourceProcess) {
+      throw new Error("Process not found");
+    }
+    if (
+      !targetProcess.companyApplicantId ||
+      !sourceProcess.companyApplicantId ||
+      targetProcess.companyApplicantId !== sourceProcess.companyApplicantId
+    ) {
+      throw new Error("Documents must belong to processes of the same company");
+    }
+
+    const previousStatus = targetDoc.status;
+
+    // Copy file data from source to target
+    await ctx.db.patch(targetDocumentId, {
+      storageId: sourceDoc.storageId,
+      fileName: sourceDoc.fileName,
+      fileSize: sourceDoc.fileSize,
+      mimeType: sourceDoc.mimeType,
+      fileUrl: sourceDoc.fileUrl,
+      issueDate: sourceDoc.issueDate,
+      expiryDate: sourceDoc.expiryDate,
+      status: "uploaded",
+      reusedFromDocumentId: sourceDocumentId,
+      uploadedBy: userProfile.userId!,
+      uploadedAt: Date.now(),
+    });
+
+    // Auto-create conditions for the document
+    if (targetDoc.documentTypeId) {
+      await ctx.runMutation(internal.documentDeliveredConditions.autoCreateForDocument, {
+        documentsDeliveredId: targetDocumentId,
+        documentTypeId: targetDoc.documentTypeId,
+        individualProcessId: targetDoc.individualProcessId,
+      });
+    }
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: targetDocumentId,
+      previousStatus,
+      newStatus: "uploaded",
+      changedBy: userProfile.userId!,
+      changedAt: Date.now(),
+      notes: `Reused from document in another process`,
+      metadata: {
+        sourceDocumentId,
+        sourceProcessId: sourceDoc.individualProcessId,
+        fileName: sourceDoc.fileName,
+      },
+    });
+
+    // Log activity
+    try {
+      if (userProfile.userId) {
+        const documentType = targetDoc.documentTypeId
+          ? await ctx.db.get(targetDoc.documentTypeId)
+          : null;
+        const person = await ctx.db.get(targetProcess.personId);
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "reused",
+          entityType: "document",
+          entityId: targetDocumentId,
+          details: {
+            fileName: sourceDoc.fileName,
+            documentType: documentType?.name,
+            personName: person ? getFullName(person) : undefined,
+            sourceDocumentId,
+            sourceProcessId: sourceDoc.individualProcessId,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return targetDocumentId;
+  },
+});
+
+/**
+ * Query to detect how many documents are missing from the checklist
+ * Compares documentTypesLegalFrameworks associations against existing documentsDelivered
+ */
+/**
+ * Mutation to add a single missing document for a specific legal framework association.
+ * Used from the Requirements Checklist to selectively add individual missing documents.
+ */
+export const addMissingDocument = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    documentTypeLegalFrameworkId: v.id("documentTypesLegalFrameworks"),
+  },
+  handler: async (ctx, { individualProcessId, documentTypeLegalFrameworkId }) => {
+    const adminProfile = await requireAdmin(ctx);
+    if (!adminProfile.userId) {
+      throw new Error("Admin user ID not found");
+    }
+
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const assoc = await ctx.db.get(documentTypeLegalFrameworkId);
+    if (!assoc) {
+      throw new Error("Document type association not found");
+    }
+
+    const documentType = await ctx.db.get(assoc.documentTypeId);
+    if (!documentType || !documentType.isActive) {
+      throw new Error("Document type is inactive or not found");
+    }
+
+    // Check if already exists
+    const existingDocs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId),
+      )
+      .collect();
+
+    const alreadyExists = existingDocs.some(
+      (doc) =>
+        doc.documentTypeLegalFrameworkId === assoc._id && doc.isLatest,
+    );
+
+    if (alreadyExists) {
+      throw new Error("Document already exists in the list");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    const documentId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId,
+      documentTypeId: assoc.documentTypeId,
+      documentTypeLegalFrameworkId: assoc._id,
+      isRequired: assoc.isRequired,
+      personId: individualProcess.personId,
+      companyId: collectiveProcess?.companyId,
+      fileName: "",
+      fileUrl: "",
+      fileSize: 0,
+      mimeType: "",
+      status: "not_started",
+      uploadedBy: adminProfile.userId,
+      uploadedAt: Date.now(),
+      version: 1,
+      isLatest: true,
+    });
+
+    // Log activity
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "created",
+        entityType: "document",
+        entityId: individualProcessId,
+        details: {
+          documentTypeName: documentType.name,
+          personName: person ? getFullName(person) : undefined,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return documentId;
+  },
+});
+
+/**
+ * Mutation to sync missing documents from legal framework associations
+ * Creates documentsDelivered records for associations that don't have a corresponding document
+ */
+export const syncMissingDocuments = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { individualProcessId }) => {
+    const adminProfile = await requireAdmin(ctx);
+    if (!adminProfile.userId) {
+      throw new Error("Admin user ID not found");
+    }
+
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+    if (!individualProcess.legalFrameworkId) {
+      return { syncedCount: 0 };
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    // Get all associations for this legal framework
+    const associations = await ctx.db
+      .query("documentTypesLegalFrameworks")
+      .withIndex("by_legalFramework", (q) =>
+        q.eq("legalFrameworkId", individualProcess.legalFrameworkId!),
+      )
+      .collect();
+
+    // Get all existing documents for this process (latest only)
+    const existingDocs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId),
+      )
+      .collect();
+
+    const latestDocs = existingDocs.filter((doc) => doc.isLatest);
+
+    let syncedCount = 0;
+    for (const assoc of associations) {
+      const documentType = await ctx.db.get(assoc.documentTypeId);
+      if (!documentType || !documentType.isActive) continue;
+
+      const exists = latestDocs.some(
+        (doc) => doc.documentTypeLegalFrameworkId === assoc._id,
+      );
+      if (exists) continue;
+
+      await ctx.db.insert("documentsDelivered", {
+        individualProcessId,
+        documentTypeId: assoc.documentTypeId,
+        documentTypeLegalFrameworkId: assoc._id,
+        isRequired: assoc.isRequired,
+        personId: individualProcess.personId,
+        companyId: collectiveProcess?.companyId,
+        fileName: "",
+        fileUrl: "",
+        fileSize: 0,
+        mimeType: "",
+        status: "not_started",
+        uploadedBy: adminProfile.userId,
+        uploadedAt: Date.now(),
+        version: 1,
+        isLatest: true,
+      });
+      syncedCount++;
+    }
+
+    // Log activity
+    try {
+      if (adminProfile.userId) {
+        const person = await ctx.db.get(individualProcess.personId);
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "created",
+          entityType: "document",
+          entityId: individualProcessId,
+          details: {
+            syncedCount,
+            personName: person ? getFullName(person) : undefined,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return { syncedCount };
   },
 });

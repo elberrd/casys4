@@ -39,6 +39,7 @@ interface DocumentType {
   category?: string
   description?: string
   isActive?: boolean
+  isCompanyDocument?: boolean
 }
 
 interface DocumentTypesTableProps {
@@ -148,6 +149,20 @@ export function DocumentTypesTable({
               ? description.substring(0, 60) + "..."
               : description
           return <span className="text-sm text-muted-foreground">{truncated}</span>
+        },
+      },
+      {
+        accessorKey: "isCompanyDocument",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('isCompanyDocument')} />
+        ),
+        cell: ({ row }) => {
+          if (!row.original.isCompanyDocument) return <span className="text-muted-foreground">-</span>
+          return (
+            <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+              {tCommon('yes')}
+            </Badge>
+          )
         },
       },
       {

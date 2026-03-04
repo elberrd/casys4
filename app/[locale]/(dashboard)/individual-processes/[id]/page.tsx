@@ -12,15 +12,12 @@ import { Button } from "@/components/ui/button"
 import { Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
-import { RequirementsChecklistCard } from "@/components/individual-processes/requirements-checklist-card"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { GovernmentProtocolCard } from "@/components/individual-processes/government-protocol-card"
-import { ProcessTimeline } from "@/components/collective-processes/process-timeline"
 import { StatusUpdateDialog } from "@/components/collective-processes/status-update-dialog"
 import { EntityHistory } from "@/components/activity-logs/entity-history"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -176,22 +173,26 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
           </Button>
         )}
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{individualProcess.person ? getFullName(individualProcess.person) : t('details')}</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold">{individualProcess.person ? getFullName(individualProcess.person) : t('details')}</h1>
+            <p className="break-all text-muted-foreground sm:break-normal">
               {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             <Button
               onClick={() => setIsStatusDialogOpen(true)}
               variant="outline"
+              className="flex-1 sm:flex-none"
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
               {t('updateStatus')}
             </Button>
-            <Button onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}>
+            <Button
+              onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}
+              className="flex-1 sm:flex-none"
+            >
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>
@@ -206,7 +207,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
               <CardDescription>{t('processInformationDescription')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
                 <div className="text-sm font-medium">{t('dateProcess')}</div>
                 <div className="text-sm">
                   {individualProcess.dateProcess
@@ -307,7 +308,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
 
           {/* Person Information Card */}
           <Card>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
               <div className="space-y-1.5">
                 <CardTitle>{t('personInformation')}</CardTitle>
                 <CardDescription>{t('personInformationDescription')}</CardDescription>
@@ -316,13 +317,14 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsPersonEditDialogOpen(true)}
+                className="self-start"
               >
                 <Edit className="h-4 w-4 mr-1" />
                 {tCommon('edit')}
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
                 <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople('cpf')}
                   <LinkedDocIcon entityType="person" fieldPath="cpf" />
@@ -435,28 +437,8 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
           </CardContent>
         </Card>
 
-        {/* Process History Timeline - Legacy */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('processHistory')}</CardTitle>
-            <CardDescription>{t('processHistoryDescription')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProcessTimeline individualProcessId={processId} />
-          </CardContent>
-        </Card>
-
-        {/* Requirements Checklist */}
-        <RequirementsChecklistCard individualProcessId={processId} />
-
-        {/* Document Checklist Section */}
-        <DocumentChecklistCard individualProcessId={processId} />
-
-        {/* Government Protocol Tracking Section */}
-        <GovernmentProtocolCard
-          individualProcess={individualProcess}
-          isAdmin={true}
-        />
+        {/* Document Checklist Section (includes Requirements Checklist sidebar) */}
+        <DocumentChecklistCard individualProcessId={processId} userRole={currentUser?.role} />
 
         {/* Notes Section */}
         <ProcessNotesSection

@@ -245,7 +245,7 @@ export function IndividualProcessStatusesSubtable({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">{t("statusHistory")}</h3>
           {showDescription && (
@@ -253,7 +253,7 @@ export function IndividualProcessStatusesSubtable({
           )}
         </div>
         {isAdmin && (
-          <Button onClick={() => setShowAddDialog(true)} size="sm">
+          <Button onClick={() => setShowAddDialog(true)} size="sm" className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             {t("addStatus")}
           </Button>

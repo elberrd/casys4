@@ -836,6 +836,15 @@ export function DocumentReviewDialog({
               </div>
             </div>
 
+            {document.reusedFromInfo && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 text-sm">
+                <RotateCcw className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>
+                  {t("reusedFrom", { personName: document.reusedFromInfo.personName || "—" })}
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className="text-muted-foreground">{t("fileName")}</p>

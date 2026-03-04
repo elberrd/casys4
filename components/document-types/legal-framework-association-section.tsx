@@ -410,18 +410,20 @@ export function LegalFrameworkAssociationSection({
                         </div>
 
                         {isSelected(lf._id) && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Checkbox
-                              id={`lf-required-${group.processTypeId}-${lf._id}`}
-                              checked={isRequiredLf(lf._id)}
-                              onCheckedChange={() => toggleRequired(lf._id)}
-                            />
-                            <Label
-                              htmlFor={`lf-required-${group.processTypeId}-${lf._id}`}
-                              className="cursor-pointer text-sm text-muted-foreground whitespace-nowrap"
-                            >
-                              {t("required")}
-                            </Label>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`lf-required-${group.processTypeId}-${lf._id}`}
+                                checked={isRequiredLf(lf._id)}
+                                onCheckedChange={() => toggleRequired(lf._id)}
+                              />
+                              <Label
+                                htmlFor={`lf-required-${group.processTypeId}-${lf._id}`}
+                                className="cursor-pointer text-sm text-muted-foreground whitespace-nowrap"
+                              >
+                                {t("required")}
+                              </Label>
+                            </div>
                           </div>
                         )}
                       </div>
