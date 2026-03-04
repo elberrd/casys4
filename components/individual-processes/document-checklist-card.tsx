@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations } from "next-intl"
@@ -36,8 +36,11 @@ import {
   FileType,
   Plus,
   ChevronDown,
+  Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { DocumentUploadDialog } from "./document-upload-dialog"
 import { DocumentReviewDialog } from "./document-review-dialog"
 import { DocumentHistoryDialog } from "./document-history-dialog"
@@ -91,6 +94,7 @@ export function DocumentChecklistCard({
 }: DocumentChecklistCardProps) {
   const t = useTranslations("DocumentChecklist")
   const tCommon = useTranslations("Common")
+  const removeDocument = useMutation(api.documentsDelivered.remove)
 
   // Use the new grouped query
   const groupedDocuments = useQuery(api.documentsDelivered.listGroupedByCategory, {
@@ -113,6 +117,12 @@ export function DocumentChecklistCard({
   })
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean
+    documentId: Id<"documentsDelivered"> | null
+    documentName: string
+  }>({ open: false, documentId: null, documentName: "" })
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -215,6 +225,20 @@ export function DocumentChecklistCard({
 
   const handleBulkActionSuccess = () => {
     setSelectedDocumentIds(new Set())
+  }
+
+  const handleDeleteDocument = async () => {
+    if (!deleteConfirm.documentId) return
+    setIsDeleting(true)
+    try {
+      await removeDocument({ id: deleteConfirm.documentId })
+      toast.success(t("deleteDocumentSuccess"))
+      setDeleteConfirm({ open: false, documentId: null, documentName: "" })
+    } catch (error) {
+      toast.error(t("deleteDocumentError"))
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   if (groupedDocuments === undefined || documents === undefined) {
@@ -396,6 +420,21 @@ export function DocumentChecklistCard({
                 className="cursor-pointer"
               >
                 <Upload className="h-4 w-4" />
+              </Button>
+            )}
+            {!doc.documentTypeLegalFrameworkId && !doc.documentRequirementId && doc.status !== "approved" && userRole === "admin" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDeleteConfirm({
+                  open: true,
+                  documentId: doc._id,
+                  documentName: doc.documentType?.name || doc.fileName || t("looseDocument"),
+                })}
+                title={t("deleteDocument")}
+                className="cursor-pointer text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
             {isLoose && (
@@ -669,6 +708,17 @@ export function DocumentChecklistCard({
           onSuccess={closeAllDialogs}
         />
       )}
+
+      <DeleteConfirmationDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm({ open: false, documentId: null, documentName: "" })
+        }}
+        onConfirm={handleDeleteDocument}
+        title={t("deleteDocument")}
+        description={t("deleteDocumentDescription")}
+        isDeleting={isDeleting}
+      />
     </Card>
   )
 }

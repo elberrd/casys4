@@ -2132,6 +2132,10 @@
       "approved": "Aprovado",
       "rejected": "Rejeitado"
     },
+    "deleteDocument": "Remover Documento",
+    "deleteDocumentDescription": "Tem certeza que deseja remover este documento? Esta ação não pode ser desfeita.",
+    "deleteDocumentSuccess": "Documento removido com sucesso",
+    "deleteDocumentError": "Erro ao remover documento",
     "validity": {
       "expired": "Vencido",
       "expiringSoon": "Vencendo em {days} dias",

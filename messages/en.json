@@ -2108,6 +2108,10 @@
       "approved": "Approved",
       "rejected": "Rejected"
     },
+    "deleteDocument": "Delete Document",
+    "deleteDocumentDescription": "Are you sure you want to delete this document? This action cannot be undone.",
+    "deleteDocumentSuccess": "Document deleted successfully",
+    "deleteDocumentError": "Error deleting document",
     "validity": {
       "expired": "Expired",
       "expiringSoon": "Expiring in {days} days",
