@@ -459,6 +459,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
           entityType="individualProcess"
           entityId={processId}
           title={t('activityHistory')}
+          fullProcessHistory
         />
       </div>
 

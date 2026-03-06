@@ -2174,7 +2174,10 @@
     "previewDownload": "Baixar",
     "reuseHint": "{count, plural, one {Existe # documento desta empresa que pode ser reutilizado. Clique para ver.} other {Existem # documentos desta empresa que podem ser reutilizados. Clique para ver.}}",
     "documentScopeCompany": "Empresa",
-    "documentScopeIndividual": "Individual"
+    "documentScopeIndividual": "Individual",
+    "bulkReuse": "Reutilizar {count, plural, one {# doc. empresa} other {# docs. empresa}}",
+    "bulkReuseSuccess": "Reutilizados {count, plural, one {# documento} other {# documentos}} da empresa com sucesso",
+    "bulkReuseError": "Erro ao reutilizar documentos da empresa"
   },
   "DocumentUpload": {
     "title": "Enviar Documento",
@@ -2752,7 +2755,18 @@
       "bulk_urgent_update": "Urgência atualizada em massa",
       "authorization_update": "Autorização atualizada",
       "bulk_authorization_update": "Autorização atualizada em massa",
-      "migration_archived": "Migração arquivada"
+      "migration_archived": "Migração arquivada",
+      "condition_fulfilled": "Condição cumprida",
+      "condition_unfulfilled": "Condição descumprida",
+      "extended_deadline": "Prazo estendido",
+      "reused": "Reutilizado da empresa"
+    },
+    "subEntityTypes": {
+      "note": "Nota",
+      "task": "Tarefa",
+      "document": "Documento",
+      "status": "Status",
+      "condition": "Condição"
     },
     "entityTypes": {
       "country": "País",

@@ -21,6 +21,10 @@ import {
   Shield,
   ArrowRight,
   Clock,
+  StickyNote,
+  ListTodo,
+  CircleDot,
+  ToggleRight,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -28,6 +32,7 @@ interface EntityHistoryProps {
   entityType: string
   entityId: string
   title?: string
+  fullProcessHistory?: boolean
 }
 
 // Fields to skip when rendering changed fields
@@ -102,19 +107,33 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
   },
 }
 
+const SUB_ENTITY_ICONS: Record<string, React.ReactNode> = {
+  note: <StickyNote className="h-2.5 w-2.5" />,
+  task: <ListTodo className="h-2.5 w-2.5" />,
+  document: <FileText className="h-2.5 w-2.5" />,
+  status: <CircleDot className="h-2.5 w-2.5" />,
+  condition: <ToggleRight className="h-2.5 w-2.5" />,
+}
+
 export function EntityHistory({
   entityType,
   entityId,
   title,
+  fullProcessHistory,
 }: EntityHistoryProps) {
   const t = useTranslations('ActivityLogs')
   const tCommon = useTranslations('Common')
   const locale = useLocale()
 
-  const history = useQuery(api.activityLogs.getEntityHistory, {
-    entityType,
-    entityId,
-  })
+  const simpleHistory = useQuery(
+    api.activityLogs.getEntityHistory,
+    fullProcessHistory ? "skip" : { entityType, entityId }
+  )
+  const fullHistory = useQuery(
+    api.activityLogs.getIndividualProcessFullHistory,
+    fullProcessHistory ? { processId: entityId as any } : "skip"
+  )
+  const history = fullProcessHistory ? fullHistory : simpleHistory
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -149,6 +168,9 @@ export function EntityHistory({
         return <Shield className="h-3.5 w-3.5" />
       case "marked_as_previous":
         return <Clock className="h-3.5 w-3.5" />
+      case "condition_fulfilled":
+      case "condition_unfulfilled":
+        return <ToggleRight className="h-3.5 w-3.5" />
       default:
         return <FileText className="h-3.5 w-3.5" />
     }
@@ -183,6 +205,10 @@ export function EntityHistory({
       case "assigned":
       case "reassigned":
         return { bg: "bg-indigo-100 dark:bg-indigo-950", text: "text-indigo-700 dark:text-indigo-300", badge: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300" }
+      case "condition_fulfilled":
+        return { bg: "bg-green-100 dark:bg-green-950", text: "text-green-700 dark:text-green-300", badge: "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300" }
+      case "condition_unfulfilled":
+        return { bg: "bg-orange-100 dark:bg-orange-950", text: "text-orange-700 dark:text-orange-300", badge: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300" }
       default:
         return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-700 dark:text-gray-300", badge: "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" }
     }
@@ -434,6 +460,8 @@ export function EntityHistory({
               const user = log.user?.fullName || tCommon('unknown')
               const actionLabel = t(`actions.${log.action}`, { defaultValue: log.action })
               const detailItems = getDetailItems(log)
+              const subEntityType = (log as any).subEntityType as string | null
+              const subEntityLabel = (log as any).subEntityLabel as string | null
 
               return (
                 <div key={log._id} className="relative flex gap-3 group">
@@ -451,6 +479,15 @@ export function EntityHistory({
                   <div className={`flex-1 ${isLast ? "pb-0" : "pb-5"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
+                        {subEntityType && (
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-muted-foreground">{SUB_ENTITY_ICONS[subEntityType]}</span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {t(`subEntityTypes.${subEntityType}`, { defaultValue: subEntityType })}
+                              {subEntityLabel && `: ${subEntityLabel}`}
+                            </span>
+                          </div>
+                        )}
                         <p className="text-sm">
                           <span className="font-medium">{user}</span>
                           <span className="text-muted-foreground"> &middot; {actionLabel.toLowerCase()}</span>

@@ -1,5 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
@@ -69,7 +70,25 @@ export async function generateDocumentChecklist(
     throw new Error("Not authenticated");
   }
 
+  // Get existing documents for this process to prevent duplicates
+  const existingDocs = await ctx.db
+    .query("documentsDelivered")
+    .withIndex("by_individualProcess", (q) =>
+      q.eq("individualProcessId", individualProcessId),
+    )
+    .collect();
+  const existingDocTypeIds = new Set(
+    existingDocs
+      .filter((d) => d.documentTypeId && d.isLatest)
+      .map((d) => d.documentTypeId!.toString()),
+  );
+
   for (const requirement of requirements) {
+    // Skip if a document with this type already exists
+    if (existingDocTypeIds.has(requirement.documentTypeId.toString())) {
+      continue;
+    }
+
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: individualProcessId,
       documentTypeId: requirement.documentTypeId,
@@ -165,7 +184,6 @@ export async function generateDocumentChecklistByLegalFramework(
     const alreadyExists = existingDocs.some(
       (doc) =>
         doc.documentTypeId === assoc.documentTypeId &&
-        doc.documentTypeLegalFrameworkId === assoc._id &&
         doc.isLatest,
     );
 
@@ -228,4 +246,125 @@ export async function regenerateDocumentChecklistForLegalFramework(
 
   // Generate new checklist based on current legal framework
   return await generateDocumentChecklistByLegalFramework(ctx, individualProcessId);
+}
+
+/**
+ * Auto-reuse company documents from other processes of the same company.
+ * Called after document checklist generation when creating a new process.
+ */
+export async function autoReuseCompanyDocuments(
+  ctx: MutationCtx,
+  individualProcessId: Id<"individualProcesses">,
+): Promise<number> {
+  const process = await ctx.db.get(individualProcessId);
+  if (!process?.companyApplicantId) return 0;
+
+  // Get pending documents for this process
+  const pendingDocs = await ctx.db
+    .query("documentsDelivered")
+    .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+    .collect();
+
+  const companyDocs = pendingDocs.filter(
+    (doc) => doc.status === "not_started" && doc.documentTypeId && doc.isLatest,
+  );
+  if (companyDocs.length === 0) return 0;
+
+  // Check which of these are company documents
+  const docTypeCache = new Map<string, { isCompanyDocument?: boolean }>();
+  const companyPendingDocs = [];
+  for (const doc of companyDocs) {
+    if (!doc.documentTypeId) continue;
+    let docType = docTypeCache.get(doc.documentTypeId);
+    if (!docType) {
+      const dt = await ctx.db.get(doc.documentTypeId);
+      docType = dt ?? { isCompanyDocument: false };
+      docTypeCache.set(doc.documentTypeId, docType);
+    }
+    if (docType.isCompanyDocument) {
+      companyPendingDocs.push(doc);
+    }
+  }
+  if (companyPendingDocs.length === 0) return 0;
+
+  // Get all other processes for this company
+  const otherProcesses = await ctx.db
+    .query("individualProcesses")
+    .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", process.companyApplicantId!))
+    .collect();
+
+  // Collect all candidate source documents from other processes
+  const sourceByType = new Map<string, typeof pendingDocs[number]>();
+  for (const otherProcess of otherProcesses) {
+    if (otherProcess._id === individualProcessId) continue;
+    const docs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", otherProcess._id))
+      .collect();
+
+    for (const doc of docs) {
+      if (
+        doc.documentTypeId &&
+        doc.isLatest &&
+        (doc.storageId || doc.fileUrl) &&
+        ["uploaded", "approved", "under_review"].includes(doc.status)
+      ) {
+        const existing = sourceByType.get(doc.documentTypeId);
+        if (!existing || doc.uploadedAt > existing.uploadedAt) {
+          sourceByType.set(doc.documentTypeId, doc);
+        }
+      }
+    }
+  }
+
+  // Get user for history records
+  const userId = await getAuthUserId(ctx);
+  if (!userId) return 0;
+
+  let reusedCount = 0;
+  for (const targetDoc of companyPendingDocs) {
+    const sourceDoc = sourceByType.get(targetDoc.documentTypeId!);
+    if (!sourceDoc) continue;
+
+    await ctx.db.patch(targetDoc._id, {
+      storageId: sourceDoc.storageId,
+      fileName: sourceDoc.fileName,
+      fileSize: sourceDoc.fileSize,
+      mimeType: sourceDoc.mimeType,
+      fileUrl: sourceDoc.fileUrl,
+      issueDate: sourceDoc.issueDate,
+      expiryDate: sourceDoc.expiryDate,
+      status: "uploaded",
+      reusedFromDocumentId: sourceDoc._id,
+      uploadedBy: userId,
+      uploadedAt: Date.now(),
+    });
+
+    await ctx.db.insert("documentStatusHistory", {
+      documentId: targetDoc._id,
+      previousStatus: "not_started",
+      newStatus: "uploaded",
+      changedBy: userId,
+      changedAt: Date.now(),
+      notes: "Auto-reused from company document in another process",
+      metadata: {
+        sourceDocumentId: sourceDoc._id,
+        sourceProcessId: sourceDoc.individualProcessId,
+        fileName: sourceDoc.fileName,
+      },
+    });
+
+    // Auto-create conditions for the document
+    if (targetDoc.documentTypeId) {
+      await ctx.scheduler.runAfter(0, internal.documentDeliveredConditions.autoCreateForDocument, {
+        documentsDeliveredId: targetDoc._id,
+        documentTypeId: targetDoc.documentTypeId,
+        individualProcessId,
+      });
+    }
+
+    reusedCount++;
+  }
+
+  return reusedCount;
 }

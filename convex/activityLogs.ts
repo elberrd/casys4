@@ -165,6 +165,7 @@ const ENTITY_TYPE_GROUPS: Record<string, string[]> = {
   documentcategory: ["documentCategory", "documentCategories"],
   documenttype: ["documentType", "documentTypes"],
   peoplecompany: ["peopleCompany", "peopleCompanies"],
+  documentcondition: ["documentCondition", "documentDeliveredCondition"],
 };
 
 const ENTITY_TYPE_CANONICAL = new Map<string, string>();
@@ -597,6 +598,181 @@ export const exportActivityLogs = action({
       format: "csv",
       data: csvContent,
     };
+  },
+});
+
+/**
+ * Query to get full activity history for an individual process,
+ * including related entities (notes, tasks, documents, statuses, conditions).
+ */
+export const getIndividualProcessFullHistory = query({
+  args: {
+    processId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, args) => {
+    await getCurrentUserProfile(ctx); // Ensure authenticated
+
+    const processId = args.processId;
+
+    // 1. Fetch direct process logs
+    const processEntityTypes = getEntityTypeCandidates("individualProcess");
+    const processLogsPromise = Promise.all(
+      processEntityTypes.map((et) =>
+        ctx.db
+          .query("activityLogs")
+          .withIndex("by_entity_createdAt", (q) =>
+            q.eq("entityType", et).eq("entityId", processId)
+          )
+          .order("desc")
+          .collect()
+      )
+    );
+
+    // 2. Fetch related entity IDs in parallel
+    const [noteIds, taskIds, documentIds, statusIds] = await Promise.all([
+      ctx.db
+        .query("notes")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .collect()
+        .then((notes) => notes.map((n) => n._id as string)),
+      ctx.db
+        .query("tasks")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .collect()
+        .then((tasks) => tasks.map((t) => t._id as string)),
+      ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .collect()
+        .then((docs) => docs.map((d) => d._id as string)),
+      ctx.db
+        .query("individualProcessStatuses")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .collect()
+        .then((statuses) => statuses.map((s) => s._id as string)),
+    ]);
+
+    // Also get condition IDs from all documents
+    const conditionIds: string[] = [];
+    if (documentIds.length > 0) {
+      const conditionResults = await Promise.all(
+        documentIds.map((docId) =>
+          ctx.db
+            .query("documentDeliveredConditions")
+            .withIndex("by_documentDelivered", (q) =>
+              q.eq("documentsDeliveredId", docId as Id<"documentsDelivered">)
+            )
+            .collect()
+        )
+      );
+      for (const conditions of conditionResults) {
+        for (const c of conditions) {
+          conditionIds.push(c._id as string);
+        }
+      }
+    }
+
+    // 3. Fetch logs for each entity type in parallel
+    const fetchLogsForIds = async (
+      entityTypeCandidates: string[],
+      ids: string[]
+    ) => {
+      if (ids.length === 0) return [];
+      const allLogs = await Promise.all(
+        ids.flatMap((id) =>
+          entityTypeCandidates.map((et) =>
+            ctx.db
+              .query("activityLogs")
+              .withIndex("by_entity_createdAt", (q) =>
+                q.eq("entityType", et).eq("entityId", id)
+              )
+              .collect()
+          )
+        )
+      );
+      return allLogs.flat();
+    };
+
+    const noteEntityTypes = getEntityTypeCandidates("note");
+    const taskEntityTypes = getEntityTypeCandidates("task");
+    const documentEntityTypes = getEntityTypeCandidates("document");
+    const statusEntityTypes = getEntityTypeCandidates("individualProcessStatus");
+    const conditionEntityTypes = ["documentCondition"];
+
+    const [processLogs, noteLogs, taskLogs, documentLogs, statusLogs, conditionLogs] =
+      await Promise.all([
+        processLogsPromise.then((results) => results.flat()),
+        fetchLogsForIds(noteEntityTypes, noteIds),
+        fetchLogsForIds(taskEntityTypes, taskIds),
+        fetchLogsForIds(documentEntityTypes, documentIds),
+        fetchLogsForIds(statusEntityTypes, statusIds),
+        fetchLogsForIds(conditionEntityTypes, conditionIds),
+      ]);
+
+    // 4. Merge, deduplicate, and sort
+    const allLogsMap = new Map<string, (typeof processLogs)[0]>();
+    for (const log of [
+      ...processLogs,
+      ...noteLogs,
+      ...taskLogs,
+      ...documentLogs,
+      ...statusLogs,
+      ...conditionLogs,
+    ]) {
+      allLogsMap.set(log._id as string, log);
+    }
+    const allLogs = Array.from(allLogsMap.values()).sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
+
+    // 5. Determine sub-entity type for each log and enrich
+    const getSubEntityType = (
+      entityType: string
+    ): string | null => {
+      const normalized = normalizeEntityType(entityType);
+      if (processEntityTypes.includes(entityType) || normalized === "individualProcess") return null;
+      if (noteEntityTypes.includes(entityType) || normalized === "note") return "note";
+      if (taskEntityTypes.includes(entityType) || normalized === "task") return "task";
+      if (documentEntityTypes.includes(entityType) || normalized === "document") return "document";
+      if (statusEntityTypes.includes(entityType) || normalized === "individualProcessStatus") return "status";
+      if (entityType === "documentCondition") return "condition";
+      return null;
+    };
+
+    // 6. Enrich with user data, sub-entity info, and resolve IDs
+    const enrichedLogs = await Promise.all(
+      allLogs.map(async (log) => {
+        const enriched = await enrichLogUser(ctx, log);
+        if (enriched.details) {
+          enriched.details = await resolveChangesIds(ctx, enriched.details);
+        }
+
+        const subEntityType = getSubEntityType(log.entityType);
+
+        // Build a label for the sub-entity
+        let subEntityLabel: string | null = null;
+        const details = log.details as Record<string, unknown> | undefined;
+        if (subEntityType === "note") {
+          subEntityLabel = null; // Notes don't have a meaningful label
+        } else if (subEntityType === "task" && details?.taskTitle) {
+          subEntityLabel = details.taskTitle as string;
+        } else if (subEntityType === "document" && details?.documentType) {
+          subEntityLabel = details.documentType as string;
+        } else if (subEntityType === "status" && details?.statusName) {
+          subEntityLabel = details.statusName as string;
+        } else if (subEntityType === "condition" && details?.conditionName) {
+          subEntityLabel = details.conditionName as string;
+        }
+
+        return {
+          ...enriched,
+          subEntityType,
+          subEntityLabel,
+        };
+      })
+    );
+
+    return enrichedLogs;
   },
 });
 

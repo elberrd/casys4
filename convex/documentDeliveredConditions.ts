@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { getCurrentUserProfile } from "./lib/auth";
 
 /**
@@ -152,6 +153,30 @@ export const toggleFulfillment = mutation({
       fulfilledBy: args.isFulfilled ? userProfile.userId : undefined,
       notes: args.notes ?? existing.notes,
     });
+
+    // Log activity
+    try {
+      const document = await ctx.db.get(existing.documentsDeliveredId);
+      const conditionDef = await ctx.db.get(existing.documentTypeConditionId);
+      const documentType = document?.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
+
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: args.isFulfilled ? "condition_fulfilled" : "condition_unfulfilled",
+        entityType: "documentCondition",
+        entityId: args.id,
+        details: {
+          conditionName: conditionDef?.name ?? "Unknown",
+          documentType: documentType?.name ?? "Unknown",
+          individualProcessId: document?.individualProcessId ?? null,
+          isFulfilled: args.isFulfilled,
+        },
+      });
+    } catch {
+      // Non-blocking: don't fail the mutation if logging fails
+    }
 
     return args.id;
   },

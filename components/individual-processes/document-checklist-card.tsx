@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -118,6 +118,18 @@ export function DocumentChecklistCard({
     individualProcessId,
   })
 
+  // Check which document types have reusable company documents
+  const reusableTypeIds = useQuery(
+    api.documentsDelivered.getReusableDocumentTypeIds,
+    groupedDocuments?.companyApplicantId
+      ? { companyApplicantId: groupedDocuments.companyApplicantId, excludeProcessId: individualProcessId }
+      : "skip"
+  )
+  const reusableTypeIdSet = useMemo(
+    () => new Set(reusableTypeIds ?? []),
+    [reusableTypeIds]
+  )
+
   const [dialogs, setDialogs] = useState<DialogState>({
     upload: { open: false, document: null },
     review: { open: false, documentId: null },
@@ -136,7 +148,9 @@ export function DocumentChecklistCard({
     documentName: string
   }>({ open: false, documentId: null, documentName: "" })
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isBulkReusing, setIsBulkReusing] = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -271,6 +285,21 @@ export function DocumentChecklistCard({
     }
   }
 
+  // Count how many pending company docs can be bulk-reused
+  const pendingReusableCount = useMemo(() => {
+    if (!groupedDocuments) return 0
+    const { required, optional, companyApplicantId } = groupedDocuments
+    if (!companyApplicantId || reusableTypeIdSet.size === 0) return 0
+    const allDocs = [...required, ...optional]
+    return allDocs.filter(
+      (doc) =>
+        doc.status === "not_started" &&
+        doc.documentType?.isCompanyDocument === true &&
+        doc.documentTypeId &&
+        reusableTypeIdSet.has(doc.documentTypeId)
+    ).length
+  }, [groupedDocuments, reusableTypeIdSet])
+
   if (groupedDocuments === undefined || documents === undefined) {
     return (
       <Card>
@@ -288,6 +317,18 @@ export function DocumentChecklistCard({
   const requiredCompleted = summary.requiredApproved
   const requiredTotal = summary.totalRequired
   const total = summary.totalRequired + summary.totalOptional + summary.totalLoose
+
+  const handleBulkReuse = async () => {
+    setIsBulkReusing(true)
+    try {
+      const count = await bulkReuse({ individualProcessId })
+      toast.success(t("bulkReuseSuccess", { count }))
+    } catch (error) {
+      toast.error(t("bulkReuseError"))
+    } finally {
+      setIsBulkReusing(false)
+    }
+  }
 
   const getStatusBadge = (status: string, isCritical?: boolean) => {
     switch (status) {
@@ -418,7 +459,7 @@ export function DocumentChecklistCard({
 
         {doc.status === "not_started" ? (
           <div className="flex flex-wrap gap-1">
-            {doc.documentType?.isCompanyDocument === true && companyApplicantId && (
+            {doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -562,6 +603,19 @@ export function DocumentChecklistCard({
                 onSuccess={handleBulkActionSuccess}
                 userRole={userRole}
               />
+            )}
+            {/* Bulk reuse company documents */}
+            {pendingReusableCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBulkReuse}
+                disabled={isBulkReusing}
+                className="gap-1"
+              >
+                <RotateCcw className={cn("h-4 w-4", isBulkReusing && "animate-spin")} />
+                {t("bulkReuse", { count: pendingReusableCount })}
+              </Button>
             )}
             {/* Checklist sidebar trigger */}
             <ChecklistTriggerButton

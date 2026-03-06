@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile, canAccessCompany } from "./lib/auth";
 import { internal } from "./_generated/api";
@@ -2125,6 +2125,48 @@ export const listCompanyDocumentsForReuse = query({
 });
 
 /**
+ * Returns documentTypeIds that have at least one reusable document from other processes of the same company.
+ * Used to conditionally show the reuse button in the UI.
+ */
+export const getReusableDocumentTypeIds = query({
+  args: {
+    companyApplicantId: v.id("companies"),
+    excludeProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { companyApplicantId, excludeProcessId }) => {
+    const processes = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", companyApplicantId))
+      .collect();
+
+    const otherProcesses = processes.filter((p) => p._id !== excludeProcessId);
+    if (otherProcesses.length === 0) return [];
+
+    const reusableTypeIds = new Set<string>();
+
+    for (const process of otherProcesses) {
+      const docs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", process._id))
+        .collect();
+
+      for (const doc of docs) {
+        if (
+          doc.documentTypeId &&
+          doc.isLatest &&
+          (doc.storageId || doc.fileUrl) &&
+          ["uploaded", "approved", "under_review"].includes(doc.status)
+        ) {
+          reusableTypeIds.add(doc.documentTypeId);
+        }
+      }
+    }
+
+    return Array.from(reusableTypeIds);
+  },
+});
+
+/**
  * Mutation to reuse a company document from another process
  * Copies file reference and metadata to the target document
  */
@@ -2236,6 +2278,145 @@ export const reuseCompanyDocument = mutation({
     }
 
     return targetDocumentId;
+  },
+});
+
+/**
+ * Bulk-reuse all available company documents for a process.
+ * For each pending company document, finds the latest matching source from other processes of the same company.
+ */
+export const bulkReuseCompanyDocuments = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { individualProcessId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const process = await ctx.db.get(individualProcessId);
+    if (!process?.companyApplicantId) {
+      throw new Error("Process has no company applicant");
+    }
+
+    // Get pending documents for this process
+    const allDocs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+      .collect();
+
+    const pendingDocs = allDocs.filter(
+      (doc) => doc.status === "not_started" && doc.documentTypeId && doc.isLatest,
+    );
+
+    // Filter to company documents only
+    const companyPendingDocs = [];
+    const docTypeCache = new Map<string, { isCompanyDocument?: boolean }>();
+    for (const doc of pendingDocs) {
+      if (!doc.documentTypeId) continue;
+      let docType = docTypeCache.get(doc.documentTypeId);
+      if (!docType) {
+        const dt = await ctx.db.get(doc.documentTypeId);
+        docType = dt ?? { isCompanyDocument: false };
+        docTypeCache.set(doc.documentTypeId, docType);
+      }
+      if (docType.isCompanyDocument) {
+        companyPendingDocs.push(doc);
+      }
+    }
+    if (companyPendingDocs.length === 0) return 0;
+
+    // Get latest source doc per type from other processes
+    const otherProcesses = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", process.companyApplicantId!))
+      .collect();
+
+    const sourceByType = new Map<string, (typeof allDocs)[number]>();
+    for (const otherProcess of otherProcesses) {
+      if (otherProcess._id === individualProcessId) continue;
+      const docs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", otherProcess._id))
+        .collect();
+      for (const doc of docs) {
+        if (
+          doc.documentTypeId &&
+          doc.isLatest &&
+          (doc.storageId || doc.fileUrl) &&
+          ["uploaded", "approved", "under_review"].includes(doc.status)
+        ) {
+          const existing = sourceByType.get(doc.documentTypeId);
+          if (!existing || doc.uploadedAt > existing.uploadedAt) {
+            sourceByType.set(doc.documentTypeId, doc);
+          }
+        }
+      }
+    }
+
+    let reusedCount = 0;
+    for (const targetDoc of companyPendingDocs) {
+      const sourceDoc = sourceByType.get(targetDoc.documentTypeId!);
+      if (!sourceDoc) continue;
+
+      await ctx.db.patch(targetDoc._id, {
+        storageId: sourceDoc.storageId,
+        fileName: sourceDoc.fileName,
+        fileSize: sourceDoc.fileSize,
+        mimeType: sourceDoc.mimeType,
+        fileUrl: sourceDoc.fileUrl,
+        issueDate: sourceDoc.issueDate,
+        expiryDate: sourceDoc.expiryDate,
+        status: "uploaded",
+        reusedFromDocumentId: sourceDoc._id,
+        uploadedBy: userProfile.userId!,
+        uploadedAt: Date.now(),
+      });
+
+      await ctx.db.insert("documentStatusHistory", {
+        documentId: targetDoc._id,
+        previousStatus: "not_started",
+        newStatus: "uploaded",
+        changedBy: userProfile.userId!,
+        changedAt: Date.now(),
+        notes: "Bulk reused from company document in another process",
+        metadata: {
+          sourceDocumentId: sourceDoc._id,
+          sourceProcessId: sourceDoc.individualProcessId,
+          fileName: sourceDoc.fileName,
+        },
+      });
+
+      if (targetDoc.documentTypeId) {
+        await ctx.runMutation(internal.documentDeliveredConditions.autoCreateForDocument, {
+          documentsDeliveredId: targetDoc._id,
+          documentTypeId: targetDoc.documentTypeId,
+          individualProcessId,
+        });
+      }
+
+      reusedCount++;
+    }
+
+    // Log activity
+    try {
+      if (userProfile.userId) {
+        const person = await ctx.db.get(process.personId);
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "reused",
+          entityType: "document",
+          entityId: individualProcessId,
+          details: {
+            personName: person ? getFullName(person) : undefined,
+            bulkReuse: true,
+            reusedCount,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return reusedCount;
   },
 });
 
@@ -2431,5 +2612,81 @@ export const syncMissingDocuments = mutation({
     }
 
     return { syncedCount };
+  },
+});
+
+/**
+ * One-time cleanup mutation: Remove duplicate documents from individual processes.
+ * A duplicate = same individualProcessId + same documentTypeId with more than one record.
+ * Only deletes duplicates that have NO attachment (storageId is undefined and fileUrl is empty).
+ * Keeps the first record (oldest by _creationTime) and deletes the rest.
+ */
+export const cleanupDuplicateDocuments = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+
+    // Get all individual processes
+    const allProcesses = await ctx.db.query("individualProcesses").collect();
+
+    let totalDeleted = 0;
+    let totalSkipped = 0;
+    const processesAffected: string[] = [];
+
+    for (const process of allProcesses) {
+      // Get all documents for this process
+      const docs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", process._id),
+        )
+        .collect();
+
+      // Group by documentTypeId
+      const byType = new Map<string, typeof docs>();
+      for (const doc of docs) {
+        if (!doc.documentTypeId) continue;
+        const key = doc.documentTypeId;
+        if (!byType.has(key)) {
+          byType.set(key, []);
+        }
+        byType.get(key)!.push(doc);
+      }
+
+      let deletedInProcess = 0;
+
+      for (const [_typeId, typeDocs] of byType) {
+        if (typeDocs.length <= 1) continue;
+
+        // Sort by creation time - keep the oldest
+        typeDocs.sort((a, b) => a._creationTime - b._creationTime);
+
+        // The first one is the "keeper"
+        const duplicates = typeDocs.slice(1);
+
+        for (const dup of duplicates) {
+          // Only delete if there's no attachment
+          const hasAttachment = dup.storageId || (dup.fileUrl && dup.fileUrl !== "");
+          if (hasAttachment) {
+            totalSkipped++;
+            continue;
+          }
+
+          await ctx.db.delete(dup._id);
+          totalDeleted++;
+          deletedInProcess++;
+        }
+      }
+
+      if (deletedInProcess > 0) {
+        processesAffected.push(process._id);
+      }
+    }
+
+    return {
+      totalDeleted,
+      totalSkipped,
+      processesAffectedCount: processesAffected.length,
+      processesAffected,
+    };
   },
 });

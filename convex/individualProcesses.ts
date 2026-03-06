@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
-import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework } from "./lib/documentChecklist";
+import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
@@ -654,6 +654,15 @@ export const create = mutation({
     } catch (error) {
       // Log error but don't fail process creation
       console.error("Failed to generate document checklist by legal framework:", error);
+    }
+
+    // Auto-reuse company documents from other processes of the same company
+    if (args.companyApplicantId) {
+      try {
+        await autoReuseCompanyDocuments(ctx, processId);
+      } catch (error) {
+        console.error("Failed to auto-reuse company documents:", error);
+      }
     }
 
     // Log activity (non-blocking)

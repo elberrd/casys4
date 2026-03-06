@@ -2150,7 +2150,10 @@
     "previewDownload": "Download",
     "reuseHint": "{count, plural, one {There is # document from this company that can be reused. Click to view.} other {There are # documents from this company that can be reused. Click to view.}}",
     "documentScopeCompany": "Company",
-    "documentScopeIndividual": "Individual"
+    "documentScopeIndividual": "Individual",
+    "bulkReuse": "Reuse {count, plural, one {# company doc} other {# company docs}}",
+    "bulkReuseSuccess": "Successfully reused {count, plural, one {# document} other {# documents}} from the company",
+    "bulkReuseError": "Failed to reuse company documents"
   },
   "DocumentUpload": {
     "title": "Upload Document",
@@ -2728,7 +2731,18 @@
       "bulk_urgent_update": "Bulk Urgency Updated",
       "authorization_update": "Authorization Updated",
       "bulk_authorization_update": "Bulk Authorization Updated",
-      "migration_archived": "Migration Archived"
+      "migration_archived": "Migration Archived",
+      "condition_fulfilled": "Condition Fulfilled",
+      "condition_unfulfilled": "Condition Unfulfilled",
+      "extended_deadline": "Deadline Extended",
+      "reused": "Reused from Company"
+    },
+    "subEntityTypes": {
+      "note": "Note",
+      "task": "Task",
+      "document": "Document",
+      "status": "Status",
+      "condition": "Condition"
     },
     "entityTypes": {
       "country": "Country",
