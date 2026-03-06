@@ -13,7 +13,7 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
-import { generateDocumentChecklist } from "./lib/documentChecklist";
+import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { internal } from "./_generated/api";
@@ -344,6 +344,8 @@ export const bulkCreateIndividualProcesses = mutation({
         const individualProcessId = await ctx.db.insert("individualProcesses", {
           collectiveProcessId: args.collectiveProcessId,
           personId: personId,
+          companyApplicantId: collectiveProcess.companyId,
+          processTypeId: collectiveProcess.processTypeId,
           caseStatusId: args.caseStatusId, // NEW: Store case status ID
           status: statusString, // DEPRECATED: Keep for backward compatibility
           legalFrameworkId: args.legalFrameworkId,
@@ -354,8 +356,24 @@ export const bulkCreateIndividualProcesses = mutation({
           updatedAt: Date.now(),
         });
 
-        // Generate document checklist for this individual process
+        // Auto-generate document checklist (template-based, for backward compatibility)
         await generateDocumentChecklist(ctx, individualProcessId);
+
+        // Auto-generate document checklist based on legal framework associations (new approach)
+        try {
+          await generateDocumentChecklistByLegalFramework(ctx, individualProcessId);
+        } catch (error) {
+          console.error("Failed to generate document checklist by legal framework:", error);
+        }
+
+        // Auto-reuse company documents from other processes of the same company
+        if (collectiveProcess.companyId) {
+          try {
+            await autoReuseCompanyDocuments(ctx, individualProcessId);
+          } catch (error) {
+            console.error("Failed to auto-reuse company documents:", error);
+          }
+        }
 
         // Create initial status record with case status ID (only if admin has userId)
         if (admin.userId) {

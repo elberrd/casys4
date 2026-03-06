@@ -704,11 +704,18 @@ export const addPeopleToCollectiveProcess = mutation({
           });
         }
 
-        // Generate document checklist for this individual process
+        // Auto-generate document checklist (template-based, for backward compatibility)
         try {
-          // Import and call generateDocumentChecklist
-          const { generateDocumentChecklist } = await import("./lib/documentChecklist");
+          const { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } = await import("./lib/documentChecklist");
           await generateDocumentChecklist(ctx, individualProcessId);
+
+          // Auto-generate document checklist based on legal framework associations (new approach)
+          await generateDocumentChecklistByLegalFramework(ctx, individualProcessId);
+
+          // Auto-reuse company documents from other processes of the same company
+          if (collectiveProcess.companyId) {
+            await autoReuseCompanyDocuments(ctx, individualProcessId);
+          }
         } catch (error) {
           console.error("Failed to generate document checklist:", error);
           // Continue even if document checklist fails
