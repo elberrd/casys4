@@ -421,21 +421,38 @@ export function DocumentChecklistCard({
             {doc.documentType?.isCompanyDocument === true && companyApplicantId && (
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 onClick={() => openReuseDialog(doc)}
+                title={t("reuseExisting")}
+                className="cursor-pointer"
               >
-                <RotateCcw className="h-4 w-4 mr-1" />
-                {t("reuseExisting")}
+                <RotateCcw className="h-4 w-4" />
               </Button>
             )}
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={() => openUploadDialog(doc)}
+              title={t("upload")}
+              className="cursor-pointer"
             >
-              <Upload className="h-4 w-4 mr-1" />
-              {t("upload")}
+              <Upload className="h-4 w-4" />
             </Button>
+            {userRole === "admin" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDeleteConfirm({
+                  open: true,
+                  documentId: doc._id,
+                  documentName: doc.documentType?.name || doc.fileName || t("looseDocument"),
+                })}
+                title={t("deleteDocument")}
+                className="cursor-pointer text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-1">
