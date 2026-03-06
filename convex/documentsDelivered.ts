@@ -2283,7 +2283,9 @@ export const addMissingDocument = mutation({
 
     const alreadyExists = existingDocs.some(
       (doc) =>
-        doc.documentTypeLegalFrameworkId === assoc._id && doc.isLatest,
+        doc.isLatest &&
+        (doc.documentTypeLegalFrameworkId === assoc._id ||
+         doc.documentTypeId === assoc.documentTypeId),
     );
 
     if (alreadyExists) {
@@ -2383,7 +2385,9 @@ export const syncMissingDocuments = mutation({
       if (!documentType || !documentType.isActive) continue;
 
       const exists = latestDocs.some(
-        (doc) => doc.documentTypeLegalFrameworkId === assoc._id,
+        (doc) =>
+          doc.documentTypeLegalFrameworkId === assoc._id ||
+          doc.documentTypeId === assoc.documentTypeId,
       );
       if (exists) continue;
 

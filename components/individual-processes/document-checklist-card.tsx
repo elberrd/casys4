@@ -470,7 +470,7 @@ export function DocumentChecklistCard({
                 <Upload className="h-4 w-4" />
               </Button>
             )}
-            {!doc.documentTypeLegalFrameworkId && !doc.documentRequirementId && doc.status !== "approved" && userRole === "admin" && (
+            {doc.status !== "approved" && userRole === "admin" && (
               <Button
                 size="sm"
                 variant="ghost"
