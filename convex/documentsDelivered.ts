@@ -1860,6 +1860,46 @@ export const listGroupedByCategory = query({
           }
         }
 
+        // For info-only documents, fetch field values summary
+        let infoFieldValues: string[] | undefined = undefined;
+        if (documentType?.isInformationOnly && doc.status !== "not_started") {
+          const person = await ctx.db.get(individualProcess.personId);
+          const passport = individualProcess.passportId
+            ? await ctx.db.get(individualProcess.passportId)
+            : null;
+          let company: any = null;
+          if (individualProcess.companyApplicantId) {
+            company = await ctx.db.get(individualProcess.companyApplicantId);
+          } else if (collectiveProcess?.companyId) {
+            company = await ctx.db.get(collectiveProcess.companyId);
+          }
+
+          const fieldMappings = await ctx.db
+            .query("documentTypeFieldMappings")
+            .withIndex("by_documentType", (q) =>
+              q.eq("documentTypeId", doc.documentTypeId!)
+            )
+            .collect();
+
+          const activeFields = fieldMappings
+            .filter((m) => m.isActive)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+
+          const entities: Record<string, any> = {
+            person,
+            individualProcess,
+            passport,
+            company,
+          };
+
+          infoFieldValues = activeFields
+            .map((f) => {
+              const val = entities[f.entityType]?.[f.fieldPath];
+              return val != null && val !== "" ? String(val) : null;
+            })
+            .filter((v): v is string => v !== null);
+        }
+
         return {
           ...doc,
           documentType,
@@ -1869,6 +1909,7 @@ export const listGroupedByCategory = query({
           validityCheck,
           validityRule,
           conditionsSummary,
+          infoFieldValues,
         };
       }),
     );

@@ -468,12 +468,16 @@ export function DocumentChecklistCard({
               </Badge>
             )}
           </div>
-          {doc.documentType?.description && !isLoose && (
+          {doc.documentType?.description && !isLoose && !doc.documentType?.isInformationOnly && (
             <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.documentType.description}
             </p>
           )}
-          {doc.fileName && (
+          {doc.documentType?.isInformationOnly && doc.infoFieldValues && doc.infoFieldValues.length > 0 ? (
+            <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              {doc.infoFieldValues.join(" · ")}
+            </p>
+          ) : doc.fileName && doc.fileName !== "information_only" && (
             <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.fileName}
             </p>
@@ -589,7 +593,7 @@ export function DocumentChecklistCard({
             >
               <Eye className="h-4 w-4" />
             </Button>
-            {doc.documentTypeId && (
+            {doc.documentTypeId && !doc.documentType?.isInformationOnly && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -600,7 +604,7 @@ export function DocumentChecklistCard({
                 <History className="h-4 w-4" />
               </Button>
             )}
-            {doc.documentTypeId && userRole === "admin" && (
+            {doc.documentTypeId && userRole === "admin" && !doc.documentType?.isInformationOnly && (
               <Button
                 size="sm"
                 variant="ghost"
