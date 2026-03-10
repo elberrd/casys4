@@ -25,6 +25,8 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation"
+import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback"
 
 interface PassportFormPageProps {
   passportId?: Id<"passports">
@@ -92,6 +94,12 @@ export function PassportFormPage({
     },
   })
 
+  const watchedPassportNumber = form.watch("passportNumber")
+  const { isChecking: isPassportChecking, isAvailable: isPassportAvailable, existingPassport } = usePassportNumberValidation({
+    passportNumber: watchedPassportNumber,
+    passportId: passportId,
+  })
+
   const expiryDate = form.watch("expiryDate")
   const status = expiryDate ? calculateStatus(expiryDate) : null
 
@@ -112,6 +120,21 @@ export function PassportFormPage({
   }, [passport, personId, form])
 
   const onSubmit = async (data: PassportFormData) => {
+    if (isPassportChecking) {
+      toast({
+        title: t("passportNumberValidationInProgress"),
+        variant: "destructive",
+      })
+      return
+    }
+    if (isPassportAvailable === false) {
+      toast({
+        title: t("passportNumberDuplicateError"),
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       if (passportId) {
         await updatePassport({
@@ -206,12 +229,17 @@ export function PassportFormPage({
                 control={form.control}
                 name="passportNumber"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>{t("passportNumber")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
                     <FormMessage />
+                    <PassportNumberValidationFeedback
+                      isChecking={isPassportChecking}
+                      isAvailable={isPassportAvailable}
+                      existingPassport={existingPassport}
+                    />
                   </FormItem>
                 )}
               />
@@ -329,7 +357,7 @@ export function PassportFormPage({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button type="submit" disabled={form.formState.isSubmitting || isPassportChecking || isPassportAvailable === false}>
                 {form.formState.isSubmitting ? tCommon("loading") : tCommon("save")}
               </Button>
             </div>

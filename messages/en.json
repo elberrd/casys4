@@ -1883,7 +1883,12 @@
     "expired": "Expired",
     "expiringSoon": "Expiring Soon",
     "document": "Document",
-    "documentFile": "Document File"
+    "documentFile": "Document File",
+    "passportNumberChecking": "Checking...",
+    "passportNumberAvailable": "Number available",
+    "passportNumberInUseBy": "Number already in use by {name}",
+    "passportNumberDuplicateError": "This passport number is already registered",
+    "passportNumberValidationInProgress": "Validation in progress"
   },
   "PeopleCompanies": {
     "title": "Employment History",

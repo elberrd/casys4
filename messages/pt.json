@@ -1907,7 +1907,12 @@
     "expired": "Expirado",
     "expiringSoon": "Expirando em Breve",
     "document": "Documento",
-    "documentFile": "Arquivo do Documento"
+    "documentFile": "Arquivo do Documento",
+    "passportNumberChecking": "Verificando...",
+    "passportNumberAvailable": "Número disponível",
+    "passportNumberInUseBy": "Número já em uso por {name}",
+    "passportNumberDuplicateError": "Este número de passaporte já está cadastrado",
+    "passportNumberValidationInProgress": "Validação em andamento"
   },
   "PeopleCompanies": {
     "title": "Histórico de Emprego",

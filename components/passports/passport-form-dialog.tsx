@@ -32,6 +32,8 @@ import { passportSchema, type PassportFormData } from "@/lib/validations/passpor
 import { toast } from "sonner"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation"
+import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback"
 
 interface PassportFormDialogProps {
   open: boolean
@@ -117,6 +119,13 @@ export function PassportFormDialog({
     isSubmitting: form.formState.isSubmitting,
   })
 
+  const watchedPassportNumber = form.watch("passportNumber")
+  const { isChecking: isPassportChecking, isAvailable: isPassportAvailable, existingPassport } = usePassportNumberValidation({
+    passportNumber: watchedPassportNumber,
+    passportId: passportId,
+    enabled: open,
+  })
+
   const expiryDate = form.watch("expiryDate")
   const status = expiryDate ? calculateStatus(expiryDate) : null
 
@@ -137,6 +146,15 @@ export function PassportFormDialog({
   }, [passport, personId, form])
 
   const onSubmit = async (data: PassportFormData) => {
+    if (isPassportChecking) {
+      toast.error(t("passportNumberValidationInProgress"))
+      return
+    }
+    if (isPassportAvailable === false) {
+      toast.error(t("passportNumberDuplicateError"))
+      return
+    }
+
     try {
       if (passportId) {
         await updatePassport({
@@ -161,11 +179,8 @@ export function PassportFormDialog({
           fileUrl: data.fileUrl || undefined,
           isActive: data.isActive,
         })
-        console.log('[PassportFormDialog] Created passport with ID:', newPassportId)
-        console.log('[PassportFormDialog] Calling onSuccess callback')
         toast.success(t("createdSuccess"))
         onSuccess?.(newPassportId)
-        console.log('[PassportFormDialog] onSuccess callback called with:', newPassportId)
       }
     } catch (error) {
       toast.error(passportId ? t("errorUpdate") : t("errorCreate"))
@@ -213,12 +228,17 @@ export function PassportFormDialog({
                 control={form.control}
                 name="passportNumber"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>{t("passportNumber")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
                     <FormMessage />
+                    <PassportNumberValidationFeedback
+                      isChecking={isPassportChecking}
+                      isAvailable={isPassportAvailable}
+                      existingPassport={existingPassport}
+                    />
                   </FormItem>
                 )}
               />
@@ -336,7 +356,7 @@ export function PassportFormDialog({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button type="submit" disabled={form.formState.isSubmitting || isPassportChecking || isPassportAvailable === false}>
                 {form.formState.isSubmitting ? tCommon("loading") : tCommon("save")}
               </Button>
             </div>

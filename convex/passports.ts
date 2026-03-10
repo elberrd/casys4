@@ -328,6 +328,51 @@ export const get = query({
 });
 
 /**
+ * Query to check if a passport number is already in use
+ */
+export const checkPassportNumberDuplicate = query({
+  args: {
+    passportNumber: v.string(),
+    excludePassportId: v.optional(v.id("passports")),
+  },
+  handler: async (ctx, args) => {
+    await getCurrentUserProfile(ctx);
+
+    if (!args.passportNumber || args.passportNumber.trim() === "") {
+      return { isAvailable: true, existingPassport: null };
+    }
+
+    if (args.passportNumber.trim().length < 3) {
+      return { isAvailable: true, existingPassport: null };
+    }
+
+    const existing = await ctx.db
+      .query("passports")
+      .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber.trim()))
+      .first();
+
+    if (!existing) {
+      return { isAvailable: true, existingPassport: null };
+    }
+
+    if (args.excludePassportId && existing._id === args.excludePassportId) {
+      return { isAvailable: true, existingPassport: null };
+    }
+
+    const person = existing.personId ? await ctx.db.get(existing.personId) : null;
+
+    return {
+      isAvailable: false,
+      existingPassport: {
+        _id: existing._id,
+        passportNumber: existing.passportNumber,
+        personName: person ? getFullName(person) : "Unknown",
+      },
+    };
+  },
+});
+
+/**
  * Mutation to create a new passport (admin only)
  * Enforces single active passport rule: if isActive is true, deactivates all other passports for the person
  */
@@ -344,6 +389,15 @@ export const create = mutation({
   handler: async (ctx, args) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
+
+    // Check for duplicate passport number
+    const duplicatePassport = await ctx.db
+      .query("passports")
+      .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber))
+      .first();
+    if (duplicatePassport) {
+      throw new Error("This passport number is already registered");
+    }
 
     const now = Date.now();
     const isActive = args.isActive ?? true;
@@ -426,6 +480,17 @@ export const update = mutation({
     const existing = await ctx.db.get(id);
     if (!existing) {
       throw new Error("Passport not found");
+    }
+
+    // Check for duplicate passport number (exclude current passport)
+    if (args.passportNumber !== existing.passportNumber) {
+      const duplicatePassport = await ctx.db
+        .query("passports")
+        .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber))
+        .first();
+      if (duplicatePassport) {
+        throw new Error("This passport number is already registered");
+      }
     }
 
     // If setting this passport as active, deactivate all other passports for this person
