@@ -842,6 +842,11 @@
     "deleteStatusConfirmTitle": "Delete Status",
     "deleteStatusConfirmDescription": "Are you sure you want to delete the status \"{statusName}\"? This action cannot be undone.",
     "statusDeleted": "Status deleted successfully",
+    "statusDocuments": "Status Documents",
+    "statusDocumentsDescription": "Documents linked to this status entry",
+    "noStatusDocuments": "No documents linked to this status entry",
+    "noStatusDocumentsHint": "Add documents using the buttons below",
+    "viewStatusDocuments": "View status documents",
     "addStatusDescription": "Add a new status to this process",
     "searchStatus": "Search status...",
     "noStatusFound": "No status found.",
@@ -1464,6 +1469,8 @@
     "orderNumberPlaceholder": "Optional",
     "fillableFields": "Fillable Fields",
     "fillableFieldsDescription": "Select fields that can be filled when this status is added to a process",
+    "allowDocuments": "Allow Documents",
+    "allowDocumentsDescription": "Allow linking documents to status entries of this type",
     "isActive": "Active",
     "createdSuccess": "Status created successfully",
     "updatedSuccess": "Status updated successfully",
@@ -2178,7 +2185,8 @@
     "fillInformation": "Fill Information",
     "conditions": {
       "title": "Conditions"
-    }
+    },
+    "linkedStatusBadge": "{name} - {date}"
   },
   "InformationFields": {
     "title": "Fill Information",
@@ -2233,7 +2241,16 @@
     "validityWarningMaxAge": "Document was issued {days} days ago, exceeding the maximum allowed of {max} days",
     "conditions": "Conditions",
     "conditionRequired": "Required",
-    "conditionsHint": "Check the conditions already satisfied when uploading this document"
+    "conditionsHint": "Check the conditions already satisfied when uploading this document",
+    "linkedStatus": "Linked Status",
+    "selectStatus": "Select a status entry",
+    "searchStatus": "Search status entry...",
+    "noStatusEntries": "No status entries with document permission",
+    "saveWithoutFile": "Save without file",
+    "documentName": "Document Name",
+    "documentNamePlaceholder": "E.g.: Requirement Letter, Receipt...",
+    "pendingUploadTitle": "Upload File",
+    "pendingUploadDescription": "Upload a file for this document"
   },
   "DocumentReview": {
     "title": "Review Document",

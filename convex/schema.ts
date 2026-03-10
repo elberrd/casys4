@@ -217,6 +217,7 @@ export default defineSchema({
     sortOrder: v.number(), // Display order
     orderNumber: v.optional(v.number()), // Workflow sequence order (1-15, some statuses have no order)
     fillableFields: v.optional(v.array(v.string())), // Array of field names from individualProcesses that can be filled when this status is added
+    allowDocuments: v.optional(v.boolean()), // Whether this status type allows documents to be linked
     isActive: v.boolean(), // Can be used
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -601,6 +602,8 @@ export default defineSchema({
     isLatest: v.boolean(),
     versionNotes: v.optional(v.string()),
     reusedFromDocumentId: v.optional(v.id("documentsDelivered")), // Reference to the original reused document
+    individualProcessStatusId: v.optional(v.id("individualProcessStatuses")), // Link to a specific status entry (e.g., "Exigência")
+    documentName: v.optional(v.string()), // Custom name for loose documents saved without file
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])
@@ -609,7 +612,8 @@ export default defineSchema({
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
     .index("by_latest", ["isLatest"])
-    .index("by_isRequired", ["isRequired"]),
+    .index("by_isRequired", ["isRequired"])
+    .index("by_individualProcessStatus", ["individualProcessStatusId"]),
 
   // Document status history - Tracks all status changes for documents
   documentStatusHistory: defineTable({

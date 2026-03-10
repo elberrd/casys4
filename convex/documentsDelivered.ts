@@ -74,17 +74,101 @@ export const list = query({
           ? await ctx.db.get(doc.reviewedBy)
           : null;
 
+        // Enrich linked status
+        let linkedStatus = undefined;
+        if (doc.individualProcessStatusId) {
+          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          if (statusEntry) {
+            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            if (caseStatus) {
+              linkedStatus = {
+                caseStatusName: caseStatus.name,
+                caseStatusColor: caseStatus.color,
+                date: statusEntry.date,
+              };
+            }
+          }
+        }
+
         return {
           ...doc,
           documentType,
           documentRequirement,
           uploadedByUser,
           reviewedByUser,
+          linkedStatus,
         };
       }),
     );
 
     return enrichedDocuments;
+  },
+});
+
+/**
+ * Query to list documents linked to a specific status entry (e.g., "Exigência")
+ */
+export const listByStatus = query({
+  args: {
+    individualProcessStatusId: v.id("individualProcessStatuses"),
+  },
+  handler: async (ctx, { individualProcessStatusId }) => {
+    // Get the status entry to verify it exists and get process context
+    const statusEntry = await ctx.db.get(individualProcessStatusId);
+    if (!statusEntry) {
+      throw new Error("Status entry not found");
+    }
+
+    const individualProcess = await ctx.db.get(statusEntry.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Check access control
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied");
+      }
+    }
+
+    // Query documents linked to this status entry
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcessStatus", (q) =>
+        q.eq("individualProcessStatusId", individualProcessStatusId)
+      )
+      .collect();
+
+    // Filter to latest versions only
+    const latestDocs = documents.filter((doc) => doc.isLatest);
+
+    // Enrich with related data
+    const enrichedDocuments = await Promise.all(
+      latestDocs.map(async (doc) => {
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
+        const uploadedByUser = doc.uploadedBy
+          ? await ctx.db.get(doc.uploadedBy)
+          : null;
+
+        return {
+          ...doc,
+          documentType,
+          uploadedByUser,
+        };
+      }),
+    );
+
+    return {
+      documents: enrichedDocuments,
+      companyApplicantId: individualProcess.companyApplicantId,
+    };
   },
 });
 
@@ -1236,13 +1320,15 @@ export const bulkDelete = mutation({
 export const uploadLoose = mutation({
   args: {
     individualProcessId: v.id("individualProcesses"),
-    storageId: v.id("_storage"),
-    fileName: v.string(),
-    fileSize: v.number(),
-    mimeType: v.string(),
+    storageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
+    individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
+    documentName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1270,10 +1356,30 @@ export const uploadLoose = mutation({
     }
     const uploaderUserId = userProfile.userId;
 
-    // Get file URL from storage
-    const fileUrl = await ctx.storage.getUrl(args.storageId);
-    if (!fileUrl) {
-      throw new Error("Failed to get file URL from storage");
+    // Validate that status entry belongs to the same process (if provided)
+    if (args.individualProcessStatusId) {
+      const statusEntry = await ctx.db.get(args.individualProcessStatusId);
+      if (!statusEntry) {
+        throw new Error("Status entry not found");
+      }
+      if (statusEntry.individualProcessId !== args.individualProcessId) {
+        throw new Error("Status entry does not belong to this process");
+      }
+    }
+
+    // Determine if saving with or without file
+    const hasFile = !!args.storageId;
+
+    if (!hasFile && !args.documentName) {
+      throw new Error("Either a file or a document name must be provided");
+    }
+
+    let fileUrl = "";
+    if (hasFile) {
+      fileUrl = (await ctx.storage.getUrl(args.storageId!)) || "";
+      if (!fileUrl) {
+        throw new Error("Failed to get file URL from storage");
+      }
     }
 
     // Create document without type (loose document)
@@ -1283,11 +1389,11 @@ export const uploadLoose = mutation({
       personId: individualProcess.personId,
       companyId: collectiveProcess?.companyId,
       storageId: args.storageId,
-      fileName: args.fileName,
-      fileUrl: fileUrl,
-      fileSize: args.fileSize,
-      mimeType: args.mimeType,
-      status: "uploaded",
+      fileName: hasFile ? args.fileName! : (args.documentName || ""),
+      fileUrl,
+      fileSize: hasFile ? args.fileSize! : 0,
+      mimeType: hasFile ? args.mimeType! : "",
+      status: hasFile ? "uploaded" : "not_started",
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
@@ -1295,6 +1401,8 @@ export const uploadLoose = mutation({
       version: 1,
       isLatest: true,
       versionNotes: args.versionNotes,
+      individualProcessStatusId: args.individualProcessStatusId,
+      documentName: args.documentName,
     });
 
     // Log activity
@@ -1330,16 +1438,17 @@ export const uploadWithType = mutation({
   args: {
     individualProcessId: v.id("individualProcesses"),
     documentTypeId: v.id("documentTypes"),
-    storageId: v.id("_storage"),
-    fileName: v.string(),
-    fileSize: v.number(),
-    mimeType: v.string(),
+    storageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
     preFulfilledConditionIds: v.optional(
       v.array(v.id("documentTypeConditions"))
     ),
+    individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1367,6 +1476,17 @@ export const uploadWithType = mutation({
     }
     const uploaderUserId = userProfile.userId;
 
+    // Validate that status entry belongs to the same process (if provided)
+    if (args.individualProcessStatusId) {
+      const statusEntry = await ctx.db.get(args.individualProcessStatusId);
+      if (!statusEntry) {
+        throw new Error("Status entry not found");
+      }
+      if (statusEntry.individualProcessId !== args.individualProcessId) {
+        throw new Error("Status entry does not belong to this process");
+      }
+    }
+
     // Get document type and validate constraints
     const documentType = await ctx.db.get(args.documentTypeId);
     if (!documentType) {
@@ -1377,33 +1497,40 @@ export const uploadWithType = mutation({
       throw new Error("Document type is not active");
     }
 
-    // Validate file type if constraints exist
-    if (documentType.allowedFileTypes && documentType.allowedFileTypes.length > 0) {
-      const fileExtension = args.fileName.substring(args.fileName.lastIndexOf(".")).toLowerCase();
-      const isAllowed = documentType.allowedFileTypes.some(
-        (allowed) => allowed.toLowerCase() === fileExtension
-      );
-      if (!isAllowed) {
-        throw new Error(
-          `File type not allowed. Allowed types: ${documentType.allowedFileTypes.join(", ")}`
+    const hasFile = !!args.storageId;
+
+    // Only validate file constraints when a file is provided
+    if (hasFile) {
+      // Validate file type if constraints exist
+      if (documentType.allowedFileTypes && documentType.allowedFileTypes.length > 0 && args.fileName) {
+        const fileExtension = args.fileName.substring(args.fileName.lastIndexOf(".")).toLowerCase();
+        const isAllowed = documentType.allowedFileTypes.some(
+          (allowed) => allowed.toLowerCase() === fileExtension
         );
+        if (!isAllowed) {
+          throw new Error(
+            `File type not allowed. Allowed types: ${documentType.allowedFileTypes.join(", ")}`
+          );
+        }
+      }
+
+      // Validate file size if constraint exists
+      if (documentType.maxFileSizeMB && args.fileSize) {
+        const fileSizeMB = args.fileSize / (1024 * 1024);
+        if (fileSizeMB > documentType.maxFileSizeMB) {
+          throw new Error(
+            `File size exceeds maximum allowed (${documentType.maxFileSizeMB}MB)`
+          );
+        }
       }
     }
 
-    // Validate file size if constraint exists
-    if (documentType.maxFileSizeMB) {
-      const fileSizeMB = args.fileSize / (1024 * 1024);
-      if (fileSizeMB > documentType.maxFileSizeMB) {
-        throw new Error(
-          `File size exceeds maximum allowed (${documentType.maxFileSizeMB}MB)`
-        );
+    let fileUrl = "";
+    if (hasFile) {
+      fileUrl = (await ctx.storage.getUrl(args.storageId!)) || "";
+      if (!fileUrl) {
+        throw new Error("Failed to get file URL from storage");
       }
-    }
-
-    // Get file URL from storage
-    const fileUrl = await ctx.storage.getUrl(args.storageId);
-    if (!fileUrl) {
-      throw new Error("Failed to get file URL from storage");
     }
 
     // Check for existing document of same type
@@ -1437,11 +1564,11 @@ export const uploadWithType = mutation({
       personId: individualProcess.personId,
       companyId: collectiveProcess?.companyId,
       storageId: args.storageId,
-      fileName: args.fileName,
-      fileUrl: fileUrl,
-      fileSize: args.fileSize,
-      mimeType: args.mimeType,
-      status: "uploaded",
+      fileName: hasFile ? (args.fileName || "") : (documentType.name || ""),
+      fileUrl,
+      fileSize: hasFile ? (args.fileSize || 0) : 0,
+      mimeType: hasFile ? (args.mimeType || "") : "",
+      status: hasFile ? "uploaded" : "not_started",
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       expiryDate: args.expiryDate,
@@ -1450,6 +1577,7 @@ export const uploadWithType = mutation({
       isLatest: true,
       isRequired: false, // Manual uploads with type are optional by default
       versionNotes: args.versionNotes,
+      individualProcessStatusId: args.individualProcessStatusId,
     });
 
     // Auto-create conditions for this document based on document type
@@ -1900,6 +2028,22 @@ export const listGroupedByCategory = query({
             .filter((v): v is string => v !== null);
         }
 
+        // Enrich linked status
+        let linkedStatus = undefined;
+        if (doc.individualProcessStatusId) {
+          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          if (statusEntry) {
+            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            if (caseStatus) {
+              linkedStatus = {
+                caseStatusName: caseStatus.name,
+                caseStatusColor: caseStatus.color,
+                date: statusEntry.date,
+              };
+            }
+          }
+        }
+
         return {
           ...doc,
           documentType,
@@ -1910,6 +2054,7 @@ export const listGroupedByCategory = query({
           validityRule,
           conditionsSummary,
           infoFieldValues,
+          linkedStatus,
         };
       }),
     );

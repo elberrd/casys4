@@ -841,6 +841,11 @@
     "deleteStatusConfirmTitle": "Deletar Status",
     "deleteStatusConfirmDescription": "Tem certeza que deseja deletar o status \"{statusName}\"? Esta ação não pode ser desfeita.",
     "statusDeleted": "Status deletado com sucesso",
+    "statusDocuments": "Documentos do Andamento",
+    "statusDocumentsDescription": "Documentos vinculados a este andamento",
+    "noStatusDocuments": "Nenhum documento vinculado a este andamento",
+    "noStatusDocumentsHint": "Adicione documentos usando os botões abaixo",
+    "viewStatusDocuments": "Ver documentos do andamento",
     "addStatusDescription": "Adicionar um novo status a este processo",
     "searchStatus": "Pesquisar status...",
     "noStatusFound": "Nenhum status encontrado.",
@@ -1488,6 +1493,8 @@
     "orderNumberPlaceholder": "Opcional",
     "fillableFields": "Campos Preenchíveis",
     "fillableFieldsDescription": "Selecione os campos que podem ser preenchidos quando este status for adicionado a um processo",
+    "allowDocuments": "Permitir Documentos",
+    "allowDocumentsDescription": "Permite vincular documentos a andamentos deste tipo de status",
     "isActive": "Ativo",
     "createdSuccess": "Status criado com sucesso",
     "updatedSuccess": "Status atualizado com sucesso",
@@ -2202,7 +2209,8 @@
     "fillInformation": "Preencher Informações",
     "conditions": {
       "title": "Condicionantes"
-    }
+    },
+    "linkedStatusBadge": "{name} - {date}"
   },
   "InformationFields": {
     "title": "Preencher Informações",
@@ -2257,7 +2265,16 @@
     "validityWarningMaxAge": "O documento foi emitido há {days} dias, excedendo o máximo permitido de {max} dias",
     "conditions": "Condições",
     "conditionRequired": "Obrigatório",
-    "conditionsHint": "Marque as condições já satisfeitas ao enviar o documento"
+    "conditionsHint": "Marque as condições já satisfeitas ao enviar o documento",
+    "linkedStatus": "Andamento Vinculado",
+    "selectStatus": "Selecione um andamento",
+    "searchStatus": "Buscar andamento...",
+    "noStatusEntries": "Nenhum andamento com permissão de documentos",
+    "saveWithoutFile": "Salvar sem arquivo",
+    "documentName": "Nome do Documento",
+    "documentNamePlaceholder": "Ex: Carta de Exigência, Comprovante...",
+    "pendingUploadTitle": "Enviar Arquivo",
+    "pendingUploadDescription": "Envie um arquivo para este documento"
   },
   "DocumentReview": {
     "title": "Revisar Documento",

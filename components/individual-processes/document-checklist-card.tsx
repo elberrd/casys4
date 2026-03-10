@@ -49,6 +49,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { DocumentUploadDialog } from "./document-upload-dialog"
@@ -62,6 +63,7 @@ import { AssignDocumentTypeDialog } from "./assign-document-type-dialog"
 import { CompanyDocumentReuseDialog } from "./company-document-reuse-dialog"
 import { RequirementsChecklistSheet, ChecklistTriggerButton } from "./requirements-checklist-card"
 import { InformationFieldsDialog } from "./information-fields-dialog"
+import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
 
 interface DocumentChecklistCardProps {
   individualProcessId: Id<"individualProcesses">
@@ -116,6 +118,11 @@ type DialogState = {
       documentTypeName: string
     } | null
   }
+  pendingUpload: {
+    open: boolean
+    documentId: Id<"documentsDelivered"> | null
+    documentName: string
+  }
 }
 
 export function DocumentChecklistCard({
@@ -158,6 +165,7 @@ export function DocumentChecklistCard({
     assignType: { open: false, document: null },
     reuse: { open: false, document: null },
     informationFields: { open: false, document: null },
+    pendingUpload: { open: false, documentId: null, documentName: "" },
   })
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
@@ -261,6 +269,7 @@ export function DocumentChecklistCard({
       assignType: { open: false, document: null },
       reuse: { open: false, document: null },
       informationFields: { open: false, document: null },
+      pendingUpload: { open: false, documentId: null, documentName: "" },
     })
   }
 
@@ -275,6 +284,17 @@ export function DocumentChecklistCard({
           documentTypeLegalFrameworkId: doc.documentTypeLegalFrameworkId,
           documentTypeName: doc.documentType?.name || "",
         },
+      },
+    }))
+  }
+
+  const openPendingUploadDialog = (doc: any) => {
+    setDialogs(prev => ({
+      ...prev,
+      pendingUpload: {
+        open: true,
+        documentId: doc._id,
+        documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
       },
     }))
   }
@@ -351,8 +371,8 @@ export function DocumentChecklistCard({
   // Derived summary values for UI
   const requiredCompleted = summary.requiredApproved
   const requiredTotal = summary.totalRequired
-  const total = summary.totalRequired + summary.totalOptional + summary.totalLoose
-  const checklistDocuments = [...required, ...optional]
+  const checklistDocuments = [...required, ...optional, ...loose]
+  const total = checklistDocuments.length
   const filledDocuments = checklistDocuments.filter((doc) => doc.status !== "not_started")
   const unfilledDocuments = checklistDocuments.filter((doc) => doc.status === "not_started")
 
@@ -419,7 +439,11 @@ export function DocumentChecklistCard({
         if (doc.documentType?.isInformationOnly) {
           openInformationFieldsDialog(doc)
         } else if (doc.status === "not_started") {
-          openUploadDialog(doc)
+          if (doc.documentTypeId) {
+            openUploadDialog(doc)
+          } else {
+            openPendingUploadDialog(doc)
+          }
         } else {
           openReviewDialog(doc._id)
         }
@@ -459,6 +483,19 @@ export function DocumentChecklistCard({
               <Badge variant="secondary" className="text-xs gap-1">
                 <FileText className="h-3 w-3" />
                 {t("informationOnly")}
+              </Badge>
+            )}
+            {doc.linkedStatus && (
+              <Badge
+                variant="outline"
+                className="text-xs gap-1"
+                style={doc.linkedStatus.caseStatusColor ? {
+                  borderColor: doc.linkedStatus.caseStatusColor,
+                  color: doc.linkedStatus.caseStatusColor,
+                } : undefined}
+              >
+                {doc.linkedStatus.caseStatusName}
+                {doc.linkedStatus.date && ` - ${format(parseISO(doc.linkedStatus.date), "dd/MM/yyyy HH:mm")}`}
               </Badge>
             )}
             {isLoose && (
@@ -557,15 +594,27 @@ export function DocumentChecklistCard({
                 <RotateCcw className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => doc.documentType?.isInformationOnly ? openInformationFieldsDialog(doc) : openUploadDialog(doc)}
-              title={doc.documentType?.isInformationOnly ? t("fillInformation") : t("upload")}
-              className="cursor-pointer"
-            >
-              {doc.documentType?.isInformationOnly ? <FileText className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-            </Button>
+            {doc.documentTypeId ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => doc.documentType?.isInformationOnly ? openInformationFieldsDialog(doc) : openUploadDialog(doc)}
+                title={doc.documentType?.isInformationOnly ? t("fillInformation") : t("upload")}
+                className="cursor-pointer"
+              >
+                {doc.documentType?.isInformationOnly ? <FileText className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openPendingUploadDialog(doc)}
+                title={t("upload")}
+                className="cursor-pointer"
+              >
+                <Upload className="h-4 w-4" />
+              </Button>
+            )}
             {userRole === "admin" && (
               <Button
                 size="sm"
@@ -765,7 +814,7 @@ export function DocumentChecklistCard({
               </Badge>
             </h3>
             <div className="space-y-2">
-              {filledDocuments.map((doc) => renderDocumentRow(doc, true))}
+              {filledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
             </div>
           </div>
         )}
@@ -783,29 +832,7 @@ export function DocumentChecklistCard({
                 </Badge>
               </h3>
               <div className="space-y-2">
-                {unfilledDocuments.map((doc) => renderDocumentRow(doc, true))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Loose Documents */}
-        {loose.length > 0 && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
-                <FileQuestion className="h-4 w-4" />
-                {t("looseDocuments")}
-                <Badge variant="outline" className="sm:ml-auto">
-                  {loose.length}
-                </Badge>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {t("looseDocumentsDescription")}
-              </p>
-              <div className="space-y-2">
-                {loose.map((doc) => renderDocumentRow(doc, false, true))}
+                {unfilledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
               </div>
             </div>
           </>
@@ -964,6 +991,18 @@ export function DocumentChecklistCard({
           documentRequirementId={dialogs.informationFields.document.documentRequirementId}
           documentTypeLegalFrameworkId={dialogs.informationFields.document.documentTypeLegalFrameworkId}
           documentTypeName={dialogs.informationFields.document.documentTypeName}
+          onSuccess={closeAllDialogs}
+        />
+      )}
+
+      {dialogs.pendingUpload.open && dialogs.pendingUpload.documentId && (
+        <PendingDocumentUploadDialog
+          open={dialogs.pendingUpload.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          documentId={dialogs.pendingUpload.documentId}
+          documentName={dialogs.pendingUpload.documentName}
           onSuccess={closeAllDialogs}
         />
       )}

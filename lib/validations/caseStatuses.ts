@@ -69,6 +69,7 @@ export const caseStatusSchema = z.object({
       { message: "Invalid field name in fillableFields array" }
     )
     .optional(),
+  allowDocuments: z.boolean().optional(),
 });
 
 export type CaseStatusFormData = z.infer<typeof caseStatusSchema>;

@@ -218,6 +218,78 @@ export const getStatusHistory = query({
 });
 
 /**
+ * Query to list status entries that allow documents to be linked
+ * Returns only entries whose caseStatus has allowDocuments === true
+ * Used by document upload dialogs to let users link documents to status entries
+ */
+export const listWithDocumentsAllowed = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, args) => {
+    // Get current user profile for access control
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    // Get the individual process to check access
+    const individualProcess = await ctx.db.get(args.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Apply role-based access control
+    if (userProfile.role === "client") {
+      if (!userProfile.companyId) {
+        throw new Error("Client user must have a company assignment");
+      }
+
+      const collectiveProcess = individualProcess.collectiveProcessId
+        ? await ctx.db.get(individualProcess.collectiveProcessId)
+        : null;
+      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
+        throw new Error("Access denied: Process does not belong to your company");
+      }
+    }
+
+    // Query all statuses for this individual process
+    const statuses = await ctx.db
+      .query("individualProcessStatuses")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", args.individualProcessId)
+      )
+      .collect();
+
+    // Enrich with case status data and filter to those with allowDocuments
+    const results: {
+      _id: typeof statuses[0]["_id"];
+      caseStatusName: string;
+      caseStatusColor: string | undefined;
+      date: string | undefined;
+    }[] = [];
+
+    for (const status of statuses) {
+      const caseStatus = await ctx.db.get(status.caseStatusId);
+      if (caseStatus && caseStatus.allowDocuments === true) {
+        results.push({
+          _id: status._id,
+          caseStatusName: caseStatus.name,
+          caseStatusColor: caseStatus.color,
+          date: status.date,
+        });
+      }
+    }
+
+    // Sort by date descending (most recent first)
+    results.sort((a, b) => {
+      const dateA = a.date || "";
+      const dateB = b.date || "";
+      return dateB.localeCompare(dateA);
+    });
+
+    return results;
+  },
+});
+
+/**
  * Mutation to add a new status to an individual process
  * Admin only - deactivates previous active status
  */

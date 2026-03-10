@@ -17,12 +17,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Pencil, Save, X, Plus, FileEdit, Trash2 } from "lucide-react";
+import { Pencil, Save, X, Plus, FileEdit, Trash2, FileStack } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 import { AddStatusDialog } from "./add-status-dialog";
 import { FillFieldsModal } from "./fill-fields-modal";
+import { StatusDocumentsDialog } from "./status-documents-dialog";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getFieldMetadata } from "@/lib/individual-process-fields";
@@ -50,6 +51,13 @@ export function IndividualProcessStatusesSubtable({
     open: boolean;
     statusId: Id<"individualProcessStatuses"> | null;
   }>({ open: false, statusId: null });
+  const [statusDocumentsState, setStatusDocumentsState] = useState<{
+    open: boolean;
+    statusId: Id<"individualProcessStatuses"> | null;
+    caseStatusName: string;
+    caseStatusColor?: string;
+    date?: string;
+  }>({ open: false, statusId: null, caseStatusName: "" });
   const [deleteConfirmationState, setDeleteConfirmationState] = useState<{
     open: boolean;
     statusId: Id<"individualProcessStatuses"> | null;
@@ -266,12 +274,12 @@ export function IndividualProcessStatusesSubtable({
         </div>
       ) : (
         <div className="rounded-md border">
-          <Table className={isAdmin ? "min-w-[620px]" : "min-w-[460px]"}>
+          <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[180px]">{t("statusDateTime")}</TableHead>
-                <TableHead className="min-w-[220px]">{t("status")}</TableHead>
-                {isAdmin && <TableHead className="w-[132px] min-w-[132px] text-right">{tCommon("actions")}</TableHead>}
+                <TableHead className="whitespace-nowrap">{t("statusDateTime")}</TableHead>
+                <TableHead>{t("status")}</TableHead>
+                {isAdmin && <TableHead className="text-right whitespace-nowrap">{tCommon("actions")}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -282,7 +290,7 @@ export function IndividualProcessStatusesSubtable({
 
                 return (
                   <TableRow key={status._id}>
-                    <TableCell className="min-w-[180px]">
+                    <TableCell className="whitespace-nowrap">
                       {isEditing ? (
                         <div className="flex items-center gap-2">
                           <Input
@@ -318,7 +326,7 @@ export function IndividualProcessStatusesSubtable({
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="min-w-[220px]">
+                    <TableCell>
                       {isEditing ? (
                         <Combobox
                           value={editCaseStatusId || status.caseStatusId}
@@ -407,9 +415,28 @@ export function IndividualProcessStatusesSubtable({
                       )}
                     </TableCell>
                     {isAdmin && (
-                      <TableCell className="w-[132px] min-w-[132px]">
+                      <TableCell className="whitespace-nowrap">
                         {!isEditing && (
                           <div className="flex items-center gap-1 justify-end">
+                            {/* Status Documents button - shows when status allows documents */}
+                            {status.caseStatus?.allowDocuments === true && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => setStatusDocumentsState({
+                                  open: true,
+                                  statusId: status._id,
+                                  caseStatusName: caseStatusName || status.statusName,
+                                  caseStatusColor: status.caseStatus?.color,
+                                  date: status.date,
+                                })}
+                                title={t("viewStatusDocuments")}
+                              >
+                                <FileStack className="h-4 w-4 text-orange-500" />
+                                <span className="sr-only">{t("viewStatusDocuments")}</span>
+                              </Button>
+                            )}
                             {/* Fill Fields button - shows when status has fillable fields */}
                             {((status.caseStatus?.fillableFields && status.caseStatus.fillableFields.length > 0) ||
                               (status.fillableFields && status.fillableFields.length > 0)) && (
@@ -472,6 +499,22 @@ export function IndividualProcessStatusesSubtable({
           statusId={fillFieldsModalState.statusId}
           open={fillFieldsModalState.open}
           onOpenChange={(open) => setFillFieldsModalState({ open, statusId: null })}
+        />
+      )}
+
+      {/* Status Documents Dialog */}
+      {statusDocumentsState.open && statusDocumentsState.statusId && (
+        <StatusDocumentsDialog
+          open={statusDocumentsState.open}
+          onOpenChange={(open) => {
+            if (!open) setStatusDocumentsState({ open: false, statusId: null, caseStatusName: "" });
+          }}
+          individualProcessId={individualProcessId}
+          individualProcessStatusId={statusDocumentsState.statusId}
+          caseStatusName={statusDocumentsState.caseStatusName}
+          caseStatusColor={statusDocumentsState.caseStatusColor}
+          date={statusDocumentsState.date}
+          userRole={userRole}
         />
       )}
 

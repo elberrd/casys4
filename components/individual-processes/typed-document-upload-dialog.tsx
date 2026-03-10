@@ -35,12 +35,14 @@ import {
   validateFileType,
   validateFileSize,
 } from "@/lib/validations/documents-delivered";
+import { format, parseISO } from "date-fns";
 
 interface TypedDocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   individualProcessId: Id<"individualProcesses">;
   onSuccess?: () => void;
+  defaultStatusId?: Id<"individualProcessStatuses">;
 }
 
 export function TypedDocumentUploadDialog({
@@ -48,6 +50,7 @@ export function TypedDocumentUploadDialog({
   onOpenChange,
   individualProcessId,
   onSuccess,
+  defaultStatusId,
 }: TypedDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -60,6 +63,7 @@ export function TypedDocumentUploadDialog({
   const [issueDate, setIssueDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
+  const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all active document types
@@ -75,6 +79,23 @@ export function TypedDocumentUploadDialog({
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadWithType = useMutation(api.documentsDelivered.uploadWithType);
+
+  // Fetch status entries that allow documents
+  const statusEntries = useQuery(
+    api.individualProcessStatuses.listWithDocumentsAllowed,
+    { individualProcessId }
+  );
+
+  // Format status entries for combobox
+  const statusOptions: ComboboxOption[] = (statusEntries ?? []).map((entry) => {
+    const dateStr = entry.date
+      ? format(parseISO(entry.date), "dd/MM/yyyy HH:mm")
+      : "";
+    return {
+      value: entry._id,
+      label: `${entry.caseStatusName}${dateStr ? ` - ${dateStr}` : ""}`,
+    };
+  });
 
   // Get the selected document type details
   const selectedDocumentType = documentTypes?.find(
@@ -135,11 +156,6 @@ export function TypedDocumentUploadDialog({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error(t("errorNoFile"));
-      return;
-    }
-
     if (!selectedDocumentTypeId) {
       toast.error(t("errorNoDocumentType"));
       return;
@@ -149,37 +165,47 @@ export function TypedDocumentUploadDialog({
       setIsUploading(true);
       setUploadProgress(10);
 
-      // Step 1: Get upload URL from Convex
-      const uploadUrl = await generateUploadUrl();
-      setUploadProgress(20);
+      let storageId: Id<"_storage"> | undefined;
 
-      // Step 2: Upload file to Convex storage
-      const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": selectedFile.type },
-        body: selectedFile,
-      });
+      if (selectedFile) {
+        // Step 1: Get upload URL from Convex
+        const uploadUrl = await generateUploadUrl();
+        setUploadProgress(20);
 
-      if (!result.ok) {
-        throw new Error("Failed to upload file");
+        // Step 2: Upload file to Convex storage
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile.type },
+          body: selectedFile,
+        });
+
+        if (!result.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        const json = await result.json();
+        storageId = json.storageId;
+        setUploadProgress(60);
+      } else {
+        setUploadProgress(60);
       }
-
-      const { storageId } = await result.json();
-      setUploadProgress(60);
 
       // Step 3: Create typed document record in database
       await uploadWithType({
         individualProcessId,
         documentTypeId: selectedDocumentTypeId as Id<"documentTypes">,
         storageId,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        mimeType: selectedFile.type,
+        fileName: selectedFile?.name,
+        fileSize: selectedFile?.size,
+        mimeType: selectedFile?.type,
         expiryDate: expiryDate || undefined,
         issueDate: issueDate || undefined,
         versionNotes: versionNotes || undefined,
         preFulfilledConditionIds: fulfilledConditionIds.size > 0
           ? Array.from(fulfilledConditionIds) as any
+          : undefined,
+        individualProcessStatusId: selectedStatusId
+          ? (selectedStatusId as Id<"individualProcessStatuses">)
           : undefined,
       });
 
@@ -199,6 +225,7 @@ export function TypedDocumentUploadDialog({
       setIssueDate("");
       setVersionNotes("");
       setFulfilledConditionIds(new Set());
+      setSelectedStatusId("");
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -216,6 +243,7 @@ export function TypedDocumentUploadDialog({
       setIssueDate("");
       setVersionNotes("");
       setFulfilledConditionIds(new Set());
+      setSelectedStatusId("");
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -257,6 +285,23 @@ export function TypedDocumentUploadDialog({
             )}
           </div>
 
+          {/* Status entry selector */}
+          {statusOptions.length > 0 && (
+            <div className="space-y-2">
+              <Label>{t("linkedStatus")}</Label>
+              <Combobox
+                options={statusOptions}
+                value={selectedStatusId || undefined}
+                onValueChange={(value) => setSelectedStatusId(value || "")}
+                placeholder={t("selectStatus")}
+                searchPlaceholder={t("searchStatus")}
+                emptyText={t("noStatusEntries")}
+                disabled={isUploading}
+                showClearButton
+              />
+            </div>
+          )}
+
           {/* File requirements based on selected document type */}
           {selectedDocumentType && (
             <div className="text-sm text-muted-foreground space-y-2 p-3 bg-muted/50 rounded-lg">
@@ -279,7 +324,7 @@ export function TypedDocumentUploadDialog({
 
           {/* File input */}
           <div className="space-y-2">
-            <Label htmlFor="file">{t("selectFile")}</Label>
+            <Label htmlFor="file">{t("selectFile")} ({tCommon("optional")})</Label>
             <Input
               id="file"
               type="file"
@@ -454,10 +499,10 @@ export function TypedDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || !selectedDocumentTypeId || isUploading}
+            disabled={!selectedDocumentTypeId || isUploading}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("upload")}
+            {selectedFile ? t("upload") : t("saveWithoutFile")}
           </Button>
         </DialogFooter>
       </DialogContent>

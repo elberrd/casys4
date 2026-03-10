@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -21,25 +20,24 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, File, X, CheckCircle, FileQuestion } from "lucide-react";
+import { Loader2, Upload, File, X, CheckCircle } from "lucide-react";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
-import { format, parseISO } from "date-fns";
 
-interface LooseDocumentUploadDialogProps {
+interface PendingDocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  individualProcessId: Id<"individualProcesses">;
+  documentId: Id<"documentsDelivered">;
+  documentName: string;
   onSuccess?: () => void;
-  defaultStatusId?: Id<"individualProcessStatuses">;
 }
 
-export function LooseDocumentUploadDialog({
+export function PendingDocumentUploadDialog({
   open,
   onOpenChange,
-  individualProcessId,
+  documentId,
+  documentName,
   onSuccess,
-  defaultStatusId,
-}: LooseDocumentUploadDialogProps) {
+}: PendingDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
 
@@ -48,31 +46,11 @@ export function LooseDocumentUploadDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
-  const [documentName, setDocumentName] = useState<string>("");
-  const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
-  const uploadLoose = useMutation(api.documentsDelivered.uploadLoose);
+  const uploadForPending = useMutation(api.documentsDelivered.uploadForPending);
 
-  // Fetch status entries that allow documents
-  const statusEntries = useQuery(
-    api.individualProcessStatuses.listWithDocumentsAllowed,
-    { individualProcessId }
-  );
-
-  // Format status entries for combobox
-  const statusOptions: ComboboxOption[] = (statusEntries ?? []).map((entry) => {
-    const dateStr = entry.date
-      ? format(parseISO(entry.date), "dd/MM/yyyy HH:mm")
-      : "";
-    return {
-      value: entry._id,
-      label: `${entry.caseStatusName}${dateStr ? ` - ${dateStr}` : ""}`,
-    };
-  });
-
-  // Default max size for loose documents (10MB)
   const maxSizeMB = 10;
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -80,7 +58,6 @@ export function LooseDocumentUploadDialog({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file size
     if (file.size > maxSizeBytes) {
       toast.error(t("errorFileSize", { maxSize: maxSizeMB }));
       return;
@@ -96,22 +73,18 @@ export function LooseDocumentUploadDialog({
     }
   };
 
-  const canSave = selectedFile || documentName.trim();
-
   const handleClose = () => {
     if (!isUploading) {
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
-      setDocumentName("");
-      setSelectedStatusId("");
       setUploadProgress(0);
       onOpenChange(false);
     }
   };
 
   const handleUpload = async () => {
-    if (!canSave) {
+    if (!selectedFile) {
       toast.error(t("errorNoFile"));
       return;
     }
@@ -120,61 +93,44 @@ export function LooseDocumentUploadDialog({
       setIsUploading(true);
       setUploadProgress(10);
 
-      let storageId: Id<"_storage"> | undefined;
+      // Step 1: Get upload URL
+      const uploadUrl = await generateUploadUrl();
+      setUploadProgress(20);
 
-      if (selectedFile) {
-        // Step 1: Get upload URL from Convex
-        const uploadUrl = await generateUploadUrl();
-        setUploadProgress(20);
+      // Step 2: Upload file to Convex storage
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": selectedFile.type },
+        body: selectedFile,
+      });
 
-        // Step 2: Upload file to Convex storage
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
-
-        if (!result.ok) {
-          throw new Error("Failed to upload file");
-        }
-
-        const json = await result.json();
-        storageId = json.storageId;
-        setUploadProgress(60);
-      } else {
-        setUploadProgress(60);
+      if (!result.ok) {
+        throw new Error("Failed to upload file");
       }
 
-      // Step 3: Create loose document record in database
-      await uploadLoose({
-        individualProcessId,
-        storageId,
-        fileName: selectedFile?.name,
-        fileSize: selectedFile?.size,
-        mimeType: selectedFile?.type,
+      const json = await result.json();
+      setUploadProgress(60);
+
+      // Step 3: Attach file to existing document
+      await uploadForPending({
+        documentId,
+        storageId: json.storageId,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        mimeType: selectedFile.type,
         expiryDate: expiryDate || undefined,
         versionNotes: versionNotes || undefined,
-        individualProcessStatusId: selectedStatusId
-          ? (selectedStatusId as Id<"individualProcessStatuses">)
-          : undefined,
-        documentName: documentName.trim() || undefined,
       });
 
       setUploadProgress(100);
-
       toast.success(t("successUpload"));
       onOpenChange(false);
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      onSuccess?.();
 
       // Reset form
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
-      setDocumentName("");
-      setSelectedStatusId("");
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -189,43 +145,17 @@ export function LooseDocumentUploadDialog({
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <FileQuestion className="h-5 w-5" />
-            <DialogTitle>{t("looseUploadTitle")}</DialogTitle>
+            <Upload className="h-5 w-5" />
+            <DialogTitle>{t("pendingUploadTitle")}</DialogTitle>
           </div>
           <DialogDescription>
-            {t("looseUploadDescription")}
+            {t("pendingUploadDescription")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Document name (for saving without file) */}
-          <div className="space-y-2">
-            <Label htmlFor="documentName">{t("documentName")}</Label>
-            <Input
-              id="documentName"
-              value={documentName}
-              onChange={(e) => setDocumentName(e.target.value)}
-              placeholder={t("documentNamePlaceholder")}
-              disabled={isUploading}
-            />
-          </div>
-
-          {/* Status entry selector */}
-          {statusOptions.length > 0 && (
-            <div className="space-y-2">
-              <Label>{t("linkedStatus")}</Label>
-              <Combobox
-                options={statusOptions}
-                value={selectedStatusId || undefined}
-                onValueChange={(value) => setSelectedStatusId(value || "")}
-                placeholder={t("selectStatus")}
-                searchPlaceholder={t("searchStatus")}
-                emptyText={t("noStatusEntries")}
-                disabled={isUploading}
-                showClearButton
-              />
-            </div>
-          )}
+          {/* Document name display */}
+          <div className="text-sm font-medium">{documentName}</div>
 
           {/* File requirements */}
           <div className="text-sm text-muted-foreground">
@@ -234,7 +164,7 @@ export function LooseDocumentUploadDialog({
 
           {/* File input */}
           <div className="space-y-2">
-            <Label htmlFor="file">{t("selectFile")} ({tCommon("optional")})</Label>
+            <Label htmlFor="file">{t("selectFile")}</Label>
             <Input
               id="file"
               type="file"
@@ -320,10 +250,10 @@ export function LooseDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!canSave || isUploading}
+            disabled={!selectedFile || isUploading}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {selectedFile ? t("upload") : t("saveWithoutFile")}
+            {t("upload")}
           </Button>
         </DialogFooter>
       </DialogContent>

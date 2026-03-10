@@ -36,6 +36,7 @@ import { useTranslations } from "next-intl"
 import { caseStatusSchema, CaseStatusFormData, caseStatusCategories } from "@/lib/validations/caseStatuses"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FillableFieldsSelector } from "@/components/individual-processes/fillable-fields-selector"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
@@ -83,6 +84,7 @@ export function CaseStatusFormDialog({
       sortOrder: nextSortOrder,
       orderNumber: undefined,
       fillableFields: undefined,
+      allowDocuments: undefined,
     },
   })
 
@@ -115,6 +117,7 @@ export function CaseStatusFormDialog({
         sortOrder: caseStatus.sortOrder,
         orderNumber: caseStatus.orderNumber,
         fillableFields: caseStatus.fillableFields || undefined,
+        allowDocuments: caseStatus.allowDocuments || undefined,
       })
     } else if (!caseStatusId) {
       form.reset({
@@ -127,6 +130,7 @@ export function CaseStatusFormDialog({
         sortOrder: nextSortOrder,
         orderNumber: undefined,
         fillableFields: undefined,
+        allowDocuments: undefined,
       })
     }
   }, [caseStatus, caseStatusId, form, nextSortOrder])
@@ -141,6 +145,7 @@ export function CaseStatusFormDialog({
         category: data.category === "" ? undefined : data.category,
         color: data.color === "" ? undefined : data.color,
         orderNumber: data.orderNumber === "" || data.orderNumber === undefined ? undefined : data.orderNumber,
+        allowDocuments: data.allowDocuments,
       }
 
       if (caseStatusId) {
@@ -369,6 +374,27 @@ export function CaseStatusFormDialog({
                     {t('fillableFieldsDescription')}
                   </FormDescription>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="allowDocuments"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>{t('allowDocuments')}</FormLabel>
+                    <FormDescription>
+                      {t('allowDocumentsDescription')}
+                    </FormDescription>
+                  </div>
                 </FormItem>
               )}
             />

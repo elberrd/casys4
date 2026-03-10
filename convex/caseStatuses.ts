@@ -94,6 +94,7 @@ export const create = mutation({
     sortOrder: v.number(),
     orderNumber: v.optional(v.number()),
     fillableFields: v.optional(v.array(v.string())),
+    allowDocuments: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const adminProfile = await requireAdmin(ctx);
@@ -131,6 +132,7 @@ export const create = mutation({
       sortOrder: args.sortOrder,
       orderNumber: args.orderNumber,
       fillableFields: args.fillableFields,
+      allowDocuments: args.allowDocuments,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -169,6 +171,7 @@ export const update = mutation({
     sortOrder: v.optional(v.number()),
     orderNumber: v.optional(v.number()),
     fillableFields: v.optional(v.array(v.string())),
+    allowDocuments: v.optional(v.boolean()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -232,6 +235,7 @@ export const update = mutation({
         sortOrder: existing.sortOrder,
         orderNumber: existing.orderNumber,
         fillableFields: JSON.stringify(existing.fillableFields ?? []),
+        allowDocuments: existing.allowDocuments,
         isActive: existing.isActive,
       },
       {
@@ -244,6 +248,7 @@ export const update = mutation({
         sortOrder: args.sortOrder ?? existing.sortOrder,
         orderNumber: args.orderNumber ?? existing.orderNumber,
         fillableFields: JSON.stringify(args.fillableFields ?? existing.fillableFields ?? []),
+        allowDocuments: args.allowDocuments ?? existing.allowDocuments,
         isActive: args.isActive ?? existing.isActive,
       }
     );
