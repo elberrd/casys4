@@ -50,6 +50,7 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
   const tPeople = useTranslations('People')
+  const tPassports = useTranslations('Passports')
   const router = useRouter()
 
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
@@ -424,18 +425,78 @@ export default function IndividualProcessDetailPage({ params, searchParams }: In
           </Card>
         </div>
 
-        {/* Status History - Interactive Table */}
-        <Card className="md:max-w-[50%]">
-          <CardContent className="pt-6">
-            {currentUser && (
-              <IndividualProcessStatusesSubtable
-                individualProcessId={processId}
-                userRole={currentUser.role}
-                showDescription={false}
-              />
-            )}
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Status History - Interactive Table */}
+          <Card>
+            <CardContent className="pt-6">
+              {currentUser && (
+                <IndividualProcessStatusesSubtable
+                  individualProcessId={processId}
+                  userRole={currentUser.role}
+                  showDescription={false}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Passport Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('passportInformation')}</CardTitle>
+              <CardDescription>{t('passportInformationDescription')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {individualProcess.passport ? (
+                <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
+                  <div className="text-sm font-medium flex items-center gap-1">
+                    {tPassports('passportNumber')}
+                    <LinkedDocIcon entityType="passport" fieldPath="passportNumber" />
+                  </div>
+                  <div className="text-sm font-mono">{individualProcess.passport.passportNumber || '-'}</div>
+
+                  <div className="text-sm font-medium flex items-center gap-1">
+                    {tPassports('issuingCountry')}
+                    <LinkedDocIcon entityType="passport" fieldPath="issuingCountryId" />
+                  </div>
+                  <div className="text-sm">
+                    {(individualProcess.passport as any).issuingCountry?.name
+                      ? translateCountryName((individualProcess.passport as any).issuingCountry.name, resolvedParams.locale)
+                      : '-'}
+                  </div>
+
+                  <div className="text-sm font-medium flex items-center gap-1">
+                    {tPassports('issueDate')}
+                    <LinkedDocIcon entityType="passport" fieldPath="issueDate" />
+                  </div>
+                  <div className="text-sm">
+                    {individualProcess.passport.issueDate
+                      ? formatDate(individualProcess.passport.issueDate, resolvedParams.locale)
+                      : '-'}
+                  </div>
+
+                  <div className="text-sm font-medium flex items-center gap-1">
+                    {tPassports('expiryDate')}
+                    <LinkedDocIcon entityType="passport" fieldPath="expiryDate" />
+                  </div>
+                  <div className="text-sm">
+                    {individualProcess.passport.expiryDate
+                      ? formatDate(individualProcess.passport.expiryDate, resolvedParams.locale)
+                      : '-'}
+                  </div>
+
+                  <div className="text-sm font-medium">{tPassports('status')}</div>
+                  <div className="text-sm">
+                    <Badge variant={individualProcess.passport.isActive ? "default" : "destructive"}>
+                      {individualProcess.passport.isActive ? tPassports('active') : tPassports('expired')}
+                    </Badge>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('noPassportLinked')}</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Document Checklist Section (includes Requirements Checklist sidebar) */}
         <DocumentChecklistCard individualProcessId={processId} userRole={currentUser?.role} />
