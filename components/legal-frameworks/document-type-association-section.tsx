@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useTranslations } from "next-intl";
 import { cn, normalizeString } from "@/lib/utils";
@@ -19,7 +19,6 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -39,7 +38,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CheckCheck, ChevronsUpDown, X, AlertCircle, Plus, FileText, Info } from "lucide-react";
-import { toast } from "sonner";
 
 // Internal type that accepts string IDs from the form
 interface FormAssociation {
@@ -52,102 +50,40 @@ interface FormAssociation {
 interface DocumentTypeAssociationSectionProps {
   value: FormAssociation[];
   onChange: (associations: FormAssociation[]) => void;
-}
-
-/**
- * Generates a code/slug from a name string.
- * - Converts to uppercase
- * - Normalizes accented characters (é -> E, ç -> C, etc.)
- * - Replaces spaces with underscores
- * - Removes special characters (keeps only A-Z, 0-9, _)
- */
-function generateCodeFromName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[\s-]+/g, "_")
-    .replace(/[^A-Z0-9_]/g, "")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  pendingDocTypeId?: string | null;
+  onPendingDocTypeHandled?: () => void;
+  onRequestCreateNew?: () => void;
 }
 
 export function DocumentTypeAssociationSection({
   value,
   onChange,
+  pendingDocTypeId,
+  onPendingDocTypeHandled,
+  onRequestCreateNew,
 }: DocumentTypeAssociationSectionProps) {
   const t = useTranslations("LegalFrameworks");
-  const tDocTypes = useTranslations("DocumentTypes");
   const tCommon = useTranslations("Common");
 
-  // Popover state for inline document type creation
   const [documentTypeSelectorOpen, setDocumentTypeSelectorOpen] = useState(false);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [newDocTypeName, setNewDocTypeName] = useState("");
-  const [newDocTypeDescription, setNewDocTypeDescription] = useState("");
-  const [newDocTypeCategory, setNewDocTypeCategory] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [pendingDocTypeId, setPendingDocTypeId] = useState<string | null>(null);
 
   // Fetch all active document types
   const documentTypes = useQuery(api.documentTypes.list, { isActive: true });
   const allDocumentTypes = useMemo(() => documentTypes ?? [], [documentTypes]);
-
-  // Fetch document categories for inline creation
-  const documentCategories = useQuery(api.documentCategories.listActive, {}) ?? [];
-
-  // Mutation for creating document types
-  const createDocumentType = useMutation(api.documentTypes.create);
 
   // Auto-select newly created document type once it appears in the query results
   useEffect(() => {
     if (pendingDocTypeId && documentTypes) {
       const exists = documentTypes.some((dt) => dt._id === pendingDocTypeId);
       if (exists) {
-        // Add the newly created document type to the selection
         const alreadySelected = value.some((a) => a.documentTypeId === pendingDocTypeId);
         if (!alreadySelected) {
           onChange([...value, { documentTypeId: pendingDocTypeId, isRequired: false }]);
         }
-        setPendingDocTypeId(null);
+        onPendingDocTypeHandled?.();
       }
     }
-  }, [pendingDocTypeId, documentTypes, value, onChange]);
-
-  // Handle inline document type creation
-  const handleCreateDocumentType = async () => {
-    if (!newDocTypeName.trim()) return;
-
-    try {
-      setIsCreating(true);
-      const code = generateCodeFromName(newDocTypeName);
-      const newId = await createDocumentType({
-        name: newDocTypeName,
-        code,
-        category: newDocTypeCategory || undefined,
-        description: newDocTypeDescription || undefined,
-        isActive: true,
-      });
-      toast.success(tDocTypes("createdSuccess"));
-      // Store the ID to be selected once the query refreshes
-      setPendingDocTypeId(newId);
-      // Reset form
-      setNewDocTypeName("");
-      setNewDocTypeDescription("");
-      setNewDocTypeCategory("");
-      setPopoverOpen(false);
-    } catch (error) {
-      console.error("Error creating document type:", error);
-      const errorMessage = error instanceof Error ? error.message : "";
-      if (errorMessage.includes("already exists")) {
-        toast.error(tDocTypes("errorDuplicateCode"));
-      } else {
-        toast.error(tDocTypes("errorCreate"));
-      }
-    } finally {
-      setIsCreating(false);
-    }
-  };
+  }, [pendingDocTypeId, documentTypes, value, onChange, onPendingDocTypeHandled]);
 
   // Helper to check if a document type is selected
   const isSelected = (dtId: string) => {
@@ -268,84 +204,17 @@ export function DocumentTypeAssociationSection({
           {t("documentTypeAssociations")}
         </Label>
         <div className="flex gap-2 flex-wrap">
-          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {t("addDocumentType")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-96" align="end">
-              <div className="space-y-4">
-                <h4 className="font-medium text-sm">{tDocTypes("createTitle")}</h4>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="new-doc-type-name">{tDocTypes("name")}</Label>
-                    <Input
-                      id="new-doc-type-name"
-                      placeholder={tDocTypes("name")}
-                      value={newDocTypeName}
-                      onChange={(e) => setNewDocTypeName(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-doc-type-category">{tDocTypes("category")}</Label>
-                    <Select value={newDocTypeCategory} onValueChange={setNewDocTypeCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={tDocTypes("selectCategory")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {documentCategories.map((category) => (
-                          <SelectItem key={category._id} value={category.code}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-doc-type-description">
-                      {tDocTypes("description")} <span className="text-muted-foreground text-xs">({tCommon("optional")})</span>
-                    </Label>
-                    <Textarea
-                      id="new-doc-type-description"
-                      placeholder={tDocTypes("description")}
-                      value={newDocTypeDescription}
-                      onChange={(e) => setNewDocTypeDescription(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setNewDocTypeName("");
-                      setNewDocTypeDescription("");
-                      setNewDocTypeCategory("");
-                      setPopoverOpen(false);
-                    }}
-                  >
-                    {tCommon("cancel")}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleCreateDocumentType}
-                    disabled={isCreating || !newDocTypeName.trim()}
-                  >
-                    {isCreating ? tCommon("loading") : tCommon("save")}
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+          {onRequestCreateNew && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onRequestCreateNew}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {t("addDocumentType")}
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"

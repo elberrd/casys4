@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { DocumentTypeAssociationSection } from "./document-type-association-section"
+import { DocumentTypeFormDialog } from "@/components/document-types/document-type-form-dialog"
 import { InfoRequirementsSection } from "./info-requirements-section"
 
 interface LegalFrameworkFormDialogProps {
@@ -63,6 +64,11 @@ export function LegalFrameworkFormDialog({
 
   const createLegalFramework = useMutation(api.legalFrameworks.create)
   const updateLegalFramework = useMutation(api.legalFrameworks.update)
+
+  // State for nested document type creation dialog
+  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false)
+  const [pendingDocTypeId, setPendingDocTypeId] = useState<string | null>(null)
+  const handlePendingDocTypeHandled = useCallback(() => setPendingDocTypeId(null), [])
 
   // Prepare process types options for combobox
   const processTypeOptions = useMemo(
@@ -261,6 +267,9 @@ export function LegalFrameworkFormDialog({
                     <DocumentTypeAssociationSection
                       value={field.value || []}
                       onChange={field.onChange}
+                      pendingDocTypeId={pendingDocTypeId}
+                      onPendingDocTypeHandled={handlePendingDocTypeHandled}
+                      onRequestCreateNew={() => setDocTypeDialogOpen(true)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -326,6 +335,15 @@ export function LegalFrameworkFormDialog({
       onOpenChange={setShowUnsavedDialog}
       onConfirm={handleConfirmClose}
       onCancel={handleCancelClose}
+    />
+
+    {/* Document Type Creation Dialog - rendered outside parent Dialog to avoid nested dialog issues */}
+    <DocumentTypeFormDialog
+      open={docTypeDialogOpen}
+      onOpenChange={setDocTypeDialogOpen}
+      onSuccess={(createdId) => {
+        if (createdId) setPendingDocTypeId(createdId)
+      }}
     />
     </>
   )

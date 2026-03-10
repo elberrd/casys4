@@ -61,7 +61,7 @@ interface DocumentTypeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentTypeId?: Id<"documentTypes">;
-  onSuccess?: () => void;
+  onSuccess?: (createdId?: string) => void;
 }
 
 /**
@@ -240,6 +240,8 @@ export function DocumentTypeFormDialog({
         isRequired: a.isRequired,
       }));
 
+      let createdId: string | undefined;
+
       if (documentTypeId) {
         await updateDocumentType({
           id: documentTypeId,
@@ -261,7 +263,7 @@ export function DocumentTypeFormDialog({
 
         toast.success(t("updatedSuccess"));
       } else {
-        await createDocumentType({
+        createdId = await createDocumentType({
           name: data.name,
           code: data.code,
           category: data.category,
@@ -279,7 +281,7 @@ export function DocumentTypeFormDialog({
       setIsCodeManuallyEdited(false);
       conditionsSectionRef.current?.resetChanges();
       onOpenChange(false);
-      onSuccess?.();
+      onSuccess?.(createdId);
     } catch (error) {
       console.error("Error saving document type:", error);
       const errorMessage = error instanceof Error ? error.message : "";
