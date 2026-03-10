@@ -400,8 +400,8 @@ export function DocumentChecklistCard({
           getStatusIcon(doc.status)
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium truncate">
+          <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
               {doc.documentType?.name || doc.fileName || t("looseDocument")}
             </p>
             {showCritical && doc.isRequired && (
@@ -423,12 +423,12 @@ export function DocumentChecklistCard({
             )}
           </div>
           {doc.documentType?.description && !isLoose && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.documentType.description}
             </p>
           )}
           {doc.fileName && (
-            <p className="text-xs text-muted-foreground truncate mt-1">
+            <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.fileName}
             </p>
           )}
