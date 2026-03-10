@@ -2133,6 +2133,8 @@
     "progress": "Progresso",
     "requiredDocuments": "Documentos Obrigatórios",
     "optionalDocuments": "Documentos Opcionais",
+    "filledDocuments": "Documentos Preenchidos",
+    "unfilledDocuments": "Documentos Não Preenchidos",
     "looseDocuments": "Documentos Avulsos",
     "looseDocumentsDescription": "Estes documentos não foram atribuídos a um tipo específico. Você pode atribuir um tipo para organizá-los.",
     "looseDocument": "Avulso",
@@ -2237,7 +2239,10 @@
     "issueDateTooltip": "Data em que o documento foi oficialmente emitido ou assinado. Usada para verificar se o documento não excede a idade máxima permitida.",
     "expiryDateTooltip": "Data em que o documento perde a validade. Usada para verificar se a validade restante atende ao mínimo exigido.",
     "validityWarningInsufficient": "A validade restante ({days} dias) é inferior ao mínimo exigido ({required} dias)",
-    "validityWarningMaxAge": "O documento foi emitido há {days} dias, excedendo o máximo permitido de {max} dias"
+    "validityWarningMaxAge": "O documento foi emitido há {days} dias, excedendo o máximo permitido de {max} dias",
+    "conditions": "Condições",
+    "conditionRequired": "Obrigatório",
+    "conditionsHint": "Marque as condições já satisfeitas ao enviar o documento"
   },
   "DocumentReview": {
     "title": "Revisar Documento",

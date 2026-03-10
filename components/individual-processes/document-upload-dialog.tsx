@@ -21,7 +21,8 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, RotateCcw } from "lucide-react"
+import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, RotateCcw, ClipboardCheck } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Tooltip,
   TooltipContent,
@@ -76,7 +77,14 @@ export function DocumentUploadDialog({
   const [expiryDate, setExpiryDate] = useState<string>("")
   const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
+  const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch conditions for this document type
+  const conditions = useQuery(
+    api.documentTypeConditions.listActiveByDocumentType,
+    { documentTypeId }
+  )
 
   const reusableDocuments = useQuery(
     api.documentsDelivered.listCompanyDocumentsForReuse,
@@ -191,6 +199,9 @@ export function DocumentUploadDialog({
         expiryDate: expiryDate || undefined,
         issueDate: issueDate || undefined,
         versionNotes: versionNotes || undefined,
+        preFulfilledConditionIds: fulfilledConditionIds.size > 0
+          ? Array.from(fulfilledConditionIds) as any
+          : undefined,
       })
 
       setUploadProgress(100)
@@ -207,6 +218,7 @@ export function DocumentUploadDialog({
       setExpiryDate("")
       setIssueDate("")
       setVersionNotes("")
+      setFulfilledConditionIds(new Set())
       setUploadProgress(0)
     } catch (error) {
       console.error("Error uploading document:", error)
@@ -226,7 +238,7 @@ export function DocumentUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -325,6 +337,59 @@ export function DocumentUploadDialog({
               disabled={isUploading}
             />
           </div>
+
+          {/* Conditions checkboxes */}
+          {conditions && conditions.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                <Label>{t("conditions")}</Label>
+              </div>
+              <div className="space-y-2 rounded-lg border p-3">
+                {conditions.map((condition) => (
+                  <div key={condition._id} className="flex items-start gap-2">
+                    <Checkbox
+                      id={`condition-${condition._id}`}
+                      checked={fulfilledConditionIds.has(condition._id)}
+                      onCheckedChange={(checked) => {
+                        setFulfilledConditionIds((prev) => {
+                          const next = new Set(prev)
+                          if (checked) {
+                            next.add(condition._id)
+                          } else {
+                            next.delete(condition._id)
+                          }
+                          return next
+                        })
+                      }}
+                      disabled={isUploading}
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={`condition-${condition._id}`}
+                        className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {condition.name}
+                        {condition.isRequired && (
+                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
+                            {t("conditionRequired")}
+                          </Badge>
+                        )}
+                      </label>
+                      {condition.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {condition.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("conditionsHint")}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Issue date (optional) */}
           <div className="space-y-2">

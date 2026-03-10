@@ -192,6 +192,9 @@ export const autoCreateForDocument = internalMutation({
     documentsDeliveredId: v.id("documentsDelivered"),
     documentTypeId: v.id("documentTypes"),
     individualProcessId: v.id("individualProcesses"),
+    preFulfilledConditionIds: v.optional(
+      v.array(v.id("documentTypeConditions"))
+    ),
   },
   handler: async (ctx, args) => {
     // Get the individual process to retrieve createdAt for expiration calculation
@@ -232,10 +235,14 @@ export const autoCreateForDocument = internalMutation({
           condition.relativeExpirationDays * millisecondsPerDay;
       }
 
+      const isPreFulfilled =
+        args.preFulfilledConditionIds?.includes(condition._id) ?? false;
+
       const conditionId = await ctx.db.insert("documentDeliveredConditions", {
         documentsDeliveredId: args.documentsDeliveredId,
         documentTypeConditionId: condition._id,
-        isFulfilled: false,
+        isFulfilled: isPreFulfilled,
+        fulfilledAt: isPreFulfilled ? now : undefined,
         expiresAt,
         createdAt: now,
       });

@@ -174,6 +174,9 @@ export const upload = mutation({
     expiryDate: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
+    preFulfilledConditionIds: v.optional(
+      v.array(v.id("documentTypeConditions"))
+    ),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -265,6 +268,7 @@ export const upload = mutation({
             documentsDeliveredId: documentId,
             documentTypeId: args.documentTypeId,
             individualProcessId: args.individualProcessId,
+            preFulfilledConditionIds: args.preFulfilledConditionIds,
           }
         );
       } catch (error) {
@@ -1314,6 +1318,9 @@ export const uploadWithType = mutation({
     expiryDate: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
+    preFulfilledConditionIds: v.optional(
+      v.array(v.id("documentTypeConditions"))
+    ),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -1437,6 +1444,7 @@ export const uploadWithType = mutation({
             documentsDeliveredId: documentId,
             documentTypeId: args.documentTypeId,
             individualProcessId: args.individualProcessId,
+            preFulfilledConditionIds: args.preFulfilledConditionIds,
           }
         );
       } catch (error) {

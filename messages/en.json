@@ -2109,6 +2109,8 @@
     "progress": "Progress",
     "requiredDocuments": "Required Documents",
     "optionalDocuments": "Optional Documents",
+    "filledDocuments": "Completed Documents",
+    "unfilledDocuments": "Incomplete Documents",
     "looseDocuments": "Unclassified Documents",
     "looseDocumentsDescription": "These documents have not been assigned to a specific document type. You can assign a type to organize them.",
     "looseDocument": "Unclassified",
@@ -2213,7 +2215,10 @@
     "issueDateTooltip": "The date the document was officially issued or signed. Used to verify if the document does not exceed the maximum allowed age.",
     "expiryDateTooltip": "The date when the document expires. Used to verify if the remaining validity meets the minimum requirement.",
     "validityWarningInsufficient": "Remaining validity ({days} days) is less than the required minimum ({required} days)",
-    "validityWarningMaxAge": "Document was issued {days} days ago, exceeding the maximum allowed of {max} days"
+    "validityWarningMaxAge": "Document was issued {days} days ago, exceeding the maximum allowed of {max} days",
+    "conditions": "Conditions",
+    "conditionRequired": "Required",
+    "conditionsHint": "Check the conditions already satisfied when uploading this document"
   },
   "DocumentReview": {
     "title": "Review Document",

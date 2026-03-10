@@ -317,6 +317,9 @@ export function DocumentChecklistCard({
   const requiredCompleted = summary.requiredApproved
   const requiredTotal = summary.totalRequired
   const total = summary.totalRequired + summary.totalOptional + summary.totalLoose
+  const checklistDocuments = [...required, ...optional]
+  const filledDocuments = checklistDocuments.filter((doc) => doc.status !== "not_started")
+  const unfilledDocuments = checklistDocuments.filter((doc) => doc.status === "not_started")
 
   const handleBulkReuse = async () => {
     setIsBulkReusing(true)
@@ -667,36 +670,36 @@ export function DocumentChecklistCard({
           </div>
         )}
 
-        {/* Required Documents */}
-        {required.length > 0 && (
+        {/* Filled Documents */}
+        {filledDocuments.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {t("requiredDocuments")}
+              <CheckCircle2 className="h-4 w-4" />
+              {t("filledDocuments")}
               <Badge variant="secondary" className="sm:ml-auto">
-                {required.filter(d => d.status === "approved").length} / {required.length}
+                {filledDocuments.length}
               </Badge>
             </h3>
             <div className="space-y-2">
-              {required.map((doc) => renderDocumentRow(doc, true))}
+              {filledDocuments.map((doc) => renderDocumentRow(doc, true))}
             </div>
           </div>
         )}
 
-        {/* Optional Documents */}
-        {optional.length > 0 && (
+        {/* Unfilled Documents */}
+        {unfilledDocuments.length > 0 && (
           <>
-            <Separator />
+            {filledDocuments.length > 0 && <Separator />}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
-                <FileText className="h-4 w-4" />
-                {t("optionalDocuments")}
+                <AlertCircle className="h-4 w-4" />
+                {t("unfilledDocuments")}
                 <Badge variant="outline" className="sm:ml-auto">
-                  {optional.filter(d => d.status === "approved").length} / {optional.length}
+                  {unfilledDocuments.length}
                 </Badge>
               </h3>
               <div className="space-y-2">
-                {optional.map((doc) => renderDocumentRow(doc))}
+                {unfilledDocuments.map((doc) => renderDocumentRow(doc, true))}
               </div>
             </div>
           </>

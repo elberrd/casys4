@@ -23,7 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, File, X, CheckCircle, FileType, Info } from "lucide-react";
+import { Loader2, Upload, File, X, CheckCircle, FileType, Info, ClipboardCheck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -58,10 +59,19 @@ export function TypedDocumentUploadDialog({
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [issueDate, setIssueDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
+  const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all active document types
   const documentTypes = useQuery(api.documentTypes.list, { isActive: true });
+
+  // Fetch conditions for selected document type
+  const conditions = useQuery(
+    api.documentTypeConditions.listActiveByDocumentType,
+    selectedDocumentTypeId
+      ? { documentTypeId: selectedDocumentTypeId as Id<"documentTypes"> }
+      : "skip"
+  );
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadWithType = useMutation(api.documentsDelivered.uploadWithType);
@@ -75,8 +85,9 @@ export function TypedDocumentUploadDialog({
   const maxSizeMB = selectedDocumentType?.maxFileSizeMB || 10;
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
-  // Reset file when document type changes
+  // Reset file and conditions when document type changes
   useEffect(() => {
+    setFulfilledConditionIds(new Set());
     if (selectedDocumentTypeId && selectedFile) {
       // Re-validate the file against new document type constraints
       const fileTypeValidation = validateFileType(selectedFile.name, allowedFormats);
@@ -167,6 +178,9 @@ export function TypedDocumentUploadDialog({
         expiryDate: expiryDate || undefined,
         issueDate: issueDate || undefined,
         versionNotes: versionNotes || undefined,
+        preFulfilledConditionIds: fulfilledConditionIds.size > 0
+          ? Array.from(fulfilledConditionIds) as any
+          : undefined,
       });
 
       setUploadProgress(100);
@@ -184,6 +198,7 @@ export function TypedDocumentUploadDialog({
       setExpiryDate("");
       setIssueDate("");
       setVersionNotes("");
+      setFulfilledConditionIds(new Set());
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -200,6 +215,7 @@ export function TypedDocumentUploadDialog({
       setExpiryDate("");
       setIssueDate("");
       setVersionNotes("");
+      setFulfilledConditionIds(new Set());
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -207,7 +223,7 @@ export function TypedDocumentUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <FileType className="h-5 w-5" />
@@ -320,6 +336,59 @@ export function TypedDocumentUploadDialog({
               disabled={isUploading}
             />
           </div>
+
+          {/* Conditions checkboxes */}
+          {conditions && conditions.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                <Label>{t("conditions")}</Label>
+              </div>
+              <div className="space-y-2 rounded-lg border p-3">
+                {conditions.map((condition) => (
+                  <div key={condition._id} className="flex items-start gap-2">
+                    <Checkbox
+                      id={`typed-condition-${condition._id}`}
+                      checked={fulfilledConditionIds.has(condition._id)}
+                      onCheckedChange={(checked) => {
+                        setFulfilledConditionIds((prev) => {
+                          const next = new Set(prev);
+                          if (checked) {
+                            next.add(condition._id);
+                          } else {
+                            next.delete(condition._id);
+                          }
+                          return next;
+                        });
+                      }}
+                      disabled={isUploading}
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={`typed-condition-${condition._id}`}
+                        className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {condition.name}
+                        {condition.isRequired && (
+                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
+                            {t("conditionRequired")}
+                          </Badge>
+                        )}
+                      </label>
+                      {condition.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {condition.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("conditionsHint")}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Issue date (optional) */}
           <div className="space-y-2">
