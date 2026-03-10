@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireAdmin } from "./lib/auth";
 
 /**
@@ -119,6 +120,16 @@ export const link = mutation({
       createdBy: userProfile.userId,
     });
 
+    // Propagate condition to existing uploaded documents in active processes
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documentDeliveredConditions.propagateConditionToExistingDocuments,
+      {
+        documentTypeId: args.documentTypeId,
+        documentTypeConditionId: args.documentTypeConditionId,
+      }
+    );
+
     return linkId;
   },
 });
@@ -149,6 +160,17 @@ export const unlink = mutation({
       throw new Error("Link not found");
     }
 
+    // Remove unfulfilled conditions from existing documents in active processes
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documentDeliveredConditions
+        .removeConditionFromExistingDocuments,
+      {
+        documentTypeId: args.documentTypeId,
+        documentTypeConditionId: args.documentTypeConditionId,
+      }
+    );
+
     await ctx.db.delete(link._id);
   },
 });
@@ -168,6 +190,17 @@ export const unlinkById = mutation({
     if (!link) {
       throw new Error("Link not found");
     }
+
+    // Remove unfulfilled conditions from existing documents in active processes
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documentDeliveredConditions
+        .removeConditionFromExistingDocuments,
+      {
+        documentTypeId: link.documentTypeId,
+        documentTypeConditionId: link.documentTypeConditionId,
+      }
+    );
 
     await ctx.db.delete(args.linkId);
   },

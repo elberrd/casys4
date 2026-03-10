@@ -248,6 +248,127 @@ export const autoCreateForDocument = internalMutation({
 });
 
 /**
+ * Internal mutation to propagate a newly linked condition to all existing
+ * uploaded documents of that type in active processes.
+ */
+export const propagateConditionToExistingDocuments = internalMutation({
+  args: {
+    documentTypeId: v.id("documentTypes"),
+    documentTypeConditionId: v.id("documentTypeConditions"),
+  },
+  handler: async (ctx, args) => {
+    const condition = await ctx.db.get(args.documentTypeConditionId);
+    if (!condition || !condition.isActive) {
+      return [];
+    }
+
+    // Find all documents of this type
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_documentType", (q) =>
+        q.eq("documentTypeId", args.documentTypeId)
+      )
+      .collect();
+
+    const now = Date.now();
+    const createdIds: Id<"documentDeliveredConditions">[] = [];
+
+    for (const doc of documents) {
+      // Only latest version
+      if (!doc.isLatest) continue;
+
+      // Skip documents with no file uploaded
+      if (doc.status === "not_started") continue;
+
+      // Only active processes
+      const process = await ctx.db.get(doc.individualProcessId);
+      if (!process || process.processStatus !== "Atual") continue;
+
+      // Check if condition already exists for this document
+      const existing = await ctx.db
+        .query("documentDeliveredConditions")
+        .withIndex("by_documentDelivered_condition", (q) =>
+          q
+            .eq("documentsDeliveredId", doc._id)
+            .eq("documentTypeConditionId", args.documentTypeConditionId)
+        )
+        .first();
+
+      if (existing) continue;
+
+      // Calculate expiration date (same logic as autoCreateForDocument)
+      let expiresAt: number | undefined;
+      if (condition.relativeExpirationDays) {
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+        expiresAt =
+          process.createdAt +
+          condition.relativeExpirationDays * millisecondsPerDay;
+      }
+
+      const conditionId = await ctx.db.insert("documentDeliveredConditions", {
+        documentsDeliveredId: doc._id,
+        documentTypeConditionId: args.documentTypeConditionId,
+        isFulfilled: false,
+        expiresAt,
+        createdAt: now,
+      });
+
+      createdIds.push(conditionId);
+    }
+
+    return createdIds;
+  },
+});
+
+/**
+ * Internal mutation to remove an unlinked condition from existing documents.
+ * Only removes unfulfilled conditions; fulfilled ones are kept as historical records.
+ */
+export const removeConditionFromExistingDocuments = internalMutation({
+  args: {
+    documentTypeId: v.id("documentTypes"),
+    documentTypeConditionId: v.id("documentTypeConditions"),
+  },
+  handler: async (ctx, args) => {
+    // Find all documents of this type
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_documentType", (q) =>
+        q.eq("documentTypeId", args.documentTypeId)
+      )
+      .collect();
+
+    let removedCount = 0;
+
+    for (const doc of documents) {
+      if (!doc.isLatest) continue;
+
+      // Only active processes
+      const process = await ctx.db.get(doc.individualProcessId);
+      if (!process || process.processStatus !== "Atual") continue;
+
+      // Find the condition record
+      const conditionRecord = await ctx.db
+        .query("documentDeliveredConditions")
+        .withIndex("by_documentDelivered_condition", (q) =>
+          q
+            .eq("documentsDeliveredId", doc._id)
+            .eq("documentTypeConditionId", args.documentTypeConditionId)
+        )
+        .first();
+
+      // Only delete unfulfilled conditions
+      if (conditionRecord && !conditionRecord.isFulfilled) {
+        await ctx.db.delete(conditionRecord._id);
+        removedCount++;
+      }
+    }
+
+    return removedCount;
+  },
+});
+
+/**
  * Query to check if a document has any conditions defined
  */
 export const hasConditions = query({
