@@ -38,7 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Building2 } from "lucide-react";
+import { Plus, Building2, FileText } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -56,6 +56,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { LegalFrameworkAssociationSection } from "./legal-framework-association-section";
 import { ConditionsSection, ConditionsSectionRef } from "./conditions-section";
 import { FieldMappingsSection } from "./field-mappings-section";
+import { LocalFieldMappingsSection, type LocalFieldMapping } from "./local-field-mappings-section";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
@@ -120,8 +121,12 @@ export function DocumentTypeFormDialog({
   const documentCategories = useQuery(api.documentCategories.listActive, {}) ?? [];
 
   const createDocumentType = useMutation(api.documentTypes.create);
+  const createDocumentTypeWithMappings = useMutation(api.documentTypes.createWithFieldMappings);
   const updateDocumentType = useMutation(api.documentTypes.update);
   const createCategory = useMutation(api.documentCategories.create);
+
+  // Local field mappings state for create mode (info-only)
+  const [localFieldMappings, setLocalFieldMappings] = useState<LocalFieldMapping[]>([]);
 
   // Handle inline category creation
   const handleCreateCategory = async () => {
@@ -164,12 +169,15 @@ export function DocumentTypeFormDialog({
       maxFileSizeMB: documentType?.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
       isActive: documentType?.isActive ?? true,
       isCompanyDocument: documentType?.isCompanyDocument ?? false,
+      isInformationOnly: documentType?.isInformationOnly ?? false,
       legalFrameworkAssociations: documentType?.legalFrameworkAssociations?.map((a) => ({
         legalFrameworkId: a.legalFrameworkId,
         isRequired: a.isRequired,
       })) ?? [],
     },
   });
+
+  const isInfoOnly = form.watch("isInformationOnly");
 
   // Unsaved changes protection
   const {
@@ -200,6 +208,7 @@ export function DocumentTypeFormDialog({
         maxFileSizeMB: documentType.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
         isActive: documentType.isActive,
         isCompanyDocument: documentType.isCompanyDocument ?? false,
+        isInformationOnly: documentType.isInformationOnly ?? false,
         legalFrameworkAssociations: documentType.legalFrameworkAssociations?.map((a) => ({
           legalFrameworkId: a.legalFrameworkId,
           isRequired: a.isRequired,
@@ -253,6 +262,7 @@ export function DocumentTypeFormDialog({
           maxFileSizeMB: data.maxFileSizeMB,
           isActive: data.isActive,
           isCompanyDocument: data.isCompanyDocument,
+          isInformationOnly: data.isInformationOnly,
           legalFrameworkAssociations: associations,
         });
 
@@ -263,22 +273,47 @@ export function DocumentTypeFormDialog({
 
         toast.success(t("updatedSuccess"));
       } else {
-        createdId = await createDocumentType({
-          name: data.name,
-          code: data.code,
-          category: data.category,
-          description: data.description,
-          allowedFileTypes: data.allowedFileTypes,
-          maxFileSizeMB: data.maxFileSizeMB,
-          isActive: data.isActive,
-          isCompanyDocument: data.isCompanyDocument,
-          legalFrameworkAssociations: associations,
-        });
+        // For info-only docs in create mode, validate at least 1 field mapping
+        if (data.isInformationOnly && localFieldMappings.length === 0) {
+          toast.error(t("fieldMappingsRequired"));
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (data.isInformationOnly && localFieldMappings.length > 0) {
+          createdId = await createDocumentTypeWithMappings({
+            name: data.name,
+            code: data.code,
+            category: data.category,
+            description: data.description,
+            allowedFileTypes: data.allowedFileTypes,
+            maxFileSizeMB: data.maxFileSizeMB,
+            isActive: data.isActive,
+            isCompanyDocument: data.isCompanyDocument,
+            isInformationOnly: data.isInformationOnly,
+            legalFrameworkAssociations: associations,
+            fieldMappings: localFieldMappings,
+          });
+        } else {
+          createdId = await createDocumentType({
+            name: data.name,
+            code: data.code,
+            category: data.category,
+            description: data.description,
+            allowedFileTypes: data.allowedFileTypes,
+            maxFileSizeMB: data.maxFileSizeMB,
+            isActive: data.isActive,
+            isCompanyDocument: data.isCompanyDocument,
+            isInformationOnly: data.isInformationOnly,
+            legalFrameworkAssociations: associations,
+          });
+        }
         toast.success(t("createdSuccess"));
       }
 
       form.reset();
       setIsCodeManuallyEdited(false);
+      setLocalFieldMappings([]);
       conditionsSectionRef.current?.resetChanges();
       onOpenChange(false);
       onSuccess?.(createdId);
@@ -481,15 +516,48 @@ export function DocumentTypeFormDialog({
               </>
             )}
 
-            {/* Field Mappings Section - Only show in edit mode */}
+            {/* Field Mappings Section - Edit mode uses server-backed section, create mode uses local state */}
             {documentTypeId && (
               <>
                 <Separator className="my-4" />
                 <FieldMappingsSection documentTypeId={documentTypeId} />
               </>
             )}
+            {!documentTypeId && isInfoOnly && (
+              <>
+                <Separator className="my-4" />
+                <LocalFieldMappingsSection
+                  mappings={localFieldMappings}
+                  onChange={setLocalFieldMappings}
+                />
+              </>
+            )}
 
             <Separator className="my-4" />
+
+            <FormField
+              control={form.control}
+              name="isInformationOnly"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      {t("isInformationOnly")}
+                    </FormLabel>
+                    <FormDescription>
+                      {t("isInformationOnlyDescription")}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

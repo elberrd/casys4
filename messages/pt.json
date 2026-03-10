@@ -2012,6 +2012,9 @@
     "authorizationTypeApplied": "{count} amparos legais de {authorizationType} foram automaticamente selecionados",
     "noLegalFrameworksForAuthorizationType": "Nenhum amparo legal associado a este tipo de autorização",
     "ungroupedLegalFrameworks": "Outros Amparos Legais",
+    "isInformationOnly": "Apenas Informação",
+    "isInformationOnlyDescription": "Este tipo de documento requer apenas o preenchimento de campos de informação, sem necessidade de envio de arquivo",
+    "fieldMappingsRequired": "É necessário pelo menos um campo vinculado para tipos de documento apenas informação",
     "fieldMappings": "Campos de Informação Vinculados",
     "fieldMappingsDescription": "Campos que devem ser preenchidos junto com este documento",
     "responsibleParty": "Responsável",
@@ -2194,7 +2197,19 @@
     "documentScopeIndividual": "Individual",
     "bulkReuse": "Reutilizar {count, plural, one {# doc. empresa} other {# docs. empresa}}",
     "bulkReuseSuccess": "Reutilizados {count, plural, one {# documento} other {# documentos}} da empresa com sucesso",
-    "bulkReuseError": "Erro ao reutilizar documentos da empresa"
+    "bulkReuseError": "Erro ao reutilizar documentos da empresa",
+    "informationOnly": "Só Info",
+    "fillInformation": "Preencher Informações",
+    "conditions": {
+      "title": "Condicionantes"
+    }
+  },
+  "InformationFields": {
+    "title": "Preencher Informações",
+    "description": "Preencha os campos de informação necessários para este documento",
+    "save": "Salvar",
+    "saved": "Informações salvas com sucesso",
+    "noFields": "Nenhum campo configurado para este tipo de documento"
   },
   "DocumentUpload": {
     "title": "Enviar Documento",

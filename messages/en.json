@@ -1988,6 +1988,9 @@
     "authorizationTypeApplied": "{count} legal frameworks from {authorizationType} were automatically selected",
     "noLegalFrameworksForAuthorizationType": "No legal frameworks associated with this authorization type",
     "ungroupedLegalFrameworks": "Other Legal Frameworks",
+    "isInformationOnly": "Information Only",
+    "isInformationOnlyDescription": "This document type only requires filling in information fields, no file upload needed",
+    "fieldMappingsRequired": "At least one linked field is required for information-only document types",
     "fieldMappings": "Linked Information Fields",
     "fieldMappingsDescription": "Fields that must be filled in along with this document",
     "responsibleParty": "Responsible Party",
@@ -2170,7 +2173,19 @@
     "documentScopeIndividual": "Individual",
     "bulkReuse": "Reuse {count, plural, one {# company doc} other {# company docs}}",
     "bulkReuseSuccess": "Successfully reused {count, plural, one {# document} other {# documents}} from the company",
-    "bulkReuseError": "Failed to reuse company documents"
+    "bulkReuseError": "Failed to reuse company documents",
+    "informationOnly": "Info Only",
+    "fillInformation": "Fill Information",
+    "conditions": {
+      "title": "Conditions"
+    }
+  },
+  "InformationFields": {
+    "title": "Fill Information",
+    "description": "Fill in the required information fields for this document",
+    "save": "Save",
+    "saved": "Information saved successfully",
+    "noFields": "No fields configured for this document type"
   },
   "DocumentUpload": {
     "title": "Upload Document",

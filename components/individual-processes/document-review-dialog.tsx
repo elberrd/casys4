@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -67,101 +66,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { UploadNewVersionDialog } from "@/components/individual-processes/upload-new-version-dialog"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
-
-const MARITAL_STATUS_OPTIONS = [
-  { value: "Single", label: "Solteiro(a)", labelEn: "Single" },
-  { value: "Married", label: "Casado(a)", labelEn: "Married" },
-  { value: "Divorced", label: "Divorciado(a)", labelEn: "Divorced" },
-  { value: "Widowed", label: "Viúvo(a)", labelEn: "Widowed" },
-]
-
-const QUALIFICATION_OPTIONS = [
-  { value: "medio", label: "Médio", labelEn: "High School" },
-  { value: "tecnico", label: "Técnico", labelEn: "Technical" },
-  { value: "superior", label: "Superior", labelEn: "College" },
-  { value: "naoPossui", label: "Não possui", labelEn: "None" },
-]
-
-/** Inline input component for editing linked field values */
-function LinkedFieldInput({
-  field,
-  value,
-  onChange,
-}: {
-  field: { fieldType: string; fieldPath: string; entityType: string }
-  value: string | number
-  onChange: (val: string | number) => void
-}) {
-  // Select fields
-  if (field.fieldPath === "maritalStatus") {
-    return (
-      <Select value={String(value)} onValueChange={onChange}>
-        <SelectTrigger className="h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {MARITAL_STATUS_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
-
-  if (field.fieldPath === "qualification") {
-    return (
-      <Select value={String(value)} onValueChange={onChange}>
-        <SelectTrigger className="h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {QUALIFICATION_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
-
-  // Date fields
-  if (field.fieldType === "date") {
-    return (
-      <Input
-        type="date"
-        className="h-8 text-xs"
-        value={String(value)}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    )
-  }
-
-  // Number fields
-  if (field.fieldType === "number") {
-    return (
-      <Input
-        type="number"
-        className="h-8 text-xs"
-        value={value}
-        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-        step="0.01"
-      />
-    )
-  }
-
-  // Default: text input
-  return (
-    <Input
-      type="text"
-      className="h-8 text-xs"
-      value={String(value)}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  )
-}
+import { LinkedFieldInput } from "./linked-field-input"
 
 interface DocumentReviewDialogProps {
   open: boolean
@@ -212,14 +117,16 @@ export function DocumentReviewDialog({
     documentId ? { documentId } : "skip"
   )
 
+  const effectiveDocumentId = selectedVersionId ?? documentId;
+
   const conditions = useQuery(
     api.documentDeliveredConditions.listByDocument,
-    documentId ? { documentsDeliveredId: documentId } : "skip"
+    effectiveDocumentId ? { documentsDeliveredId: effectiveDocumentId } : "skip"
   )
 
   const validationStatus = useQuery(
     api.documentDeliveredConditions.getValidationStatus,
-    documentId ? { documentsDeliveredId: documentId } : "skip"
+    effectiveDocumentId ? { documentsDeliveredId: effectiveDocumentId } : "skip"
   )
 
   const linkedFields = useQuery(
@@ -232,6 +139,7 @@ export function DocumentReviewDialog({
       : "skip"
   )
 
+  const syncMissingConditions = useMutation(api.documentDeliveredConditions.syncMissingConditions)
   const approve = useMutation(api.documentsDelivered.approve)
   const toggleConditionFulfillment = useMutation(api.documentDeliveredConditions.toggleFulfillment)
   const reject = useMutation(api.documentsDelivered.reject)
@@ -259,6 +167,15 @@ export function DocumentReviewDialog({
       setShowDeleteConfirm(false)
     }
   }, [documentId, removeDocument, t, onOpenChange, onSuccess])
+
+  // Sync missing conditions when dialog opens with a document
+  useEffect(() => {
+    if (open && effectiveDocumentId) {
+      syncMissingConditions({ documentsDeliveredId: effectiveDocumentId }).catch(() => {
+        // Non-blocking: don't show errors for background sync
+      })
+    }
+  }, [open, effectiveDocumentId, syncMissingConditions])
 
   // Reset editing state when dialog opens/closes
   useEffect(() => {
@@ -561,10 +478,12 @@ export function DocumentReviewDialog({
           )}
         </div>
 
-        <Tabs defaultValue="details" className="w-full min-h-0 flex flex-col flex-1">
+        <Tabs defaultValue={document?.documentType?.isInformationOnly ? "linkedFields" : "details"} className="w-full min-h-0 flex flex-col flex-1">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 shrink-0">
             <TabsTrigger value="details">{t("details")}</TabsTrigger>
-            <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
+            {!document?.documentType?.isInformationOnly && (
+              <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
+            )}
             <TabsTrigger value="conditions" className="relative">
               {t("conditions") || "Condições"}
               {conditions && conditions.length > 0 && validationStatus && (
@@ -590,16 +509,18 @@ export function DocumentReviewDialog({
             <TabsTrigger value="history">{t("history")}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="preview" className="py-4 overflow-y-auto max-h-[55vh]">
-            {displayDocument?.fileUrl && (
-              <FileViewer
-                fileUrl={displayDocument.fileUrl}
-                fileName={displayDocument.fileName}
-                mimeType={displayDocument.mimeType || ""}
-                className="rounded-lg border"
-              />
-            )}
-          </TabsContent>
+          {!document?.documentType?.isInformationOnly && (
+            <TabsContent value="preview" className="py-4 overflow-y-auto max-h-[55vh]">
+              {displayDocument?.fileUrl && (
+                <FileViewer
+                  fileUrl={displayDocument.fileUrl}
+                  fileName={displayDocument.fileName}
+                  mimeType={displayDocument.mimeType || ""}
+                  className="rounded-lg border"
+                />
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="conditions" className="py-4 overflow-y-auto max-h-[55vh]">
             {conditions && conditions.length > 0 ? (

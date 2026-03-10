@@ -195,6 +195,7 @@ export const autoCreateForDocument = internalMutation({
     preFulfilledConditionIds: v.optional(
       v.array(v.id("documentTypeConditions"))
     ),
+    previousDocumentsDeliveredId: v.optional(v.id("documentsDelivered")),
   },
   handler: async (ctx, args) => {
     // Get the individual process to retrieve createdAt for expiration calculation
@@ -216,6 +217,28 @@ export const autoCreateForDocument = internalMutation({
       return [];
     }
 
+    // Build carry-forward map from previous version's conditions
+    const previousConditionsMap = new Map<
+      Id<"documentTypeConditions">,
+      { isFulfilled: boolean; fulfilledAt?: number; fulfilledBy?: Id<"users">; notes?: string }
+    >();
+    if (args.previousDocumentsDeliveredId) {
+      const previousConditions = await ctx.db
+        .query("documentDeliveredConditions")
+        .withIndex("by_documentDelivered", (q) =>
+          q.eq("documentsDeliveredId", args.previousDocumentsDeliveredId!)
+        )
+        .collect();
+      for (const pc of previousConditions) {
+        previousConditionsMap.set(pc.documentTypeConditionId, {
+          isFulfilled: pc.isFulfilled,
+          fulfilledAt: pc.fulfilledAt,
+          fulfilledBy: pc.fulfilledBy,
+          notes: pc.notes,
+        });
+      }
+    }
+
     const now = Date.now();
     const createdIds: Id<"documentDeliveredConditions">[] = [];
 
@@ -235,14 +258,24 @@ export const autoCreateForDocument = internalMutation({
           condition.relativeExpirationDays * millisecondsPerDay;
       }
 
+      // Priority: preFulfilledConditionIds > previous version state > false
       const isPreFulfilled =
         args.preFulfilledConditionIds?.includes(condition._id) ?? false;
+      const previousState = previousConditionsMap.get(condition._id);
+
+      const isFulfilled = isPreFulfilled || (previousState?.isFulfilled ?? false);
 
       const conditionId = await ctx.db.insert("documentDeliveredConditions", {
         documentsDeliveredId: args.documentsDeliveredId,
         documentTypeConditionId: condition._id,
-        isFulfilled: isPreFulfilled,
-        fulfilledAt: isPreFulfilled ? now : undefined,
+        isFulfilled,
+        fulfilledAt: isFulfilled
+          ? (isPreFulfilled ? now : previousState?.fulfilledAt ?? now)
+          : undefined,
+        fulfilledBy: isFulfilled && !isPreFulfilled
+          ? previousState?.fulfilledBy
+          : undefined,
+        notes: previousState?.notes,
         expiresAt,
         createdAt: now,
       });
@@ -372,6 +405,88 @@ export const removeConditionFromExistingDocuments = internalMutation({
     }
 
     return removedCount;
+  },
+});
+
+/**
+ * Mutation to sync missing conditions for an existing document.
+ * Checks the document type's condition links and creates any that don't exist yet.
+ * Designed to be called when opening a document for review, runs fast and is idempotent.
+ */
+export const syncMissingConditions = mutation({
+  args: {
+    documentsDeliveredId: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, args) => {
+    const document = await ctx.db.get(args.documentsDeliveredId);
+    if (!document || !document.documentTypeId) {
+      return [];
+    }
+
+    // Get all condition links for this document type
+    const links = await ctx.db
+      .query("documentTypeConditionLinks")
+      .withIndex("by_documentType", (q) =>
+        q.eq("documentTypeId", document.documentTypeId!)
+      )
+      .collect();
+
+    if (links.length === 0) {
+      return [];
+    }
+
+    // Get existing conditions for this document
+    const existingConditions = await ctx.db
+      .query("documentDeliveredConditions")
+      .withIndex("by_documentDelivered", (q) =>
+        q.eq("documentsDeliveredId", args.documentsDeliveredId)
+      )
+      .collect();
+
+    const existingConditionTypeIds = new Set(
+      existingConditions.map((c) => c.documentTypeConditionId)
+    );
+
+    // Get process for expiration calculation
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      return [];
+    }
+
+    const now = Date.now();
+    const createdIds: Id<"documentDeliveredConditions">[] = [];
+
+    for (const link of links) {
+      // Skip if already exists
+      if (existingConditionTypeIds.has(link.documentTypeConditionId)) {
+        continue;
+      }
+
+      const condition = await ctx.db.get(link.documentTypeConditionId);
+      if (!condition || !condition.isActive) {
+        continue;
+      }
+
+      let expiresAt: number | undefined;
+      if (condition.relativeExpirationDays) {
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+        expiresAt =
+          individualProcess.createdAt +
+          condition.relativeExpirationDays * millisecondsPerDay;
+      }
+
+      const conditionId = await ctx.db.insert("documentDeliveredConditions", {
+        documentsDeliveredId: args.documentsDeliveredId,
+        documentTypeConditionId: condition._id,
+        isFulfilled: false,
+        expiresAt,
+        createdAt: now,
+      });
+
+      createdIds.push(conditionId);
+    }
+
+    return createdIds;
   },
 });
 

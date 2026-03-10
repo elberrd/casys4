@@ -266,12 +266,12 @@ export function IndividualProcessStatusesSubtable({
         </div>
       ) : (
         <div className="rounded-md border">
-          <Table>
+          <Table className={isAdmin ? "min-w-[620px]" : "min-w-[460px]"}>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("statusDateTime")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-                {isAdmin && <TableHead className="w-[100px]">{tCommon("actions")}</TableHead>}
+                <TableHead className="min-w-[180px]">{t("statusDateTime")}</TableHead>
+                <TableHead className="min-w-[220px]">{t("status")}</TableHead>
+                {isAdmin && <TableHead className="w-[132px] min-w-[132px] text-right">{tCommon("actions")}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -282,7 +282,7 @@ export function IndividualProcessStatusesSubtable({
 
                 return (
                   <TableRow key={status._id}>
-                    <TableCell>
+                    <TableCell className="min-w-[180px]">
                       {isEditing ? (
                         <div className="flex items-center gap-2">
                           <Input
@@ -318,7 +318,7 @@ export function IndividualProcessStatusesSubtable({
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[220px]">
                       {isEditing ? (
                         <Combobox
                           value={editCaseStatusId || status.caseStatusId}
@@ -407,7 +407,7 @@ export function IndividualProcessStatusesSubtable({
                       )}
                     </TableCell>
                     {isAdmin && (
-                      <TableCell>
+                      <TableCell className="w-[132px] min-w-[132px]">
                         {!isEditing && (
                           <div className="flex items-center gap-1 justify-end">
                             {/* Fill Fields button - shows when status has fillable fields */}

@@ -258,22 +258,23 @@ export const upload = mutation({
     });
 
     // Auto-create conditions for this document based on document type
-    // Only for new documents (version 1), not replacements
-    if (version === 1) {
-      try {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.documentDeliveredConditions.autoCreateForDocument,
-          {
-            documentsDeliveredId: documentId,
-            documentTypeId: args.documentTypeId,
-            individualProcessId: args.individualProcessId,
-            preFulfilledConditionIds: args.preFulfilledConditionIds,
-          }
-        );
-      } catch (error) {
-        console.error("Failed to auto-create conditions:", error);
-      }
+    try {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documentDeliveredConditions.autoCreateForDocument,
+        {
+          documentsDeliveredId: documentId,
+          documentTypeId: args.documentTypeId,
+          individualProcessId: args.individualProcessId,
+          preFulfilledConditionIds: args.preFulfilledConditionIds,
+          previousDocumentsDeliveredId:
+            existingDocuments.length > 0
+              ? existingDocuments[0]._id
+              : undefined,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to auto-create conditions:", error);
     }
 
     // Log activity (non-blocking)
@@ -717,6 +718,24 @@ export const restoreVersion = mutation({
       isLatest: true,
       versionNotes: notes,
     });
+
+    // Auto-create conditions, carrying forward state from the restored version
+    if (oldDocument.documentTypeId) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documentDeliveredConditions.autoCreateForDocument,
+          {
+            documentsDeliveredId: newDocId,
+            documentTypeId: oldDocument.documentTypeId,
+            individualProcessId: oldDocument.individualProcessId,
+            previousDocumentsDeliveredId: oldDocument._id,
+          }
+        );
+      } catch (error) {
+        console.error("Failed to auto-create conditions on restore:", error);
+      }
+    }
 
     // Record status history
     await ctx.db.insert("documentStatusHistory", {
@@ -1434,22 +1453,23 @@ export const uploadWithType = mutation({
     });
 
     // Auto-create conditions for this document based on document type
-    // Only for new documents (version 1), not replacements
-    if (version === 1) {
-      try {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.documentDeliveredConditions.autoCreateForDocument,
-          {
-            documentsDeliveredId: documentId,
-            documentTypeId: args.documentTypeId,
-            individualProcessId: args.individualProcessId,
-            preFulfilledConditionIds: args.preFulfilledConditionIds,
-          }
-        );
-      } catch (error) {
-        console.error("Failed to auto-create conditions:", error);
-      }
+    try {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documentDeliveredConditions.autoCreateForDocument,
+        {
+          documentsDeliveredId: documentId,
+          documentTypeId: args.documentTypeId,
+          individualProcessId: args.individualProcessId,
+          preFulfilledConditionIds: args.preFulfilledConditionIds,
+          previousDocumentsDeliveredId:
+            existingDocuments.length > 0
+              ? existingDocuments[0]._id
+              : undefined,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to auto-create conditions:", error);
     }
 
     // Log activity
@@ -1812,6 +1832,34 @@ export const listGroupedByCategory = query({
           }
         }
 
+        // Compute conditions summary if document has been started
+        let conditionsSummary = undefined;
+        if (doc.status !== "not_started") {
+          const docConditions = await ctx.db
+            .query("documentDeliveredConditions")
+            .withIndex("by_documentDelivered", (q) =>
+              q.eq("documentsDeliveredId", doc._id)
+            )
+            .collect();
+
+          if (docConditions.length > 0) {
+            const conditions = await Promise.all(
+              docConditions.map(async (dc) => {
+                const condition = await ctx.db.get(dc.documentTypeConditionId);
+                return {
+                  name: condition?.name ?? "",
+                  isFulfilled: dc.isFulfilled,
+                };
+              })
+            );
+            conditionsSummary = {
+              total: conditions.length,
+              fulfilled: conditions.filter((c) => c.isFulfilled).length,
+              conditions,
+            };
+          }
+        }
+
         return {
           ...doc,
           documentType,
@@ -1820,6 +1868,7 @@ export const listGroupedByCategory = query({
           reviewedByUser,
           validityCheck,
           validityRule,
+          conditionsSummary,
         };
       }),
     );
@@ -2696,5 +2745,128 @@ export const cleanupDuplicateDocuments = internalMutation({
       processesAffectedCount: processesAffected.length,
       processesAffected,
     };
+  },
+});
+
+/**
+ * Mutation to submit information-only document fields.
+ * Updates entity fields and auto-approves the document record.
+ */
+export const submitInformationFields = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    documentTypeId: v.id("documentTypes"),
+    documentRequirementId: v.optional(v.id("documentRequirements")),
+    documentTypeLegalFrameworkId: v.optional(v.id("documentTypesLegalFrameworks")),
+    changes: v.array(
+      v.object({
+        entityType: v.string(),
+        fieldPath: v.string(),
+        value: v.any(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    if (!userProfile.userId) {
+      throw new Error("User must be activated");
+    }
+
+    const process = await ctx.db.get(args.individualProcessId);
+    if (!process) throw new Error("Individual process not found");
+
+    // Apply field value changes (same logic as updateFieldValues)
+    const grouped: Record<string, Record<string, any>> = {};
+    for (const change of args.changes) {
+      if (!grouped[change.entityType]) grouped[change.entityType] = {};
+      grouped[change.entityType][change.fieldPath] = change.value;
+    }
+
+    if (grouped.person) {
+      await ctx.db.patch(process.personId, grouped.person);
+    }
+
+    if (grouped.individualProcess) {
+      await ctx.db.patch(args.individualProcessId, grouped.individualProcess);
+    }
+
+    if (grouped.passport && process.passportId) {
+      await ctx.db.patch(process.passportId, grouped.passport);
+    }
+
+    if (grouped.company) {
+      let companyId = process.companyApplicantId;
+      if (!companyId && process.collectiveProcessId) {
+        const collective = await ctx.db.get(process.collectiveProcessId);
+        companyId = collective?.companyId ?? undefined;
+      }
+      if (companyId) {
+        await ctx.db.patch(companyId, grouped.company);
+      }
+    }
+
+    // Find the existing document record (not_started or already approved for re-edit)
+    const existingDocs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", args.individualProcessId)
+      )
+      .collect();
+
+    const existingDoc = existingDocs.find(
+      (doc) =>
+        doc.documentTypeId === args.documentTypeId &&
+        doc.documentRequirementId === args.documentRequirementId &&
+        doc.isLatest
+    );
+
+    const now = Date.now();
+
+    if (existingDoc) {
+      // Update the existing record - auto-approve
+      await ctx.db.patch(existingDoc._id, {
+        status: "approved",
+        fileName: "information_only",
+        fileSize: 0,
+        mimeType: "application/x-info-only",
+        fileUrl: "",
+        uploadedBy: existingDoc.uploadedBy ?? userProfile.userId,
+        uploadedAt: existingDoc.uploadedAt ?? now,
+        reviewedBy: userProfile.userId,
+        reviewedAt: now,
+        version: existingDoc.version || 1,
+        isLatest: true,
+      });
+
+      return existingDoc._id;
+    }
+
+    // No existing record - should not normally happen since syncMissingDocuments creates them,
+    // but handle gracefully by creating one.
+    const collectiveProcess = process.collectiveProcessId
+      ? await ctx.db.get(process.collectiveProcessId)
+      : null;
+
+    const documentId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId: args.individualProcessId,
+      documentTypeId: args.documentTypeId,
+      documentRequirementId: args.documentRequirementId,
+      documentTypeLegalFrameworkId: args.documentTypeLegalFrameworkId,
+      personId: process.personId,
+      companyId: collectiveProcess?.companyId,
+      fileName: "information_only",
+      fileUrl: "",
+      fileSize: 0,
+      mimeType: "application/x-info-only",
+      status: "approved",
+      uploadedBy: userProfile.userId,
+      uploadedAt: now,
+      reviewedBy: userProfile.userId,
+      reviewedAt: now,
+      version: 1,
+      isLatest: true,
+    });
+
+    return documentId;
   },
 });

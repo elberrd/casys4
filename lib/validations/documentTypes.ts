@@ -56,6 +56,7 @@ export const documentTypeSchema = z.object({
   maxFileSizeMB: z.number().min(1).max(100).optional(),
   isActive: z.boolean().optional(),
   isCompanyDocument: z.boolean().optional(),
+  isInformationOnly: z.boolean().optional(),
   legalFrameworkAssociations: z.array(legalFrameworkAssociationSchema).optional(),
 });
 

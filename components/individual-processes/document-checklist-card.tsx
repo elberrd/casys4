@@ -39,7 +39,15 @@ import {
   Trash2,
   Building2,
   RotateCcw,
+  ListChecks,
+  Check,
+  X,
 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
@@ -53,6 +61,7 @@ import { TypedDocumentUploadDialog } from "./typed-document-upload-dialog"
 import { AssignDocumentTypeDialog } from "./assign-document-type-dialog"
 import { CompanyDocumentReuseDialog } from "./company-document-reuse-dialog"
 import { RequirementsChecklistSheet, ChecklistTriggerButton } from "./requirements-checklist-card"
+import { InformationFieldsDialog } from "./information-fields-dialog"
 
 interface DocumentChecklistCardProps {
   individualProcessId: Id<"individualProcesses">
@@ -98,6 +107,15 @@ type DialogState = {
       documentTypeName: string
     } | null
   }
+  informationFields: {
+    open: boolean
+    document: {
+      documentTypeId: Id<"documentTypes">
+      documentRequirementId?: Id<"documentRequirements">
+      documentTypeLegalFrameworkId?: Id<"documentTypesLegalFrameworks">
+      documentTypeName: string
+    } | null
+  }
 }
 
 export function DocumentChecklistCard({
@@ -139,6 +157,7 @@ export function DocumentChecklistCard({
     typedUpload: { open: false },
     assignType: { open: false, document: null },
     reuse: { open: false, document: null },
+    informationFields: { open: false, document: null },
   })
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
@@ -241,7 +260,23 @@ export function DocumentChecklistCard({
       typedUpload: { open: false },
       assignType: { open: false, document: null },
       reuse: { open: false, document: null },
+      informationFields: { open: false, document: null },
     })
+  }
+
+  const openInformationFieldsDialog = (doc: any) => {
+    setDialogs(prev => ({
+      ...prev,
+      informationFields: {
+        open: true,
+        document: {
+          documentTypeId: doc.documentTypeId,
+          documentRequirementId: doc.documentRequirementId,
+          documentTypeLegalFrameworkId: doc.documentTypeLegalFrameworkId,
+          documentTypeName: doc.documentType?.name || "",
+        },
+      },
+    }))
   }
 
   const toggleDocumentSelection = (docId: Id<"documentsDelivered">) => {
@@ -381,7 +416,9 @@ export function DocumentChecklistCard({
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
       onClick={() => {
-        if (doc.status === "not_started") {
+        if (doc.documentType?.isInformationOnly) {
+          openInformationFieldsDialog(doc)
+        } else if (doc.status === "not_started") {
           openUploadDialog(doc)
         } else {
           openReviewDialog(doc._id)
@@ -418,6 +455,12 @@ export function DocumentChecklistCard({
                 {t("companyDocument")}
               </Badge>
             )}
+            {doc.documentType?.isInformationOnly === true && (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <FileText className="h-3 w-3" />
+                {t("informationOnly")}
+              </Badge>
+            )}
             {isLoose && (
               <Badge variant="outline" className="text-xs gap-1">
                 <FileQuestion className="h-3 w-3" />
@@ -440,6 +483,43 @@ export function DocumentChecklistCard({
 
       <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
+
+        {/* Conditions badge */}
+        {doc.conditionsSummary && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "gap-1 text-xs cursor-default",
+                  doc.conditionsSummary.fulfilled === doc.conditionsSummary.total
+                    ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                    : doc.conditionsSummary.fulfilled > 0
+                      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                      : "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                )}
+              >
+                <ListChecks className="h-3 w-3" />
+                {doc.conditionsSummary.fulfilled}/{doc.conditionsSummary.total}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[260px]">
+              <p className="font-medium text-xs mb-1">{t("conditions.title")}</p>
+              <ul className="space-y-0.5">
+                {doc.conditionsSummary.conditions.map((c: { name: string; isFulfilled: boolean }, i: number) => (
+                  <li key={i} className="flex items-center gap-1 text-xs">
+                    {c.isFulfilled ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    )}
+                    {c.name}
+                  </li>
+                ))}
+              </ul>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Validity badges */}
         {doc.validityCheck && doc.validityCheck.status === "expired" && (
@@ -476,11 +556,11 @@ export function DocumentChecklistCard({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => openUploadDialog(doc)}
-              title={t("upload")}
+              onClick={() => doc.documentType?.isInformationOnly ? openInformationFieldsDialog(doc) : openUploadDialog(doc)}
+              title={doc.documentType?.isInformationOnly ? t("fillInformation") : t("upload")}
               className="cursor-pointer"
             >
-              <Upload className="h-4 w-4" />
+              {doc.documentType?.isInformationOnly ? <FileText className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
             </Button>
             {userRole === "admin" && (
               <Button
@@ -865,6 +945,21 @@ export function DocumentChecklistCard({
           targetDocumentId={dialogs.reuse.document.targetDocumentId}
           individualProcessId={individualProcessId}
           documentTypeName={dialogs.reuse.document.documentTypeName}
+          onSuccess={closeAllDialogs}
+        />
+      )}
+
+      {dialogs.informationFields.open && dialogs.informationFields.document && (
+        <InformationFieldsDialog
+          open={dialogs.informationFields.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          individualProcessId={individualProcessId}
+          documentTypeId={dialogs.informationFields.document.documentTypeId}
+          documentRequirementId={dialogs.informationFields.document.documentRequirementId}
+          documentTypeLegalFrameworkId={dialogs.informationFields.document.documentTypeLegalFrameworkId}
+          documentTypeName={dialogs.informationFields.document.documentTypeName}
           onSuccess={closeAllDialogs}
         />
       )}

@@ -150,6 +150,7 @@ export const create = mutation({
     maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
+    isInformationOnly: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -187,6 +188,7 @@ export const create = mutation({
       maxFileSizeMB: args.maxFileSizeMB ?? 10,
       isActive: args.isActive ?? true,
       isCompanyDocument: args.isCompanyDocument ?? false,
+      isInformationOnly: args.isInformationOnly ?? false,
     });
 
     // Create legal framework associations if provided
@@ -235,6 +237,7 @@ export const update = mutation({
     maxFileSizeMB: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
+    isInformationOnly: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -290,6 +293,7 @@ export const update = mutation({
       }),
       ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
       ...(updateData.isCompanyDocument !== undefined && { isCompanyDocument: updateData.isCompanyDocument }),
+      ...(updateData.isInformationOnly !== undefined && { isInformationOnly: updateData.isInformationOnly }),
     });
 
     // Update legal framework associations if provided
@@ -383,5 +387,125 @@ export const remove = mutation({
         code: existing.code,
       },
     });
+  },
+});
+
+/**
+ * Mutation to create a document type with field mappings in a single transaction.
+ * Used for information-only document types that need at least one field mapping.
+ */
+export const createWithFieldMappings = mutation({
+  args: {
+    name: v.string(),
+    code: v.optional(v.string()),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    allowedFileTypes: v.optional(v.array(v.string())),
+    maxFileSizeMB: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
+    isCompanyDocument: v.optional(v.boolean()),
+    isInformationOnly: v.optional(v.boolean()),
+    legalFrameworkAssociations: v.optional(
+      v.array(
+        v.object({
+          legalFrameworkId: v.id("legalFrameworks"),
+          isRequired: v.boolean(),
+        })
+      )
+    ),
+    fieldMappings: v.optional(
+      v.array(
+        v.object({
+          entityType: v.string(),
+          fieldPath: v.string(),
+          label: v.string(),
+          labelEn: v.optional(v.string()),
+          fieldType: v.optional(v.string()),
+          isRequired: v.boolean(),
+          sortOrder: v.number(),
+        })
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new Error("User must be activated");
+    }
+
+    // Check for duplicate code if provided
+    if (args.code) {
+      const existing = await ctx.db
+        .query("documentTypes")
+        .withIndex("by_code", (q) => q.eq("code", args.code!))
+        .first();
+
+      if (existing) {
+        throw new Error("A document type with this code already exists");
+      }
+    }
+
+    const documentTypeId = await ctx.db.insert("documentTypes", {
+      name: args.name,
+      code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
+      category: args.category ?? "",
+      description: args.description ?? "",
+      allowedFileTypes: args.allowedFileTypes ?? [],
+      maxFileSizeMB: args.maxFileSizeMB ?? 10,
+      isActive: args.isActive ?? true,
+      isCompanyDocument: args.isCompanyDocument ?? false,
+      isInformationOnly: args.isInformationOnly ?? false,
+    });
+
+    // Create legal framework associations if provided
+    if (args.legalFrameworkAssociations && args.legalFrameworkAssociations.length > 0) {
+      const now = Date.now();
+      for (const assoc of args.legalFrameworkAssociations) {
+        await ctx.db.insert("documentTypesLegalFrameworks", {
+          documentTypeId,
+          legalFrameworkId: assoc.legalFrameworkId,
+          isRequired: assoc.isRequired,
+          createdAt: now,
+          createdBy: userProfile.userId,
+        });
+      }
+    }
+
+    // Create field mappings if provided
+    if (args.fieldMappings && args.fieldMappings.length > 0) {
+      for (const mapping of args.fieldMappings) {
+        await ctx.db.insert("documentTypeFieldMappings", {
+          documentTypeId,
+          entityType: mapping.entityType,
+          fieldPath: mapping.fieldPath,
+          label: mapping.label,
+          labelEn: mapping.labelEn,
+          fieldType: mapping.fieldType,
+          isRequired: mapping.isRequired,
+          sortOrder: mapping.sortOrder,
+          isActive: true,
+          createdAt: Date.now(),
+          createdBy: userProfile.userId,
+        });
+      }
+    }
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "created",
+      entityType: "documentType",
+      entityId: documentTypeId,
+      details: {
+        name: args.name,
+        code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
+        category: args.category,
+        isActive: args.isActive ?? true,
+        isInformationOnly: args.isInformationOnly ?? false,
+        legalFrameworksCount: args.legalFrameworkAssociations?.length ?? 0,
+        fieldMappingsCount: args.fieldMappings?.length ?? 0,
+      },
+    });
+
+    return documentTypeId;
   },
 });
