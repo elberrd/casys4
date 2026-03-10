@@ -321,7 +321,8 @@ export const create = mutation({
     personId: v.id("people"),
     companyId: v.id("companies"),
     role: v.string(),
-    startDate: v.string(),
+    email: v.optional(v.string()),
+    startDate: v.optional(v.string()),
     endDate: v.optional(v.string()),
     isCurrent: v.optional(v.boolean()),
   },
@@ -331,26 +332,21 @@ export const create = mutation({
 
     const isCurrent = args.isCurrent ?? true;
 
-    // Validate: Only one current employment per person
+    // Auto-unset previous current employment when marking new one as current
     if (isCurrent) {
       const currentEmployments = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person", (q) => q.eq("personId", args.personId))
+        .filter((q) => q.eq(q.field("isCurrent"), true))
         .collect();
 
-      const hasCurrentEmployment = currentEmployments.some(
-        (emp) => emp.isCurrent
-      );
-
-      if (hasCurrentEmployment) {
-        throw new Error(
-          "This person already has a current employment. Please end the current employment before adding a new one."
-        );
+      for (const employment of currentEmployments) {
+        await ctx.db.patch(employment._id, { isCurrent: false });
       }
     }
 
     // Validate: endDate must be after startDate if provided
-    if (args.endDate) {
+    if (args.endDate && args.startDate) {
       const startDate = new Date(args.startDate);
       const endDate = new Date(args.endDate);
 
@@ -368,6 +364,7 @@ export const create = mutation({
       personId: args.personId,
       companyId: args.companyId,
       role: args.role,
+      email: args.email,
       startDate: args.startDate,
       endDate: args.endDate,
       isCurrent,
@@ -404,7 +401,8 @@ export const update = mutation({
     personId: v.id("people"),
     companyId: v.id("companies"),
     role: v.string(),
-    startDate: v.string(),
+    email: v.optional(v.string()),
+    startDate: v.optional(v.string()),
     endDate: v.optional(v.string()),
     isCurrent: v.optional(v.boolean()),
   },
@@ -421,26 +419,23 @@ export const update = mutation({
 
     const isCurrent = updateData.isCurrent ?? true;
 
-    // Validate: Only one current employment per person
+    // Auto-unset previous current employment when marking this one as current
     if (isCurrent) {
       const currentEmployments = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person", (q) => q.eq("personId", args.personId))
+        .filter((q) => q.eq(q.field("isCurrent"), true))
         .collect();
 
-      const hasOtherCurrentEmployment = currentEmployments.some(
-        (emp) => emp.isCurrent && emp._id !== id
-      );
-
-      if (hasOtherCurrentEmployment) {
-        throw new Error(
-          "This person already has a current employment. Please end the current employment before updating this one to current."
-        );
+      for (const employment of currentEmployments) {
+        if (employment._id !== id) {
+          await ctx.db.patch(employment._id, { isCurrent: false });
+        }
       }
     }
 
     // Validate: endDate must be after startDate if provided
-    if (args.endDate) {
+    if (args.endDate && args.startDate) {
       const startDate = new Date(args.startDate);
       const endDate = new Date(args.endDate);
 
@@ -543,6 +538,7 @@ export const upsertCurrent = mutation({
     personId: v.id("people"),
     companyId: v.optional(v.id("companies")),
     role: v.optional(v.string()),
+    email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin role

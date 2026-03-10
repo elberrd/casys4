@@ -96,8 +96,9 @@ export function PersonCompanyFormPage({
           id: relationshipId,
           personId: data.personId as Id<"people">,
           companyId: data.companyId as Id<"companies">,
-          role: data.role,
-          startDate: data.startDate,
+          role: data.role || "",
+          email: data.email || undefined,
+          startDate: data.startDate || undefined,
           endDate: data.endDate || undefined,
           isCurrent: data.isCurrent,
         })
@@ -108,8 +109,9 @@ export function PersonCompanyFormPage({
         await createRelationship({
           personId: data.personId as Id<"people">,
           companyId: data.companyId as Id<"companies">,
-          role: data.role,
-          startDate: data.startDate,
+          role: data.role || "",
+          email: data.email || undefined,
+          startDate: data.startDate || undefined,
           endDate: data.endDate || undefined,
           isCurrent: data.isCurrent,
         })

@@ -179,6 +179,7 @@ export default defineSchema({
     personId: v.optional(v.id("people")),
     companyId: v.optional(v.id("companies")),
     role: v.string(),
+    email: v.optional(v.string()),
     startDate: v.optional(v.string()),
     endDate: v.optional(v.string()),
     isCurrent: v.optional(v.boolean()),

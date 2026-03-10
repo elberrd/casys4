@@ -8,8 +8,9 @@ export const personCompanySchema = z.object({
   companyId: z.custom<Id<"companies">>((val) => typeof val === "string" && val.length > 0, {
     message: "Company ID must be valid",
   }).optional().or(z.literal("")),
-  role: z.string().min(2, "Role must be at least 2 characters"),
-  startDate: z.string().min(1, "Start date is required"),
+  role: z.string().optional().or(z.literal("")),
+  email: z.string().email().optional().or(z.literal("")),
+  startDate: z.string().optional().or(z.literal("")),
   endDate: z.string().optional().or(z.literal("")),
   isCurrent: z.boolean().optional(),
 }).refine(

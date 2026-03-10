@@ -74,6 +74,7 @@ import type * as migrations_renameFullNameToGivenNames from "../migrations/renam
 import type * as migrations_renameFuncaoToCargo from "../migrations/renameFuncaoToCargo.js";
 import type * as migrations_renameMainProcessesToCollectiveProcesses from "../migrations/renameMainProcessesToCollectiveProcesses.js";
 import type * as migrations_reorderRnmFillableFields from "../migrations/reorderRnmFillableFields.js";
+import type * as migrations_setIsCurrentOnPeopleCompanies from "../migrations/setIsCurrentOnPeopleCompanies.js";
 import type * as migrations_updateCaseStatusesOrderNumbers from "../migrations/updateCaseStatusesOrderNumbers.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
@@ -177,6 +178,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/renameFuncaoToCargo": typeof migrations_renameFuncaoToCargo;
   "migrations/renameMainProcessesToCollectiveProcesses": typeof migrations_renameMainProcessesToCollectiveProcesses;
   "migrations/reorderRnmFillableFields": typeof migrations_reorderRnmFillableFields;
+  "migrations/setIsCurrentOnPeopleCompanies": typeof migrations_setIsCurrentOnPeopleCompanies;
   "migrations/updateCaseStatusesOrderNumbers": typeof migrations_updateCaseStatusesOrderNumbers;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;

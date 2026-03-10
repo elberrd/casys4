@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PassportsSubtable } from "./passports-subtable";
+import { CompaniesSubtable } from "./companies-subtable";
 import { Button } from "@/components/ui/button";
 import {
   User,
@@ -47,9 +48,6 @@ export function PersonDetailView({
   const locale = useLocale();
 
   const person = useQuery(api.people.get, { id: personId });
-  const currentCompany = useQuery(api.peopleCompanies.getCurrentByPerson, {
-    personId,
-  });
 
   if (!person) {
     return (
@@ -253,7 +251,7 @@ export function PersonDetailView({
             )}
 
             {/* Professional Information */}
-            {(person.profession || person.cargo || currentCompany?.company) && (
+            {(person.profession || person.cargo) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -278,38 +276,12 @@ export function PersonDetailView({
                       <p className="text-base mt-1">{person.cargo}</p>
                     </div>
                   )}
-                  {currentCompany?.company && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {t("company")}
-                      </p>
-                      <p className="text-base mt-1">
-                        {currentCompany.company.name}
-                      </p>
-                    </div>
-                  )}
-                  {currentCompany?.role && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {t("companyRole")}
-                      </p>
-                      <p className="text-base mt-1">{currentCompany.role}</p>
-                    </div>
-                  )}
-                  {currentCompany?.startDate && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {t("startDate")}
-                      </p>
-                      <p className="text-base mt-1">
-                        {formatDate(currentCompany.startDate, locale)}
-                      </p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}
+
+            {/* Companies Section */}
+            <CompaniesSubtable personId={personId} readonly={true} />
 
             {/* Additional Information */}
             {person.notes && (
