@@ -48,7 +48,7 @@ export function CollectiveProcessFormPage({
 
   // Query data for form fields
   const companies = useQuery(api.companies.list, {});
-  const people = useQuery(api.people.list, {});
+  const people = useQuery(api.people.listPeopleWithCompanies, {});
   const processTypes = useQuery(api.processTypes.list, { isActive: true });
   const cities = useQuery(api.cities.list, {});
   const consulates = useQuery(api.consulates.list, {});
@@ -252,9 +252,9 @@ export function CollectiveProcessFormPage({
                 <Combobox
                   value={field.value}
                   onValueChange={field.onChange}
-                  options={people.map((person) => ({
+                  options={(people ?? []).map((person) => ({
                     value: person._id,
-                    label: person.fullName,
+                    label: person.companyName ? `${person.fullName} - ${person.companyName}` : person.fullName,
                   }))}
                   placeholder={t("selectContactPerson")}
                   searchPlaceholder={t("searchPeople")}
