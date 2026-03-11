@@ -98,6 +98,8 @@ interface IndividualProcess {
     changedAt: number;
     date?: string;
     filledFieldsData?: Record<string, any>;
+    maxDeliveryDate?: string;
+    clientDeadlineDate?: string;
   } | null;
   caseStatus?: {
     _id: Id<"caseStatuses">;
@@ -1106,6 +1108,51 @@ export function IndividualProcessesTable({
             }
           }
 
+          // Exigência deadline dates helper
+          const isExigencia = caseStatus.code === "exigencia";
+          const exigenciaDatesEl = isExigencia && activeStatus && (activeStatus.clientDeadlineDate || activeStatus.maxDeliveryDate) ? (() => {
+            const daysRem = (dateStr: string) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const target = new Date(dateStr + "T12:00:00");
+              target.setHours(0, 0, 0, 0);
+              return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            };
+            const daysLabel = (dateStr: string) => {
+              const d = daysRem(dateStr);
+              if (d === 0) return t("dueToday");
+              if (d === 1) return t("oneDayRemaining");
+              if (d === -1) return t("oneDayOverdue");
+              if (d > 0) return t("daysRemaining", { count: d });
+              return t("daysOverdue", { count: Math.abs(d) });
+            };
+            const fmtDate = (dateStr: string) => {
+              const [y, m, d] = dateStr.split("-").map(Number);
+              if (!y || !m || !d) return dateStr;
+              return new Date(y, m - 1, d).toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+            };
+            return (
+              <div className="text-[10px] leading-tight text-muted-foreground space-y-0">
+                {activeStatus.clientDeadlineDate && (
+                  <div>
+                    {t("clientDeadline")}: {fmtDate(activeStatus.clientDeadlineDate)}{" "}
+                    <span className={daysRem(activeStatus.clientDeadlineDate) <= 3 ? "text-destructive font-medium" : ""}>
+                      ({daysLabel(activeStatus.clientDeadlineDate)})
+                    </span>
+                  </div>
+                )}
+                {activeStatus.maxDeliveryDate && (
+                  <div>
+                    {t("maxDeliveryDate")}: {fmtDate(activeStatus.maxDeliveryDate)}{" "}
+                    <span className={daysRem(activeStatus.maxDeliveryDate) <= 3 ? "text-destructive font-medium" : ""}>
+                      ({daysLabel(activeStatus.maxDeliveryDate)})
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })() : null;
+
           const badgeElement = (
             <div className="flex items-center justify-between gap-2 w-full">
               <div className="flex flex-col gap-1 items-start">
@@ -1120,6 +1167,7 @@ export function IndividualProcessesTable({
                   color={caseStatus.color}
                   category={caseStatus.category}
                 />
+                {exigenciaDatesEl}
               </div>
               {onUpdateStatus && (
                 <Button
@@ -1168,6 +1216,7 @@ export function IndividualProcessesTable({
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
                             </span>
                           </div>
+                          {exigenciaDatesEl}
                         </div>
                       </div>
                     </TooltipTrigger>
