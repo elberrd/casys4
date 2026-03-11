@@ -45,6 +45,7 @@ import {
   CalendarClock,
   Copy,
   AlertTriangle,
+  AlertCircle,
   ChevronDown,
   ChevronRight,
   X,
@@ -214,6 +215,9 @@ interface IndividualProcessesTableProps {
   // QUAL/EXP PROF mode toggle props
   isQualExpProfModeActive?: boolean;
   onQualExpProfModeToggle?: () => void;
+  // Exigência mode toggle props
+  isExigenciaModeActive?: boolean;
+  onExigenciaModeToggle?: () => void;
   // Grouped mode (computed from selectedProgressStatuses.length >= 2)
   isGroupedModeActive?: boolean;
   // Column visibility props (controlled mode)
@@ -258,6 +262,8 @@ export function IndividualProcessesTable({
   onUrgentModeToggle,
   isQualExpProfModeActive = false,
   onQualExpProfModeToggle,
+  isExigenciaModeActive = false,
+  onExigenciaModeToggle,
   isGroupedModeActive = false,
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange,
@@ -486,6 +492,7 @@ export function IndividualProcessesTable({
     isRnmModeActive,
     isUrgentModeActive,
     isQualExpProfModeActive,
+    isExigenciaModeActive,
   ]);
 
 
@@ -1938,7 +1945,7 @@ export function IndividualProcessesTable({
         {/* First row: Search, filter modes dropdown, and column visibility */}
         <div className="flex flex-wrap items-center gap-2">
           <DataGridFilter table={table} className="flex-1 min-w-[200px] max-w-sm" />
-          {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle) && (
+          {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle || onExigenciaModeToggle) && (
             <div className="flex items-center gap-1 flex-shrink-0">
               <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
                 <DropdownMenuTrigger asChild>
@@ -1947,11 +1954,11 @@ export function IndividualProcessesTable({
                     size="sm"
                     className={cn(
                       "min-h-10 gap-2 relative",
-                      (isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) &&
+                      (isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive || isExigenciaModeActive) &&
                       "border-amber-500"
                     )}
                   >
-                    {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
+                    {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive || isExigenciaModeActive) && (
                       <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
@@ -2018,9 +2025,28 @@ export function IndividualProcessesTable({
                       )}
                     </DropdownMenuItem>
                   )}
+
+                  {onExigenciaModeToggle && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onExigenciaModeToggle();
+                        setFilterDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "gap-2 cursor-pointer",
+                        isExigenciaModeActive && "bg-accent"
+                      )}
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="flex-1">{t("exigenciasButton")}</span>
+                      {isExigenciaModeActive && (
+                        <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                      )}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive) && (
+              {(isRnmModeActive || isUrgentModeActive || isQualExpProfModeActive || isExigenciaModeActive) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2029,6 +2055,7 @@ export function IndividualProcessesTable({
                     if (isRnmModeActive && onRnmModeToggle) onRnmModeToggle();
                     if (isUrgentModeActive && onUrgentModeToggle) onUrgentModeToggle();
                     if (isQualExpProfModeActive && onQualExpProfModeToggle) onQualExpProfModeToggle();
+                    if (isExigenciaModeActive && onExigenciaModeToggle) onExigenciaModeToggle();
 
                     // Restore initial column visibility and sorting state after useEffects complete
                     setTimeout(() => {

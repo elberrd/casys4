@@ -53,6 +53,7 @@ export function IndividualProcessesClient() {
   const [isRnmModeActive, setIsRnmModeActive] = useState(false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
+  const [isExigenciaModeActive, setIsExigenciaModeActive] = useState(false)
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
   const [excelSnapshot, setExcelSnapshot] = useState<IndividualProcessesExportSnapshot>({
     columns: [],
@@ -253,9 +254,10 @@ export function IndividualProcessesClient() {
       isRnmModeActive ||
       isUrgentModeActive ||
       isQualExpProfModeActive ||
+      isExigenciaModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -275,11 +277,12 @@ export function IndividualProcessesClient() {
     if (isRnmModeActive) criteria.isRnmModeActive = true
     if (isUrgentModeActive) criteria.isUrgentModeActive = true
     if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
+    if (isExigenciaModeActive) criteria.isExigenciaModeActive = true
     if (filters.length > 0) criteria.advancedFilters = filters
     // Always save column visibility state
     criteria.columnVisibility = columnVisibility
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, filters, columnVisibility])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility])
 
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
@@ -292,6 +295,7 @@ export function IndividualProcessesClient() {
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
+    setIsExigenciaModeActive(false)
     setFilters([])
 
     // Apply saved filter criteria
@@ -322,6 +326,9 @@ export function IndividualProcessesClient() {
     if (filterCriteria.isQualExpProfModeActive) {
       setIsQualExpProfModeActive(true)
     }
+    if (filterCriteria.isExigenciaModeActive) {
+      setIsExigenciaModeActive(true)
+    }
     if (filterCriteria.advancedFilters) {
       setFilters(filterCriteria.advancedFilters)
     }
@@ -351,6 +358,7 @@ export function IndividualProcessesClient() {
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
+    setIsExigenciaModeActive(false)
     setFilters([])
     setSelectedFilterName(null)
     // Reset column visibility to initial state
@@ -456,6 +464,19 @@ export function IndividualProcessesClient() {
     // Apply urgent filter
     if (isUrgentModeActive) {
       result = result.filter((process) => process.urgent === true)
+    }
+
+    // Apply exigência filter - show only processes with exigência status, sorted oldest first
+    if (isExigenciaModeActive) {
+      result = result.filter((process) => process.caseStatus?.code === "exigencia")
+      result = [...result].sort((a, b) => {
+        const dateA = a.activeStatus?.date || a.activeStatus?.changedAt || 0
+        const dateB = b.activeStatus?.date || b.activeStatus?.changedAt || 0
+        if (typeof dateA === 'string' && typeof dateB === 'string') {
+          return dateA.localeCompare(dateB)
+        }
+        return Number(dateA) - Number(dateB)
+      })
     }
 
     // Apply advanced filters (hidden for now)
@@ -597,7 +618,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive, isExigenciaModeActive])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -619,12 +640,13 @@ export function IndividualProcessesClient() {
     if (isRnmModeActive) parts.push("rnm")
     if (isUrgentModeActive) parts.push("urgente")
     if (isQualExpProfModeActive) parts.push("qual_exp_prof")
+    if (isExigenciaModeActive) parts.push("exigencias")
 
     const today = new Date().toISOString().split("T")[0]
     parts.push(today)
 
     return parts.join("_")
-  }, [selectedCandidates, individualProcesses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive])
+  }, [selectedCandidates, individualProcesses, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive])
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },
@@ -699,6 +721,7 @@ export function IndividualProcessesClient() {
       if (newValue) {
         setIsUrgentModeActive(false)
         setIsQualExpProfModeActive(false)
+        setIsExigenciaModeActive(false)
       }
       return newValue
     })
@@ -711,6 +734,7 @@ export function IndividualProcessesClient() {
       if (newValue) {
         setIsRnmModeActive(false)
         setIsQualExpProfModeActive(false)
+        setIsExigenciaModeActive(false)
       }
       return newValue
     })
@@ -723,6 +747,19 @@ export function IndividualProcessesClient() {
       if (newValue) {
         setIsRnmModeActive(false)
         setIsUrgentModeActive(false)
+        setIsExigenciaModeActive(false)
+      }
+      return newValue
+    })
+  }, [])
+
+  const handleExigenciaModeToggle = useCallback(() => {
+    setIsExigenciaModeActive((prev) => {
+      const newValue = !prev
+      if (newValue) {
+        setIsRnmModeActive(false)
+        setIsUrgentModeActive(false)
+        setIsQualExpProfModeActive(false)
       }
       return newValue
     })
@@ -881,6 +918,8 @@ export function IndividualProcessesClient() {
           onUrgentModeToggle={handleUrgentModeToggle}
           isQualExpProfModeActive={isQualExpProfModeActive}
           onQualExpProfModeToggle={handleQualExpProfModeToggle}
+          isExigenciaModeActive={isExigenciaModeActive}
+          onExigenciaModeToggle={handleExigenciaModeToggle}
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
