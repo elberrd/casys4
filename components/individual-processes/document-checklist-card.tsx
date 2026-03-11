@@ -422,7 +422,7 @@ export function DocumentChecklistCard({
 
   // Group exigência documents by their individualProcessStatusId
   const exigenciaGroups = (() => {
-    const groups = new Map<string, { date: string; caseStatusName: string; caseStatusColor?: string; docs: typeof exigenciaDocuments }>()
+    const groups = new Map<string, { date: string; caseStatusName: string; caseStatusColor?: string; clientDeadlineDate?: string; docs: typeof exigenciaDocuments }>()
     for (const doc of exigenciaDocuments) {
       const statusId = doc.linkedStatus!.individualProcessStatusId
       if (!groups.has(statusId)) {
@@ -430,6 +430,7 @@ export function DocumentChecklistCard({
           date: doc.linkedStatus!.date || "",
           caseStatusName: doc.linkedStatus!.caseStatusName,
           caseStatusColor: doc.linkedStatus!.caseStatusColor,
+          clientDeadlineDate: doc.linkedStatus!.clientDeadlineDate,
           docs: [],
         })
       }
@@ -466,6 +467,7 @@ export function DocumentChecklistCard({
     .map(([, group]) => ({
       date: group.date ? format(parseISO(group.date), "dd/MM/yyyy HH:mm") : "",
       statusName: group.caseStatusName,
+      clientDeadlineDate: group.clientDeadlineDate,
       documents: group.docs
         .filter((doc) => !excludedFromReport.has(doc._id))
         .map((doc) => ({

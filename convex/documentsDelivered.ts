@@ -86,6 +86,7 @@ export const list = query({
                 caseStatusCode: caseStatus.code,
                 caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
+                clientDeadlineDate: statusEntry.clientDeadlineDate,
                 individualProcessStatusId: doc.individualProcessStatusId!,
               };
             }
@@ -2093,6 +2094,7 @@ export const listGroupedByCategory = query({
                 caseStatusCode: caseStatus.code,
                 caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
+                clientDeadlineDate: statusEntry.clientDeadlineDate,
                 individualProcessStatusId: doc.individualProcessStatusId!,
               };
             }
@@ -3178,6 +3180,7 @@ export const listAvailableForLinking = query({
                 caseStatusCode: caseStatus.code,
                 caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
+                clientDeadlineDate: statusEntry.clientDeadlineDate,
                 individualProcessStatusId: doc.individualProcessStatusId!,
               };
             }

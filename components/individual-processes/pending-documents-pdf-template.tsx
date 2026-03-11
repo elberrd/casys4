@@ -97,7 +97,8 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   colNum: { width: "7%" },
-  colName: { width: "71%" },
+  colName: { width: "51%" },
+  colDeadline: { width: "20%", textAlign: "center" },
   colStatus: { width: "22%", textAlign: "right" },
   // Doc rows
   docRow: {
@@ -195,6 +196,7 @@ interface PendingDocumentsPdfTemplateProps {
     of: string
     companyDoc: string
     document: string
+    deadline: string
     status: string
   }
 }
@@ -214,6 +216,11 @@ export function PendingDocumentsPdfTemplate({
       <View style={styles.colName}>
         <Text style={styles.tableHeaderText}>{labels.document}</Text>
       </View>
+      <View style={styles.colDeadline}>
+        <Text style={[styles.tableHeaderText, { textAlign: "center" }]}>
+          {labels.deadline}
+        </Text>
+      </View>
       <View style={styles.colStatus}>
         <Text style={[styles.tableHeaderText, { textAlign: "right" }]}>
           {labels.status}
@@ -226,6 +233,7 @@ export function PendingDocumentsPdfTemplate({
     docs: PdfDocumentItem[],
     statusLabel: string,
     isExigencia: boolean,
+    deadlineDate?: string,
     startIndex = 1
   ) =>
     docs.map((doc, i) => (
@@ -238,6 +246,13 @@ export function PendingDocumentsPdfTemplate({
         </View>
         <View style={styles.colName}>
           <Text style={styles.docName}>{doc.name}</Text>
+        </View>
+        <View style={styles.colDeadline}>
+          {deadlineDate && (
+            <Text style={{ fontSize: 8, color: ORANGE, textAlign: "center" }}>
+              {deadlineDate}
+            </Text>
+          )}
         </View>
         <View style={[styles.colStatus, { alignItems: "flex-end" }]}>
           <Text
@@ -295,20 +310,26 @@ export function PendingDocumentsPdfTemplate({
         </View>
 
         {/* Exigencia Sections */}
-        {exigenciaGroups.map((group, gi) => (
-          <View key={gi}>
-            <Text style={styles.sectionTitleExigencia}>
-              {labels.exigenciaSection} — {group.statusName}
-            </Text>
-            <Text style={styles.exigenciaSubtitle}>{group.date}</Text>
-            {renderTableHeader()}
-            {renderDocList(
-              group.documents,
-              labels.exigenciaSection,
-              true
-            )}
-          </View>
-        ))}
+        {exigenciaGroups.map((group, gi) => {
+          const formattedDeadline = group.clientDeadlineDate
+            ? group.clientDeadlineDate.split("-").reverse().join("/")
+            : undefined
+          return (
+            <View key={gi}>
+              <Text style={styles.sectionTitleExigencia}>
+                {labels.exigenciaSection}
+              </Text>
+              <Text style={styles.exigenciaSubtitle}>{group.date}</Text>
+              {renderTableHeader()}
+              {renderDocList(
+                group.documents,
+                labels.exigenciaSection,
+                true,
+                formattedDeadline
+              )}
+            </View>
+          )
+        })}
 
         {/* Pending Documents */}
         {pendingDocuments.length > 0 && (

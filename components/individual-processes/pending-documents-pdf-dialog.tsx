@@ -85,6 +85,7 @@ export function PendingDocumentsPdfDialog({
           of: t("pdfReport.of"),
           companyDoc: t("pdfReport.companyDoc"),
           document: t("pdfReport.document"),
+          deadline: t("pdfReport.deadline"),
           status: t("pdfReport.status"),
         }
 

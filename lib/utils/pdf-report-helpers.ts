@@ -19,5 +19,6 @@ export interface PdfDocumentItem {
 export interface PdfExigenciaGroup {
   date: string
   statusName: string
+  clientDeadlineDate?: string
   documents: PdfDocumentItem[]
 }

@@ -2263,6 +2263,7 @@
       "of": "de",
       "companyDoc": "Empresa",
       "document": "Documento",
+      "deadline": "Prazo para envio",
       "status": "Status"
     }
   },
