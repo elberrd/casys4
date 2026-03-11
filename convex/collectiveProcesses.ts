@@ -300,6 +300,15 @@ export const get = query({
         }
       }
 
+      // Get requester profile (the person who created the request)
+      let requesterProfile = null;
+      if (request.createdBy) {
+        requesterProfile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", request.createdBy))
+          .first();
+      }
+
       originRequest = {
         _id: request._id,
         status: request.status,
@@ -308,6 +317,7 @@ export const get = query({
         reviewedBy: request.reviewedBy,
         reviewedAt: request.reviewedAt,
         reviewerProfile,
+        requesterProfile,
         createdAt: request.createdAt,
       };
     }

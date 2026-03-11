@@ -78,6 +78,8 @@ export function DocumentUploadDialog({
   const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
+  const [isIllegible, setIsIllegible] = useState(false)
+  const [illegibleNotes, setIllegibleNotes] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch conditions for this document type
@@ -202,6 +204,8 @@ export function DocumentUploadDialog({
         preFulfilledConditionIds: fulfilledConditionIds.size > 0
           ? Array.from(fulfilledConditionIds) as any
           : undefined,
+        isIllegible: isIllegible || undefined,
+        rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
       })
 
       setUploadProgress(100)
@@ -219,6 +223,8 @@ export function DocumentUploadDialog({
       setIssueDate("")
       setVersionNotes("")
       setFulfilledConditionIds(new Set())
+      setIsIllegible(false)
+      setIllegibleNotes("")
       setUploadProgress(0)
     } catch (error) {
       console.error("Error uploading document:", error)
@@ -336,6 +342,37 @@ export function DocumentUploadDialog({
               rows={2}
               disabled={isUploading}
             />
+          </div>
+
+          {/* Illegible checkbox */}
+          <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950 p-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isIllegible"
+                checked={isIllegible}
+                onCheckedChange={(checked) => setIsIllegible(checked === true)}
+                disabled={isUploading}
+              />
+              <Label htmlFor="isIllegible" className="text-sm font-medium cursor-pointer">
+                {t("markAsIllegible")}
+              </Label>
+            </div>
+            {isIllegible && (
+              <>
+                <p className="text-xs text-orange-700 dark:text-orange-300 ml-6">
+                  {t("illegibleWarning")}
+                </p>
+                <Textarea
+                  value={illegibleNotes}
+                  onChange={(e) => setIllegibleNotes(e.target.value)}
+                  placeholder={t("illegibleNotesPlaceholder")}
+                  maxLength={500}
+                  rows={2}
+                  disabled={isUploading}
+                  className="ml-6 w-[calc(100%-1.5rem)]"
+                />
+              </>
+            )}
           </div>
 
           {/* Conditions checkboxes */}
@@ -466,9 +503,10 @@ export function DocumentUploadDialog({
             type="button"
             onClick={handleUpload}
             disabled={!selectedFile || isUploading}
+            variant={isIllegible ? "destructive" : "default"}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("upload")}
+            {isIllegible ? t("uploadAsIllegible") : t("upload")}
           </Button>
         </DialogFooter>
       </DialogContent>

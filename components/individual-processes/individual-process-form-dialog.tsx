@@ -112,6 +112,7 @@ export function IndividualProcessFormDialog({
       applicantId: "", // DEPRECATED: Kept for backward compatibility
       companyApplicantId: "",
       userApplicantId: "",
+      userApplicantCompanyId: "",
       consulateId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
@@ -219,6 +220,7 @@ export function IndividualProcessFormDialog({
         applicantId: individualProcess.applicantId ?? "", // DEPRECATED
         companyApplicantId: individualProcess.companyApplicantId ?? "",
         userApplicantId: individualProcess.userApplicantId ?? "",
+        userApplicantCompanyId: individualProcess.userApplicantCompanyId ?? "",
         consulateId: individualProcess.consulateId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
@@ -226,7 +228,7 @@ export function IndividualProcessFormDialog({
         legalFrameworkId: individualProcess.legalFrameworkId,
         funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
-        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui",
+        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "mestrado" | "superior" | "naoPossui",
         professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
         douNumber: individualProcess.douNumber ?? "",
@@ -258,6 +260,7 @@ export function IndividualProcessFormDialog({
         applicantId: "", // DEPRECATED
         companyApplicantId: "",
         userApplicantId: "",
+        userApplicantCompanyId: "",
         consulateId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
@@ -347,6 +350,7 @@ export function IndividualProcessFormDialog({
         applicantId: data.applicantId || undefined, // DEPRECATED
         companyApplicantId: data.companyApplicantId || undefined,
         userApplicantId: data.userApplicantId || undefined,
+        userApplicantCompanyId: data.userApplicantCompanyId || undefined,
         consulateId: data.consulateId || undefined,
         caseStatusId: data.caseStatusId || undefined,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
@@ -374,8 +378,8 @@ export function IndividualProcessFormDialog({
       }
 
       if (individualProcessId) {
-        // Remove personId from submit data when updating (can't change person of existing process)
-        const { personId, ...updateData } = submitData
+        // Remove personId, userApplicantId, userApplicantCompanyId from submit data when updating (immutable after creation)
+        const { personId, userApplicantId, userApplicantCompanyId, ...updateData } = submitData
         await updateIndividualProcess({ id: individualProcessId, ...updateData })
         toast({
           title: t("updatedSuccess"),
@@ -509,7 +513,11 @@ export function IndividualProcessFormDialog({
                     <FormControl>
                       <UserApplicantSelector
                         value={field.value || ""}
-                        onChange={field.onChange}
+                        onChange={(value, companyId) => {
+                          field.onChange(value)
+                          form.setValue("userApplicantCompanyId", (companyId || "") as any)
+                        }}
+                        disabled={!!individualProcessId}
                       />
                     </FormControl>
                     <FormMessage />
@@ -626,6 +634,9 @@ export function IndividualProcessFormDialog({
                           </SelectItem>
                           <SelectItem value="tecnico">
                             {t("qualificationOptions.tecnico")}
+                          </SelectItem>
+                          <SelectItem value="mestrado">
+                            {t("qualificationOptions.mestrado")}
                           </SelectItem>
                           <SelectItem value="superior">
                             {t("qualificationOptions.superior")}

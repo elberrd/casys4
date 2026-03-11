@@ -94,6 +94,7 @@ export const list = query({
           currentState,
           nationality,
           company,
+          companyEmail: personCompany?.email ?? null,
         };
       })
     );
@@ -580,6 +581,63 @@ export const remove = mutation({
         email: person.email,
       },
     });
+  },
+});
+
+/**
+ * Query to list people eligible for client user creation
+ * Filters: has current company (isCurrent=true), has email, does NOT have existing userProfile
+ * Returns: personId, fullName, companyId, companyName, email, role (cargo)
+ * Admin only
+ */
+export const listEligibleForClientUser = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    // Get all current people-company relationships
+    const peopleCompanies = await ctx.db
+      .query("peopleCompanies")
+      .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
+      .collect();
+
+    // Get all existing userProfile emails to exclude
+    const existingProfiles = await ctx.db.query("userProfiles").collect();
+    const existingEmails = new Set(
+      existingProfiles.map((p) => p.email.toLowerCase())
+    );
+
+    // Build results
+    const results = await Promise.all(
+      peopleCompanies.map(async (pc) => {
+        if (!pc.personId || !pc.companyId) return null;
+
+        const person = await ctx.db.get(pc.personId);
+        const company = await ctx.db.get(pc.companyId);
+
+        if (!person || !company) return null;
+
+        // Determine email: prefer peopleCompanies.email, fallback to people.email
+        const email = pc.email || person.email;
+        if (!email) return null;
+
+        // Exclude if already has a userProfile
+        if (existingEmails.has(email.toLowerCase())) return null;
+
+        return {
+          personId: person._id,
+          fullName: getFullName(person),
+          companyId: company._id,
+          companyName: company.name,
+          email,
+          role: pc.role,
+        };
+      })
+    );
+
+    return results
+      .filter((r) => r !== null)
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
   },
 });
 

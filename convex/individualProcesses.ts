@@ -248,7 +248,11 @@ export const list = query({
           passport: enrichedPassport,
           processType, // Include process type details
           companyApplicant, // Include company applicant details
-          userApplicant: userApplicant ? { ...userApplicant, fullName: getFullName(userApplicant) } : null, // Include user applicant details
+          userApplicant: userApplicant ? {
+            ...userApplicant,
+            fullName: getFullName(userApplicant),
+            company: process.userApplicantCompanyId ? await ctx.db.get(process.userApplicantCompanyId) : null,
+          } : null, // Include user applicant details with stored company
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
         };
@@ -382,19 +386,24 @@ export const get = query({
       };
     }
 
-    // If user applicant exists, enrich with company information
+    // If user applicant exists, enrich with stored company (from creation time) or fallback to dynamic lookup
     let enrichedUserApplicant = null;
     if (userApplicant) {
-      // Get user applicant's current company relationship
-      const userApplicantCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person", (q) => q.eq("personId", userApplicant._id))
-        .filter((q) => q.eq(q.field("isCurrent"), true))
-        .first();
-
       let company = null;
-      if (userApplicantCompany?.companyId) {
-        company = await ctx.db.get(userApplicantCompany.companyId);
+      if (process.userApplicantCompanyId) {
+        // Use the stored company from creation time
+        company = await ctx.db.get(process.userApplicantCompanyId);
+      } else {
+        // Fallback: dynamic lookup for legacy processes without stored company
+        const userApplicantCompany = await ctx.db
+          .query("peopleCompanies")
+          .withIndex("by_person", (q) => q.eq("personId", userApplicant._id))
+          .filter((q) => q.eq(q.field("isCurrent"), true))
+          .first();
+
+        if (userApplicantCompany?.companyId) {
+          company = await ctx.db.get(userApplicantCompany.companyId);
+        }
       }
 
       enrichedUserApplicant = {
@@ -497,6 +506,7 @@ export const create = mutation({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Reference to applicant (person with company)
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    userApplicantCompanyId: v.optional(v.id("companies")), // Company the user applicant was associated with at creation time
     consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     caseStatusId: v.optional(v.id("caseStatuses")), // Optional - defaults to "em_preparacao"
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
@@ -571,6 +581,7 @@ export const create = mutation({
       applicantId: args.applicantId, // DEPRECATED: Store applicant reference
       companyApplicantId: args.companyApplicantId, // Store company applicant reference
       userApplicantId: args.userApplicantId, // Store user applicant reference
+      userApplicantCompanyId: args.userApplicantCompanyId, // Store user applicant's company at creation time
       consulateId: args.consulateId, // Store consulate reference
       caseStatusId: caseStatus._id, // Store case status ID (defaults to em_preparacao)
       status: statusString, // DEPRECATED: Keep for backward compatibility
@@ -951,7 +962,7 @@ export const update = mutation({
     if (args.passportId !== undefined) updates.passportId = args.passportId;
     if (args.applicantId !== undefined) updates.applicantId = args.applicantId; // DEPRECATED
     if (args.companyApplicantId !== undefined) updates.companyApplicantId = args.companyApplicantId;
-    if (args.userApplicantId !== undefined) updates.userApplicantId = args.userApplicantId;
+    // userApplicantId and userApplicantCompanyId are immutable after creation — not updated here
     if (args.consulateId !== undefined) updates.consulateId = args.consulateId;
     if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
     if (args.legalFrameworkId !== undefined)

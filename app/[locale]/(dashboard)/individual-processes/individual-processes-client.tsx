@@ -29,6 +29,8 @@ import { FixedActionButtons } from "@/components/fixed-action-buttons"
 import { getFullName } from "@/lib/utils/person-names"
 
 export function IndividualProcessesClient() {
+  const userProfile = useQuery(api.userProfiles.getCurrentUser)
+  const isClient = userProfile?.role === "client"
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
@@ -54,6 +56,15 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
   const [isExigenciaModeActive, setIsExigenciaModeActive] = useState(false)
+
+  // For client users, activate "Exigência" filter by default on mount
+  const [clientDefaultApplied, setClientDefaultApplied] = useState(false)
+  useEffect(() => {
+    if (isClient && !clientDefaultApplied) {
+      setIsExigenciaModeActive(true)
+      setClientDefaultApplied(true)
+    }
+  }, [isClient, clientDefaultApplied])
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
   const [excelSnapshot, setExcelSnapshot] = useState<IndividualProcessesExportSnapshot>({
     columns: [],
@@ -767,15 +778,17 @@ export function IndividualProcessesClient() {
 
   return (
     <>
-      {/* Fixed action buttons - always visible in top-right corner */}
-      <FixedActionButtons
-        onCreateClick={() => router.push('/process-wizard')}
-        createButtonText={tCommon('create')}
-      />
+      {/* Fixed action buttons - only for admins */}
+      {!isClient && (
+        <FixedActionButtons
+          onCreateClick={() => router.push('/process-wizard')}
+          createButtonText={tCommon('create')}
+        />
+      )}
 
       <DashboardPageHeader breadcrumbs={breadcrumbs}>
-        {/* Action buttons - sempre visíveis, texto escondido em telas pequenas */}
-        <div className="relative">
+        {/* Action buttons - admin only */}
+        {!isClient && (<><div className="relative">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -828,13 +841,14 @@ export function IndividualProcessesClient() {
             <span className="hidden xl:inline whitespace-nowrap">{tExport("exportToExcel")}</span>
           </Button>
         </ExcelExportDialog>
+        </>)}
       </DashboardPageHeader>
       <div className={cn(
         "flex flex-1 flex-col gap-4 p-4 pt-0 w-full max-w-full overflow-x-hidden",
         isEditingView && "ring-2 ring-blue-500 ring-inset rounded-lg bg-blue-50/30 dark:bg-blue-950/10"
       )}>
-        {/* Edit Mode Banner */}
-        {isEditingView && (
+        {/* Edit Mode Banner - admin only */}
+        {!isClient && isEditingView && (
           <div className="flex items-center justify-between gap-4 p-3 rounded-lg bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700">
             <div className="flex items-center gap-2">
               <Pencil className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -889,75 +903,81 @@ export function IndividualProcessesClient() {
         <IndividualProcessesTable
           individualProcesses={filteredProcesses}
           onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onFillFields={handleFillFields}
-          onCreateFromExisting={handleCreateFromExisting}
+          onEdit={isClient ? undefined : handleEdit}
+          onDelete={isClient ? undefined : handleDelete}
+          onFillFields={isClient ? undefined : handleFillFields}
+          onCreateFromExisting={isClient ? undefined : handleCreateFromExisting}
           onRowClick={handleView}
           candidateOptions={candidateOptions}
           selectedCandidates={selectedCandidates}
           onCandidateFilterChange={setSelectedCandidates}
-          applicantOptions={applicantOptions}
-          selectedApplicants={selectedApplicants}
-          onApplicantFilterChange={setSelectedApplicants}
-          userApplicantOptions={userApplicantOptions}
-          selectedUserApplicants={selectedUserApplicants}
-          onUserApplicantFilterChange={setSelectedUserApplicants}
+          {...(!isClient && {
+            applicantOptions,
+            selectedApplicants,
+            onApplicantFilterChange: setSelectedApplicants,
+            userApplicantOptions,
+            selectedUserApplicants,
+            onUserApplicantFilterChange: setSelectedUserApplicants,
+            authorizationTypeOptions,
+            selectedAuthorizationTypes,
+            onAuthorizationTypeFilterChange: setSelectedAuthorizationTypes,
+            legalFrameworkOptions,
+            selectedLegalFrameworks,
+            onLegalFrameworkFilterChange: setSelectedLegalFrameworks,
+            isRnmModeActive,
+            onRnmModeToggle: handleRnmModeToggle,
+            isUrgentModeActive,
+            onUrgentModeToggle: handleUrgentModeToggle,
+            isQualExpProfModeActive,
+            onQualExpProfModeToggle: handleQualExpProfModeToggle,
+          })}
           progressStatusOptions={progressStatusOptions}
           selectedProgressStatuses={selectedProgressStatuses}
           onProgressStatusFilterChange={setSelectedProgressStatuses}
-          authorizationTypeOptions={authorizationTypeOptions}
-          selectedAuthorizationTypes={selectedAuthorizationTypes}
-          onAuthorizationTypeFilterChange={setSelectedAuthorizationTypes}
-          legalFrameworkOptions={legalFrameworkOptions}
-          selectedLegalFrameworks={selectedLegalFrameworks}
-          onLegalFrameworkFilterChange={setSelectedLegalFrameworks}
-          isRnmModeActive={isRnmModeActive}
-          onRnmModeToggle={handleRnmModeToggle}
-          isUrgentModeActive={isUrgentModeActive}
-          onUrgentModeToggle={handleUrgentModeToggle}
-          isQualExpProfModeActive={isQualExpProfModeActive}
-          onQualExpProfModeToggle={handleQualExpProfModeToggle}
           isExigenciaModeActive={isExigenciaModeActive}
           onExigenciaModeToggle={handleExigenciaModeToggle}
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
-          onExportSnapshotChange={handleExportSnapshotChange}
+          onExportSnapshotChange={isClient ? undefined : handleExportSnapshotChange}
         />
 
-        <IndividualProcessFormDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          individualProcessId={selectedProcessId}
-          onSuccess={handleSuccess}
-        />
+        {!isClient && (
+          <>
+            <IndividualProcessFormDialog
+              open={isDialogOpen}
+              onOpenChange={setIsDialogOpen}
+              individualProcessId={selectedProcessId}
+              onSuccess={handleSuccess}
+            />
 
-        {selectedProcessId && selectedStatusId && (
-          <FillFieldsModal
-            individualProcessId={selectedProcessId}
-            statusId={selectedStatusId}
-            open={fillFieldsModalOpen}
-            onOpenChange={setFillFieldsModalOpen}
-          />
+            {selectedProcessId && selectedStatusId && (
+              <FillFieldsModal
+                individualProcessId={selectedProcessId}
+                statusId={selectedStatusId}
+                open={fillFieldsModalOpen}
+                onOpenChange={setFillFieldsModalOpen}
+              />
+            )}
+
+            {sourceProcessId && (
+              <CreateFromExistingDialog
+                open={createFromDialogOpen}
+                onOpenChange={setCreateFromDialogOpen}
+                onConfirm={handleConfirmCreateFromExisting}
+                sourceProcess={individualProcesses.find(p => p._id === sourceProcessId)}
+              />
+            )}
+
+            {/* Save Filter Sheet - only for creating new views */}
+            <SaveFilterSheet
+              open={isSaveFilterSheetOpen}
+              onOpenChange={setIsSaveFilterSheetOpen}
+              filterType="individualProcesses"
+              currentFilters={getCurrentFilterCriteria()}
+            />
+          </>
         )}
-
-        {sourceProcessId && (
-          <CreateFromExistingDialog
-            open={createFromDialogOpen}
-            onOpenChange={setCreateFromDialogOpen}
-            onConfirm={handleConfirmCreateFromExisting}
-            sourceProcess={individualProcesses.find(p => p._id === sourceProcessId)}
-          />
-        )}
-
-        {/* Save Filter Sheet - only for creating new views */}
-        <SaveFilterSheet
-          open={isSaveFilterSheetOpen}
-          onOpenChange={setIsSaveFilterSheetOpen}
-          filterType="individualProcesses"
-          currentFilters={getCurrentFilterCriteria()}
-        />
       </div>
     </>
   )

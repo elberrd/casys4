@@ -83,8 +83,10 @@ export const list = query({
             if (caseStatus) {
               linkedStatus = {
                 caseStatusName: caseStatus.name,
+                caseStatusCode: caseStatus.code,
                 caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
+                individualProcessStatusId: doc.individualProcessStatusId!,
               };
             }
           }
@@ -261,6 +263,8 @@ export const upload = mutation({
     preFulfilledConditionIds: v.optional(
       v.array(v.id("documentTypeConditions"))
     ),
+    isIllegible: v.optional(v.boolean()),
+    rejectionReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
@@ -321,6 +325,7 @@ export const upload = mutation({
     }
 
     // Create new document record
+    const isIllegible = args.isIllegible === true;
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
       documentTypeId: args.documentTypeId,
@@ -331,15 +336,36 @@ export const upload = mutation({
       fileUrl: fileUrl,
       fileSize: args.fileSize,
       mimeType: args.mimeType,
-      status: "uploaded",
+      status: isIllegible ? "rejected" : "uploaded",
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
+      reviewedBy: isIllegible ? uploaderUserId : undefined,
+      reviewedAt: isIllegible ? Date.now() : undefined,
+      rejectionReason: isIllegible ? (args.rejectionReason || "Documento ilegível") : undefined,
+      isIllegible: isIllegible || undefined,
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: version,
       isLatest: true,
       versionNotes: args.versionNotes,
     });
+
+    // Record rejection status history if uploaded as illegible
+    if (isIllegible) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: undefined,
+        newStatus: "rejected",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        notes: args.rejectionReason || "Documento ilegível",
+        metadata: {
+          fileName: args.fileName,
+          version,
+          isIllegible: true,
+        },
+      });
+    }
 
     // Auto-create conditions for this document based on document type
     try {
@@ -370,7 +396,7 @@ export const upload = mutation({
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: uploaderUserId,
-        action: "uploaded",
+        action: isIllegible ? "rejected" : "uploaded",
         entityType: "document",
         entityId: documentId,
         details: {
@@ -381,6 +407,7 @@ export const upload = mutation({
           collectiveProcessReference: collectiveProcess?.referenceNumber,
           version,
           isReplacement: version > 1,
+          isIllegible: isIllegible || undefined,
         },
       });
     } catch (error) {
@@ -559,8 +586,9 @@ export const reject = mutation({
   args: {
     id: v.id("documentsDelivered"),
     rejectionReason: v.string(),
+    isIllegible: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, rejectionReason }) => {
+  handler: async (ctx, { id, rejectionReason, isIllegible }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
 
@@ -585,6 +613,7 @@ export const reject = mutation({
       reviewedBy: adminProfile.userId,
       reviewedAt: Date.now(),
       rejectionReason: rejectionReason,
+      isIllegible: isIllegible ?? false,
     });
 
     // Record status history
@@ -890,6 +919,30 @@ export const remove = mutation({
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
+
+    return id;
+  },
+});
+
+export const unlinkFromStatus = mutation({
+  args: {
+    id: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, { id }) => {
+    await requireAdmin(ctx);
+
+    const document = await ctx.db.get(id);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    if (!document.individualProcessStatusId) {
+      throw new Error("Document is not linked to any status");
+    }
+
+    await ctx.db.patch(id, {
+      individualProcessStatusId: undefined,
+    });
 
     return id;
   },
@@ -2037,8 +2090,10 @@ export const listGroupedByCategory = query({
             if (caseStatus) {
               linkedStatus = {
                 caseStatusName: caseStatus.name,
+                caseStatusCode: caseStatus.code,
                 caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
+                individualProcessStatusId: doc.individualProcessStatusId!,
               };
             }
           }
@@ -2464,10 +2519,12 @@ export const reuseCompanyDocument = mutation({
       fileUrl: sourceDoc.fileUrl,
       issueDate: sourceDoc.issueDate,
       expiryDate: sourceDoc.expiryDate,
-      status: "uploaded",
+      status: "approved",
       reusedFromDocumentId: sourceDocumentId,
       uploadedBy: userProfile.userId!,
       uploadedAt: Date.now(),
+      reviewedBy: userProfile.userId!,
+      reviewedAt: Date.now(),
     });
 
     // Auto-create conditions for the document
@@ -2483,7 +2540,7 @@ export const reuseCompanyDocument = mutation({
     await ctx.db.insert("documentStatusHistory", {
       documentId: targetDocumentId,
       previousStatus,
-      newStatus: "uploaded",
+      newStatus: "approved",
       changedBy: userProfile.userId!,
       changedAt: Date.now(),
       notes: `Reused from document in another process`,
@@ -2608,16 +2665,18 @@ export const bulkReuseCompanyDocuments = mutation({
         fileUrl: sourceDoc.fileUrl,
         issueDate: sourceDoc.issueDate,
         expiryDate: sourceDoc.expiryDate,
-        status: "uploaded",
+        status: "approved",
         reusedFromDocumentId: sourceDoc._id,
         uploadedBy: userProfile.userId!,
         uploadedAt: Date.now(),
+        reviewedBy: userProfile.userId!,
+        reviewedAt: Date.now(),
       });
 
       await ctx.db.insert("documentStatusHistory", {
         documentId: targetDoc._id,
         previousStatus: "not_started",
-        newStatus: "uploaded",
+        newStatus: "approved",
         changedBy: userProfile.userId!,
         changedAt: Date.now(),
         notes: "Bulk reused from company document in another process",
@@ -3052,6 +3111,126 @@ export const submitInformationFields = mutation({
       version: 1,
       isLatest: true,
     });
+
+    return documentId;
+  },
+});
+
+/**
+ * Query to list documents available for linking to a status entry.
+ * Returns latest docs from the process, excluding those already linked to the given status.
+ */
+export const listAvailableForLinking = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    excludeStatusId: v.optional(v.id("individualProcessStatuses")),
+  },
+  handler: async (ctx, { individualProcessId, excludeStatusId }) => {
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    // Access control
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied");
+      }
+    }
+
+    // Get all latest documents for this process
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId)
+      )
+      .collect();
+
+    // Filter: latest only, only not_started (unfilled) docs, exclude docs already linked to excludeStatusId
+    const available = documents.filter((doc) => {
+      if (!doc.isLatest) return false;
+      if (doc.status !== "not_started") return false;
+      if (excludeStatusId && doc.individualProcessStatusId === excludeStatusId) return false;
+      return true;
+    });
+
+    // Enrich with document type
+    const enriched = await Promise.all(
+      available.map(async (doc) => {
+        const documentType = doc.documentTypeId
+          ? await ctx.db.get(doc.documentTypeId)
+          : null;
+
+        // Get linked status info if any
+        let linkedStatus = undefined;
+        if (doc.individualProcessStatusId) {
+          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          if (statusEntry) {
+            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            if (caseStatus) {
+              linkedStatus = {
+                caseStatusName: caseStatus.name,
+                caseStatusCode: caseStatus.code,
+                caseStatusColor: caseStatus.color,
+                date: statusEntry.date,
+                individualProcessStatusId: doc.individualProcessStatusId!,
+              };
+            }
+          }
+        }
+
+        return {
+          _id: doc._id,
+          fileName: doc.fileName,
+          documentName: doc.documentName,
+          status: doc.status,
+          documentTypeId: doc.documentTypeId,
+          documentType: documentType
+            ? { name: documentType.name, isCompanyDocument: documentType.isCompanyDocument }
+            : null,
+          individualProcessStatusId: doc.individualProcessStatusId,
+          linkedStatus,
+        };
+      })
+    );
+
+    return enriched;
+  },
+});
+
+/**
+ * Mutation to link an existing document to a status entry.
+ * Updates the document's individualProcessStatusId.
+ */
+export const linkToStatus = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    individualProcessStatusId: v.id("individualProcessStatuses"),
+  },
+  handler: async (ctx, { documentId, individualProcessStatusId }) => {
+    const adminProfile = await requireAdmin(ctx);
+
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    const statusEntry = await ctx.db.get(individualProcessStatusId);
+    if (!statusEntry) {
+      throw new Error("Status entry not found");
+    }
+
+    // Ensure both belong to the same individual process
+    if (document.individualProcessId !== statusEntry.individualProcessId) {
+      throw new Error("Document and status entry belong to different processes");
+    }
+
+    await ctx.db.patch(documentId, { individualProcessStatusId });
 
     return documentId;
   },

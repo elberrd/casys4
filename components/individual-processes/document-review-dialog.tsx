@@ -85,6 +85,7 @@ export function DocumentReviewDialog({
   const tCommon = useTranslations("Common")
 
   const [rejectionReason, setRejectionReason] = useState("")
+  const [isIllegible, setIsIllegible] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [showStatusActions, setShowStatusActions] = useState(false)
@@ -184,6 +185,7 @@ export function DocumentReviewDialog({
       setEditedValues({})
       setSelectedVersionId(null)
       setShowUploadNewVersion(false)
+      setIsIllegible(false)
     }
   }, [open])
 
@@ -295,11 +297,13 @@ export function DocumentReviewDialog({
       await reject({
         id: documentId,
         rejectionReason: rejectionReason.trim(),
+        isIllegible: isIllegible || undefined,
       })
 
       toast.success(t("rejectSuccess"))
       setShowStatusActions(false)
       setRejectionReason("")
+      setIsIllegible(false)
 
       if (onSuccess) {
         onSuccess()
@@ -917,7 +921,14 @@ export function DocumentReviewDialog({
                 )}
                 {displayDocument.rejectionReason && (
                   <div className="mt-2">
-                    <p className="text-muted-foreground font-medium">{t("rejectionReason")}:</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-muted-foreground font-medium">{t("rejectionReason")}:</p>
+                      {(displayDocument as any).isIllegible && (
+                        <Badge variant="destructive" className="text-xs">
+                          {t("illegible")}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="mt-1">{displayDocument.rejectionReason}</p>
                   </div>
                 )}
@@ -937,6 +948,37 @@ export function DocumentReviewDialog({
               {t("downloadFile")}
             </Button>
           </div>
+
+          {/* Illegible checkbox - visible directly, only for non-information-only documents */}
+          {!isViewingOldVersion && canChangeStatus && !document?.documentType?.isInformationOnly && (
+            <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950 p-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isIllegibleReview"
+                  checked={isIllegible}
+                  onCheckedChange={(checked) => {
+                    const value = checked === true
+                    setIsIllegible(value)
+                    if (value && !rejectionReason.trim()) {
+                      setRejectionReason(t("illegibleDefaultReason"))
+                    }
+                    if (value) {
+                      setShowStatusActions(true)
+                    }
+                  }}
+                  disabled={isApproving || isRejecting}
+                />
+                <Label htmlFor="isIllegibleReview" className="text-sm font-medium cursor-pointer">
+                  {t("markAsIllegible")}
+                </Label>
+              </div>
+              {isIllegible && (
+                <p className="text-xs text-orange-700 dark:text-orange-300 ml-6">
+                  {t("illegibleAutoRejectWarning")}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Status change section — only for current version */}
           {!isViewingOldVersion && canChangeStatus && (
@@ -962,7 +1004,7 @@ export function DocumentReviewDialog({
                       id="rejectionReason"
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder={t("rejectionReasonPlaceholder")}
+                      placeholder={isIllegible ? t("illegibleObservationPlaceholder") : t("rejectionReasonPlaceholder")}
                       disabled={isApproving || isRejecting}
                       rows={3}
                     />

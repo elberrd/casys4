@@ -347,6 +347,7 @@
     "noCompaniesFound": "No companies found",
     "contactPerson": "Contact Person",
     "contactPersonDescription": "Primary contact person for this process",
+    "requester": "Requester",
     "selectContactPerson": "Select contact person",
     "searchPeople": "Search people...",
     "noPeopleFound": "No people found",
@@ -675,8 +676,8 @@
     "alertsModeEnable": "Enable alerts filter: show only urgent processes",
     "alertsModeDisable": "Disable alerts filter: show all processes",
     "qualExpProfButton": "QUAL / EXP PROF",
-    "qualExpProfModeEnable": "Enable qualification and experience view: show specific columns",
-    "qualExpProfModeDisable": "Disable qualification and experience view: return to default columns",
+    "qualExpProfModeEnable": "Enable education and experience view: show specific columns",
+    "qualExpProfModeDisable": "Disable education and experience view: return to default columns",
     "exigenciasButton": "Requirements",
     "filtersDropdown": "Filters",
     "legalSupport": "Legal Support",
@@ -944,11 +945,12 @@
     "processStatusPrevious": "Previous",
     "statusDate": "Status Date",
     "selectProcessStatus": "Select process status",
-    "qualification": "Qualification",
-    "selectQualification": "Select qualification",
+    "qualification": "Education",
+    "selectQualification": "Select education",
     "qualificationOptions": {
       "medio": "High School",
       "tecnico": "Technical",
+      "mestrado": "Master's Degree",
       "superior": "Higher Education",
       "naoPossui": "None"
     },
@@ -1168,7 +1170,7 @@
       "authorizationTypes": "Authorization Types",
       "legalFrameworks": "Legal Frameworks",
       "missingData": "Missing Data",
-      "withoutQualification": "Without Qualification",
+      "withoutQualification": "Without Education",
       "withoutProfExperience": "Without Professional Experience",
       "emPreparacao": "In Preparation",
       "total": "Total",
@@ -1185,7 +1187,7 @@
       "authorizationType": "Authorization Type",
       "legalFramework": "Legal Framework",
       "status": "Status",
-      "qualificationMissing": "Missing Qualification",
+      "qualificationMissing": "Missing Education",
       "profExperienceMissing": "Missing Professional Experience"
     }
   },
@@ -2132,8 +2134,9 @@
     "progress": "Progress",
     "requiredDocuments": "Required Documents",
     "optionalDocuments": "Optional Documents",
-    "filledDocuments": "Completed Documents",
-    "unfilledDocuments": "Incomplete Documents",
+    "filledDocuments": "Received Documents",
+    "unfilledDocuments": "Pending Documents",
+    "exigenciaDocuments": "Exigencia - {date}",
     "looseDocuments": "Unclassified Documents",
     "looseDocumentsDescription": "These documents have not been assigned to a specific document type. You can assign a type to organize them.",
     "looseDocument": "Unclassified",
@@ -2148,8 +2151,15 @@
     "noDocumentsHint": "Upload documents using the buttons below",
     "documentsCompleted": "{completed} of {total} documents submitted",
     "addDocument": "Add Document",
-    "uploadLoose": "Upload Unclassified",
-    "uploadWithType": "Upload with Type",
+    "uploadLoose": "New Unclassified",
+    "uploadWithType": "New with Type",
+    "selectExisting": "Select Existing",
+    "selectExistingDescription": "Select an existing document from this process to link to the status entry",
+    "selectExistingSuccess": "Document linked successfully",
+    "selectExistingError": "Failed to link document",
+    "noAvailableDocuments": "No available documents to link",
+    "searchDocuments": "Search documents...",
+    "selectTargetStatus": "Select target status",
     "assignType": "Assign Type",
     "uploadNewVersion": "New Version",
     "status": {
@@ -2163,11 +2173,16 @@
     "deleteDocumentDescription": "Are you sure you want to delete this document? This action cannot be undone.",
     "deleteDocumentSuccess": "Document deleted successfully",
     "deleteDocumentError": "Error deleting document",
+    "unlinkFromStatus": "Unlink from Status",
+    "unlinkFromStatusDescription": "Are you sure you want to unlink this document from this status? The document will still exist in the process.",
+    "unlinkFromStatusSuccess": "Document unlinked successfully",
+    "unlinkFromStatusError": "Error unlinking document",
     "validity": {
       "expired": "Expired",
       "expiringSoon": "Expiring in {days} days",
       "missingDate": "Missing date"
     },
+    "illegible": "Illegible",
     "companyDocument": "Company",
     "reuseExisting": "Reuse Existing",
     "reuseDialogTitle": "Reuse Company Document",
@@ -2199,7 +2214,32 @@
     "conditions": {
       "title": "Conditions"
     },
-    "linkedStatusBadge": "{name} - {date}"
+    "linkedStatusBadge": "{name} - {date}",
+    "generatePdfReport": "Generate PDF Report",
+    "excludeFromReport": "Exclude from report",
+    "pdfReport": {
+      "title": "Pending Documents Report",
+      "generating": "Generating report...",
+      "save": "Save PDF",
+      "close": "Close",
+      "generatedAtLabel": "Generated at",
+      "person": "Person",
+      "legalFramework": "Legal Framework",
+      "processType": "Process Type",
+      "company": "Applicant Company",
+      "referenceNumber": "Reference Number",
+      "protocolNumber": "Protocol Number",
+      "dateProcess": "Process Date",
+      "exigenciaSection": "Exigencia",
+      "pendingSection": "Pending Documents",
+      "required": "Required",
+      "optional": "Optional",
+      "page": "Page",
+      "of": "of",
+      "companyDoc": "Company",
+      "document": "Document",
+      "status": "Status"
+    }
   },
   "InformationFields": {
     "title": "Fill Information",
@@ -2263,7 +2303,11 @@
     "documentName": "Document Name",
     "documentNamePlaceholder": "E.g.: Requirement Letter, Receipt...",
     "pendingUploadTitle": "Upload File",
-    "pendingUploadDescription": "Upload a file for this document"
+    "pendingUploadDescription": "Upload a file for this document",
+    "markAsIllegible": "Mark as illegible",
+    "illegibleWarning": "The document will be uploaded and automatically rejected as illegible.",
+    "illegibleNotesPlaceholder": "Additional observations about the illegible document (optional)",
+    "uploadAsIllegible": "Upload as Illegible"
   },
   "DocumentReview": {
     "title": "Review Document",
@@ -2355,7 +2399,12 @@
       "daysInfo": "{days} days remaining"
     },
     "reusedFrom": "Reused from {personName}'s process",
-    "reusedDocument": "Reused Document"
+    "reusedDocument": "Reused Document",
+    "markAsIllegible": "Mark as illegible",
+    "illegible": "Illegible",
+    "illegibleDefaultReason": "Illegible document",
+    "illegibleObservationPlaceholder": "Add additional observations about the illegible document (optional)",
+    "illegibleAutoRejectWarning": "When rejected, the document will be marked as illegible."
   },
   "DocumentHistory": {
     "title": "Document History",
@@ -3200,7 +3249,26 @@
     "roleInfo": {
       "admin": "Full system access with all permissions",
       "client": "Limited access to company-specific data"
-    }
+    },
+    "createClientUser": "New Client User",
+    "createClientUserTitle": "Create Client User",
+    "createClientUserDescription": "Select a registered person to create client portal access.",
+    "selectPerson": "Select Person",
+    "searchPerson": "Search by name, company or email...",
+    "noPeopleFound": "No people found",
+    "temporaryPassword": "Temporary Password",
+    "generatePassword": "Generate",
+    "copyPassword": "Copy",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "passwordCopied": "Password copied to clipboard",
+    "clientUserCreatedSuccess": "Client user created successfully",
+    "shareCredentials": "Share the credentials below with the user:",
+    "shareCredentialsEmail": "Email: {email}",
+    "shareCredentialsPassword": "Password: {password}",
+    "noEligiblePeople": "No eligible people found. People must have a current company link and a registered email.",
+    "credentialsTitle": "User Credentials",
+    "close": "Close"
   },
   "ProcessWizard": {
     "title": "Create Process",

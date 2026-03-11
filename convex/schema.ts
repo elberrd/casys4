@@ -407,6 +407,7 @@ export default defineSchema({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Split into companyApplicantId and userApplicantId
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    userApplicantCompanyId: v.optional(v.id("companies")), // Company the user applicant was associated with at process creation time
     consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
@@ -414,7 +415,7 @@ export default defineSchema({
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     funcao: v.optional(v.string()), // Função field for individual process (different from people.cargo)
     cboId: v.optional(v.id("cboCodes")),
-    qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "superior", "naoPossui"
+    qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "mestrado", "superior", "naoPossui"
     professionalExperienceSince: v.optional(v.string()), // ISO date format YYYY-MM-DD - Professional experience start date
     firstEntryDate: v.optional(v.string()), // ISO YYYY-MM-DD - Date of first entry into Brazil
     mreOfficeNumber: v.optional(v.string()),
@@ -606,6 +607,7 @@ export default defineSchema({
     reusedFromDocumentId: v.optional(v.id("documentsDelivered")), // Reference to the original reused document
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")), // Link to a specific status entry (e.g., "Exigência")
     documentName: v.optional(v.string()), // Custom name for loose documents saved without file
+    isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])

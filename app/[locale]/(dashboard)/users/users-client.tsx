@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { CreateUserDialog } from "@/components/users/create-user-dialog"
+import { CreateClientUserDialog } from "@/components/users/create-client-user-dialog"
 import { EditUserDialog } from "@/components/users/edit-user-dialog"
 import { UsersTable } from "@/components/users/users-table"
 import { UserViewModal } from "@/components/users/user-view-modal"
@@ -22,6 +23,7 @@ export function UsersClient() {
   const { toast } = useToast()
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<Id<"userProfiles"> | null>(null)
   const [viewingId, setViewingId] = useState<Id<"userProfiles"> | null>(null)
   const [resetPasswordId, setResetPasswordId] = useState<Id<"userProfiles"> | null>(null)
@@ -95,10 +97,16 @@ export function UsersClient() {
               {t('description')}
             </p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t('newUser')}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setCreateClientDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('createClientUser')}
+            </Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('newUser')}
+            </Button>
+          </div>
         </div>
 
         <UsersTable
@@ -144,6 +152,12 @@ export function UsersClient() {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onSuccess={() => setCreateDialogOpen(false)}
+        />
+
+        <CreateClientUserDialog
+          open={createClientDialogOpen}
+          onOpenChange={setCreateClientDialogOpen}
+          onSuccess={() => {}}
         />
       </div>
     </>

@@ -43,7 +43,7 @@ export const FIELD_REGISTRY: Record<EntityType, FieldRegistryEntry[]> = {
     { fieldPath: "funcao", label: "Funcao / Duty", labelEn: "Function / Duty", fieldType: "text" },
     { fieldPath: "monthlyAmountToReceive", label: "Salario mensal (BRL)", labelEn: "Monthly salary (BRL)", fieldType: "number" },
     { fieldPath: "firstEntryDate", label: "Data do 1o ingresso no Brasil", labelEn: "Date of 1st entry in Brazil", fieldType: "date" },
-    { fieldPath: "qualification", label: "Qualificacao", labelEn: "Qualification", fieldType: "select" },
+    { fieldPath: "qualification", label: "Escolaridade", labelEn: "Education", fieldType: "select" },
     { fieldPath: "professionalExperienceSince", label: "Experiencia profissional desde", labelEn: "Professional experience since", fieldType: "date" },
   ],
   passport: [

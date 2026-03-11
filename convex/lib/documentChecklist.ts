@@ -334,16 +334,18 @@ export async function autoReuseCompanyDocuments(
       fileUrl: sourceDoc.fileUrl,
       issueDate: sourceDoc.issueDate,
       expiryDate: sourceDoc.expiryDate,
-      status: "uploaded",
+      status: "approved",
       reusedFromDocumentId: sourceDoc._id,
       uploadedBy: userId,
       uploadedAt: Date.now(),
+      reviewedBy: userId,
+      reviewedAt: Date.now(),
     });
 
     await ctx.db.insert("documentStatusHistory", {
       documentId: targetDoc._id,
       previousStatus: "not_started",
-      newStatus: "uploaded",
+      newStatus: "approved",
       changedBy: userId,
       changedAt: Date.now(),
       notes: "Auto-reused from company document in another process",

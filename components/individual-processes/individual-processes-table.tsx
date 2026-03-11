@@ -891,9 +891,10 @@ export function IndividualProcessesTable({
               </span>
             );
           }
+          const companyName = (userApplicant as any).company?.name;
           return (
             <span className="text-sm">
-              {userApplicant.fullName}
+              {userApplicant.fullName}{companyName ? ` - ${companyName}` : ""}
             </span>
           );
         },

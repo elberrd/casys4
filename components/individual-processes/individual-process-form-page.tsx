@@ -104,6 +104,7 @@ export function IndividualProcessFormPage({
       applicantId: "", // DEPRECATED
       companyApplicantId: "",
       userApplicantId: "",
+      userApplicantCompanyId: "",
       consulateId: "",
       caseStatusId: "" as Id<"caseStatuses">,
       status: "", // DEPRECATED: Kept for backward compatibility
@@ -248,6 +249,7 @@ export function IndividualProcessFormPage({
         applicantId: individualProcess.applicantId ?? "", // DEPRECATED
         companyApplicantId: individualProcess.companyApplicantId ?? "",
         userApplicantId: individualProcess.userApplicantId ?? "",
+        userApplicantCompanyId: individualProcess.userApplicantCompanyId ?? "",
         consulateId: individualProcess.consulateId ?? "",
         caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
@@ -255,7 +257,7 @@ export function IndividualProcessFormPage({
         legalFrameworkId: individualProcess.legalFrameworkId,
         funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
-        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui",
+        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "mestrado" | "superior" | "naoPossui",
         professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
         douNumber: individualProcess.douNumber ?? "",
@@ -316,7 +318,7 @@ export function IndividualProcessFormPage({
         updates.cboId = individualProcess.cboId ?? ""
       }
       if (currentValues.qualification !== (individualProcess.qualification ?? "")) {
-        updates.qualification = (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "superior" | "naoPossui"
+        updates.qualification = (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "mestrado" | "superior" | "naoPossui"
       }
       if (currentValues.professionalExperienceSince !== (individualProcess.professionalExperienceSince ?? "")) {
         updates.professionalExperienceSince = individualProcess.professionalExperienceSince ?? ""
@@ -378,6 +380,7 @@ export function IndividualProcessFormPage({
         applicantId: "", // DEPRECATED
         companyApplicantId: "",
         userApplicantId: "",
+        userApplicantCompanyId: "",
         consulateId: "",
         caseStatusId: "" as Id<"caseStatuses">,
         status: "", // DEPRECATED: Kept for backward compatibility
@@ -467,6 +470,7 @@ export function IndividualProcessFormPage({
         applicantId: data.applicantId || undefined, // DEPRECATED
         companyApplicantId: data.companyApplicantId || undefined,
         userApplicantId: data.userApplicantId || undefined,
+        userApplicantCompanyId: data.userApplicantCompanyId || undefined,
         consulateId: data.consulateId || undefined,
         caseStatusId: data.caseStatusId || undefined,
         status: data.status || undefined, // DEPRECATED: Kept for backward compatibility
@@ -497,8 +501,8 @@ export function IndividualProcessFormPage({
       }
 
       if (individualProcessId) {
-        // Remove personId and collectiveProcessId from submit data when updating (can't change these on existing process)
-        const { personId, collectiveProcessId, ...updateData } = submitData
+        // Remove personId, collectiveProcessId, userApplicantId, userApplicantCompanyId from submit data when updating (immutable after creation)
+        const { personId, collectiveProcessId, userApplicantId, userApplicantCompanyId, ...updateData } = submitData
         await updateIndividualProcess({ id: individualProcessId, ...updateData })
         toast({
           title: t("updatedSuccess"),
@@ -675,21 +679,27 @@ export function IndividualProcessFormPage({
                   <FormItem>
                     <div className="flex items-start justify-between">
                       <FormLabel>{t("userApplicant")}</FormLabel>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setQuickUserApplicantDialogOpen(true)}
-                        className="h-7"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t("quickAddUserApplicant")}
-                      </Button>
+                      {!individualProcessId && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setQuickUserApplicantDialogOpen(true)}
+                          className="h-7"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          {t("quickAddUserApplicant")}
+                        </Button>
+                      )}
                     </div>
                     <FormControl>
                       <UserApplicantSelector
                         value={field.value || ""}
-                        onChange={field.onChange}
+                        onChange={(value, companyId) => {
+                          field.onChange(value)
+                          form.setValue("userApplicantCompanyId", (companyId || "") as any)
+                        }}
+                        disabled={!!individualProcessId}
                       />
                     </FormControl>
                     <FormMessage />
@@ -816,6 +826,9 @@ export function IndividualProcessFormPage({
                           </SelectItem>
                           <SelectItem value="tecnico">
                             {t("qualificationOptions.tecnico")}
+                          </SelectItem>
+                          <SelectItem value="mestrado">
+                            {t("qualificationOptions.mestrado")}
                           </SelectItem>
                           <SelectItem value="superior">
                             {t("qualificationOptions.superior")}

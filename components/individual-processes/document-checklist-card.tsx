@@ -42,6 +42,7 @@ import {
   ListChecks,
   Check,
   X,
+  Link2,
 } from "lucide-react"
 import {
   Tooltip,
@@ -64,10 +65,18 @@ import { CompanyDocumentReuseDialog } from "./company-document-reuse-dialog"
 import { RequirementsChecklistSheet, ChecklistTriggerButton } from "./requirements-checklist-card"
 import { InformationFieldsDialog } from "./information-fields-dialog"
 import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
+import { SelectExistingDocumentDialog } from "./select-existing-document-dialog"
+import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
+import type {
+  ProcessInfoForReport,
+  PdfDocumentItem,
+  PdfExigenciaGroup,
+} from "@/lib/utils/pdf-report-helpers"
 
 interface DocumentChecklistCardProps {
   individualProcessId: Id<"individualProcesses">
   userRole?: "admin" | "client"
+  processInfo?: ProcessInfoForReport
 }
 
 type DialogState = {
@@ -123,11 +132,13 @@ type DialogState = {
     documentId: Id<"documentsDelivered"> | null
     documentName: string
   }
+  selectExisting: { open: boolean }
 }
 
 export function DocumentChecklistCard({
   individualProcessId,
-  userRole = "client"
+  userRole = "client",
+  processInfo,
 }: DocumentChecklistCardProps) {
   const t = useTranslations("DocumentChecklist")
   const tCommon = useTranslations("Common")
@@ -166,7 +177,17 @@ export function DocumentChecklistCard({
     reuse: { open: false, document: null },
     informationFields: { open: false, document: null },
     pendingUpload: { open: false, documentId: null, documentName: "" },
+    selectExisting: { open: false },
   })
+
+  // Check if process has exigencia statuses (for "Select Existing" button)
+  const statusHistory = useQuery(api.individualProcessStatuses.getStatusHistory, {
+    individualProcessId,
+  })
+  const hasExigencia = useMemo(
+    () => statusHistory?.some((s) => s.caseStatus?.code === "exigencia") ?? false,
+    [statusHistory]
+  )
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -177,7 +198,21 @@ export function DocumentChecklistCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkReusing, setIsBulkReusing] = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const [excludedFromReport, setExcludedFromReport] = useState<Set<string>>(new Set())
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
+
+  const toggleExcludeFromReport = (docId: string) => {
+    setExcludedFromReport(prev => {
+      const next = new Set(prev)
+      if (next.has(docId)) {
+        next.delete(docId)
+      } else {
+        next.add(docId)
+      }
+      return next
+    })
+  }
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -270,6 +305,7 @@ export function DocumentChecklistCard({
       reuse: { open: false, document: null },
       informationFields: { open: false, document: null },
       pendingUpload: { open: false, documentId: null, documentName: "" },
+      selectExisting: { open: false },
     })
   }
 
@@ -373,8 +409,35 @@ export function DocumentChecklistCard({
   const requiredTotal = summary.totalRequired
   const checklistDocuments = [...required, ...optional, ...loose]
   const total = checklistDocuments.length
-  const filledDocuments = checklistDocuments.filter((doc) => doc.status !== "not_started")
-  const unfilledDocuments = checklistDocuments.filter((doc) => doc.status === "not_started")
+
+  // Separate exigência documents from normal documents
+  const exigenciaDocuments = checklistDocuments.filter(
+    (doc) => doc.linkedStatus?.caseStatusCode === "exigencia"
+  )
+  const nonExigenciaDocuments = checklistDocuments.filter(
+    (doc) => doc.linkedStatus?.caseStatusCode !== "exigencia"
+  )
+  const filledDocuments = nonExigenciaDocuments.filter((doc) => doc.status !== "not_started")
+  const unfilledDocuments = nonExigenciaDocuments.filter((doc) => doc.status === "not_started")
+
+  // Group exigência documents by their individualProcessStatusId
+  const exigenciaGroups = (() => {
+    const groups = new Map<string, { date: string; caseStatusName: string; caseStatusColor?: string; docs: typeof exigenciaDocuments }>()
+    for (const doc of exigenciaDocuments) {
+      const statusId = doc.linkedStatus!.individualProcessStatusId
+      if (!groups.has(statusId)) {
+        groups.set(statusId, {
+          date: doc.linkedStatus!.date || "",
+          caseStatusName: doc.linkedStatus!.caseStatusName,
+          caseStatusColor: doc.linkedStatus!.caseStatusColor,
+          docs: [],
+        })
+      }
+      groups.get(statusId)!.docs.push(doc)
+    }
+    // Sort by date descending (newest first)
+    return Array.from(groups.entries()).sort((a, b) => b[1].date.localeCompare(a[1].date))
+  })()
 
   const handleBulkReuse = async () => {
     setIsBulkReusing(true)
@@ -387,6 +450,35 @@ export function DocumentChecklistCard({
       setIsBulkReusing(false)
     }
   }
+
+  // Build PDF-eligible data (pending + exigencia docs minus excluded)
+  const pdfPendingDocuments: PdfDocumentItem[] = unfilledDocuments
+    .filter((doc) => !excludedFromReport.has(doc._id))
+    .map((doc) => ({
+      id: doc._id,
+      name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
+      isRequired: !!doc.isRequired,
+      isCompanyDocument: doc.documentType?.isCompanyDocument === true,
+      responsibleParty: (doc as any).responsibleParty,
+    }))
+
+  const pdfExigenciaGroups: PdfExigenciaGroup[] = exigenciaGroups
+    .map(([, group]) => ({
+      date: group.date ? format(parseISO(group.date), "dd/MM/yyyy HH:mm") : "",
+      statusName: group.caseStatusName,
+      documents: group.docs
+        .filter((doc) => !excludedFromReport.has(doc._id))
+        .map((doc) => ({
+          id: doc._id,
+          name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
+          isRequired: !!doc.isRequired,
+          isCompanyDocument: doc.documentType?.isCompanyDocument === true,
+          responsibleParty: (doc as any).responsibleParty,
+        })),
+    }))
+    .filter((g) => g.documents.length > 0)
+
+  const pdfEligibleCount = pdfPendingDocuments.length + pdfExigenciaGroups.reduce((sum, g) => sum + g.documents.length, 0)
 
   const getStatusBadge = (status: string, isCritical?: boolean) => {
     switch (status) {
@@ -524,6 +616,34 @@ export function DocumentChecklistCard({
 
       <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
+
+        {/* Exclude from PDF report checkbox */}
+        {processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center">
+                <Checkbox
+                  checked={excludedFromReport.has(doc._id)}
+                  onCheckedChange={() => toggleExcludeFromReport(doc._id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-3.5 w-3.5"
+                  aria-label={t("excludeFromReport")}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">{t("excludeFromReport")}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Illegible badge */}
+        {doc.isIllegible && doc.status === "rejected" && (
+          <Badge variant="destructive" className="gap-1 text-xs">
+            <AlertTriangle className="h-3 w-3" />
+            {t("illegible")}
+          </Badge>
+        )}
 
         {/* Conditions badge */}
         {doc.conditionsSummary && (
@@ -664,7 +784,7 @@ export function DocumentChecklistCard({
                 <Upload className="h-4 w-4" />
               </Button>
             )}
-            {doc.status !== "approved" && userRole === "admin" && (
+            {userRole === "admin" && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -753,6 +873,18 @@ export function DocumentChecklistCard({
                 {t("bulkReuse", { count: pendingReusableCount })}
               </Button>
             )}
+            {/* Generate PDF Report */}
+            {processInfo && pdfEligibleCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPdfDialogOpen(true)}
+                className="gap-1"
+              >
+                <FileText className="h-4 w-4" />
+                {t("generatePdfReport")}
+              </Button>
+            )}
             {/* Checklist sidebar trigger */}
             <ChecklistTriggerButton
               individualProcessId={individualProcessId}
@@ -777,6 +909,12 @@ export function DocumentChecklistCard({
                     <FileType className="h-4 w-4 mr-2" />
                     {t("uploadWithType")}
                   </DropdownMenuItem>
+                  {hasExigencia && (
+                    <DropdownMenuItem onClick={() => setDialogs(prev => ({ ...prev, selectExisting: { open: true } }))}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      {t("selectExisting")}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -803,26 +941,38 @@ export function DocumentChecklistCard({
           </div>
         )}
 
-        {/* Filled Documents */}
-        {filledDocuments.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              {t("filledDocuments")}
-              <Badge variant="secondary" className="sm:ml-auto">
-                {filledDocuments.length}
-              </Badge>
-            </h3>
-            <div className="space-y-2">
-              {filledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
+        {/* Exigência Documents - grouped by status, highest priority */}
+        {exigenciaGroups.map(([statusId, group], index) => (
+          <div key={statusId}>
+            {index > 0 && <Separator className="my-4" />}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2"
+                style={group.caseStatusColor ? { color: group.caseStatusColor } : undefined}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                {t("exigenciaDocuments", {
+                  date: group.date ? format(parseISO(group.date), "dd/MM/yyyy HH:mm") : "",
+                })}
+                <Badge variant="outline" className="sm:ml-auto"
+                  style={group.caseStatusColor ? {
+                    borderColor: group.caseStatusColor,
+                    color: group.caseStatusColor,
+                  } : undefined}
+                >
+                  {group.docs.length}
+                </Badge>
+              </h3>
+              <div className="space-y-2">
+                {group.docs.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
+              </div>
             </div>
           </div>
-        )}
+        ))}
 
-        {/* Unfilled Documents */}
+        {/* Pending Documents */}
         {unfilledDocuments.length > 0 && (
           <>
-            {filledDocuments.length > 0 && <Separator />}
+            {exigenciaGroups.length > 0 && <Separator />}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
@@ -833,6 +983,25 @@ export function DocumentChecklistCard({
               </h3>
               <div className="space-y-2">
                 {unfilledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Received Documents */}
+        {filledDocuments.length > 0 && (
+          <>
+            {(exigenciaGroups.length > 0 || unfilledDocuments.length > 0) && <Separator />}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                {t("filledDocuments")}
+                <Badge variant="secondary" className="sm:ml-auto">
+                  {filledDocuments.length}
+                </Badge>
+              </h3>
+              <div className="space-y-2">
+                {filledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
               </div>
             </div>
           </>
@@ -1007,6 +1176,17 @@ export function DocumentChecklistCard({
         />
       )}
 
+      {dialogs.selectExisting.open && (
+        <SelectExistingDocumentDialog
+          open={dialogs.selectExisting.open}
+          onOpenChange={(open) => {
+            if (!open) closeAllDialogs()
+          }}
+          individualProcessId={individualProcessId}
+          onSuccess={closeAllDialogs}
+        />
+      )}
+
       <DeleteConfirmationDialog
         open={deleteConfirm.open}
         onOpenChange={(open) => {
@@ -1025,6 +1205,17 @@ export function DocumentChecklistCard({
         individualProcessId={individualProcessId}
         userRole={userRole}
       />
+
+      {/* PDF Report Dialog */}
+      {processInfo && (
+        <PendingDocumentsPdfDialog
+          open={pdfDialogOpen}
+          onOpenChange={setPdfDialogOpen}
+          processInfo={processInfo}
+          pendingDocuments={pdfPendingDocuments}
+          exigenciaGroups={pdfExigenciaGroups}
+        />
+      )}
     </Card>
   )
 }

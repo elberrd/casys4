@@ -25,12 +25,14 @@ export function PeopleCompanyViewModal({
   const tCommon = useTranslations("Common")
 
   const peopleCompany = useQuery(api.peopleCompanies.get, { id: peopleCompanyId })
-  const person = peopleCompany?.personId
-    ? useQuery(api.people.get, { id: peopleCompany.personId })
-    : null
-  const company = peopleCompany?.companyId
-    ? useQuery(api.companies.get, { id: peopleCompany.companyId })
-    : null
+  const person = useQuery(
+    api.people.get,
+    peopleCompany?.personId ? { id: peopleCompany.personId } : "skip"
+  )
+  const company = useQuery(
+    api.companies.get,
+    peopleCompany?.companyId ? { id: peopleCompany.companyId } : "skip"
+  )
 
   if (!peopleCompany) {
     return (

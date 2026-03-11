@@ -36,6 +36,12 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  userApplicantCompanyId: z
+    .custom<Id<"companies">>((val) => typeof val === "string", {
+      message: "Invalid user applicant company ID",
+    })
+    .optional()
+    .or(z.literal("")),
   consulateId: z
     .custom<Id<"consulates">>((val) => typeof val === "string", {
       message: "Invalid consulate ID",
@@ -69,7 +75,7 @@ export const individualProcessSchema = z.object({
     .optional()
     .or(z.literal("")),
   qualification: z
-    .enum(["medio", "tecnico", "superior", "naoPossui"])
+    .enum(["medio", "tecnico", "mestrado", "superior", "naoPossui"])
     .optional()
     .or(z.literal("")),
   professionalExperienceSince: z

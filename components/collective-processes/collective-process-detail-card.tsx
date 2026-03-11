@@ -65,6 +65,10 @@ interface CollectiveProcessDetailCardProps {
       status: string
       requestDate: string
       isUrgent: boolean
+      requesterProfile?: {
+        fullName: string
+        email: string
+      } | null
     } | null
     individualProcesses?: Array<{
       _id: Id<"individualProcesses">
@@ -275,6 +279,19 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
                   <p className="text-sm text-muted-foreground">{collectiveProcess.contactPerson.fullName}</p>
                   {collectiveProcess.contactPerson.email && (
                     <p className="text-xs text-muted-foreground">{collectiveProcess.contactPerson.email}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {collectiveProcess.originRequest?.requesterProfile && (
+              <div className="flex items-start gap-2">
+                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">{t('requester')}</p>
+                  <p className="text-sm text-muted-foreground">{collectiveProcess.originRequest.requesterProfile.fullName}</p>
+                  {collectiveProcess.originRequest.requesterProfile.email && (
+                    <p className="text-xs text-muted-foreground">{collectiveProcess.originRequest.requesterProfile.email}</p>
                   )}
                 </div>
               </div>

@@ -6,6 +6,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { NavigationBlockerProvider } from "@/contexts/navigation-blocker-context"
+import { RoleGuard } from "@/components/role-guard"
 import { useConvexAuth } from "convex/react"
 import { useRouter } from "@/i18n/routing"
 import { useEffect } from "react"
@@ -41,7 +42,9 @@ export default function DashboardLayout({
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          {children}
+          <RoleGuard>
+            {children}
+          </RoleGuard>
         </SidebarInset>
       </SidebarProvider>
     </NavigationBlockerProvider>

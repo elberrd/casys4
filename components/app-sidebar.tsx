@@ -40,6 +40,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const userProfile = useQuery(api.userProfiles.getCurrentUser)
   const t = useTranslations('Navigation')
 
+  const isClient = userProfile?.role === "client"
+
+  // Client-only navigation: just Individual Processes
+  const clientNav = [
+    {
+      title: t('individualProcesses'),
+      url: "/individual-processes",
+      icon: FolderKanban,
+      isActive: true,
+      items: [],
+    },
+    {
+      title: t('settings'),
+      url: "/settings",
+      icon: Settings2,
+      isActive: false,
+      items: [],
+    },
+  ]
+
   // Build navigation data with translations
   const navMain = [
     {
@@ -219,7 +239,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher branding={brandingData} />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMain} />
+        <NavMain items={isClient ? clientNav : navMain} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

@@ -58,6 +58,7 @@ import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/add
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
 import type * as migrations_addRnmProtocolToFillableFields from "../migrations/addRnmProtocolToFillableFields.js";
 import type * as migrations_backfillExigenciaDates from "../migrations/backfillExigenciaDates.js";
+import type * as migrations_backfillUserApplicantCompanyId from "../migrations/backfillUserApplicantCompanyId.js";
 import type * as migrations_fixRnmFillableFields from "../migrations/fixRnmFillableFields.js";
 import type * as migrations_forceRnmCacheInvalidation from "../migrations/forceRnmCacheInvalidation.js";
 import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.js";
@@ -105,14 +106,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   activityLogs: typeof activityLogs;
   appointmentReminders: typeof appointmentReminders;
@@ -164,6 +157,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
   "migrations/addRnmProtocolToFillableFields": typeof migrations_addRnmProtocolToFillableFields;
   "migrations/backfillExigenciaDates": typeof migrations_backfillExigenciaDates;
+  "migrations/backfillUserApplicantCompanyId": typeof migrations_backfillUserApplicantCompanyId;
   "migrations/fixRnmFillableFields": typeof migrations_fixRnmFillableFields;
   "migrations/forceRnmCacheInvalidation": typeof migrations_forceRnmCacheInvalidation;
   "migrations/importPeopleCsv": typeof migrations_importPeopleCsv;
@@ -205,14 +199,30 @@ declare const fullApi: ApiFromModules<{
   userProfiles: typeof userProfiles;
   verifyCompanies: typeof verifyCompanies;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 

@@ -22,6 +22,7 @@ export const MARITAL_STATUS_OPTIONS = [
 export const QUALIFICATION_OPTIONS = [
   { value: "medio", label: "Médio", labelEn: "High School" },
   { value: "tecnico", label: "Técnico", labelEn: "Technical" },
+  { value: "mestrado", label: "Mestrado", labelEn: "Master's Degree" },
   { value: "superior", label: "Superior", labelEn: "College" },
   { value: "naoPossui", label: "Não possui", labelEn: "None" },
 ]

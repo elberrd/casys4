@@ -57,6 +57,7 @@ export function IndividualProcessStatusesSubtable({
     statusId: Id<"individualProcessStatuses"> | null;
     caseStatusName: string;
     caseStatusColor?: string;
+    caseStatusCode?: string;
     date?: string;
   }>({ open: false, statusId: null, caseStatusName: "" });
   const [deleteConfirmationState, setDeleteConfirmationState] = useState<{
@@ -523,6 +524,7 @@ export function IndividualProcessStatusesSubtable({
                                     statusId: status._id,
                                     caseStatusName: caseStatusName || status.statusName,
                                     caseStatusColor: status.caseStatus?.color,
+                                    caseStatusCode: status.caseStatus?.code,
                                     date: status.date,
                                   });
                                 }}
@@ -617,6 +619,7 @@ export function IndividualProcessStatusesSubtable({
           individualProcessStatusId={statusDocumentsState.statusId}
           caseStatusName={statusDocumentsState.caseStatusName}
           caseStatusColor={statusDocumentsState.caseStatusColor}
+          caseStatusCode={statusDocumentsState.caseStatusCode}
           date={statusDocumentsState.date}
           userRole={userRole}
         />

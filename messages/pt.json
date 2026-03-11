@@ -347,6 +347,7 @@
     "noCompaniesFound": "Nenhuma empresa encontrada",
     "contactPerson": "Pessoa de Contato",
     "contactPersonDescription": "Pessoa de contato principal para este processo",
+    "requester": "Solicitante",
     "selectContactPerson": "Selecionar pessoa de contato",
     "searchPeople": "Buscar pessoas...",
     "noPeopleFound": "Nenhuma pessoa encontrada",
@@ -675,8 +676,8 @@
     "alertsModeEnable": "Ativar filtro de alertas: mostrar apenas processos urgentes",
     "alertsModeDisable": "Desativar filtro de alertas: mostrar todos os processos",
     "qualExpProfButton": "QUAL / EXP PROF",
-    "qualExpProfModeEnable": "Ativar visualização de qualificação e experiência: mostrar colunas específicas",
-    "qualExpProfModeDisable": "Desativar visualização de qualificação e experiência: voltar às colunas padrão",
+    "qualExpProfModeEnable": "Ativar visualização de escolaridade e experiência: mostrar colunas específicas",
+    "qualExpProfModeDisable": "Desativar visualização de escolaridade e experiência: voltar às colunas padrão",
     "exigenciasButton": "Exigências",
     "filtersDropdown": "Filtros",
     "legalSupport": "Amparo Legal",
@@ -943,11 +944,12 @@
     "processStatusPrevious": "Anterior",
     "statusDate": "Data do Status",
     "selectProcessStatus": "Selecione o status do processo",
-    "qualification": "Qualificação",
-    "selectQualification": "Selecionar qualificação",
+    "qualification": "Escolaridade",
+    "selectQualification": "Selecionar escolaridade",
     "qualificationOptions": {
       "medio": "Médio",
       "tecnico": "Técnico",
+      "mestrado": "Mestrado",
       "superior": "Superior",
       "naoPossui": "Não possui"
     },
@@ -1167,7 +1169,7 @@
       "authorizationTypes": "Tipos de Autorização",
       "legalFrameworks": "Amparo Legal",
       "missingData": "Dados Faltantes",
-      "withoutQualification": "Sem Qualificação",
+      "withoutQualification": "Sem Escolaridade",
       "withoutProfExperience": "Sem Experiência Profissional",
       "emPreparacao": "Em Preparação",
       "total": "Total",
@@ -1184,7 +1186,7 @@
       "authorizationType": "Tipo de Autorização",
       "legalFramework": "Amparo Legal",
       "status": "Status",
-      "qualificationMissing": "Qualificação Faltante",
+      "qualificationMissing": "Escolaridade Faltante",
       "profExperienceMissing": "Experiência Profissional Faltante"
     }
   },
@@ -2156,8 +2158,9 @@
     "progress": "Progresso",
     "requiredDocuments": "Documentos Obrigatórios",
     "optionalDocuments": "Documentos Opcionais",
-    "filledDocuments": "Documentos Preenchidos",
-    "unfilledDocuments": "Documentos Não Preenchidos",
+    "filledDocuments": "Documentos Recebidos",
+    "unfilledDocuments": "Documentos Pendentes",
+    "exigenciaDocuments": "Exigência - {date}",
     "looseDocuments": "Documentos Avulsos",
     "looseDocumentsDescription": "Estes documentos não foram atribuídos a um tipo específico. Você pode atribuir um tipo para organizá-los.",
     "looseDocument": "Avulso",
@@ -2172,8 +2175,15 @@
     "noDocumentsHint": "Envie documentos usando os botões abaixo",
     "documentsCompleted": "{completed} de {total} documentos enviados",
     "addDocument": "Adicionar Documento",
-    "uploadLoose": "Enviar Avulso",
-    "uploadWithType": "Enviar com Tipo",
+    "uploadLoose": "Novo Avulso",
+    "uploadWithType": "Novo com Tipo",
+    "selectExisting": "Selecionar Existente",
+    "selectExistingDescription": "Selecione um documento existente deste processo para vincular ao andamento",
+    "selectExistingSuccess": "Documento vinculado com sucesso",
+    "selectExistingError": "Falha ao vincular documento",
+    "noAvailableDocuments": "Nenhum documento disponível para vincular",
+    "searchDocuments": "Buscar documentos...",
+    "selectTargetStatus": "Selecionar andamento destino",
     "assignType": "Atribuir Tipo",
     "uploadNewVersion": "Nova Versão",
     "status": {
@@ -2187,11 +2197,16 @@
     "deleteDocumentDescription": "Tem certeza que deseja remover este documento? Esta ação não pode ser desfeita.",
     "deleteDocumentSuccess": "Documento removido com sucesso",
     "deleteDocumentError": "Erro ao remover documento",
+    "unlinkFromStatus": "Desvincular do Andamento",
+    "unlinkFromStatusDescription": "Tem certeza que deseja desvincular este documento deste andamento? O documento continuará existindo no processo.",
+    "unlinkFromStatusSuccess": "Documento desvinculado com sucesso",
+    "unlinkFromStatusError": "Erro ao desvincular documento",
     "validity": {
       "expired": "Vencido",
       "expiringSoon": "Vencendo em {days} dias",
       "missingDate": "Data ausente"
     },
+    "illegible": "Ilegível",
     "companyDocument": "Empresa",
     "reuseExisting": "Reutilizar Existente",
     "reuseDialogTitle": "Reutilizar Documento da Empresa",
@@ -2223,7 +2238,32 @@
     "conditions": {
       "title": "Condicionantes"
     },
-    "linkedStatusBadge": "{name} - {date}"
+    "linkedStatusBadge": "{name} - {date}",
+    "generatePdfReport": "Gerar Relatório PDF",
+    "excludeFromReport": "Excluir do relatório",
+    "pdfReport": {
+      "title": "Relatório de Documentos Pendentes",
+      "generating": "Gerando relatório...",
+      "save": "Salvar PDF",
+      "close": "Fechar",
+      "generatedAtLabel": "Gerado em",
+      "person": "Pessoa",
+      "legalFramework": "Amparo Legal",
+      "processType": "Tipo de Processo",
+      "company": "Empresa Requerente",
+      "referenceNumber": "Número de Referência",
+      "protocolNumber": "Número de Protocolo",
+      "dateProcess": "Data do Processo",
+      "exigenciaSection": "Exigência",
+      "pendingSection": "Documentos Pendentes",
+      "required": "Obrigatório",
+      "optional": "Opcional",
+      "page": "Página",
+      "of": "de",
+      "companyDoc": "Empresa",
+      "document": "Documento",
+      "status": "Status"
+    }
   },
   "InformationFields": {
     "title": "Preencher Informações",
@@ -2287,7 +2327,11 @@
     "documentName": "Nome do Documento",
     "documentNamePlaceholder": "Ex: Carta de Exigência, Comprovante...",
     "pendingUploadTitle": "Enviar Arquivo",
-    "pendingUploadDescription": "Envie um arquivo para este documento"
+    "pendingUploadDescription": "Envie um arquivo para este documento",
+    "markAsIllegible": "Marcar como ilegível",
+    "illegibleWarning": "O documento será enviado e automaticamente rejeitado como ilegível.",
+    "illegibleNotesPlaceholder": "Observações adicionais sobre o documento ilegível (opcional)",
+    "uploadAsIllegible": "Enviar como Ilegível"
   },
   "DocumentReview": {
     "title": "Revisar Documento",
@@ -2379,7 +2423,12 @@
       "daysInfo": "{days} dias restantes"
     },
     "reusedFrom": "Reutilizado do processo de {personName}",
-    "reusedDocument": "Documento Reutilizado"
+    "reusedDocument": "Documento Reutilizado",
+    "markAsIllegible": "Marcar como ilegível",
+    "illegible": "Ilegível",
+    "illegibleDefaultReason": "Documento ilegível",
+    "illegibleObservationPlaceholder": "Adicione observações adicionais sobre o documento ilegível (opcional)",
+    "illegibleAutoRejectWarning": "Ao rejeitar, o documento será marcado como ilegível."
   },
   "DocumentHistory": {
     "title": "Histórico do Documento",
@@ -3224,7 +3273,26 @@
     "roleInfo": {
       "admin": "Acesso completo ao sistema com todas as permissões",
       "client": "Acesso limitado a dados específicos da empresa"
-    }
+    },
+    "createClientUser": "Novo Usuário Cliente",
+    "createClientUserTitle": "Criar Usuário Cliente",
+    "createClientUserDescription": "Selecione uma pessoa cadastrada para criar acesso ao portal do cliente.",
+    "selectPerson": "Selecionar Pessoa",
+    "searchPerson": "Buscar por nome, empresa ou e-mail...",
+    "noPeopleFound": "Nenhuma pessoa encontrada",
+    "temporaryPassword": "Senha Temporária",
+    "generatePassword": "Gerar",
+    "copyPassword": "Copiar",
+    "showPassword": "Mostrar senha",
+    "hidePassword": "Ocultar senha",
+    "passwordCopied": "Senha copiada para a área de transferência",
+    "clientUserCreatedSuccess": "Usuário cliente criado com sucesso",
+    "shareCredentials": "Compartilhe as credenciais abaixo com o usuário:",
+    "shareCredentialsEmail": "E-mail: {email}",
+    "shareCredentialsPassword": "Senha: {password}",
+    "noEligiblePeople": "Nenhuma pessoa elegível encontrada. As pessoas devem ter empresa vinculada com vínculo atual e e-mail cadastrado.",
+    "credentialsTitle": "Credenciais do Usuário",
+    "close": "Fechar"
   },
   "ProcessWizard": {
     "title": "Criar Processo",

@@ -36,6 +36,8 @@ import {
   Trash2,
   Building2,
   RotateCcw,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LooseDocumentUploadDialog } from "./loose-document-upload-dialog";
@@ -45,11 +47,13 @@ import { DocumentUploadDialog } from "./document-upload-dialog";
 import { CompanyDocumentReuseDialog } from "./company-document-reuse-dialog";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog";
+import { SelectExistingDocumentDialog } from "./select-existing-document-dialog";
 
 type ActiveSubDialog =
   | null
   | "looseUpload"
   | "typedUpload"
+  | "selectExisting"
   | "review"
   | "upload"
   | "reuse"
@@ -63,6 +67,7 @@ interface StatusDocumentsDialogProps {
   individualProcessStatusId: Id<"individualProcessStatuses">;
   caseStatusName: string;
   caseStatusColor?: string;
+  caseStatusCode?: string;
   date?: string;
   userRole?: "admin" | "client";
 }
@@ -74,6 +79,7 @@ export function StatusDocumentsDialog({
   individualProcessStatusId,
   caseStatusName,
   caseStatusColor,
+  caseStatusCode,
   date,
   userRole = "client",
 }: StatusDocumentsDialogProps) {
@@ -120,6 +126,7 @@ export function StatusDocumentsDialog({
   );
 
   const removeDocument = useMutation(api.documentsDelivered.remove);
+  const unlinkFromStatus = useMutation(api.documentsDelivered.unlinkFromStatus);
 
   // Hide main dialog when a sub-dialog is active
   const mainDialogVisible = open && activeSubDialog === null;
@@ -136,16 +143,16 @@ export function StatusDocumentsDialog({
     setPendingUploadDoc(null);
   };
 
-  const handleDeleteDocument = async () => {
+  const handleUnlinkDocument = async () => {
     if (!deleteConfirm.documentId) return;
     setIsDeleting(true);
     try {
-      await removeDocument({ id: deleteConfirm.documentId });
-      toast.success(tDoc("deleteDocumentSuccess"));
+      await unlinkFromStatus({ id: deleteConfirm.documentId });
+      toast.success(tDoc("unlinkFromStatusSuccess"));
       setDeleteConfirm({ open: false, documentId: null, documentName: "" });
       setActiveSubDialog(null);
     } catch (error) {
-      toast.error(tDoc("deleteDocumentError"));
+      toast.error(tDoc("unlinkFromStatusError"));
     } finally {
       setIsDeleting(false);
     }
@@ -275,6 +282,12 @@ export function StatusDocumentsDialog({
                     <FileType className="h-4 w-4 mr-2" />
                     {tDoc("uploadWithType")}
                   </DropdownMenuItem>
+                  {caseStatusCode === "exigencia" && (
+                    <DropdownMenuItem onClick={() => openSubDialog("selectExisting")}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      {tDoc("selectExisting")}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -339,6 +352,14 @@ export function StatusDocumentsDialog({
 
                     <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
                       {getStatusBadge(doc.status)}
+
+                      {/* Illegible badge */}
+                      {doc.isIllegible && doc.status === "rejected" && (
+                        <Badge variant="destructive" className="gap-1 text-xs">
+                          <AlertTriangle className="h-3 w-3" />
+                          {tDoc("illegible")}
+                        </Badge>
+                      )}
 
                       {doc.status === "not_started" ? (
                         <div className="flex flex-wrap gap-1">
@@ -442,6 +463,17 @@ export function StatusDocumentsDialog({
         />
       )}
 
+      {/* Select Existing Document */}
+      {activeSubDialog === "selectExisting" && (
+        <SelectExistingDocumentDialog
+          open
+          onOpenChange={(val) => { if (!val) closeSubDialog(); }}
+          individualProcessId={individualProcessId}
+          individualProcessStatusId={individualProcessStatusId}
+          onSuccess={closeSubDialog}
+        />
+      )}
+
       {/* Review Dialog */}
       {activeSubDialog === "review" && reviewDocumentId && (
         <DocumentReviewDialog
@@ -515,7 +547,7 @@ export function StatusDocumentsDialog({
         />
       )}
 
-      {/* Delete Confirmation */}
+      {/* Unlink Confirmation */}
       {activeSubDialog === "delete" && (
         <DeleteConfirmationDialog
           open={deleteConfirm.open}
@@ -525,9 +557,9 @@ export function StatusDocumentsDialog({
               closeSubDialog();
             }
           }}
-          onConfirm={handleDeleteDocument}
-          title={tDoc("deleteDocument")}
-          description={tDoc("deleteDocumentDescription")}
+          onConfirm={handleUnlinkDocument}
+          title={tDoc("unlinkFromStatus")}
+          description={tDoc("unlinkFromStatusDescription")}
           isDeleting={isDeleting}
         />
       )}

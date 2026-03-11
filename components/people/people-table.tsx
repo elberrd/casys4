@@ -61,6 +61,7 @@ interface Person {
     _id: Id<"companies">
     name: string
   } | null
+  companyEmail?: string | null
 }
 
 interface PeopleTableProps {
@@ -107,12 +108,16 @@ export function PeopleTable({ people, onEdit, onDelete, onView }: PeopleTablePro
         ),
       },
       {
-        accessorKey: "email",
+        id: "email",
+        accessorFn: (row) => row.company ? row.companyEmail : row.email,
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('email')} />
         ),
         cell: ({ row }) => {
-          const email = row.original.email
+          // If person has a current company, show company email; otherwise show personal email
+          const email = row.original.company
+            ? row.original.companyEmail
+            : row.original.email
 
           if (!email) {
             return <span className="text-muted-foreground">-</span>
