@@ -68,6 +68,7 @@ import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
 import { SelectExistingDocumentDialog } from "./select-existing-document-dialog"
 import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
 import type {
+  PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
   PdfExigenciaGroup,
@@ -131,6 +132,7 @@ type DialogState = {
     open: boolean
     documentId: Id<"documentsDelivered"> | null
     documentName: string
+    existingVersionNotes?: string
   }
   selectExisting: { open: boolean }
 }
@@ -198,7 +200,7 @@ export function DocumentChecklistCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkReusing, setIsBulkReusing] = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
-  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const [pdfReportMode, setPdfReportMode] = useState<PdfReportMode | null>(null)
   const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
   const toggleExcludeFromReportMutation = useMutation(api.documentsDelivered.toggleExcludeFromReport)
 
@@ -319,6 +321,7 @@ export function DocumentChecklistCard({
         open: true,
         documentId: doc._id,
         documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
+        existingVersionNotes: doc.versionNotes,
       },
     }))
   }
@@ -449,6 +452,7 @@ export function DocumentChecklistCard({
       isRequired: !!doc.isRequired,
       isCompanyDocument: doc.documentType?.isCompanyDocument === true,
       responsibleParty: (doc as any).responsibleParty,
+      versionNotes: doc.versionNotes,
     }))
 
   const pdfExigenciaGroups: PdfExigenciaGroup[] = exigenciaGroups
@@ -464,6 +468,7 @@ export function DocumentChecklistCard({
           isRequired: !!doc.isRequired,
           isCompanyDocument: doc.documentType?.isCompanyDocument === true,
           responsibleParty: (doc as any).responsibleParty,
+          versionNotes: doc.versionNotes,
         })),
     }))
     .filter((g) => g.documents.length > 0)
@@ -537,7 +542,7 @@ export function DocumentChecklistCard({
             checked={selectedDocumentIds.has(doc._id)}
             onCheckedChange={() => toggleDocumentSelection(doc._id)}
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${doc.documentType?.name || doc.fileName}`}
+            aria-label={`Select ${doc.documentType?.name || doc.documentName || doc.fileName}`}
           />
         )}
         {isLoose ? (
@@ -548,7 +553,7 @@ export function DocumentChecklistCard({
         <div className="flex-1 min-w-0">
           <div className="flex min-w-0 flex-wrap items-start gap-2">
             <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
-              {doc.documentType?.name || doc.fileName || t("looseDocument")}
+              {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
             </p>
             {showCritical && doc.isRequired && (
               <Badge variant="default" className="text-xs">
@@ -592,11 +597,16 @@ export function DocumentChecklistCard({
               {doc.documentType.description}
             </p>
           )}
+          {doc.versionNotes && (
+            <p className="mt-1 text-xs text-muted-foreground italic [overflow-wrap:anywhere]">
+              {doc.versionNotes}
+            </p>
+          )}
           {doc.documentType?.isInformationOnly && doc.infoFieldValues && doc.infoFieldValues.length > 0 ? (
             <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.infoFieldValues.join(" · ")}
             </p>
-          ) : doc.fileName && doc.fileName !== "information_only" && (
+          ) : doc.fileName && doc.fileName !== "information_only" && doc.fileName !== (doc.documentType?.name || doc.documentName) && (
             <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {doc.fileName}
             </p>
@@ -732,7 +742,7 @@ export function DocumentChecklistCard({
                 onClick={() => setDeleteConfirm({
                   open: true,
                   documentId: doc._id,
-                  documentName: doc.documentType?.name || doc.fileName || t("looseDocument"),
+                  documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
                 })}
                 title={t("deleteDocument")}
                 className="cursor-pointer text-destructive hover:text-destructive"
@@ -781,7 +791,7 @@ export function DocumentChecklistCard({
                 onClick={() => setDeleteConfirm({
                   open: true,
                   documentId: doc._id,
-                  documentName: doc.documentType?.name || doc.fileName || t("looseDocument"),
+                  documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
                 })}
                 title={t("deleteDocument")}
                 className="cursor-pointer text-destructive hover:text-destructive"
@@ -865,15 +875,38 @@ export function DocumentChecklistCard({
             )}
             {/* Generate PDF Report */}
             {processInfo && pdfEligibleCount > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPdfDialogOpen(true)}
-                className="gap-1"
-              >
-                <FileText className="h-4 w-4" />
-                {t("generatePdfReport")}
-              </Button>
+              pdfExigenciaGroups.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1">
+                      <FileText className="h-4 w-4" />
+                      {t("generatePdfReport")}
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setPdfReportMode("full")}>
+                      {t("pdfReportFull")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPdfReportMode("exigencias")}>
+                      {t("pdfReportExigencias")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPdfReportMode("pending")}>
+                      {t("pdfReportPending")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPdfReportMode("full")}
+                  className="gap-1"
+                >
+                  <FileText className="h-4 w-4" />
+                  {t("generatePdfReport")}
+                </Button>
+              )
             )}
             {/* Checklist sidebar trigger */}
             <ChecklistTriggerButton
@@ -1027,6 +1060,8 @@ export function DocumentChecklistCard({
           individualProcessId={individualProcessId}
           documentTypeId={dialogs.upload.document.documentTypeId}
           documentRequirementId={dialogs.upload.document.documentRequirementId}
+          existingDocumentId={dialogs.upload.document._id}
+          existingVersionNotes={dialogs.upload.document.versionNotes}
           documentInfo={{
             name: dialogs.upload.document.documentType?.name || "",
             description: dialogs.upload.document.documentType?.description,
@@ -1162,6 +1197,7 @@ export function DocumentChecklistCard({
           }}
           documentId={dialogs.pendingUpload.documentId}
           documentName={dialogs.pendingUpload.documentName}
+          existingVersionNotes={dialogs.pendingUpload.existingVersionNotes}
           onSuccess={closeAllDialogs}
         />
       )}
@@ -1199,8 +1235,9 @@ export function DocumentChecklistCard({
       {/* PDF Report Dialog */}
       {processInfo && (
         <PendingDocumentsPdfDialog
-          open={pdfDialogOpen}
-          onOpenChange={setPdfDialogOpen}
+          open={!!pdfReportMode}
+          onOpenChange={(open) => { if (!open) setPdfReportMode(null) }}
+          reportMode={pdfReportMode ?? "full"}
           processInfo={processInfo}
           pendingDocuments={pdfPendingDocuments}
           exigenciaGroups={pdfExigenciaGroups}

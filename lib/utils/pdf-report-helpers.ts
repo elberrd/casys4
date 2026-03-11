@@ -14,7 +14,10 @@ export interface PdfDocumentItem {
   isRequired: boolean
   isCompanyDocument: boolean
   responsibleParty?: string
+  versionNotes?: string
 }
+
+export type PdfReportMode = "full" | "exigencias" | "pending"
 
 export interface PdfExigenciaGroup {
   date: string

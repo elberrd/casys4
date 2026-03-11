@@ -64,6 +64,7 @@ export function TypedDocumentUploadDialog({
   const [versionNotes, setVersionNotes] = useState<string>("");
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
+  const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all active document types
@@ -150,6 +151,7 @@ export function TypedDocumentUploadDialog({
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setAutoApprove(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -207,6 +209,7 @@ export function TypedDocumentUploadDialog({
         individualProcessStatusId: selectedStatusId
           ? (selectedStatusId as Id<"individualProcessStatuses">)
           : undefined,
+        autoApprove: autoApprove || undefined,
       });
 
       setUploadProgress(100);
@@ -226,6 +229,7 @@ export function TypedDocumentUploadDialog({
       setVersionNotes("");
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
+      setAutoApprove(false);
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -244,6 +248,7 @@ export function TypedDocumentUploadDialog({
       setVersionNotes("");
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
+      setAutoApprove(false);
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -365,6 +370,21 @@ export function TypedDocumentUploadDialog({
               {isUploading && uploadProgress === 100 && (
                 <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
               )}
+            </div>
+          )}
+
+          {/* Auto-approve checkbox */}
+          {selectedFile && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="autoApprove"
+                checked={autoApprove}
+                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                disabled={isUploading}
+              />
+              <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
+                {t("autoApprove")}
+              </label>
             </div>
           )}
 

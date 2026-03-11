@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +51,7 @@ export function LooseDocumentUploadDialog({
   const [versionNotes, setVersionNotes] = useState<string>("");
   const [documentName, setDocumentName] = useState<string>("");
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
+  const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
@@ -91,6 +93,7 @@ export function LooseDocumentUploadDialog({
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setAutoApprove(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -105,6 +108,7 @@ export function LooseDocumentUploadDialog({
       setVersionNotes("");
       setDocumentName("");
       setSelectedStatusId("");
+      setAutoApprove(false);
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -158,6 +162,7 @@ export function LooseDocumentUploadDialog({
           ? (selectedStatusId as Id<"individualProcessStatuses">)
           : undefined,
         documentName: documentName.trim() || undefined,
+        autoApprove: autoApprove || undefined,
       });
 
       setUploadProgress(100);
@@ -175,6 +180,7 @@ export function LooseDocumentUploadDialog({
       setVersionNotes("");
       setDocumentName("");
       setSelectedStatusId("");
+      setAutoApprove(false);
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -269,6 +275,21 @@ export function LooseDocumentUploadDialog({
               {isUploading && uploadProgress === 100 && (
                 <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
               )}
+            </div>
+          )}
+
+          {/* Auto-approve checkbox */}
+          {selectedFile && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="autoApprove"
+                checked={autoApprove}
+                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                disabled={isUploading}
+              />
+              <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
+                {t("autoApprove")}
+              </label>
             </div>
           )}
 

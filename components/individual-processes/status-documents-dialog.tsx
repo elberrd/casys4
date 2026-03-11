@@ -98,6 +98,7 @@ export function StatusDocumentsDialog({
   const [pendingUploadDoc, setPendingUploadDoc] = useState<{
     documentId: Id<"documentsDelivered">;
     documentName: string;
+    existingVersionNotes?: string;
   } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
@@ -169,6 +170,7 @@ export function StatusDocumentsDialog({
     setPendingUploadDoc({
       documentId: doc._id,
       documentName: doc.documentType?.name || doc.documentName || doc.fileName || tDoc("looseDocument"),
+      existingVersionNotes: doc.versionNotes,
     });
     openSubDialog("pendingUpload");
   };
@@ -342,6 +344,11 @@ export function StatusDocumentsDialog({
                             </Badge>
                           )}
                         </div>
+                        {doc.versionNotes && (
+                          <p className="mt-1 text-xs text-muted-foreground italic [overflow-wrap:anywhere]">
+                            {doc.versionNotes}
+                          </p>
+                        )}
                         {doc.fileName && doc.status !== "not_started" && (
                           <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
                             {doc.fileName}
@@ -492,6 +499,8 @@ export function StatusDocumentsDialog({
           individualProcessId={individualProcessId}
           documentTypeId={uploadDocument.documentTypeId}
           documentRequirementId={uploadDocument.documentRequirementId}
+          existingDocumentId={uploadDocument._id}
+          existingVersionNotes={uploadDocument.versionNotes}
           documentInfo={{
             name: uploadDocument.documentType?.name || "",
             description: uploadDocument.documentType?.description,
@@ -543,6 +552,7 @@ export function StatusDocumentsDialog({
           onOpenChange={(val) => { if (!val) closeSubDialog(); }}
           documentId={pendingUploadDoc.documentId}
           documentName={pendingUploadDoc.documentName}
+          existingVersionNotes={pendingUploadDoc.existingVersionNotes}
           onSuccess={closeSubDialog}
         />
       )}

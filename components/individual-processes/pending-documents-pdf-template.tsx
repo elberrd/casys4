@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer"
 import type {
+  PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
   PdfExigenciaGroup,
@@ -176,6 +177,7 @@ interface PendingDocumentsPdfTemplateProps {
   processInfo: ProcessInfoForReport
   pendingDocuments: PdfDocumentItem[]
   exigenciaGroups: PdfExigenciaGroup[]
+  reportMode: PdfReportMode
   generatedAt: string
   labels: {
     reportTitle: string
@@ -205,6 +207,7 @@ export function PendingDocumentsPdfTemplate({
   processInfo,
   pendingDocuments,
   exigenciaGroups,
+  reportMode,
   generatedAt,
   labels,
 }: PendingDocumentsPdfTemplateProps) {
@@ -240,12 +243,18 @@ export function PendingDocumentsPdfTemplate({
       <View
         key={doc.id}
         style={[styles.docRow, i % 2 === 1 ? styles.docRowAlt : {}]}
+        wrap={false}
       >
         <View style={styles.colNum}>
           <Text style={styles.docNumber}>{startIndex + i}.</Text>
         </View>
         <View style={styles.colName}>
           <Text style={styles.docName}>{doc.name}</Text>
+          {doc.versionNotes && (
+            <Text style={{ fontSize: 7.5, color: "#718096", fontFamily: "Helvetica-Oblique", marginTop: 2 }}>
+              {doc.versionNotes}
+            </Text>
+          )}
         </View>
         <View style={styles.colDeadline}>
           {deadlineDate && (
@@ -310,7 +319,7 @@ export function PendingDocumentsPdfTemplate({
         </View>
 
         {/* Exigencia Sections */}
-        {exigenciaGroups.map((group, gi) => {
+        {reportMode !== "pending" && exigenciaGroups.map((group, gi) => {
           const formattedDeadline = group.clientDeadlineDate
             ? group.clientDeadlineDate.split("-").reverse().join("/")
             : undefined
@@ -332,7 +341,7 @@ export function PendingDocumentsPdfTemplate({
         })}
 
         {/* Pending Documents */}
-        {pendingDocuments.length > 0 && (
+        {reportMode !== "exigencias" && pendingDocuments.length > 0 && (
           <View>
             <Text style={styles.sectionTitle}>{labels.pendingSectionTitle}</Text>
             {renderTableHeader()}

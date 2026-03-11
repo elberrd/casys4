@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, File, X, CheckCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
 
 interface PendingDocumentUploadDialogProps {
@@ -28,6 +29,7 @@ interface PendingDocumentUploadDialogProps {
   onOpenChange: (open: boolean) => void;
   documentId: Id<"documentsDelivered">;
   documentName: string;
+  existingVersionNotes?: string;
   onSuccess?: () => void;
 }
 
@@ -36,6 +38,7 @@ export function PendingDocumentUploadDialog({
   onOpenChange,
   documentId,
   documentName,
+  existingVersionNotes,
   onSuccess,
 }: PendingDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
@@ -46,10 +49,19 @@ export function PendingDocumentUploadDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
+  const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pre-populate versionNotes when dialog opens with existing notes
+  useEffect(() => {
+    if (open && existingVersionNotes) {
+      setVersionNotes(existingVersionNotes);
+    }
+  }, [open, existingVersionNotes]);
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadForPending = useMutation(api.documentsDelivered.uploadForPending);
+  const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes);
 
   const maxSizeMB = 10;
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
@@ -68,6 +80,7 @@ export function PendingDocumentUploadDialog({
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setAutoApprove(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -78,52 +91,65 @@ export function PendingDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setAutoApprove(false);
       setUploadProgress(0);
       onOpenChange(false);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
+    if (!selectedFile && !versionNotes.trim()) {
       toast.error(t("errorNoFile"));
       return;
     }
 
     try {
       setIsUploading(true);
-      setUploadProgress(10);
 
-      // Step 1: Get upload URL
-      const uploadUrl = await generateUploadUrl();
-      setUploadProgress(20);
+      if (selectedFile) {
+        setUploadProgress(10);
 
-      // Step 2: Upload file to Convex storage
-      const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": selectedFile.type },
-        body: selectedFile,
-      });
+        // Step 1: Get upload URL
+        const uploadUrl = await generateUploadUrl();
+        setUploadProgress(20);
 
-      if (!result.ok) {
-        throw new Error("Failed to upload file");
+        // Step 2: Upload file to Convex storage
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile.type },
+          body: selectedFile,
+        });
+
+        if (!result.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        const json = await result.json();
+        setUploadProgress(60);
+
+        // Step 3: Attach file to existing document
+        await uploadForPending({
+          documentId,
+          storageId: json.storageId,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          mimeType: selectedFile.type,
+          expiryDate: expiryDate || undefined,
+          versionNotes: versionNotes || undefined,
+          autoApprove: autoApprove || undefined,
+        });
+
+        setUploadProgress(100);
+        toast.success(t("successUpload"));
+      } else {
+        // Save notes only (no file)
+        await updateVersionNotes({
+          documentId,
+          versionNotes: versionNotes.trim(),
+        });
+        toast.success(t("successSaveNotes"));
       }
 
-      const json = await result.json();
-      setUploadProgress(60);
-
-      // Step 3: Attach file to existing document
-      await uploadForPending({
-        documentId,
-        storageId: json.storageId,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        mimeType: selectedFile.type,
-        expiryDate: expiryDate || undefined,
-        versionNotes: versionNotes || undefined,
-      });
-
-      setUploadProgress(100);
-      toast.success(t("successUpload"));
       onOpenChange(false);
       onSuccess?.();
 
@@ -131,6 +157,7 @@ export function PendingDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setAutoApprove(false);
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -202,6 +229,21 @@ export function PendingDocumentUploadDialog({
             </div>
           )}
 
+          {/* Auto-approve checkbox */}
+          {selectedFile && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="autoApprove"
+                checked={autoApprove}
+                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                disabled={isUploading}
+              />
+              <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
+                {t("autoApprove")}
+              </label>
+            </div>
+          )}
+
           {/* Version notes (optional) */}
           <div className="space-y-2">
             <Label htmlFor="versionNotes">{t("versionNotes")} ({tCommon("optional")})</Label>
@@ -250,10 +292,10 @@ export function PendingDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={(!selectedFile && !versionNotes.trim()) || isUploading}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("upload")}
+            {selectedFile ? t("upload") : t("saveWithoutFile")}
           </Button>
         </DialogFooter>
       </DialogContent>

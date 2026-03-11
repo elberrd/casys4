@@ -2216,6 +2216,9 @@
     },
     "linkedStatusBadge": "{name} - {date}",
     "generatePdfReport": "Generate PDF Report",
+    "pdfReportFull": "Full report",
+    "pdfReportExigencias": "Requirements report",
+    "pdfReportPending": "Pending documents report",
     "excludeFromReport": "Exclude from report",
     "pdfReport": {
       "title": "Pending Documents Report",
@@ -2266,6 +2269,7 @@
     "errorNoDocumentType": "Please select a document type",
     "errorIncompatibleFile": "The file is not compatible with the selected document type",
     "successUpload": "Document uploaded successfully",
+    "successSaveNotes": "Notes saved successfully",
     "expiryDate": "Expiry Date",
     "expiryDateDescription": "If this document has an expiration date, please specify it",
     "looseUploadTitle": "Upload Unclassified Document",
@@ -2309,7 +2313,8 @@
     "markAsIllegible": "Mark as illegible",
     "illegibleWarning": "The document will be uploaded and automatically rejected as illegible.",
     "illegibleNotesPlaceholder": "Additional observations about the illegible document (optional)",
-    "uploadAsIllegible": "Upload as Illegible"
+    "uploadAsIllegible": "Upload as Illegible",
+    "autoApprove": "Auto-approve on save"
   },
   "DocumentReview": {
     "title": "Review Document",

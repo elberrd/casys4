@@ -2240,6 +2240,9 @@
     },
     "linkedStatusBadge": "{name} - {date}",
     "generatePdfReport": "Gerar Relatório PDF",
+    "pdfReportFull": "Relatório completo",
+    "pdfReportExigencias": "Relatório de exigências",
+    "pdfReportPending": "Relatório de pendentes",
     "excludeFromReport": "Excluir do relatório",
     "pdfReport": {
       "title": "Relatório de Documentos Pendentes",
@@ -2290,6 +2293,7 @@
     "errorNoDocumentType": "Por favor, selecione um tipo de documento",
     "errorIncompatibleFile": "O arquivo não é compatível com o tipo de documento selecionado",
     "successUpload": "Documento enviado com sucesso",
+    "successSaveNotes": "Observações salvas com sucesso",
     "expiryDate": "Data de Validade",
     "expiryDateDescription": "Se este documento tiver uma data de validade, por favor especifique",
     "looseUploadTitle": "Enviar Documento Avulso",
@@ -2333,7 +2337,8 @@
     "markAsIllegible": "Marcar como ilegível",
     "illegibleWarning": "O documento será enviado e automaticamente rejeitado como ilegível.",
     "illegibleNotesPlaceholder": "Observações adicionais sobre o documento ilegível (opcional)",
-    "uploadAsIllegible": "Enviar como Ilegível"
+    "uploadAsIllegible": "Enviar como Ilegível",
+    "autoApprove": "Aprovar automaticamente ao salvar"
   },
   "DocumentReview": {
     "title": "Revisar Documento",

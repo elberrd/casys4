@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Loader2, Download } from "lucide-react"
 import type {
+  PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
   PdfExigenciaGroup,
@@ -20,6 +21,7 @@ import type {
 interface PendingDocumentsPdfDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  reportMode: PdfReportMode
   processInfo: ProcessInfoForReport
   pendingDocuments: PdfDocumentItem[]
   exigenciaGroups: PdfExigenciaGroup[]
@@ -30,6 +32,7 @@ type DialogPhase = "idle" | "generating" | "preview"
 export function PendingDocumentsPdfDialog({
   open,
   onOpenChange,
+  reportMode,
   processInfo,
   pendingDocuments,
   exigenciaGroups,
@@ -93,6 +96,7 @@ export function PendingDocumentsPdfDialog({
           processInfo,
           pendingDocuments,
           exigenciaGroups,
+          reportMode,
           generatedAt,
           labels,
         })
@@ -117,7 +121,7 @@ export function PendingDocumentsPdfDialog({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, reportMode])
 
   const handleDownload = () => {
     if (!blobUrl) return
@@ -126,7 +130,12 @@ export function PendingDocumentsPdfDialog({
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9-]/g, "")
     const dateSlug = new Date().toISOString().slice(0, 10)
-    const filename = `documentos-pendentes-${personSlug}-${dateSlug}.pdf`
+    const prefixMap: Record<PdfReportMode, string> = {
+      full: "relatorio-completo",
+      exigencias: "exigencias",
+      pending: "pendentes",
+    }
+    const filename = `${prefixMap[reportMode]}-${personSlug}-${dateSlug}.pdf`
 
     const a = document.createElement("a")
     a.href = blobUrl

@@ -973,6 +973,48 @@ export const toggleExcludeFromReport = mutation({
 });
 
 /**
+ * Update version notes (observations) on an existing document
+ * Allows adding/updating notes without uploading a file
+ */
+export const updateVersionNotes = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    versionNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    // Get individual process for access check
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied");
+      }
+    }
+
+    await ctx.db.patch(args.documentId, {
+      versionNotes: args.versionNotes,
+    });
+
+    return args.documentId;
+  },
+});
+
+/**
  * Mutation to generate an upload URL for file uploads
  * Used by client and admin to upload documents
  */
@@ -1406,9 +1448,16 @@ export const uploadLoose = mutation({
     versionNotes: v.optional(v.string()),
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
     documentName: v.optional(v.string()),
+    autoApprove: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    // Require admin role when auto-approving
+    let userProfile;
+    if (args.autoApprove) {
+      userProfile = await requireAdmin(ctx);
+    } else {
+      userProfile = await getCurrentUserProfile(ctx);
+    }
 
     // Get individual process to check access
     const individualProcess = await ctx.db.get(args.individualProcessId);
@@ -1459,6 +1508,10 @@ export const uploadLoose = mutation({
       }
     }
 
+    // Determine status based on auto-approve
+    const shouldAutoApprove = args.autoApprove === true && hasFile;
+    const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+
     // Create document without type (loose document)
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
@@ -1470,9 +1523,10 @@ export const uploadLoose = mutation({
       fileUrl,
       fileSize: hasFile ? args.fileSize! : 0,
       mimeType: hasFile ? args.mimeType! : "",
-      status: hasFile ? "uploaded" : "not_started",
+      status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
+      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: 1,
@@ -1481,6 +1535,21 @@ export const uploadLoose = mutation({
       individualProcessStatusId: args.individualProcessStatusId,
       documentName: args.documentName,
     });
+
+    // Create status history for auto-approved documents
+    if (shouldAutoApprove) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: "uploaded",
+        newStatus: "approved",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version: 1,
+        },
+      });
+    }
 
     // Log activity
     try {
@@ -1526,9 +1595,16 @@ export const uploadWithType = mutation({
       v.array(v.id("documentTypeConditions"))
     ),
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
+    autoApprove: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    // Require admin role when auto-approving
+    let userProfile;
+    if (args.autoApprove) {
+      userProfile = await requireAdmin(ctx);
+    } else {
+      userProfile = await getCurrentUserProfile(ctx);
+    }
 
     // Get individual process
     const individualProcess = await ctx.db.get(args.individualProcessId);
@@ -1634,6 +1710,10 @@ export const uploadWithType = mutation({
       });
     }
 
+    // Determine status based on auto-approve
+    const shouldAutoApprove = args.autoApprove === true && hasFile;
+    const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+
     // Create document with type
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
@@ -1645,9 +1725,10 @@ export const uploadWithType = mutation({
       fileUrl,
       fileSize: hasFile ? (args.fileSize || 0) : 0,
       mimeType: hasFile ? (args.mimeType || "") : "",
-      status: hasFile ? "uploaded" : "not_started",
+      status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
+      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: version,
@@ -1656,6 +1737,21 @@ export const uploadWithType = mutation({
       versionNotes: args.versionNotes,
       individualProcessStatusId: args.individualProcessStatusId,
     });
+
+    // Create status history for auto-approved documents
+    if (shouldAutoApprove) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: "uploaded",
+        newStatus: "approved",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version,
+        },
+      });
+    }
 
     // Auto-create conditions for this document based on document type
     try {
@@ -1821,9 +1917,16 @@ export const uploadForPending = mutation({
     expiryDate: v.optional(v.string()),
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
+    autoApprove: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    // Require admin role when auto-approving
+    let userProfile;
+    if (args.autoApprove) {
+      userProfile = await requireAdmin(ctx);
+    } else {
+      userProfile = await getCurrentUserProfile(ctx);
+    }
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
@@ -1893,6 +1996,10 @@ export const uploadForPending = mutation({
       throw new Error("Failed to get file URL from storage");
     }
 
+    // Determine status based on auto-approve
+    const shouldAutoApprove = args.autoApprove === true;
+    const status = shouldAutoApprove ? "approved" : "uploaded";
+
     // Update the pending document with file information
     await ctx.db.patch(args.documentId, {
       storageId: args.storageId,
@@ -1900,13 +2007,29 @@ export const uploadForPending = mutation({
       fileUrl: fileUrl,
       fileSize: args.fileSize,
       mimeType: args.mimeType,
-      status: "uploaded",
+      status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
+      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       versionNotes: args.versionNotes,
     });
+
+    // Create status history for auto-approved documents
+    if (shouldAutoApprove) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId: args.documentId,
+        previousStatus: "uploaded",
+        newStatus: "approved",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version: document.version,
+        },
+      });
+    }
 
     // Auto-create conditions for this document based on document type
     // Check if conditions already exist (from prior creation of pending document)

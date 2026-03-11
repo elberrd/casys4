@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
@@ -36,6 +36,8 @@ interface DocumentUploadDialogProps {
   individualProcessId: Id<"individualProcesses">
   documentTypeId: Id<"documentTypes">
   documentRequirementId?: Id<"documentRequirements">
+  existingDocumentId?: Id<"documentsDelivered">
+  existingVersionNotes?: string
   documentInfo?: {
     name: string
     description?: string
@@ -61,6 +63,8 @@ export function DocumentUploadDialog({
   individualProcessId,
   documentTypeId,
   documentRequirementId,
+  existingDocumentId,
+  existingVersionNotes,
   documentInfo,
   validityRule,
   companyReuse,
@@ -82,6 +86,13 @@ export function DocumentUploadDialog({
   const [illegibleNotes, setIllegibleNotes] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Pre-populate versionNotes when dialog opens with existing notes
+  useEffect(() => {
+    if (open && existingVersionNotes) {
+      setVersionNotes(existingVersionNotes)
+    }
+  }, [open, existingVersionNotes])
+
   // Fetch conditions for this document type
   const conditions = useQuery(
     api.documentTypeConditions.listActiveByDocumentType,
@@ -101,6 +112,7 @@ export function DocumentUploadDialog({
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
   const uploadDocument = useMutation(api.documentsDelivered.upload)
+  const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
 
   // Client-side validity warning
   const validityWarning = useMemo(() => {
@@ -161,9 +173,38 @@ export function DocumentUploadDialog({
     }
   }
 
+  const handleSaveNotesOnly = async () => {
+    if (!existingDocumentId || !versionNotes.trim()) return
+
+    try {
+      setIsUploading(true)
+      await updateVersionNotes({
+        documentId: existingDocumentId,
+        versionNotes: versionNotes.trim(),
+      })
+      toast.success(t("successSaveNotes"))
+      onOpenChange(false)
+      onSuccess?.()
+
+      // Reset form
+      setVersionNotes("")
+      setExpiryDate("")
+      setIssueDate("")
+      setFulfilledConditionIds(new Set())
+      setIsIllegible(false)
+      setIllegibleNotes("")
+    } catch (error) {
+      console.error("Error saving notes:", error)
+      toast.error(t("errorUpload"))
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error(t("errorNoFile"))
+      // No file - save notes only
+      await handleSaveNotesOnly()
       return
     }
 
@@ -502,11 +543,11 @@ export function DocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading}
             variant={isIllegible ? "destructive" : "default"}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isIllegible ? t("uploadAsIllegible") : t("upload")}
+            {isIllegible ? t("uploadAsIllegible") : selectedFile ? t("upload") : t("saveWithoutFile")}
           </Button>
         </DialogFooter>
       </DialogContent>
