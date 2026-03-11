@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
+import { isSystemCaseStatus } from "./lib/systemCaseStatuses";
 
 /**
  * Query to list all case statuses
@@ -182,6 +183,11 @@ export const update = mutation({
       throw new Error("Case status not found");
     }
 
+    // Prevent changing code of system statuses
+    if (args.code && args.code !== existing.code && isSystemCaseStatus(existing.code)) {
+      throw new Error("Cannot change the code of a system status");
+    }
+
     // If code is being changed, check if new code already exists
     if (args.code && args.code !== existing.code) {
       const newCode = args.code; // Type narrowing
@@ -285,6 +291,11 @@ export const remove = mutation({
       throw new Error("Case status not found");
     }
 
+    // Prevent deletion of system statuses
+    if (isSystemCaseStatus(existing.code)) {
+      throw new Error("Cannot delete a system status. This status is required for the system to function correctly.");
+    }
+
     // Check if the case status is in use
     const inUse = await ctx.db
       .query("individualProcesses")
@@ -370,6 +381,11 @@ export const toggleActive = mutation({
     const existing = await ctx.db.get(id);
     if (!existing) {
       throw new Error("Case status not found");
+    }
+
+    // Prevent deactivating system statuses
+    if (!isActive && isSystemCaseStatus(existing.code)) {
+      throw new Error("Cannot deactivate a system status. This status is required for the system to function correctly.");
     }
 
     // If deactivating, check if in use

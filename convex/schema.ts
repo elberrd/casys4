@@ -469,6 +469,8 @@ export default defineSchema({
     date: v.optional(v.string()), // ISO date-time format YYYY-MM-DDTHH:mm (legacy YYYY-MM-DD accepted on input)
     isActive: v.boolean(), // Only ONE can be true at a time per process
     notes: v.optional(v.string()),
+    maxDeliveryDate: v.optional(v.string()), // YYYY-MM-DD — auto-calculated: status date + 29 days (exigência)
+    clientDeadlineDate: v.optional(v.string()), // YYYY-MM-DD — auto-calculated: status date + 23 days (exigência)
     fillableFields: v.optional(v.array(v.string())), // Array of field names from individualProcesses that can be filled for this status
     filledFieldsData: v.optional(v.any()), // Flexible object to store filled field data as key-value pairs
     changedBy: v.id("users"),

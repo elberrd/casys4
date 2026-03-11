@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 import { AddStatusDialog } from "./add-status-dialog";
+import { EditStatusDialog } from "./edit-status-dialog";
 import { FillFieldsModal } from "./fill-fields-modal";
 import { StatusDocumentsDialog } from "./status-documents-dialog";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -63,6 +64,14 @@ export function IndividualProcessStatusesSubtable({
     statusId: Id<"individualProcessStatuses"> | null;
     statusName: string;
   }>({ open: false, statusId: null, statusName: "" });
+  const [editDialogState, setEditDialogState] = useState<{
+    open: boolean;
+    statusId: Id<"individualProcessStatuses"> | null;
+    notes?: string;
+    maxDeliveryDate?: string;
+    clientDeadlineDate?: string;
+    isExigencia: boolean;
+  }>({ open: false, statusId: null, isExigencia: false });
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Query status history
@@ -251,6 +260,54 @@ export function IndividualProcessStatusesSubtable({
     return summaryLines.join('\n');
   };
 
+  // Helper: calculate days remaining until a date
+  const daysRemaining = (dateStr: string): number => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(dateStr + "T12:00:00");
+    target.setHours(0, 0, 0, 0);
+    return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  // Helper: localized label for days remaining
+  const daysRemainingLabel = (dateStr: string): string => {
+    const days = daysRemaining(dateStr);
+    if (days === 0) return t("dueToday");
+    if (days === 1) return t("oneDayRemaining");
+    if (days === -1) return t("oneDayOverdue");
+    if (days > 0) return t("daysRemaining", { count: days });
+    return t("daysOverdue", { count: Math.abs(days) });
+  };
+
+  // Helper: format date for display (YYYY-MM-DD → localized)
+  const formatDateDisplay = (dateStr: string): string => {
+    try {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      if (!year || !month || !day) return dateStr;
+      const date = new Date(year, month - 1, day);
+      if (isNaN(date.getTime())) return dateStr;
+      if (locale === "pt") {
+        return format(date, "dd/MM/yyyy", { locale: ptBR });
+      }
+      return format(date, "MM/dd/yyyy", { locale: enUS });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Handler: open edit dialog on row click
+  const handleRowClick = (status: (typeof sortedStatuses)[number]) => {
+    if (!isAdmin || editingId) return;
+    setEditDialogState({
+      open: true,
+      statusId: status._id,
+      notes: status.notes,
+      maxDeliveryDate: status.maxDeliveryDate,
+      clientDeadlineDate: status.clientDeadlineDate,
+      isExigencia: status.caseStatus?.code === "exigencia",
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -289,7 +346,11 @@ export function IndividualProcessStatusesSubtable({
                 const caseStatusName = locale === "pt" ? status.caseStatus?.name : (status.caseStatus?.nameEn || status.caseStatus?.name);
 
                 return (
-                  <TableRow key={status._id}>
+                  <TableRow
+                    key={status._id}
+                    className={isAdmin && !editingId ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => handleRowClick(status)}
+                  >
                     <TableCell className="whitespace-nowrap">
                       {isEditing ? (
                         <div className="flex items-center gap-2">
@@ -303,7 +364,7 @@ export function IndividualProcessStatusesSubtable({
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8"
-                            onClick={() => handleSave(status._id)}
+                            onClick={(e) => { e.stopPropagation(); handleSave(status._id); }}
                           >
                             <Save className="h-4 w-4" />
                             <span className="sr-only">{tCommon("save")}</span>
@@ -312,7 +373,7 @@ export function IndividualProcessStatusesSubtable({
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8"
-                            onClick={handleCancelEdit}
+                            onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }}
                           >
                             <X className="h-4 w-4" />
                             <span className="sr-only">{tCommon("cancel")}</span>
@@ -367,50 +428,81 @@ export function IndividualProcessStatusesSubtable({
                             />
                           );
 
+                          // Exigência date display
+                          const isExigencia = status.caseStatus?.code === "exigencia";
+                          const exigenciaDatesEl = isExigencia && (status.clientDeadlineDate || status.maxDeliveryDate) ? (
+                            <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                              {status.clientDeadlineDate && (
+                                <div>
+                                  {t("clientDeadline")}: {formatDateDisplay(status.clientDeadlineDate)}{" "}
+                                  <span className={daysRemaining(status.clientDeadlineDate) <= 3 ? "text-destructive font-medium" : ""}>
+                                    ({daysRemainingLabel(status.clientDeadlineDate)})
+                                  </span>
+                                </div>
+                              )}
+                              {status.maxDeliveryDate && (
+                                <div>
+                                  {t("maxDeliveryDate")}: {formatDateDisplay(status.maxDeliveryDate)}{" "}
+                                  <span className={daysRemaining(status.maxDeliveryDate) <= 3 ? "text-destructive font-medium" : ""}>
+                                    ({daysRemainingLabel(status.maxDeliveryDate)})
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : null;
+
                           // If there's tooltip content, wrap with tooltip and add green dot
                           if (tooltipContent) {
                             return (
-                              <TooltipProvider>
-                                <Tooltip delayDuration={200}>
-                                  <TooltipTrigger asChild>
-                                    <div className="cursor-help inline-block">
-                                      <div className="relative inline-block">
-                                        {badgeElement}
-                                        {/* Green indicator dot */}
-                                        <span
-                                          className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
-                                          aria-hidden="true"
-                                        >
-                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent
-                                    side="right"
-                                    align="start"
-                                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
-                                  >
-                                    <div className="space-y-1.5 text-sm">
-                                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                                        {t('filledFields')}
-                                      </div>
-                                      {tooltipContent.split('\n').map((line, idx) => (
-                                        <div key={idx} className="flex flex-col">
-                                          <span className="font-medium">{line.split(':')[0]}:</span>
-                                          <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                              <div>
+                                <TooltipProvider>
+                                  <Tooltip delayDuration={200}>
+                                    <TooltipTrigger asChild>
+                                      <div className="cursor-help inline-block">
+                                        <div className="relative inline-block">
+                                          {badgeElement}
+                                          {/* Green indicator dot */}
+                                          <span
+                                            className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                                            aria-hidden="true"
+                                          >
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                                          </span>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="right"
+                                      align="start"
+                                      className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                                    >
+                                      <div className="space-y-1.5 text-sm">
+                                        <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                                          {t('filledFields')}
+                                        </div>
+                                        {tooltipContent.split('\n').map((line, idx) => (
+                                          <div key={idx} className="flex flex-col">
+                                            <span className="font-medium">{line.split(':')[0]}:</span>
+                                            <span className="text-muted-foreground ml-2">{line.split(':').slice(1).join(':')}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                {exigenciaDatesEl}
+                              </div>
                             );
                           }
 
-                          // No tooltip content, return plain badge
-                          return badgeElement;
+                          // No tooltip content, return badge + optional exigência dates
+                          return (
+                            <div>
+                              {badgeElement}
+                              {exigenciaDatesEl}
+                            </div>
+                          );
                         })()
                       )}
                     </TableCell>
@@ -424,13 +516,16 @@ export function IndividualProcessStatusesSubtable({
                                 size="icon"
                                 variant="ghost"
                                 className="h-8 w-8"
-                                onClick={() => setStatusDocumentsState({
-                                  open: true,
-                                  statusId: status._id,
-                                  caseStatusName: caseStatusName || status.statusName,
-                                  caseStatusColor: status.caseStatus?.color,
-                                  date: status.date,
-                                })}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStatusDocumentsState({
+                                    open: true,
+                                    statusId: status._id,
+                                    caseStatusName: caseStatusName || status.statusName,
+                                    caseStatusColor: status.caseStatus?.color,
+                                    date: status.date,
+                                  });
+                                }}
                                 title={t("viewStatusDocuments")}
                               >
                                 <FileStack className="h-4 w-4 text-orange-500" />
@@ -444,7 +539,10 @@ export function IndividualProcessStatusesSubtable({
                                 size="icon"
                                 variant="ghost"
                                 className="h-8 w-8"
-                                onClick={() => setFillFieldsModalState({ open: true, statusId: status._id })}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFillFieldsModalState({ open: true, statusId: status._id });
+                                }}
                                 title={t("fillFields")}
                               >
                                 <FileEdit className="h-4 w-4 text-blue-600" />
@@ -456,7 +554,10 @@ export function IndividualProcessStatusesSubtable({
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8"
-                              onClick={() => handleEditClick(status._id, status.date, status.caseStatusId)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditClick(status._id, status.date, status.caseStatusId);
+                              }}
                             >
                               <Pencil className="h-4 w-4" />
                               <span className="sr-only">{t("editStatus")}</span>
@@ -466,7 +567,10 @@ export function IndividualProcessStatusesSubtable({
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(status._id, caseStatusName || status.statusName)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(status._id, caseStatusName || status.statusName);
+                              }}
                               title={t("deleteStatus")}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -515,6 +619,21 @@ export function IndividualProcessStatusesSubtable({
           caseStatusColor={statusDocumentsState.caseStatusColor}
           date={statusDocumentsState.date}
           userRole={userRole}
+        />
+      )}
+
+      {/* Edit Status Details Dialog */}
+      {editDialogState.open && editDialogState.statusId && (
+        <EditStatusDialog
+          open={editDialogState.open}
+          onOpenChange={(open) => {
+            if (!open) setEditDialogState({ open: false, statusId: null, isExigencia: false });
+          }}
+          statusId={editDialogState.statusId}
+          currentNotes={editDialogState.notes}
+          currentMaxDeliveryDate={editDialogState.maxDeliveryDate}
+          currentClientDeadlineDate={editDialogState.clientDeadlineDate}
+          isExigencia={editDialogState.isExigencia}
         />
       )}
 

@@ -50,6 +50,7 @@ import type * as lib_statusDateTime from "../lib/statusDateTime.js";
 import type * as lib_statusManagement from "../lib/statusManagement.js";
 import type * as lib_statusValidation from "../lib/statusValidation.js";
 import type * as lib_stringUtils from "../lib/stringUtils.js";
+import type * as lib_systemCaseStatuses from "../lib/systemCaseStatuses.js";
 import type * as migrations_addAppointmentDateTimeToRnm from "../migrations/addAppointmentDateTimeToRnm.js";
 import type * as migrations_addAppointmentDateTimeToRnmFillableFields from "../migrations/addAppointmentDateTimeToRnmFillableFields.js";
 import type * as migrations_addDateToIndividualProcessStatuses from "../migrations/addDateToIndividualProcessStatuses.js";
@@ -154,6 +155,7 @@ declare const fullApi: ApiFromModules<{
   "lib/statusManagement": typeof lib_statusManagement;
   "lib/statusValidation": typeof lib_statusValidation;
   "lib/stringUtils": typeof lib_stringUtils;
+  "lib/systemCaseStatuses": typeof lib_systemCaseStatuses;
   "migrations/addAppointmentDateTimeToRnm": typeof migrations_addAppointmentDateTimeToRnm;
   "migrations/addAppointmentDateTimeToRnmFillableFields": typeof migrations_addAppointmentDateTimeToRnmFillableFields;
   "migrations/addDateToIndividualProcessStatuses": typeof migrations_addDateToIndividualProcessStatuses;

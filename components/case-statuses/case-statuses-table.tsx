@@ -30,6 +30,7 @@ import { globalFuzzyFilter } from "@/lib/fuzzy-search"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
+import { isSystemCaseStatus } from "@/convex/lib/systemCaseStatuses"
 
 interface CaseStatus {
   _id: Id<"caseStatuses">
@@ -126,6 +127,11 @@ export function CaseStatusesTable({
               />
             )}
             <DataGridHighlightedCell text={row.original.name} />
+            {isSystemCaseStatus(row.original.code) && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {t('systemStatus')}
+              </Badge>
+            )}
           </div>
         ),
       },
@@ -207,42 +213,45 @@ export function CaseStatusesTable({
       {
         id: "actions",
         header: () => <span className="sr-only">{tCommon('actions')}</span>,
-        cell: ({ row }) => (
-          <DataGridRowActions
-            actions={[
-              ...(onView
-                ? [
-                    {
-                      label: tCommon('view'),
-                      icon: <Eye className="h-4 w-4" />,
-                      onClick: () => onView(row.original._id),
-                    },
-                  ]
-                : []),
-              {
-                label: tCommon('edit'),
-                icon: <Edit className="h-4 w-4" />,
-                onClick: () => onEdit(row.original._id),
-                variant: "default",
-              },
-              ...(onToggleActive ? [{
-                label: row.original.isActive ? tCommon('deactivate') : tCommon('activate'),
-                icon: row.original.isActive ?
-                  <XCircle className="h-4 w-4" /> :
-                  <CheckCircle2 className="h-4 w-4" />,
-                onClick: () => onToggleActive(row.original._id, !row.original.isActive),
-                variant: "default" as const,
-              }] : []),
-              {
-                label: tCommon('delete'),
-                icon: <Trash2 className="h-4 w-4" />,
-                onClick: () => deleteConfirmation.confirmDelete(row.original._id),
-                variant: "destructive",
-                separator: true,
-              },
-            ]}
-          />
-        ),
+        cell: ({ row }) => {
+          const isSystem = isSystemCaseStatus(row.original.code)
+          return (
+            <DataGridRowActions
+              actions={[
+                ...(onView
+                  ? [
+                      {
+                        label: tCommon('view'),
+                        icon: <Eye className="h-4 w-4" />,
+                        onClick: () => onView(row.original._id),
+                      },
+                    ]
+                  : []),
+                {
+                  label: tCommon('edit'),
+                  icon: <Edit className="h-4 w-4" />,
+                  onClick: () => onEdit(row.original._id),
+                  variant: "default",
+                },
+                ...(onToggleActive && !(isSystem && row.original.isActive) ? [{
+                  label: row.original.isActive ? tCommon('deactivate') : tCommon('activate'),
+                  icon: row.original.isActive ?
+                    <XCircle className="h-4 w-4" /> :
+                    <CheckCircle2 className="h-4 w-4" />,
+                  onClick: () => onToggleActive(row.original._id, !row.original.isActive),
+                  variant: "default" as const,
+                }] : []),
+                ...(!isSystem ? [{
+                  label: tCommon('delete'),
+                  icon: <Trash2 className="h-4 w-4" />,
+                  onClick: () => deleteConfirmation.confirmDelete(row.original._id),
+                  variant: "destructive" as const,
+                  separator: true,
+                }] : []),
+              ]}
+            />
+          )
+        },
         size: 50,
         enableSorting: false,
         enableHiding: false,
@@ -302,7 +311,12 @@ export function CaseStatusesTable({
               label: tCommon('deleteSelected'),
               icon: <Trash2 className="h-4 w-4" />,
               onClick: (selectedRows) => {
-                bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+                const deletableRows = selectedRows.filter(
+                  (row) => !isSystemCaseStatus(row.code)
+                )
+                if (deletableRows.length > 0) {
+                  bulkDeleteConfirmation.confirmBulkDelete(deletableRows)
+                }
               },
               variant: "destructive",
             },

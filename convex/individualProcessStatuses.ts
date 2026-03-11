@@ -358,6 +358,22 @@ export const addStatus = mutation({
       }
     }
 
+    // Auto-calculate exigência deadline dates
+    let exigenciaDates: { maxDeliveryDate?: string; clientDeadlineDate?: string } = {};
+    if (caseStatus.code === "exigencia") {
+      const datePart = statusDate.split("T")[0];
+      const base = new Date(datePart + "T12:00:00");
+      const addDays = (d: Date, days: number) => {
+        const r = new Date(d);
+        r.setDate(r.getDate() + days);
+        return r.toISOString().split("T")[0];
+      };
+      exigenciaDates = {
+        maxDeliveryDate: addDays(base, 29),
+        clientDeadlineDate: addDays(base, 23),
+      };
+    }
+
     // Create the new status record
     const statusId = await ctx.db.insert("individualProcessStatuses", {
       individualProcessId: args.individualProcessId,
@@ -368,6 +384,7 @@ export const addStatus = mutation({
       notes: args.notes,
       fillableFields: caseStatus.fillableFields, // Copy fillable fields from case status
       filledFieldsData: args.filledFieldsData, // Store filled fields data
+      ...exigenciaDates,
       changedBy: userId,
       changedAt: now,
       createdAt: now,
@@ -433,6 +450,8 @@ export const updateStatus = mutation({
     statusName: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
     notes: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    maxDeliveryDate: v.optional(v.string()),
+    clientDeadlineDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin access
@@ -483,6 +502,8 @@ export const updateStatus = mutation({
       notes?: string;
       isActive?: boolean;
       fillableFields?: string[];
+      maxDeliveryDate?: string;
+      clientDeadlineDate?: string;
     } = {};
     if (args.caseStatusId !== undefined) {
       updates.caseStatusId = args.caseStatusId;
@@ -497,6 +518,8 @@ export const updateStatus = mutation({
     if (args.statusName !== undefined) updates.statusName = args.statusName;
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
+    if (args.maxDeliveryDate !== undefined) updates.maxDeliveryDate = args.maxDeliveryDate;
+    if (args.clientDeadlineDate !== undefined) updates.clientDeadlineDate = args.clientDeadlineDate;
 
     await ctx.db.patch(args.statusId, updates);
 
