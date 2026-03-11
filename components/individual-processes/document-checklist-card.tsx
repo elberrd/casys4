@@ -198,21 +198,9 @@ export function DocumentChecklistCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkReusing, setIsBulkReusing] = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
-  const [excludedFromReport, setExcludedFromReport] = useState<Set<string>>(new Set())
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
-
-  const toggleExcludeFromReport = (docId: string) => {
-    setExcludedFromReport(prev => {
-      const next = new Set(prev)
-      if (next.has(docId)) {
-        next.delete(docId)
-      } else {
-        next.add(docId)
-      }
-      return next
-    })
-  }
+  const toggleExcludeFromReportMutation = useMutation(api.documentsDelivered.toggleExcludeFromReport)
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -454,7 +442,7 @@ export function DocumentChecklistCard({
 
   // Build PDF-eligible data (pending + exigencia docs minus excluded)
   const pdfPendingDocuments: PdfDocumentItem[] = unfilledDocuments
-    .filter((doc) => !excludedFromReport.has(doc._id))
+    .filter((doc) => !doc.excludedFromReport)
     .map((doc) => ({
       id: doc._id,
       name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
@@ -469,7 +457,7 @@ export function DocumentChecklistCard({
       statusName: group.caseStatusName,
       clientDeadlineDate: group.clientDeadlineDate,
       documents: group.docs
-        .filter((doc) => !excludedFromReport.has(doc._id))
+        .filter((doc) => !doc.excludedFromReport)
         .map((doc) => ({
           id: doc._id,
           name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
@@ -625,8 +613,8 @@ export function DocumentChecklistCard({
             <TooltipTrigger asChild>
               <div className="flex items-center">
                 <Checkbox
-                  checked={excludedFromReport.has(doc._id)}
-                  onCheckedChange={() => toggleExcludeFromReport(doc._id)}
+                  checked={doc.excludedFromReport === true}
+                  onCheckedChange={() => toggleExcludeFromReportMutation({ documentId: doc._id })}
                   onClick={(e) => e.stopPropagation()}
                   className="h-3.5 w-3.5"
                   aria-label={t("excludeFromReport")}

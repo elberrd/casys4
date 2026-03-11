@@ -608,6 +608,7 @@ export default defineSchema({
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")), // Link to a specific status entry (e.g., "Exigência")
     documentName: v.optional(v.string()), // Custom name for loose documents saved without file
     isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
+    excludedFromReport: v.optional(v.boolean()), // Whether the document is excluded from PDF reports
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])

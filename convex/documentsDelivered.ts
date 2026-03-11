@@ -950,6 +950,27 @@ export const unlinkFromStatus = mutation({
 });
 
 /**
+ * Toggle excludedFromReport flag on a document
+ */
+export const toggleExcludeFromReport = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, { documentId }) => {
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    await ctx.db.patch(documentId, {
+      excludedFromReport: !document.excludedFromReport,
+    });
+
+    return documentId;
+  },
+});
+
+/**
  * Mutation to generate an upload URL for file uploads
  * Used by client and admin to upload documents
  */
