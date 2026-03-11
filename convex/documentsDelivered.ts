@@ -957,6 +957,8 @@ export const toggleExcludeFromReport = mutation({
     documentId: v.id("documentsDelivered"),
   },
   handler: async (ctx, { documentId }) => {
+    await getCurrentUserProfile(ctx);
+
     const document = await ctx.db.get(documentId);
     if (!document) {
       throw new Error("Document not found");
