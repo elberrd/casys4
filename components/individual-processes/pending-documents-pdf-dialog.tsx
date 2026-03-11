@@ -78,6 +78,7 @@ export function PendingDocumentsPdfDialog({
           dateProcess: t("pdfReport.dateProcess"),
           exigenciaSection: t("pdfReport.exigenciaSection"),
           pendingSection: t("pdfReport.pendingSection"),
+          pendingSectionTitle: t("pdfReport.pendingSectionTitle"),
           required: t("pdfReport.required"),
           optional: t("pdfReport.optional"),
           page: t("pdfReport.page"),

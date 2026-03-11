@@ -97,8 +97,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   colNum: { width: "7%" },
-  colName: { width: "53%" },
-  colCompany: { width: "18%", textAlign: "center" },
+  colName: { width: "71%" },
   colStatus: { width: "22%", textAlign: "right" },
   // Doc rows
   docRow: {
@@ -119,16 +118,6 @@ const styles = StyleSheet.create({
   docName: {
     fontSize: 9,
     color: "#2d3748",
-  },
-  companyBadge: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-    color: "#4a5568",
-    backgroundColor: "#edf2f7",
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 2,
-    textAlign: "center",
   },
   // Status badges
   statusBadge: {
@@ -199,6 +188,7 @@ interface PendingDocumentsPdfTemplateProps {
     dateProcess: string
     exigenciaSection: string
     pendingSection: string
+    pendingSectionTitle: string
     required: string
     optional: string
     page: string
@@ -223,9 +213,6 @@ export function PendingDocumentsPdfTemplate({
       </View>
       <View style={styles.colName}>
         <Text style={styles.tableHeaderText}>{labels.document}</Text>
-      </View>
-      <View style={styles.colCompany}>
-        <Text style={styles.tableHeaderText}>{labels.companyDoc}</Text>
       </View>
       <View style={styles.colStatus}>
         <Text style={[styles.tableHeaderText, { textAlign: "right" }]}>
@@ -252,11 +239,6 @@ export function PendingDocumentsPdfTemplate({
         <View style={styles.colName}>
           <Text style={styles.docName}>{doc.name}</Text>
         </View>
-        <View style={styles.colCompany}>
-          {doc.isCompanyDocument && (
-            <Text style={styles.companyBadge}>{labels.companyDoc}</Text>
-          )}
-        </View>
         <View style={[styles.colStatus, { alignItems: "flex-end" }]}>
           <Text
             style={[
@@ -272,12 +254,11 @@ export function PendingDocumentsPdfTemplate({
 
   const infoFields = [
     { label: labels.person, value: processInfo.personFullName },
-    { label: labels.legalFramework, value: processInfo.legalFrameworkName },
     { label: labels.processType, value: processInfo.processTypeName },
+    { label: labels.legalFramework, value: processInfo.legalFrameworkName },
     { label: labels.company, value: processInfo.companyApplicantName },
     { label: labels.referenceNumber, value: processInfo.referenceNumber },
     { label: labels.protocolNumber, value: processInfo.protocolNumber },
-    { label: labels.dateProcess, value: processInfo.dateProcess },
   ].filter((f) => f.value)
 
   return (
@@ -285,11 +266,21 @@ export function PendingDocumentsPdfTemplate({
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.brand}>CASYS Advocacia</Text>
+          <Text style={styles.brand}>CAS</Text>
           <Text style={styles.reportTitle}>{labels.reportTitle}</Text>
           <Text style={styles.generationDate}>
             {labels.generatedAt}: {generatedAt}
           </Text>
+          {processInfo.dateProcess && (
+            <Text
+              style={[
+                styles.generationDate,
+                { fontFamily: "Helvetica-Bold", marginTop: 2 },
+              ]}
+            >
+              {labels.dateProcess}: {processInfo.dateProcess}
+            </Text>
+          )}
         </View>
         <View style={styles.separator} />
 
@@ -322,7 +313,7 @@ export function PendingDocumentsPdfTemplate({
         {/* Pending Documents */}
         {pendingDocuments.length > 0 && (
           <View>
-            <Text style={styles.sectionTitle}>{labels.pendingSection}</Text>
+            <Text style={styles.sectionTitle}>{labels.pendingSectionTitle}</Text>
             {renderTableHeader()}
             {renderDocList(
               pendingDocuments,
@@ -334,7 +325,7 @@ export function PendingDocumentsPdfTemplate({
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text>CASYS Advocacia — {generatedAt}</Text>
+          <Text>CAS — {generatedAt}</Text>
           <Text
             render={({ pageNumber, totalPages }) =>
               `${labels.page} ${pageNumber} ${labels.of} ${totalPages}`
