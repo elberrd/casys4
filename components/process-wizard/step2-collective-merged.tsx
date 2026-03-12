@@ -113,7 +113,10 @@ export function Step2CollectiveMerged({ wizard }: Step2CollectiveMergedProps) {
             </div>
             <UserApplicantSelector
               value={wizardData.userApplicantId}
-              onChange={(value) => updateData("userApplicantId", value)}
+              onChange={(value, companyId) => {
+                updateData("userApplicantId", value)
+                updateData("userApplicantCompanyId", companyId || "")
+              }}
             />
           </div>
         </CardContent>

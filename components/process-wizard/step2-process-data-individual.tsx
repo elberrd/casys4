@@ -215,9 +215,7 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
               value={wizardData.userApplicantId}
               onChange={(value, companyId) => {
                 updateData("userApplicantId", value)
-                if (companyId) {
-                  updateData("companyApplicantId", companyId)
-                }
+                updateData("userApplicantCompanyId", companyId || "")
               }}
             />
           </div>

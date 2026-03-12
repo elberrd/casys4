@@ -110,6 +110,7 @@ export interface WizardState {
   // NOTE: For collective processes, requestDate is per candidate (not at process level)
   requestDate: string; // Used as default for new candidates (individual: top-level, collective: per candidate)
   userApplicantId: string;
+  userApplicantCompanyId: string; // Snapshot of the company the user applicant is associated with at creation time
   consulateId: string; // Only used for collective at top level now
 
   // Step 2.1 only - Individual candidate (DEPRECATED - now uses candidates array)
@@ -133,6 +134,7 @@ export const initialWizardState: WizardState = {
   processType: undefined,
   requestDate: new Date().toISOString().split('T')[0],
   userApplicantId: "",
+  userApplicantCompanyId: "",
   consulateId: "",
   personId: "",
   processTypeId: "",
