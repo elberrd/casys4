@@ -386,25 +386,12 @@ export const get = query({
       };
     }
 
-    // If user applicant exists, enrich with stored company (from creation time) or fallback to dynamic lookup
+    // If user applicant exists, enrich with stored company snapshot (from creation time)
     let enrichedUserApplicant = null;
     if (userApplicant) {
-      let company = null;
-      if (process.userApplicantCompanyId) {
-        // Use the stored company from creation time
-        company = await ctx.db.get(process.userApplicantCompanyId);
-      } else {
-        // Fallback: dynamic lookup for legacy processes without stored company
-        const userApplicantCompany = await ctx.db
-          .query("peopleCompanies")
-          .withIndex("by_person", (q) => q.eq("personId", userApplicant._id))
-          .filter((q) => q.eq(q.field("isCurrent"), true))
-          .first();
-
-        if (userApplicantCompany?.companyId) {
-          company = await ctx.db.get(userApplicantCompany.companyId);
-        }
-      }
+      const company = process.userApplicantCompanyId
+        ? await ctx.db.get(process.userApplicantCompanyId)
+        : null;
 
       enrichedUserApplicant = {
         ...userApplicant,
