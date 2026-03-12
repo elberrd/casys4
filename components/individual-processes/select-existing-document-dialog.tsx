@@ -196,11 +196,19 @@ export function SelectExistingDocumentDialog({
                     <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
                       {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
                     </p>
-                    {doc.fileName && (
-                      <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                        {doc.fileName}
-                      </p>
-                    )}
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      {doc.fileName && (
+                        <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                          {doc.fileName}
+                        </span>
+                      )}
+                      <Badge
+                        variant={doc.status === "approved" ? "default" : doc.status === "rejected" ? "destructive" : "secondary"}
+                        className="text-[10px] px-1.5 py-0"
+                      >
+                        {t(`status.${doc.status === "not_started" ? "notStarted" : doc.status === "under_review" ? "underReview" : doc.status}`)}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {doc.documentType?.isCompanyDocument && (

@@ -349,6 +349,10 @@ export const upload = mutation({
       version: version,
       isLatest: true,
       versionNotes: args.versionNotes,
+      // Preserve exigência link when uploading a new version
+      individualProcessStatusId: existingDocuments.length > 0
+        ? existingDocuments[0].individualProcessStatusId
+        : undefined,
     });
 
     // Record rejection status history if uploaded as illegible
@@ -831,6 +835,8 @@ export const restoreVersion = mutation({
       version: newVersion,
       isLatest: true,
       versionNotes: notes,
+      // Preserve exigência link from current latest version
+      individualProcessStatusId: currentLatest?.individualProcessStatusId,
     });
 
     // Auto-create conditions, carrying forward state from the restored version
@@ -3299,10 +3305,9 @@ export const listAvailableForLinking = query({
       )
       .collect();
 
-    // Filter: latest only, only not_started (unfilled) docs, exclude docs already linked to excludeStatusId
+    // Filter: latest only, exclude docs already linked to the same exigência
     const available = documents.filter((doc) => {
       if (!doc.isLatest) return false;
-      if (doc.status !== "not_started") return false;
       if (excludeStatusId && doc.individualProcessStatusId === excludeStatusId) return false;
       return true;
     });
