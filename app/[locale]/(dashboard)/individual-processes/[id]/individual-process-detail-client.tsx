@@ -213,8 +213,10 @@ export function IndividualProcessDetailClient({
 
                 <div className="text-sm font-medium">{t('userApplicant')}</div>
                 <div className="text-sm">
-                  {individualProcess.userApplicant && individualProcess.userApplicant.company
-                    ? `${getFullName(individualProcess.userApplicant)} - ${individualProcess.userApplicant.company.name}`
+                  {individualProcess.userApplicant
+                    ? individualProcess.userApplicant.company
+                      ? `${getFullName(individualProcess.userApplicant)} - ${individualProcess.userApplicant.company.name}`
+                      : getFullName(individualProcess.userApplicant)
                     : '-'}
                 </div>
 
