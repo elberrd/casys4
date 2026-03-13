@@ -89,6 +89,7 @@ export function LooseDocumentUploadDialog({
     }
 
     setSelectedFile(file);
+    setAutoApprove(true);
   };
 
   const handleRemoveFile = () => {

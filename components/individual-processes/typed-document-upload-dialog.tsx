@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
@@ -35,6 +35,7 @@ import {
   validateFileType,
   validateFileSize,
 } from "@/lib/validations/documents-delivered";
+import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 
 interface TypedDocumentUploadDialogProps {
@@ -107,6 +108,13 @@ export function TypedDocumentUploadDialog({
   const maxSizeMB = selectedDocumentType?.maxFileSizeMB || 10;
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
+  const hasUnfulfilledRequiredConditions = useMemo(() => {
+    if (!conditions || conditions.length === 0) return false;
+    return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id));
+  }, [conditions, fulfilledConditionIds]);
+
+  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions;
+
   // Reset file and conditions when document type changes
   useEffect(() => {
     setFulfilledConditionIds(new Set());
@@ -147,6 +155,7 @@ export function TypedDocumentUploadDialog({
     }
 
     setSelectedFile(file);
+    setAutoApprove(true);
   };
 
   const handleRemoveFile = () => {
@@ -409,7 +418,7 @@ export function TypedDocumentUploadDialog({
                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
                 <Label>{t("conditions")}</Label>
               </div>
-              <div className="space-y-2 rounded-lg border p-3">
+              <div className={cn("space-y-2 rounded-lg border p-3", isAutoApproveBlocked && "border-red-500 border-2")}>
                 {conditions.map((condition) => (
                   <div key={condition._id} className="flex items-start gap-2">
                     <Checkbox
@@ -451,6 +460,11 @@ export function TypedDocumentUploadDialog({
                 <p className="text-xs text-muted-foreground mt-1">
                   {t("conditionsHint")}
                 </p>
+                {isAutoApproveBlocked && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                    {t("conditionsRequiredForAutoApprove")}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -519,7 +533,7 @@ export function TypedDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedDocumentTypeId || isUploading}
+            disabled={!selectedDocumentTypeId || isUploading || isAutoApproveBlocked}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedFile ? t("upload") : t("saveWithoutFile")}

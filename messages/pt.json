@@ -2338,7 +2338,8 @@
     "illegibleWarning": "O documento será enviado e automaticamente rejeitado como ilegível.",
     "illegibleNotesPlaceholder": "Observações adicionais sobre o documento ilegível (opcional)",
     "uploadAsIllegible": "Enviar como Ilegível",
-    "autoApprove": "Aprovar automaticamente ao salvar"
+    "autoApprove": "Aprovar automaticamente ao salvar",
+    "conditionsRequiredForAutoApprove": "Para aprovar automaticamente, todas as condições obrigatórias devem estar cumpridas"
   },
   "DocumentReview": {
     "title": "Revisar Documento",

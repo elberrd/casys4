@@ -2314,7 +2314,8 @@
     "illegibleWarning": "The document will be uploaded and automatically rejected as illegible.",
     "illegibleNotesPlaceholder": "Additional observations about the illegible document (optional)",
     "uploadAsIllegible": "Upload as Illegible",
-    "autoApprove": "Auto-approve on save"
+    "autoApprove": "Auto-approve on save",
+    "conditionsRequiredForAutoApprove": "To auto-approve, all required conditions must be fulfilled"
   },
   "DocumentReview": {
     "title": "Review Document",

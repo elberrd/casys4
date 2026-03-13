@@ -266,9 +266,16 @@ export const upload = mutation({
     ),
     isIllegible: v.optional(v.boolean()),
     rejectionReason: v.optional(v.string()),
+    autoApprove: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    // Require admin role when auto-approving
+    let userProfile;
+    if (args.autoApprove) {
+      userProfile = await requireAdmin(ctx);
+    } else {
+      userProfile = await getCurrentUserProfile(ctx);
+    }
 
     // Get individual process to check access and get related data
     const individualProcess = await ctx.db.get(args.individualProcessId);
@@ -327,6 +334,32 @@ export const upload = mutation({
 
     // Create new document record
     const isIllegible = args.isIllegible === true;
+    const shouldAutoApprove = args.autoApprove === true && !isIllegible;
+
+    // Validate conditions before auto-approving
+    if (shouldAutoApprove) {
+      const conditionLinks = await ctx.db
+        .query("documentTypeConditionLinks")
+        .withIndex("by_documentType", (q) =>
+          q.eq("documentTypeId", args.documentTypeId)
+        )
+        .collect();
+
+      if (conditionLinks.length > 0) {
+        const preFulfilledSet = new Set(args.preFulfilledConditionIds || []);
+        for (const link of conditionLinks) {
+          if (!link.isRequired) continue;
+          const condition = await ctx.db.get(link.documentTypeConditionId);
+          if (condition && condition.isActive && !preFulfilledSet.has(condition._id)) {
+            throw new Error(
+              "Cannot auto-approve: required condition not fulfilled"
+            );
+          }
+        }
+      }
+    }
+
+    const status = shouldAutoApprove ? "approved" : (isIllegible ? "rejected" : "uploaded");
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
       documentTypeId: args.documentTypeId,
@@ -337,11 +370,11 @@ export const upload = mutation({
       fileUrl: fileUrl,
       fileSize: args.fileSize,
       mimeType: args.mimeType,
-      status: isIllegible ? "rejected" : "uploaded",
+      status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
-      reviewedBy: isIllegible ? uploaderUserId : undefined,
-      reviewedAt: isIllegible ? Date.now() : undefined,
+      reviewedBy: (shouldAutoApprove || isIllegible) ? uploaderUserId : undefined,
+      reviewedAt: (shouldAutoApprove || isIllegible) ? Date.now() : undefined,
       rejectionReason: isIllegible ? (args.rejectionReason || "Documento ilegível") : undefined,
       isIllegible: isIllegible || undefined,
       expiryDate: args.expiryDate,
@@ -355,7 +388,7 @@ export const upload = mutation({
         : undefined,
     });
 
-    // Record rejection status history if uploaded as illegible
+    // Record status history
     if (isIllegible) {
       await ctx.db.insert("documentStatusHistory", {
         documentId,
@@ -368,6 +401,18 @@ export const upload = mutation({
           fileName: args.fileName,
           version,
           isIllegible: true,
+        },
+      });
+    } else if (shouldAutoApprove) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: "uploaded",
+        newStatus: "approved",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version,
         },
       });
     }
@@ -401,7 +446,7 @@ export const upload = mutation({
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: uploaderUserId,
-        action: isIllegible ? "rejected" : "uploaded",
+        action: isIllegible ? "rejected" : (shouldAutoApprove ? "approved" : "uploaded"),
         entityType: "document",
         entityId: documentId,
         details: {
@@ -1718,6 +1763,30 @@ export const uploadWithType = mutation({
 
     // Determine status based on auto-approve
     const shouldAutoApprove = args.autoApprove === true && hasFile;
+
+    // Validate conditions before auto-approving
+    if (shouldAutoApprove) {
+      const conditionLinks = await ctx.db
+        .query("documentTypeConditionLinks")
+        .withIndex("by_documentType", (q) =>
+          q.eq("documentTypeId", args.documentTypeId)
+        )
+        .collect();
+
+      if (conditionLinks.length > 0) {
+        const preFulfilledSet = new Set(args.preFulfilledConditionIds || []);
+        for (const link of conditionLinks) {
+          if (!link.isRequired) continue;
+          const condition = await ctx.db.get(link.documentTypeConditionId);
+          if (condition && condition.isActive && !preFulfilledSet.has(condition._id)) {
+            throw new Error(
+              "Cannot auto-approve: required condition not fulfilled"
+            );
+          }
+        }
+      }
+    }
+
     const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
 
     // Create document with type

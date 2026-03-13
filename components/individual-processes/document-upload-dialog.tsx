@@ -84,6 +84,7 @@ export function DocumentUploadDialog({
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
+  const [autoApprove, setAutoApprove] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Pre-populate versionNotes when dialog opens with existing notes
@@ -140,6 +141,13 @@ export function DocumentUploadDialog({
     return null
   }, [validityRule, expiryDate, issueDate, t])
 
+  const hasUnfulfilledRequiredConditions = useMemo(() => {
+    if (!conditions || conditions.length === 0) return false
+    return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id))
+  }, [conditions, fulfilledConditionIds])
+
+  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions
+
   const maxSizeMB = documentInfo?.maxSizeMB || 10
   const maxSizeBytes = maxSizeMB * 1024 * 1024
   const allowedFormats = documentInfo?.allowedFormats || []
@@ -164,10 +172,12 @@ export function DocumentUploadDialog({
     }
 
     setSelectedFile(file)
+    setAutoApprove(true)
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
+    setAutoApprove(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -193,6 +203,7 @@ export function DocumentUploadDialog({
       setFulfilledConditionIds(new Set())
       setIsIllegible(false)
       setIllegibleNotes("")
+      setAutoApprove(false)
     } catch (error) {
       console.error("Error saving notes:", error)
       toast.error(t("errorUpload"))
@@ -247,6 +258,7 @@ export function DocumentUploadDialog({
           : undefined,
         isIllegible: isIllegible || undefined,
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
+        autoApprove: autoApprove || undefined,
       })
 
       setUploadProgress(100)
@@ -266,6 +278,7 @@ export function DocumentUploadDialog({
       setFulfilledConditionIds(new Set())
       setIsIllegible(false)
       setIllegibleNotes("")
+      setAutoApprove(false)
       setUploadProgress(0)
     } catch (error) {
       console.error("Error uploading document:", error)
@@ -371,6 +384,21 @@ export function DocumentUploadDialog({
             </div>
           )}
 
+          {/* Auto-approve checkbox */}
+          {selectedFile && !isIllegible && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="autoApprove"
+                checked={autoApprove}
+                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                disabled={isUploading}
+              />
+              <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
+                {t("autoApprove")}
+              </label>
+            </div>
+          )}
+
           {/* Version notes (optional) */}
           <div className="space-y-2">
             <Label htmlFor="versionNotes">{t("versionNotes")} ({tCommon("optional")})</Label>
@@ -391,7 +419,10 @@ export function DocumentUploadDialog({
               <Checkbox
                 id="isIllegible"
                 checked={isIllegible}
-                onCheckedChange={(checked) => setIsIllegible(checked === true)}
+                onCheckedChange={(checked) => {
+                  setIsIllegible(checked === true)
+                  if (checked) setAutoApprove(false)
+                }}
                 disabled={isUploading}
               />
               <Label htmlFor="isIllegible" className="text-sm font-medium cursor-pointer">
@@ -423,7 +454,7 @@ export function DocumentUploadDialog({
                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
                 <Label>{t("conditions")}</Label>
               </div>
-              <div className="space-y-2 rounded-lg border p-3">
+              <div className={cn("space-y-2 rounded-lg border p-3", isAutoApproveBlocked && "border-red-500 border-2")}>
                 {conditions.map((condition) => (
                   <div key={condition._id} className="flex items-start gap-2">
                     <Checkbox
@@ -465,6 +496,11 @@ export function DocumentUploadDialog({
                 <p className="text-xs text-muted-foreground mt-1">
                   {t("conditionsHint")}
                 </p>
+                {isAutoApproveBlocked && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                    {t("conditionsRequiredForAutoApprove")}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -543,7 +579,7 @@ export function DocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading}
+            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading || isAutoApproveBlocked}
             variant={isIllegible ? "destructive" : "default"}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
