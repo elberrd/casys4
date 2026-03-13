@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -32,6 +34,7 @@ import {
   Building2,
   FileQuestion,
   Link2,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +59,14 @@ export function SelectExistingDocumentDialog({
   const [selectedStatusId, setSelectedStatusId] = useState<string>(
     individualProcessStatusId ?? ""
   );
-  const [isLinking, setIsLinking] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Rejection step state
+  const [selectedDoc, setSelectedDoc] = useState<{
+    _id: Id<"documentsDelivered">;
+    name: string;
+  } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const effectiveStatusId = individualProcessStatusId ?? (selectedStatusId || undefined);
 
@@ -80,7 +90,7 @@ export function SelectExistingDocumentDialog({
     return statuses.filter((s) => s.caseStatus?.code === "exigencia");
   }, [statuses]);
 
-  const linkToStatus = useMutation(api.documentsDelivered.linkToStatus);
+  const linkToStatusAndReject = useMutation(api.documentsDelivered.linkToStatusAndReject);
 
   const filteredDocs = useMemo(() => {
     if (!availableDocs) return undefined;
@@ -92,21 +102,40 @@ export function SelectExistingDocumentDialog({
     });
   }, [availableDocs, search]);
 
-  const handleSelect = async (docId: Id<"documentsDelivered">) => {
+  const handleSelectDoc = (doc: typeof filteredDocs extends (infer T)[] | undefined ? T : never) => {
     if (!effectiveStatusId) return;
-    setIsLinking(true);
+    setSelectedDoc({
+      _id: doc._id,
+      name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
+    });
+    setRejectionReason("");
+  };
+
+  const handleBackToList = () => {
+    setSelectedDoc(null);
+    setRejectionReason("");
+  };
+
+  const handleConfirmReject = async () => {
+    if (!selectedDoc || !effectiveStatusId) return;
+    if (!rejectionReason.trim()) {
+      toast.error(t("rejectionReasonRequired"));
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      await linkToStatus({
-        documentId: docId,
+      await linkToStatusAndReject({
+        documentId: selectedDoc._id,
         individualProcessStatusId: effectiveStatusId as Id<"individualProcessStatuses">,
+        rejectionReason: rejectionReason.trim(),
       });
-      toast.success(t("selectExistingSuccess"));
+      toast.success(t("selectExistingRejectSuccess"));
       onSuccess?.();
       onOpenChange(false);
     } catch (error) {
-      toast.error(t("selectExistingError"));
+      toast.error(t("selectExistingRejectError"));
     } finally {
-      setIsLinking(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -125,121 +154,182 @@ export function SelectExistingDocumentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(val) => {
+      if (!val) {
+        setSelectedDoc(null);
+        setRejectionReason("");
+      }
+      onOpenChange(val);
+    }}>
       <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t("selectExisting")}</DialogTitle>
-          <DialogDescription>
-            {t("selectExistingDescription")}
-          </DialogDescription>
-        </DialogHeader>
+        {selectedDoc ? (
+          // Rejection step
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("selectExistingRejectTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("selectExistingRejectDescription")}
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {/* Status selector when no fixed statusId */}
-          {!individualProcessStatusId && (
-            <Select
-              value={selectedStatusId}
-              onValueChange={setSelectedStatusId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t("selectTargetStatus")} />
-              </SelectTrigger>
-              <SelectContent>
-                {exigenciaStatuses.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.caseStatus?.name || s.statusName}
-                    {s.date && ` - ${s.date}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+            <div className="space-y-4 py-2">
+              {/* Selected document info */}
+              <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <p className="flex-1 text-sm font-medium [overflow-wrap:anywhere]">
+                  {selectedDoc.name}
+                </p>
+                <XCircle className="h-5 w-5 text-destructive" />
+              </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={t("searchDocuments")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+              {/* Rejection reason */}
+              <div className="space-y-2">
+                <Textarea
+                  placeholder={t("rejectionReasonPlaceholder")}
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                />
+              </div>
 
-          {/* Documents list */}
-          {filteredDocs === undefined ? (
-            <div className="space-y-2">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : filteredDocs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">{t("noAvailableDocuments")}</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredDocs.map((doc) => (
-                <button
-                  key={doc._id}
-                  disabled={isLinking || !effectiveStatusId}
-                  onClick={() => handleSelect(doc._id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50",
-                    isLinking && "opacity-50 cursor-not-allowed",
-                    !effectiveStatusId && "opacity-50 cursor-not-allowed"
-                  )}
+              {/* Action buttons */}
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleBackToList}
+                  disabled={isSubmitting}
                 >
-                  {getStatusIcon(doc.status)}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
-                      {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
-                    </p>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      {doc.fileName && (
-                        <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                          {doc.fileName}
-                        </span>
-                      )}
-                      <Badge
-                        variant={doc.status === "approved" ? "default" : doc.status === "rejected" ? "destructive" : "secondary"}
-                        className="text-[10px] px-1.5 py-0"
-                      >
-                        {t(`status.${doc.status === "not_started" ? "notStarted" : doc.status === "under_review" ? "underReview" : doc.status}`)}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {doc.documentType?.isCompanyDocument && (
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <Building2 className="h-3 w-3" />
-                      </Badge>
-                    )}
-                    {!doc.documentTypeId && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <FileQuestion className="h-3 w-3" />
-                      </Badge>
-                    )}
-                    {doc.linkedStatus && (
-                      <Badge
-                        variant="outline"
-                        className="text-xs gap-1"
-                        style={doc.linkedStatus.caseStatusColor ? {
-                          borderColor: doc.linkedStatus.caseStatusColor,
-                          color: doc.linkedStatus.caseStatusColor,
-                        } : undefined}
-                      >
-                        <Link2 className="h-3 w-3" />
-                        {doc.linkedStatus.caseStatusName}
-                      </Badge>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  {t("backToList")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmReject}
+                  disabled={isSubmitting || !rejectionReason.trim()}
+                >
+                  {t("confirmReject")}
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          // Document list step
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("selectExisting")}</DialogTitle>
+              <DialogDescription>
+                {t("selectExistingDescription")}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Status selector when no fixed statusId */}
+              {!individualProcessStatusId && (
+                <Select
+                  value={selectedStatusId}
+                  onValueChange={setSelectedStatusId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("selectTargetStatus")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {exigenciaStatuses.map((s) => (
+                      <SelectItem key={s._id} value={s._id}>
+                        {s.caseStatus?.name || s.statusName}
+                        {s.date && ` - ${s.date}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={t("searchDocuments")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Documents list */}
+              {filteredDocs === undefined ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : filteredDocs.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">{t("noAvailableDocuments")}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredDocs.map((doc) => (
+                    <button
+                      key={doc._id}
+                      disabled={isSubmitting || !effectiveStatusId}
+                      onClick={() => handleSelectDoc(doc)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50",
+                        isSubmitting && "opacity-50 cursor-not-allowed",
+                        !effectiveStatusId && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {getStatusIcon(doc.status)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
+                          {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          {doc.fileName && (
+                            <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                              {doc.fileName}
+                            </span>
+                          )}
+                          <Badge
+                            variant={doc.status === "approved" ? "default" : doc.status === "rejected" ? "destructive" : "secondary"}
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {t(`status.${doc.status === "not_started" ? "notStarted" : doc.status === "under_review" ? "underReview" : doc.status}`)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {doc.documentType?.isCompanyDocument && (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <Building2 className="h-3 w-3" />
+                          </Badge>
+                        )}
+                        {!doc.documentTypeId && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <FileQuestion className="h-3 w-3" />
+                          </Badge>
+                        )}
+                        {doc.linkedStatus && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs gap-1"
+                            style={doc.linkedStatus.caseStatusColor ? {
+                              borderColor: doc.linkedStatus.caseStatusColor,
+                              color: doc.linkedStatus.caseStatusColor,
+                            } : undefined}
+                          >
+                            <Link2 className="h-3 w-3" />
+                            {doc.linkedStatus.caseStatusName}
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -118,6 +118,18 @@ export function DocumentReviewDialog({
     documentId ? { documentId } : "skip"
   )
 
+  const unifiedTimeline = useQuery(
+    api.documentsDelivered.getUnifiedDocumentHistory,
+    document
+      ? {
+          individualProcessId: document.individualProcessId,
+          documentTypeId: document.documentTypeId ?? undefined,
+          documentRequirementId: document.documentRequirementId ?? undefined,
+          documentId: documentId ?? undefined,
+        }
+      : "skip"
+  )
+
   const effectiveDocumentId = selectedVersionId ?? documentId;
 
   const conditions = useQuery(
@@ -1069,116 +1081,101 @@ export function DocumentReviewDialog({
             <div className="space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <History className="h-4 w-4" />
-                {t("statusHistory")}
+                {t("unifiedTimeline")}
               </h3>
 
-              {/* Status change timeline */}
-              {statusHistory && statusHistory.length > 0 ? (
+              {unifiedTimeline && unifiedTimeline.length > 0 ? (
                 <div className="space-y-3">
-                  {statusHistory.map((entry, index) => (
-                    <div key={entry._id} className="flex gap-3 text-sm">
+                  {unifiedTimeline.map((entry, index) => (
+                    <div key={`${entry.type}-${entry.timestamp}-${index}`} className="flex gap-3 text-sm">
                       <div className="flex flex-col items-center">
-                        {getStatusIcon(entry.newStatus)}
-                        {index < statusHistory.length - 1 && (
+                        {entry.type === "version_created" ? (
+                          entry.status === "not_started" ? (
+                            <Circle className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Upload className="h-4 w-4 text-blue-500" />
+                          )
+                        ) : (
+                          getStatusIcon(entry.newStatus)
+                        )}
+                        {index < unifiedTimeline.length - 1 && (
                           <div className="w-px h-full bg-border mt-1" />
                         )}
                       </div>
                       <div className="flex-1 pb-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {entry.previousStatus && (
-                            <>
-                              {getStatusBadge(entry.previousStatus)}
-                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            </>
-                          )}
-                          {getStatusBadge(entry.newStatus)}
-                        </div>
-                        <div className="text-muted-foreground mt-1">
-                          <span className="font-medium">
-                            {entry.changedByProfile?.fullName || entry.changedByUser?.email || t("unknown")}
-                          </span>
-                          {" • "}
-                          {format(new Date(entry.changedAt), "PPP p")}
-                        </div>
-                        {entry.notes && (
-                          <div className="mt-1 p-2 bg-muted rounded text-sm">
-                            {entry.notes}
-                          </div>
+                        {entry.type === "version_created" ? (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {entry.status === "not_started" ? (
+                                <Badge variant="outline">{t("waitingForUpload")}</Badge>
+                              ) : (
+                                <Badge variant="info">{t("fileUploaded")}</Badge>
+                              )}
+                              <Badge variant={entry.isLatest ? "success" : "secondary"} className="text-xs">
+                                v{entry.version}{entry.isLatest ? ` ${t("currentVersion")}` : ""}
+                              </Badge>
+                            </div>
+                            <div className="text-muted-foreground mt-1">
+                              <span className="font-medium">{entry.userName}</span>
+                              {" • "}
+                              {format(new Date(entry.timestamp), "PPP p")}
+                            </div>
+                            {entry.fileName ? (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {entry.fileName} ({formatFileSize(entry.fileSize)})
+                              </div>
+                            ) : entry.status === "not_started" ? (
+                              <div className="mt-1 text-xs text-muted-foreground italic">
+                                {t("newVersionAfterRejection")}
+                              </div>
+                            ) : null}
+                            {entry.versionNotes && (
+                              <div className="mt-1 p-2 bg-muted rounded text-xs">
+                                {entry.versionNotes}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {entry.previousStatus && (
+                                <>
+                                  {getStatusBadge(entry.previousStatus)}
+                                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                </>
+                              )}
+                              {getStatusBadge(entry.newStatus)}
+                              {entry.version && (
+                                <span className="text-xs text-muted-foreground">v{entry.version}</span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground mt-1">
+                              <span className="font-medium">{entry.userName}</span>
+                              {" • "}
+                              {format(new Date(entry.timestamp), "PPP p")}
+                            </div>
+                            {entry.notes && (
+                              <div className={cn(
+                                "mt-1 p-2 rounded text-sm",
+                                entry.newStatus === "rejected" ? "bg-destructive/10 text-destructive" : "bg-muted"
+                              )}>
+                                {entry.notes}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : unifiedTimeline ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">{t("noTimeline")}</p>
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
-                  <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">{t("noStatusHistory")}</p>
-                </div>
-              )}
-
-              <Separator />
-
-              {/* File upload events — all versions */}
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                {t("documentHistory")}
-              </h3>
-              {versionHistory && versionHistory.length > 0 ? (
-                <div className="space-y-3">
-                  {versionHistory.map((ver, index) => (
-                    <div key={ver._id} className="flex gap-3 text-sm">
-                      <div className="flex flex-col items-center">
-                        <Upload className="h-4 w-4 text-blue-500" />
-                        {index < versionHistory.length - 1 && (
-                          <div className="w-px h-full bg-border mt-1" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="info">{t("fileUploaded")}</Badge>
-                          <Badge variant={ver.isLatest ? "success" : "secondary"} className="text-xs">
-                            v{ver.version}{ver.isLatest ? ` ${t("currentVersion")}` : ""}
-                          </Badge>
-                        </div>
-                        <div className="text-muted-foreground mt-1">
-                          <span className="font-medium">
-                            {ver.uploadedByProfile?.fullName || ver.uploadedByUser?.email || t("unknown")}
-                          </span>
-                          {" • "}
-                          {format(new Date(ver.uploadedAt), "PPP p")}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {ver.fileName} ({formatFileSize(ver.fileSize)})
-                        </div>
-                        {ver.versionNotes && (
-                          <div className="mt-1 p-2 bg-muted rounded text-xs">
-                            {ver.versionNotes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex gap-3 text-sm">
-                  <div className="flex flex-col items-center">
-                    <Upload className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="info">{t("fileUploaded")}</Badge>
-                    </div>
-                    <div className="text-muted-foreground mt-1">
-                      <span className="font-medium">
-                        {document.uploadedByUser?.email || t("unknown")}
-                      </span>
-                      {" • "}
-                      {format(new Date(document.uploadedAt), "PPP p")}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {document.fileName} ({formatFileSize(document.fileSize)})
-                    </div>
-                  </div>
+                  <History className="h-8 w-8 mx-auto mb-2 opacity-50 animate-pulse" />
                 </div>
               )}
             </div>

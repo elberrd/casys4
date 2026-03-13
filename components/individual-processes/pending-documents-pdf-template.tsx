@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
   },
   colNum: { width: "7%" },
   colName: { width: "51%" },
+  colNameWide: { width: "71%" },
   colDeadline: { width: "20%", textAlign: "center" },
   colStatus: { width: "22%", textAlign: "right" },
   // Doc rows
@@ -211,19 +212,21 @@ export function PendingDocumentsPdfTemplate({
   generatedAt,
   labels,
 }: PendingDocumentsPdfTemplateProps) {
-  const renderTableHeader = () => (
+  const renderTableHeader = (showDeadline: boolean) => (
     <View style={styles.tableHeader}>
       <View style={styles.colNum}>
         <Text style={styles.tableHeaderText}>#</Text>
       </View>
-      <View style={styles.colName}>
+      <View style={showDeadline ? styles.colName : styles.colNameWide}>
         <Text style={styles.tableHeaderText}>{labels.document}</Text>
       </View>
-      <View style={styles.colDeadline}>
-        <Text style={[styles.tableHeaderText, { textAlign: "center" }]}>
-          {labels.deadline}
-        </Text>
-      </View>
+      {showDeadline && (
+        <View style={styles.colDeadline}>
+          <Text style={[styles.tableHeaderText, { textAlign: "center" }]}>
+            {labels.deadline}
+          </Text>
+        </View>
+      )}
       <View style={styles.colStatus}>
         <Text style={[styles.tableHeaderText, { textAlign: "right" }]}>
           {labels.status}
@@ -237,7 +240,8 @@ export function PendingDocumentsPdfTemplate({
     statusLabel: string,
     isExigencia: boolean,
     deadlineDate?: string,
-    startIndex = 1
+    startIndex = 1,
+    showDeadline = true
   ) =>
     docs.map((doc, i) => (
       <View
@@ -248,7 +252,7 @@ export function PendingDocumentsPdfTemplate({
         <View style={styles.colNum}>
           <Text style={styles.docNumber}>{startIndex + i}.</Text>
         </View>
-        <View style={styles.colName}>
+        <View style={showDeadline ? styles.colName : styles.colNameWide}>
           <Text style={styles.docName}>{doc.name}</Text>
           {doc.versionNotes && (
             <Text style={{ fontSize: 7.5, color: "#718096", fontFamily: "Helvetica-Oblique", marginTop: 2 }}>
@@ -256,13 +260,15 @@ export function PendingDocumentsPdfTemplate({
             </Text>
           )}
         </View>
-        <View style={styles.colDeadline}>
-          {deadlineDate && (
-            <Text style={{ fontSize: 8, color: ORANGE, textAlign: "center" }}>
-              {deadlineDate}
-            </Text>
-          )}
-        </View>
+        {showDeadline && (
+          <View style={styles.colDeadline}>
+            {deadlineDate && (
+              <Text style={{ fontSize: 8, color: ORANGE, textAlign: "center" }}>
+                {deadlineDate}
+              </Text>
+            )}
+          </View>
+        )}
         <View style={[styles.colStatus, { alignItems: "flex-end" }]}>
           <Text
             style={[
@@ -329,12 +335,14 @@ export function PendingDocumentsPdfTemplate({
                 {labels.exigenciaSection}
               </Text>
               <Text style={styles.exigenciaSubtitle}>{group.date}</Text>
-              {renderTableHeader()}
+              {renderTableHeader(true)}
               {renderDocList(
                 group.documents,
                 labels.exigenciaSection,
                 true,
-                formattedDeadline
+                formattedDeadline,
+                1,
+                true
               )}
             </View>
           )
@@ -344,10 +352,13 @@ export function PendingDocumentsPdfTemplate({
         {reportMode !== "exigencias" && pendingDocuments.length > 0 && (
           <View>
             <Text style={styles.sectionTitle}>{labels.pendingSectionTitle}</Text>
-            {renderTableHeader()}
+            {renderTableHeader(false)}
             {renderDocList(
               pendingDocuments,
               labels.pendingSection,
+              false,
+              undefined,
+              1,
               false
             )}
           </View>

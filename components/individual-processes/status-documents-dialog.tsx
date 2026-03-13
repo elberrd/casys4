@@ -40,6 +40,12 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LooseDocumentUploadDialog } from "./loose-document-upload-dialog";
 import { TypedDocumentUploadDialog } from "./typed-document-upload-dialog";
 import { DocumentReviewDialog } from "./document-review-dialog";
@@ -314,7 +320,10 @@ export function StatusDocumentsDialog({
                     className="flex cursor-pointer flex-col gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between"
                     onClick={() => {
                       if (doc.status === "not_started") {
-                        if (doc.documentTypeId) {
+                        // If there's version history (created after rejection), open review dialog
+                        if (doc.version > 1) {
+                          handleOpenReview(doc._id);
+                        } else if (doc.documentTypeId) {
                           handleOpenUpload(doc);
                         } else {
                           handleOpenPendingUpload(doc);
@@ -403,6 +412,18 @@ export function StatusDocumentsDialog({
                               <Upload className="h-4 w-4" />
                             </Button>
                           )}
+                          {/* View history for docs with previous versions */}
+                          {doc.version > 1 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenReview(doc._id)}
+                              title={tDoc("viewDetailsTooltip")}
+                              className="cursor-pointer"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                           {userRole === "admin" && (
                             <Button
                               size="sm"
@@ -416,28 +437,60 @@ export function StatusDocumentsDialog({
                           )}
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleOpenReview(doc._id)}
-                            title={tDoc("viewDetails")}
-                            className="cursor-pointer"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {doc.status !== "approved" && userRole === "admin" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleOpenDelete(doc)}
-                              title={tDoc("deleteDocument")}
-                              className="cursor-pointer text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
+                        <TooltipProvider delayDuration={300}>
+                          <div className="flex flex-wrap gap-1">
+                            {/* Upload new version for rejected docs in exigência */}
+                            {doc.status === "rejected" && caseStatusCode === "exigencia" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if (doc.documentTypeId) {
+                                        handleOpenUpload(doc);
+                                      } else {
+                                        handleOpenPendingUpload(doc);
+                                      }
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Upload className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{tDoc("uploadNewVersionTooltip")}</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenReview(doc._id)}
+                                  className="cursor-pointer"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{tDoc("viewDetailsTooltip")}</TooltipContent>
+                            </Tooltip>
+                            {doc.status !== "approved" && userRole === "admin" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleOpenDelete(doc)}
+                                    className="cursor-pointer text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{tDoc("unlinkTooltip")}</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TooltipProvider>
                       )}
                     </div>
                   </div>

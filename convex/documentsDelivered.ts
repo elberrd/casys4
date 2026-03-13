@@ -3458,3 +3458,307 @@ export const linkToStatus = mutation({
     return documentId;
   },
 });
+
+/**
+ * Mutation to link an existing document to a status entry AND reject it.
+ * Used for "exigência" flows where selecting an existing document implies rejection.
+ */
+export const linkToStatusAndReject = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    individualProcessStatusId: v.id("individualProcessStatuses"),
+    rejectionReason: v.string(),
+  },
+  handler: async (ctx, { documentId, individualProcessStatusId, rejectionReason }) => {
+    const adminProfile = await requireAdmin(ctx);
+
+    if (!rejectionReason || rejectionReason.trim() === "") {
+      throw new Error("Rejection reason is required");
+    }
+
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    const statusEntry = await ctx.db.get(individualProcessStatusId);
+    if (!statusEntry) {
+      throw new Error("Status entry not found");
+    }
+
+    // Ensure both belong to the same individual process
+    if (document.individualProcessId !== statusEntry.individualProcessId) {
+      throw new Error("Document and status entry belong to different processes");
+    }
+
+    const previousStatus = document.status;
+
+    // Link to status + reject + mark as not latest
+    await ctx.db.patch(documentId, {
+      individualProcessStatusId,
+      status: "rejected",
+      reviewedBy: adminProfile.userId,
+      reviewedAt: Date.now(),
+      rejectionReason,
+      isLatest: false,
+    });
+
+    // Record status history
+    await ctx.db.insert("documentStatusHistory", {
+      documentId,
+      previousStatus,
+      newStatus: "rejected",
+      changedBy: adminProfile.userId!,
+      changedAt: Date.now(),
+      notes: rejectionReason,
+      metadata: {
+        fileName: document.fileName,
+        version: document.version,
+      },
+    });
+
+    // Auto-create new version (not_started) awaiting re-upload
+    const newDocId = await ctx.db.insert("documentsDelivered", {
+      individualProcessId: document.individualProcessId,
+      documentTypeId: document.documentTypeId,
+      documentRequirementId: document.documentRequirementId,
+      documentTypeLegalFrameworkId: document.documentTypeLegalFrameworkId,
+      isRequired: document.isRequired,
+      personId: document.personId,
+      companyId: document.companyId,
+      individualProcessStatusId,
+      fileName: "",
+      fileUrl: "",
+      fileSize: 0,
+      mimeType: "",
+      status: "not_started",
+      uploadedBy: adminProfile.userId!,
+      uploadedAt: Date.now(),
+      version: document.version + 1,
+      isLatest: true,
+    });
+
+    // Auto-create conditions for the new version
+    if (document.documentTypeId) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documentDeliveredConditions.autoCreateForDocument,
+          {
+            documentsDeliveredId: newDocId,
+            documentTypeId: document.documentTypeId,
+            individualProcessId: document.individualProcessId,
+            previousDocumentsDeliveredId: documentId,
+          }
+        );
+      } catch (error) {
+        console.error("Failed to auto-create conditions after rejection:", error);
+      }
+    }
+
+    // Send notification to document uploader
+    try {
+      const documentType = document.documentTypeId
+        ? await ctx.db.get(document.documentTypeId)
+        : null;
+      const documentTypeName = documentType?.name || "Document";
+
+      await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+        userId: document.uploadedBy,
+        type: "document_rejected",
+        title: "Document Rejected",
+        message: `Your document "${documentTypeName}" was rejected: ${rejectionReason}`,
+        entityType: "document",
+        entityId: documentId,
+      });
+    } catch (error) {
+      console.error("Failed to create document rejection notification:", error);
+    }
+
+    // Log activity
+    try {
+      if (adminProfile.userId) {
+        const [individualProcess, documentType, person] = await Promise.all([
+          ctx.db.get(document.individualProcessId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
+          document.personId ? ctx.db.get(document.personId) : null,
+        ]);
+
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: adminProfile.userId,
+          action: "rejected",
+          entityType: "document",
+          entityId: documentId,
+          details: {
+            fileName: document.fileName,
+            documentType: documentType?.name,
+            personName: person ? getFullName(person) : undefined,
+            rejectionReason,
+            previousStatus,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+
+    return documentId;
+  },
+});
+
+/**
+ * Query to get unified document history (versions + status changes) for timeline display.
+ * Combines version creation events with status change events, sorted chronologically.
+ */
+export const getUnifiedDocumentHistory = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    documentTypeId: v.optional(v.id("documentTypes")),
+    documentRequirementId: v.optional(v.id("documentRequirements")),
+    documentId: v.optional(v.id("documentsDelivered")),
+  },
+  handler: async (ctx, { individualProcessId, documentTypeId, documentRequirementId, documentId }) => {
+    // Access control
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const collectiveProcess = individualProcess.collectiveProcessId
+      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      : null;
+
+    if (collectiveProcess?.companyId) {
+      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
+      if (!hasAccess) {
+        throw new Error("Access denied");
+      }
+    }
+
+    // Get all matching documents
+    let documents;
+    if (documentTypeId) {
+      // Typed document: match by type + requirement
+      const allDocs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+        .collect();
+      documents = allDocs.filter(
+        (doc) =>
+          doc.documentTypeId === documentTypeId &&
+          doc.documentRequirementId === documentRequirementId
+      );
+    } else if (documentId) {
+      // Loose document: just get by ID
+      const doc = await ctx.db.get(documentId);
+      documents = doc ? [doc] : [];
+    } else {
+      return [];
+    }
+
+    // Collect user IDs for batch enrichment
+    const userIdSet = new Set<string>();
+    documents.forEach((doc) => {
+      userIdSet.add(doc.uploadedBy);
+      if (doc.reviewedBy) userIdSet.add(doc.reviewedBy);
+    });
+
+    // Get all status history for all document versions
+    const allStatusHistory = await Promise.all(
+      documents.map((doc) =>
+        ctx.db
+          .query("documentStatusHistory")
+          .withIndex("by_document", (q) => q.eq("documentId", doc._id))
+          .collect()
+      )
+    );
+    const flatStatusHistory = allStatusHistory.flat();
+    flatStatusHistory.forEach((entry) => {
+      userIdSet.add(entry.changedBy);
+    });
+
+    // Batch resolve user profiles
+    const userIds = Array.from(userIdSet);
+    const userProfileMap = new Map<string, { fullName: string; email?: string }>();
+    await Promise.all(
+      userIds.map(async (userId) => {
+        const user = await ctx.db.get(userId as Id<"users">);
+        if (user) {
+          const profile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_userId", (q) => q.eq("userId", user._id))
+            .first();
+          userProfileMap.set(userId, {
+            fullName: profile?.fullName || user.email || "Unknown",
+            email: user.email,
+          });
+        }
+      })
+    );
+
+    // Build timeline entries
+    type TimelineEntry =
+      | {
+          type: "version_created";
+          timestamp: number;
+          version: number;
+          fileName: string;
+          fileSize: number;
+          status: string;
+          isLatest: boolean;
+          userName: string;
+          documentId: string;
+          versionNotes?: string;
+        }
+      | {
+          type: "status_change";
+          timestamp: number;
+          previousStatus?: string;
+          newStatus: string;
+          userName: string;
+          notes?: string;
+          version?: number;
+          documentId: string;
+        };
+
+    const timeline: TimelineEntry[] = [];
+
+    // Add version_created entries
+    for (const doc of documents) {
+      const userInfo = userProfileMap.get(doc.uploadedBy);
+      timeline.push({
+        type: "version_created",
+        timestamp: doc.uploadedAt,
+        version: doc.version,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        status: doc.status,
+        isLatest: doc.isLatest ?? false,
+        userName: userInfo?.fullName || "Unknown",
+        documentId: doc._id,
+        versionNotes: doc.versionNotes,
+      });
+    }
+
+    // Add status_change entries
+    for (const entry of flatStatusHistory) {
+      const userInfo = userProfileMap.get(entry.changedBy);
+      const metadata = entry.metadata as { version?: number } | undefined;
+      timeline.push({
+        type: "status_change",
+        timestamp: entry.changedAt,
+        previousStatus: entry.previousStatus,
+        newStatus: entry.newStatus,
+        userName: userInfo?.fullName || "Unknown",
+        notes: entry.notes,
+        version: metadata?.version,
+        documentId: entry.documentId,
+      });
+    }
+
+    // Sort ascending by timestamp
+    timeline.sort((a, b) => a.timestamp - b.timestamp);
+
+    return timeline;
+  },
+});
