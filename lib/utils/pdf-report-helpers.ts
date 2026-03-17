@@ -19,6 +19,15 @@ export interface PdfDocumentItem {
 
 export type PdfReportMode = "full" | "exigencias" | "pending"
 
+export interface PdfDocumentWithConditions {
+  id: string
+  name: string
+  status: string
+  statusLabel: string
+  isCompanyDocument: boolean
+  unfulfilledConditions: string[]
+}
+
 export interface PdfExigenciaGroup {
   date: string
   statusName: string

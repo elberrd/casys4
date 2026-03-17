@@ -2284,7 +2284,10 @@
       "document": "Documento",
       "deadline": "Prazo para envio",
       "status": "Status",
-      "filenameLabel": "Nome do arquivo"
+      "filenameLabel": "Nome do arquivo",
+      "unfulfilledConditionsSection": "Documentos com Condições Pendentes",
+      "unfulfilledConditions": "Condições não cumpridas",
+      "condition": "Condição"
     }
   },
   "InformationFields": {

@@ -17,6 +17,7 @@ import type {
   PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
+  PdfDocumentWithConditions,
   PdfExigenciaGroup,
 } from "@/lib/utils/pdf-report-helpers"
 
@@ -27,6 +28,7 @@ interface PendingDocumentsPdfDialogProps {
   processInfo: ProcessInfoForReport
   pendingDocuments: PdfDocumentItem[]
   exigenciaGroups: PdfExigenciaGroup[]
+  documentsWithUnfulfilledConditions: PdfDocumentWithConditions[]
 }
 
 type DialogPhase = "idle" | "generating" | "preview"
@@ -38,6 +40,7 @@ export function PendingDocumentsPdfDialog({
   processInfo,
   pendingDocuments,
   exigenciaGroups,
+  documentsWithUnfulfilledConditions,
 }: PendingDocumentsPdfDialogProps) {
   const t = useTranslations("DocumentChecklist")
   const [phase, setPhase] = useState<DialogPhase>("idle")
@@ -98,12 +101,16 @@ export function PendingDocumentsPdfDialog({
           document: t("pdfReport.document"),
           deadline: t("pdfReport.deadline"),
           status: t("pdfReport.status"),
+          unfulfilledConditionsSection: t("pdfReport.unfulfilledConditionsSection"),
+          unfulfilledConditions: t("pdfReport.unfulfilledConditions"),
+          condition: t("pdfReport.condition"),
         }
 
         const element = PendingDocumentsPdfTemplate({
           processInfo,
           pendingDocuments,
           exigenciaGroups,
+          documentsWithUnfulfilledConditions,
           reportMode,
           generatedAt,
           labels,

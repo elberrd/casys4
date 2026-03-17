@@ -9,6 +9,7 @@ import type {
   PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
+  PdfDocumentWithConditions,
   PdfExigenciaGroup,
 } from "@/lib/utils/pdf-report-helpers"
 
@@ -178,6 +179,7 @@ interface PendingDocumentsPdfTemplateProps {
   processInfo: ProcessInfoForReport
   pendingDocuments: PdfDocumentItem[]
   exigenciaGroups: PdfExigenciaGroup[]
+  documentsWithUnfulfilledConditions: PdfDocumentWithConditions[]
   reportMode: PdfReportMode
   generatedAt: string
   labels: {
@@ -201,6 +203,9 @@ interface PendingDocumentsPdfTemplateProps {
     document: string
     deadline: string
     status: string
+    unfulfilledConditionsSection: string
+    unfulfilledConditions: string
+    condition: string
   }
 }
 
@@ -208,6 +213,7 @@ export function PendingDocumentsPdfTemplate({
   processInfo,
   pendingDocuments,
   exigenciaGroups,
+  documentsWithUnfulfilledConditions,
   reportMode,
   generatedAt,
   labels,
@@ -361,6 +367,62 @@ export function PendingDocumentsPdfTemplate({
               1,
               false
             )}
+          </View>
+        )}
+
+        {/* Documents with Unfulfilled Conditions */}
+        {reportMode !== "exigencias" && documentsWithUnfulfilledConditions.length > 0 && (
+          <View>
+            <Text style={[styles.sectionTitle, { color: ORANGE }]}>
+              {labels.unfulfilledConditionsSection}
+            </Text>
+            {documentsWithUnfulfilledConditions.map((doc, i) => (
+              <View
+                key={doc.id}
+                style={[
+                  {
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: BORDER_COLOR,
+                  },
+                  i % 2 === 1 ? { backgroundColor: LIGHT_GRAY } : {},
+                ]}
+                wrap={false}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
+                  <Text style={{ fontSize: 9, color: "#718096", width: "7%" }}>{i + 1}.</Text>
+                  <Text style={{ fontSize: 9, color: "#2d3748", width: "63%", fontFamily: "Helvetica-Bold" }}>
+                    {doc.name}
+                  </Text>
+                  <View style={{ width: "30%", alignItems: "flex-end" }}>
+                    <Text
+                      style={[
+                        styles.statusBadge,
+                        {
+                          color: ORANGE,
+                          backgroundColor: ORANGE_BG,
+                          borderWidth: 0.5,
+                          borderColor: ORANGE,
+                        },
+                      ]}
+                    >
+                      {doc.statusLabel}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ paddingLeft: "7%", marginTop: 2 }}>
+                  <Text style={{ fontSize: 8, color: ORANGE, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                    {labels.unfulfilledConditions}:
+                  </Text>
+                  {doc.unfulfilledConditions.map((condition, ci) => (
+                    <Text key={ci} style={{ fontSize: 8, color: "#4a5568", marginLeft: 8, marginBottom: 1 }}>
+                      • {condition}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ))}
           </View>
         )}
 

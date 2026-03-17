@@ -72,6 +72,7 @@ import type {
   PdfReportMode,
   ProcessInfoForReport,
   PdfDocumentItem,
+  PdfDocumentWithConditions,
   PdfExigenciaGroup,
 } from "@/lib/utils/pdf-report-helpers"
 
@@ -475,7 +476,34 @@ export function DocumentChecklistCard({
     }))
     .filter((g) => g.documents.length > 0)
 
-  const pdfEligibleCount = pdfPendingDocuments.length + pdfExigenciaGroups.reduce((sum, g) => sum + g.documents.length, 0)
+  // Collect non-approved received documents with unfulfilled conditions
+  const pdfDocumentsWithUnfulfilledConditions: PdfDocumentWithConditions[] = filledDocuments
+    .filter((doc) => {
+      if (doc.status === "approved") return false
+      if (doc.excludedFromReport) return false
+      if (!doc.conditionsSummary) return false
+      return doc.conditionsSummary.fulfilled < doc.conditionsSummary.total
+    })
+    .map((doc) => {
+      const unfulfilled = doc.conditionsSummary!.conditions
+        .filter((c: { name: string; isFulfilled: boolean }) => !c.isFulfilled)
+        .map((c: { name: string; isFulfilled: boolean }) => c.name)
+      const statusLabels: Record<string, string> = {
+        uploaded: t("status.uploaded"),
+        under_review: t("status.underReview"),
+        rejected: t("status.rejected"),
+      }
+      return {
+        id: doc._id,
+        name: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
+        status: doc.status,
+        statusLabel: statusLabels[doc.status] || doc.status,
+        isCompanyDocument: doc.documentType?.isCompanyDocument === true,
+        unfulfilledConditions: unfulfilled,
+      }
+    })
+
+  const pdfEligibleCount = pdfPendingDocuments.length + pdfExigenciaGroups.reduce((sum, g) => sum + g.documents.length, 0) + pdfDocumentsWithUnfulfilledConditions.length
 
   const getStatusBadge = (status: string, isCritical?: boolean) => {
     switch (status) {
@@ -1269,6 +1297,7 @@ export function DocumentChecklistCard({
           processInfo={processInfo}
           pendingDocuments={pdfPendingDocuments}
           exigenciaGroups={pdfExigenciaGroups}
+          documentsWithUnfulfilledConditions={pdfDocumentsWithUnfulfilledConditions}
         />
       )}
     </Card>

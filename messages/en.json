@@ -2260,7 +2260,10 @@
       "document": "Document",
       "deadline": "Submission Deadline",
       "status": "Status",
-      "filenameLabel": "File name"
+      "filenameLabel": "File name",
+      "unfulfilledConditionsSection": "Documents with Unfulfilled Conditions",
+      "unfulfilledConditions": "Unfulfilled conditions",
+      "condition": "Condition"
     }
   },
   "InformationFields": {
