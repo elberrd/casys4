@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { toast } from "sonner"
 import { FixedActionButtons } from "@/components/fixed-action-buttons"
 import { getFullName } from "@/lib/utils/person-names"
+import { loadPersistedFilters, persistFilters, clearPersistedFilters } from "@/hooks/use-persisted-filters"
 
 export function IndividualProcessesClient() {
   const userProfile = useQuery(api.userProfiles.getCurrentUser)
@@ -39,32 +40,34 @@ export function IndividualProcessesClient() {
   const router = useRouter()
   const locale = useLocale()
 
+  const [persisted] = useState(() => loadPersistedFilters())
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedProcessId, setSelectedProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [fillFieldsModalOpen, setFillFieldsModalOpen] = useState(false)
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"individualProcessStatuses"> | undefined>(undefined)
   const [createFromDialogOpen, setCreateFromDialogOpen] = useState(false)
   const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
-  const [filters, setFilters] = useState<Filter<string>[]>([])
-  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
-  const [selectedApplicants, setSelectedApplicants] = useState<string[]>([])
-  const [selectedUserApplicants, setSelectedUserApplicants] = useState<string[]>([])
-  const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>([])
-  const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>([])
-  const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>([])
-  const [isRnmModeActive, setIsRnmModeActive] = useState(false)
-  const [isUrgentModeActive, setIsUrgentModeActive] = useState(false)
-  const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState(false)
-  const [isExigenciaModeActive, setIsExigenciaModeActive] = useState(false)
+  const [filters, setFilters] = useState<Filter<string>[]>(() => persisted?.advancedFilters ?? [])
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>(() => persisted?.selectedCandidates ?? [])
+  const [selectedApplicants, setSelectedApplicants] = useState<string[]>(() => persisted?.selectedApplicants ?? [])
+  const [selectedUserApplicants, setSelectedUserApplicants] = useState<string[]>(() => persisted?.selectedUserApplicants ?? [])
+  const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>(() => persisted?.selectedProgressStatuses ?? [])
+  const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>(() => persisted?.selectedAuthorizationTypes ?? [])
+  const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>(() => persisted?.selectedLegalFrameworks ?? [])
+  const [isRnmModeActive, setIsRnmModeActive] = useState<boolean>(() => persisted?.isRnmModeActive ?? false)
+  const [isUrgentModeActive, setIsUrgentModeActive] = useState<boolean>(() => persisted?.isUrgentModeActive ?? false)
+  const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState<boolean>(() => persisted?.isQualExpProfModeActive ?? false)
+  const [isExigenciaModeActive, setIsExigenciaModeActive] = useState<boolean>(() => persisted?.isExigenciaModeActive ?? false)
 
-  // For client users, activate "Exigência" filter by default on mount
+  // For client users, activate "Exigência" filter by default on mount (only if no persisted state)
   const [clientDefaultApplied, setClientDefaultApplied] = useState(false)
   useEffect(() => {
-    if (isClient && !clientDefaultApplied) {
+    if (isClient && !clientDefaultApplied && !persisted) {
       setIsExigenciaModeActive(true)
-      setClientDefaultApplied(true)
     }
-  }, [isClient, clientDefaultApplied])
+    setClientDefaultApplied(true)
+  }, [isClient, clientDefaultApplied, persisted])
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
   const [excelSnapshot, setExcelSnapshot] = useState<IndividualProcessesExportSnapshot>({
     columns: [],
@@ -84,7 +87,9 @@ export function IndividualProcessesClient() {
     notes: true,
   }
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => persisted?.columnVisibility ?? initialColumnVisibility
+  )
   const [selectedFilterName, setSelectedFilterName] = useState<string | null>(null)
   const [editingFilter, setEditingFilter] = useState<{
     _id: Id<"savedFilters">
@@ -295,6 +300,15 @@ export function IndividualProcessesClient() {
     return criteria
   }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility])
 
+  // Persist filter state to sessionStorage on every change
+  useEffect(() => {
+    if (hasActiveFilters) {
+      persistFilters(getCurrentFilterCriteria())
+    } else {
+      clearPersistedFilters()
+    }
+  }, [getCurrentFilterCriteria, hasActiveFilters])
+
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
     setSelectedCandidates([])
@@ -374,6 +388,8 @@ export function IndividualProcessesClient() {
     setSelectedFilterName(null)
     // Reset column visibility to initial state
     setColumnVisibility(initialColumnVisibilityRef.current)
+    // Clear persisted filter state
+    clearPersistedFilters()
 
     toast.success(tSavedFilters("success.filterCleared"), {
       closeButton: true,
