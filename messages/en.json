@@ -1967,6 +1967,8 @@
     "isActiveDescription": "Enable or disable this document type",
     "isCompanyDocument": "Company Document",
     "isCompanyDocumentDescription": "Company documents can be reused across processes of the same company",
+    "excludeFromReportByDefault": "Hide from report",
+    "excludeFromReportByDefaultDescription": "When adding this document type to a process, the 'Exclude from report' option will be checked automatically",
     "codeFormat": "Uppercase letters, numbers, and underscores only",
     "selectCategory": "Select a category",
     "categoryIdentity": "Identity",
@@ -2231,6 +2233,9 @@
     "pdfReportExigencias": "Requirements report",
     "pdfReportPending": "Pending documents report",
     "excludeFromReport": "Exclude from report",
+    "bulkExcludeFromReportTooltip": "Exclude from report all documents marked as 'Hide from report'",
+    "bulkExcludeFromReportSuccess": "{count, plural, one {# document excluded} other {# documents excluded}} from report",
+    "bulkExcludeFromReportNone": "No pending documents to exclude",
     "pdfReport": {
       "title": "Pending Documents Report",
       "generating": "Generating report...",
@@ -2254,7 +2259,8 @@
       "companyDoc": "Company",
       "document": "Document",
       "deadline": "Submission Deadline",
-      "status": "Status"
+      "status": "Status",
+      "filenameLabel": "File name"
     }
   },
   "InformationFields": {

@@ -89,6 +89,8 @@ export async function generateDocumentChecklist(
       continue;
     }
 
+    const documentType = await ctx.db.get(requirement.documentTypeId);
+
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: individualProcessId,
       documentTypeId: requirement.documentTypeId,
@@ -104,6 +106,7 @@ export async function generateDocumentChecklist(
       uploadedAt: Date.now(),
       version: 1,
       isLatest: true,
+      excludedFromReport: documentType?.excludeFromReportByDefault || undefined,
     });
 
     createdDocumentIds.push(documentId);
@@ -208,6 +211,7 @@ export async function generateDocumentChecklistByLegalFramework(
       uploadedAt: Date.now(),
       version: 1,
       isLatest: true,
+      excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
 
     createdDocumentIds.push(documentId);

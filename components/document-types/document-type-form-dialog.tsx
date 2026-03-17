@@ -38,7 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Building2, FileText } from "lucide-react";
+import { Plus, Building2, FileText, EyeOff } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -170,6 +170,7 @@ export function DocumentTypeFormDialog({
       isActive: documentType?.isActive ?? true,
       isCompanyDocument: documentType?.isCompanyDocument ?? false,
       isInformationOnly: documentType?.isInformationOnly ?? false,
+      excludeFromReportByDefault: documentType?.excludeFromReportByDefault ?? false,
       legalFrameworkAssociations: documentType?.legalFrameworkAssociations?.map((a) => ({
         legalFrameworkId: a.legalFrameworkId,
         isRequired: a.isRequired,
@@ -209,6 +210,7 @@ export function DocumentTypeFormDialog({
         isActive: documentType.isActive,
         isCompanyDocument: documentType.isCompanyDocument ?? false,
         isInformationOnly: documentType.isInformationOnly ?? false,
+        excludeFromReportByDefault: documentType.excludeFromReportByDefault ?? false,
         legalFrameworkAssociations: documentType.legalFrameworkAssociations?.map((a) => ({
           legalFrameworkId: a.legalFrameworkId,
           isRequired: a.isRequired,
@@ -263,6 +265,7 @@ export function DocumentTypeFormDialog({
           isActive: data.isActive,
           isCompanyDocument: data.isCompanyDocument,
           isInformationOnly: data.isInformationOnly,
+          excludeFromReportByDefault: data.excludeFromReportByDefault,
           legalFrameworkAssociations: associations,
         });
 
@@ -291,6 +294,7 @@ export function DocumentTypeFormDialog({
             isActive: data.isActive,
             isCompanyDocument: data.isCompanyDocument,
             isInformationOnly: data.isInformationOnly,
+            excludeFromReportByDefault: data.excludeFromReportByDefault,
             legalFrameworkAssociations: associations,
             fieldMappings: localFieldMappings,
           });
@@ -305,6 +309,7 @@ export function DocumentTypeFormDialog({
             isActive: data.isActive,
             isCompanyDocument: data.isCompanyDocument,
             isInformationOnly: data.isInformationOnly,
+            excludeFromReportByDefault: data.excludeFromReportByDefault,
             legalFrameworkAssociations: associations,
           });
         }
@@ -571,6 +576,30 @@ export function DocumentTypeFormDialog({
                     </FormLabel>
                     <FormDescription>
                       {t("isCompanyDocumentDescription")}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="excludeFromReportByDefault"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base flex items-center gap-2">
+                      <EyeOff className="h-4 w-4" />
+                      {t("excludeFromReportByDefault")}
+                    </FormLabel>
+                    <FormDescription>
+                      {t("excludeFromReportByDefaultDescription")}
                     </FormDescription>
                   </div>
                   <FormControl>

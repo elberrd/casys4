@@ -10,6 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Loader2, Download } from "lucide-react"
 import type {
   PdfReportMode,
@@ -40,6 +42,7 @@ export function PendingDocumentsPdfDialog({
   const t = useTranslations("DocumentChecklist")
   const [phase, setPhase] = useState<DialogPhase>("idle")
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [filename, setFilename] = useState("")
 
   const cleanup = useCallback(() => {
     if (blobUrl) {
@@ -55,6 +58,11 @@ export function PendingDocumentsPdfDialog({
       cleanup()
       return
     }
+
+    // Set default filename when dialog opens
+    const personName = processInfo.personFullName || "processo"
+    const dateSlug = new Date().toISOString().slice(0, 10)
+    setFilename(`${personName} - pendentes - ${dateSlug}`)
 
     let cancelled = false
 
@@ -125,21 +133,15 @@ export function PendingDocumentsPdfDialog({
 
   const handleDownload = () => {
     if (!blobUrl) return
-    const personSlug = (processInfo.personFullName || "processo")
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-    const dateSlug = new Date().toISOString().slice(0, 10)
-    const prefixMap: Record<PdfReportMode, string> = {
-      full: "relatorio-completo",
-      exigencias: "exigencias",
-      pending: "pendentes",
-    }
-    const filename = `${prefixMap[reportMode]}-${personSlug}-${dateSlug}.pdf`
+    // Sanitize filename: remove characters invalid in filenames
+    const sanitized = filename.trim().replace(/[<>:"/\\|?*]/g, "") || "report"
+    const downloadName = sanitized.endsWith(".pdf")
+      ? sanitized
+      : `${sanitized}.pdf`
 
     const a = document.createElement("a")
     a.href = blobUrl
-    a.download = filename
+    a.download = downloadName
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -155,6 +157,23 @@ export function PendingDocumentsPdfDialog({
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>{t("pdfReport.title")}</DialogTitle>
         </DialogHeader>
+
+        {phase === "preview" && (
+          <div className="px-6 pb-2">
+            <Label htmlFor="pdf-filename" className="text-xs text-muted-foreground mb-1">
+              {t("pdfReport.filenameLabel")}
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="pdf-filename"
+                value={filename}
+                onChange={(e) => setFilename(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <span className="text-sm text-muted-foreground shrink-0">.pdf</span>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 px-6">
           {phase === "generating" && (

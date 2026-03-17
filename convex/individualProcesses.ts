@@ -736,6 +736,17 @@ export const createFromExisting = mutation({
       // Fields to COPY from source process
       personId: sourceProcess.personId, // Candidato
       companyApplicantId: sourceProcess.companyApplicantId, // Empresa Requerente
+      userApplicantId: sourceProcess.userApplicantId, // Solicitante
+      userApplicantCompanyId: sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
+      processTypeId: sourceProcess.processTypeId, // Tipo de Autorização
+      legalFrameworkId: sourceProcess.legalFrameworkId, // Amparo Legal
+      consulateId: sourceProcess.consulateId, // Consulado
+      passportId: sourceProcess.passportId, // Passaporte
+      cboId: sourceProcess.cboId, // CBO
+      funcao: sourceProcess.funcao, // Função
+      qualification: sourceProcess.qualification, // Qualificação
+      professionalExperienceSince: sourceProcess.professionalExperienceSince, // Experiência profissional
+      firstEntryDate: sourceProcess.firstEntryDate, // Data de primeira entrada
 
       // Fields to SET/RESET for new process
       dateProcess: currentDate, // Current date
@@ -748,14 +759,9 @@ export const createFromExisting = mutation({
       createdAt: now,
       updatedAt: now,
 
-      // DO NOT copy: All other fields start fresh
-      // - processTypeId (Tipo de Autorização)
-      // - legalFrameworkId (Amparo Legal)
-      // - userApplicantId (Solicitante)
-      // - consulateId (Consulado)
-      // - passportId (Passaporte)
-      // - collectiveProcessId
-      // - protocolNumber, rnmNumber, government docs, deadlines, appointments, etc.
+      // NOT copied: collectiveProcessId, dou* fields, mreOfficeNumber, protocolNumber,
+      // rnmNumber, rnmProtocol, rnmDeadline, appointmentDateTime, deadline fields,
+      // salary fields, urgent, completedAt
     });
 
     // Create initial "Em Preparação" status record
@@ -788,18 +794,67 @@ export const createFromExisting = mutation({
       console.error("Failed to log initial status to history:", error);
     }
 
-    // Auto-generate document checklist for new process (template-based)
+    // Copy all documents from source process (instead of auto-generating checklist)
     try {
-      await generateDocumentChecklist(ctx, newProcessId);
-    } catch (error) {
-      console.error("Failed to generate document checklist:", error);
-    }
+      const sourceDocuments = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", args.sourceProcessId))
+        .collect();
 
-    // Auto-generate document checklist based on legal framework associations
-    try {
-      await generateDocumentChecklistByLegalFramework(ctx, newProcessId);
+      for (const doc of sourceDocuments) {
+        // Copy all fields except system fields and individualProcessStatusId
+        const newDocId = await ctx.db.insert("documentsDelivered", {
+          individualProcessId: newProcessId,
+          documentTypeId: doc.documentTypeId,
+          documentRequirementId: doc.documentRequirementId,
+          documentTypeLegalFrameworkId: doc.documentTypeLegalFrameworkId,
+          isRequired: doc.isRequired,
+          storageId: doc.storageId,
+          personId: doc.personId,
+          companyId: doc.companyId,
+          fileName: doc.fileName,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+          status: doc.status,
+          uploadedBy: doc.uploadedBy,
+          uploadedAt: doc.uploadedAt,
+          reviewedBy: doc.reviewedBy,
+          reviewedAt: doc.reviewedAt,
+          rejectionReason: doc.rejectionReason,
+          expiryDate: doc.expiryDate,
+          issueDate: doc.issueDate,
+          version: doc.version,
+          isLatest: doc.isLatest,
+          versionNotes: doc.versionNotes,
+          reusedFromDocumentId: doc.reusedFromDocumentId,
+          // individualProcessStatusId intentionally omitted (unlink from exigência)
+          documentName: doc.documentName,
+          isIllegible: doc.isIllegible,
+          excludedFromReport: doc.excludedFromReport,
+        });
+
+        // Copy document conditions
+        const conditions = await ctx.db
+          .query("documentDeliveredConditions")
+          .withIndex("by_documentDelivered", (q) => q.eq("documentsDeliveredId", doc._id))
+          .collect();
+
+        for (const condition of conditions) {
+          await ctx.db.insert("documentDeliveredConditions", {
+            documentsDeliveredId: newDocId,
+            documentTypeConditionId: condition.documentTypeConditionId,
+            isFulfilled: condition.isFulfilled,
+            fulfilledAt: condition.fulfilledAt,
+            fulfilledBy: condition.fulfilledBy,
+            expiresAt: condition.expiresAt,
+            notes: condition.notes,
+            createdAt: now,
+          });
+        }
+      }
     } catch (error) {
-      console.error("Failed to generate document checklist by legal framework:", error);
+      console.error("Failed to copy documents from source process:", error);
     }
 
     // Update source process to mark it as "Anterior"

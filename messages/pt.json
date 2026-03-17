@@ -1991,6 +1991,8 @@
     "isActiveDescription": "Ativar ou desativar este tipo de documento",
     "isCompanyDocument": "Documento de Empresa",
     "isCompanyDocumentDescription": "Documentos de empresa podem ser reutilizados entre processos da mesma empresa",
+    "excludeFromReportByDefault": "Não mostrar em relatório",
+    "excludeFromReportByDefaultDescription": "Ao adicionar este tipo de documento a um processo, a opção 'Excluir do relatório' será marcada automaticamente",
     "codeFormat": "Somente letras maiúsculas, números e sublinhados",
     "selectCategory": "Selecione uma categoria",
     "categoryIdentity": "Identidade",
@@ -2255,6 +2257,9 @@
     "pdfReportExigencias": "Relatório de exigências",
     "pdfReportPending": "Relatório de pendentes",
     "excludeFromReport": "Excluir do relatório",
+    "bulkExcludeFromReportTooltip": "Excluir do relatório os documentos marcados como 'Não mostrar em relatório'",
+    "bulkExcludeFromReportSuccess": "{count, plural, one {# documento excluído} other {# documentos excluídos}} do relatório",
+    "bulkExcludeFromReportNone": "Nenhum documento pendente para excluir",
     "pdfReport": {
       "title": "Relatório de Documentos Pendentes",
       "generating": "Gerando relatório...",
@@ -2278,7 +2283,8 @@
       "companyDoc": "Empresa",
       "document": "Documento",
       "deadline": "Prazo para envio",
-      "status": "Status"
+      "status": "Status",
+      "filenameLabel": "Nome do arquivo"
     }
   },
   "InformationFields": {

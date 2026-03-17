@@ -253,6 +253,7 @@ export default defineSchema({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    excludeFromReportByDefault: v.optional(v.boolean()),
   })
     .index("by_code", ["code"])
     .index("by_category", ["category"])

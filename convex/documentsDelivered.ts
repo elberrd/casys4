@@ -882,6 +882,7 @@ export const restoreVersion = mutation({
       versionNotes: notes,
       // Preserve exigência link from current latest version
       individualProcessStatusId: currentLatest?.individualProcessStatusId,
+      excludedFromReport: oldDocument.excludedFromReport,
     });
 
     // Auto-create conditions, carrying forward state from the restored version
@@ -1020,6 +1021,39 @@ export const toggleExcludeFromReport = mutation({
     });
 
     return documentId;
+  },
+});
+
+/**
+ * Bulk exclude from report all pending documents whose document type has excludeFromReportByDefault enabled
+ */
+export const bulkExcludeFromReportByDefault = mutation({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  handler: async (ctx, { individualProcessId }) => {
+    await getCurrentUserProfile(ctx);
+
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId)
+      )
+      .collect();
+
+    const latestDocs = documents.filter((doc) => doc.isLatest && doc.status === "not_started");
+
+    let count = 0;
+    for (const doc of latestDocs) {
+      if (!doc.documentTypeId) continue;
+      const documentType = await ctx.db.get(doc.documentTypeId);
+      if (documentType?.excludeFromReportByDefault && !doc.excludedFromReport) {
+        await ctx.db.patch(doc._id, { excludedFromReport: true });
+        count++;
+      }
+    }
+
+    return count;
   },
 });
 
@@ -1811,6 +1845,7 @@ export const uploadWithType = mutation({
       isRequired: false, // Manual uploads with type are optional by default
       versionNotes: args.versionNotes,
       individualProcessStatusId: args.individualProcessStatusId,
+      excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
 
     // Create status history for auto-approved documents
@@ -3018,6 +3053,7 @@ export const addMissingDocument = mutation({
       uploadedAt: Date.now(),
       version: 1,
       isLatest: true,
+      excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
 
     // Log activity
@@ -3113,6 +3149,7 @@ export const syncMissingDocuments = mutation({
         uploadedAt: Date.now(),
         version: 1,
         isLatest: true,
+        excludedFromReport: documentType.excludeFromReportByDefault || undefined,
       });
       syncedCount++;
     }
@@ -3315,6 +3352,9 @@ export const submitInformationFields = mutation({
       ? await ctx.db.get(process.collectiveProcessId)
       : null;
 
+    // Fetch document type for excludeFromReportByDefault
+    const documentType = args.documentTypeId ? await ctx.db.get(args.documentTypeId) : null;
+
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
       documentTypeId: args.documentTypeId,
@@ -3333,6 +3373,7 @@ export const submitInformationFields = mutation({
       reviewedAt: now,
       version: 1,
       isLatest: true,
+      excludedFromReport: documentType?.excludeFromReportByDefault || undefined,
     });
 
     return documentId;
@@ -3536,6 +3577,7 @@ export const linkToStatusAndReject = mutation({
       uploadedAt: Date.now(),
       version: document.version + 1,
       isLatest: true,
+      excludedFromReport: document.excludedFromReport,
     });
 
     // Auto-create conditions for the new version

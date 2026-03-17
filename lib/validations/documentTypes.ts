@@ -57,6 +57,7 @@ export const documentTypeSchema = z.object({
   isActive: z.boolean().optional(),
   isCompanyDocument: z.boolean().optional(),
   isInformationOnly: z.boolean().optional(),
+  excludeFromReportByDefault: z.boolean().optional(),
   legalFrameworkAssociations: z.array(legalFrameworkAssociationSchema).optional(),
 });
 

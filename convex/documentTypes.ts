@@ -151,6 +151,7 @@ export const create = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -189,6 +190,7 @@ export const create = mutation({
       isActive: args.isActive ?? true,
       isCompanyDocument: args.isCompanyDocument ?? false,
       isInformationOnly: args.isInformationOnly ?? false,
+      excludeFromReportByDefault: args.excludeFromReportByDefault ?? false,
     });
 
     // Create legal framework associations if provided
@@ -238,6 +240,7 @@ export const update = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -294,6 +297,7 @@ export const update = mutation({
       ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
       ...(updateData.isCompanyDocument !== undefined && { isCompanyDocument: updateData.isCompanyDocument }),
       ...(updateData.isInformationOnly !== undefined && { isInformationOnly: updateData.isInformationOnly }),
+      ...(updateData.excludeFromReportByDefault !== undefined && { excludeFromReportByDefault: updateData.excludeFromReportByDefault }),
     });
 
     // Update legal framework associations if provided
@@ -405,6 +409,7 @@ export const createWithFieldMappings = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
@@ -455,6 +460,7 @@ export const createWithFieldMappings = mutation({
       isActive: args.isActive ?? true,
       isCompanyDocument: args.isCompanyDocument ?? false,
       isInformationOnly: args.isInformationOnly ?? false,
+      excludeFromReportByDefault: args.excludeFromReportByDefault ?? false,
     });
 
     // Create legal framework associations if provided

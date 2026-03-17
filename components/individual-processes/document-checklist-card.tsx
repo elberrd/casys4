@@ -43,6 +43,7 @@ import {
   Check,
   X,
   Link2,
+  EyeOff,
 } from "lucide-react"
 import {
   Tooltip,
@@ -203,6 +204,7 @@ export function DocumentChecklistCard({
   const [pdfReportMode, setPdfReportMode] = useState<PdfReportMode | null>(null)
   const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
   const toggleExcludeFromReportMutation = useMutation(api.documentsDelivered.toggleExcludeFromReport)
+  const bulkExcludeFromReportByDefaultMutation = useMutation(api.documentsDelivered.bulkExcludeFromReportByDefault)
 
   const openUploadDialog = (doc: any) => {
     setDialogs(prev => ({ ...prev, upload: { open: true, document: doc } }))
@@ -1000,6 +1002,32 @@ export function DocumentChecklistCard({
               <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
                 {t("unfilledDocuments")}
+                {processInfo && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={async () => {
+                          const count = await bulkExcludeFromReportByDefaultMutation({
+                            individualProcessId,
+                          })
+                          if (count > 0) {
+                            toast.success(t("bulkExcludeFromReportSuccess", { count }))
+                          } else {
+                            toast.info(t("bulkExcludeFromReportNone"))
+                          }
+                        }}
+                      >
+                        <EyeOff className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p className="text-xs">{t("bulkExcludeFromReportTooltip")}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 <Badge variant="outline" className="sm:ml-auto">
                   {unfilledDocuments.length}
                 </Badge>
