@@ -2289,7 +2289,8 @@
       "filenameLabel": "Nome do arquivo",
       "unfulfilledConditionsSection": "Documentos com Condições Pendentes",
       "unfulfilledConditions": "Condições não cumpridas",
-      "condition": "Condição"
+      "condition": "Condição",
+      "requirementReason": "Motivo da exigência"
     }
   },
   "InformationFields": {

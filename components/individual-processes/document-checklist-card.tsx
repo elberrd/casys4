@@ -472,6 +472,7 @@ export function DocumentChecklistCard({
           isCompanyDocument: doc.documentType?.isCompanyDocument === true,
           responsibleParty: (doc as any).responsibleParty,
           versionNotes: doc.versionNotes,
+          exigenciaReason: doc.previousRejectionReason,
         })),
     }))
     .filter((g) => g.documents.length > 0)
@@ -921,6 +922,9 @@ export function DocumentChecklistCard({
                     <DropdownMenuItem onClick={() => setPdfReportMode("exigencias")}>
                       {t("pdfReportExigencias")}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPdfReportMode("exigencias_atuais")}>
+                      {t("pdfReportExigenciasAtuais")}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setPdfReportMode("pending")}>
                       {t("pdfReportPending")}
                     </DropdownMenuItem>
@@ -1030,35 +1034,37 @@ export function DocumentChecklistCard({
               <h3 className="text-sm font-semibold text-muted-foreground flex flex-wrap items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
                 {t("unfilledDocuments")}
-                {processInfo && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={async () => {
-                          const count = await bulkExcludeFromReportByDefaultMutation({
-                            individualProcessId,
-                          })
-                          if (count > 0) {
-                            toast.success(t("bulkExcludeFromReportSuccess", { count }))
-                          } else {
-                            toast.info(t("bulkExcludeFromReportNone"))
-                          }
-                        }}
-                      >
-                        <EyeOff className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p className="text-xs">{t("bulkExcludeFromReportTooltip")}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                <Badge variant="outline" className="sm:ml-auto">
-                  {unfilledDocuments.length}
-                </Badge>
+                <span className="flex items-center gap-1 sm:ml-auto">
+                  {processInfo && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={async () => {
+                            const count = await bulkExcludeFromReportByDefaultMutation({
+                              individualProcessId,
+                            })
+                            if (count > 0) {
+                              toast.success(t("bulkExcludeFromReportSuccess", { count }))
+                            } else {
+                              toast.info(t("bulkExcludeFromReportNone"))
+                            }
+                          }}
+                        >
+                          <EyeOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">{t("bulkExcludeFromReportTooltip")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Badge variant="outline">
+                    {unfilledDocuments.length}
+                  </Badge>
+                </span>
               </h3>
               <div className="space-y-2">
                 {unfilledDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
@@ -1293,10 +1299,10 @@ export function DocumentChecklistCard({
         <PendingDocumentsPdfDialog
           open={!!pdfReportMode}
           onOpenChange={(open) => { if (!open) setPdfReportMode(null) }}
-          reportMode={pdfReportMode ?? "full"}
+          reportMode={pdfReportMode === "exigencias_atuais" ? "exigencias" : (pdfReportMode ?? "full")}
           processInfo={processInfo}
           pendingDocuments={pdfPendingDocuments}
-          exigenciaGroups={pdfExigenciaGroups}
+          exigenciaGroups={pdfReportMode === "exigencias_atuais" ? pdfExigenciaGroups.slice(0, 1) : pdfExigenciaGroups}
           documentsWithUnfulfilledConditions={pdfDocumentsWithUnfulfilledConditions}
         />
       )}

@@ -15,9 +15,10 @@ export interface PdfDocumentItem {
   isCompanyDocument: boolean
   responsibleParty?: string
   versionNotes?: string
+  exigenciaReason?: string
 }
 
-export type PdfReportMode = "full" | "exigencias" | "pending"
+export type PdfReportMode = "full" | "exigencias" | "exigencias_atuais" | "pending"
 
 export interface PdfDocumentWithConditions {
   id: string

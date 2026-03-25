@@ -2265,7 +2265,8 @@
       "filenameLabel": "File name",
       "unfulfilledConditionsSection": "Documents with Unfulfilled Conditions",
       "unfulfilledConditions": "Unfulfilled conditions",
-      "condition": "Condition"
+      "condition": "Condition",
+      "requirementReason": "Requirement reason"
     }
   },
   "InformationFields": {

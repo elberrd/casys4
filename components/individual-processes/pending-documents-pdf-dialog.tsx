@@ -104,6 +104,7 @@ export function PendingDocumentsPdfDialog({
           unfulfilledConditionsSection: t("pdfReport.unfulfilledConditionsSection"),
           unfulfilledConditions: t("pdfReport.unfulfilledConditions"),
           condition: t("pdfReport.condition"),
+          requirementReason: t("pdfReport.requirementReason"),
         }
 
         const element = PendingDocumentsPdfTemplate({

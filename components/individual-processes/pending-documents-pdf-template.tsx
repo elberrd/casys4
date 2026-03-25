@@ -206,6 +206,7 @@ interface PendingDocumentsPdfTemplateProps {
     unfulfilledConditionsSection: string
     unfulfilledConditions: string
     condition: string
+    requirementReason: string
   }
 }
 
@@ -260,6 +261,11 @@ export function PendingDocumentsPdfTemplate({
         </View>
         <View style={showDeadline ? styles.colName : styles.colNameWide}>
           <Text style={styles.docName}>{doc.name}</Text>
+          {doc.exigenciaReason && (
+            <Text style={{ fontSize: 7.5, color: ORANGE, fontFamily: "Helvetica-Oblique", marginTop: 2 }}>
+              {doc.exigenciaReason}
+            </Text>
+          )}
           {doc.versionNotes && (
             <Text style={{ fontSize: 7.5, color: "#718096", fontFamily: "Helvetica-Oblique", marginTop: 2 }}>
               {doc.versionNotes}
