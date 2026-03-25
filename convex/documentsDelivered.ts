@@ -160,10 +160,23 @@ export const listByStatus = query({
           ? await ctx.db.get(doc.uploadedBy)
           : null;
 
+        // Find previous version's rejection reason
+        let previousRejectionReason: string | undefined;
+        if (doc.version > 1) {
+          const previousVersion = documents.find(
+            (d) =>
+              d.documentTypeId === doc.documentTypeId &&
+              d.documentRequirementId === doc.documentRequirementId &&
+              d.version === doc.version - 1
+          );
+          previousRejectionReason = previousVersion?.rejectionReason;
+        }
+
         return {
           ...doc,
           documentType,
           uploadedByUser,
+          previousRejectionReason,
         };
       }),
     );
@@ -2338,6 +2351,22 @@ export const listGroupedByCategory = query({
             .filter((v): v is string => v !== null);
         }
 
+        // Find previous version's rejection reason (exigência reason)
+        let previousRejectionReason: string | undefined;
+        if (doc.version > 1 && doc.individualProcessStatusId) {
+          const previousVersion = await ctx.db
+            .query("documentsDelivered")
+            .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+            .filter((q) =>
+              q.and(
+                q.eq(q.field("documentTypeId"), doc.documentTypeId),
+                q.eq(q.field("version"), doc.version - 1)
+              )
+            )
+            .first();
+          previousRejectionReason = previousVersion?.rejectionReason;
+        }
+
         // Enrich linked status
         let linkedStatus = undefined;
         if (doc.individualProcessStatusId) {
@@ -2368,6 +2397,7 @@ export const listGroupedByCategory = query({
           conditionsSummary,
           infoFieldValues,
           linkedStatus,
+          previousRejectionReason,
         };
       }),
     );
