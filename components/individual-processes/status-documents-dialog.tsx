@@ -353,6 +353,11 @@ export function StatusDocumentsDialog({
                             </Badge>
                           )}
                         </div>
+                        {doc.previousRejectionReason && (
+                          <p className="mt-1 text-xs text-destructive [overflow-wrap:anywhere]">
+                            {tDoc("requirementReason")}: {doc.previousRejectionReason}
+                          </p>
+                        )}
                         {doc.versionNotes && (
                           <p className="mt-1 text-xs text-muted-foreground italic [overflow-wrap:anywhere]">
                             {doc.versionNotes}
