@@ -505,7 +505,7 @@ export const approve = mutation({
       .withIndex("by_documentDelivered", (q) => q.eq("documentsDeliveredId", id))
       .collect();
 
-    if (conditions.length > 0) {
+    if (conditions.length > 0 && !document.bypassConditions) {
       const now = Date.now();
       const unfulfilledRequired: string[] = [];
       const expiredConditions: string[] = [];
@@ -1027,6 +1027,30 @@ export const toggleExcludeFromReport = mutation({
 
     await ctx.db.patch(documentId, {
       excludedFromReport: !document.excludedFromReport,
+    });
+
+    return documentId;
+  },
+});
+
+/**
+ * Toggle bypass conditions for a document (admin only)
+ * When bypassed, all conditions are treated as fulfilled
+ */
+export const toggleBypassConditions = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+  },
+  handler: async (ctx, { documentId }) => {
+    await requireAdmin(ctx);
+
+    const document = await ctx.db.get(documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    await ctx.db.patch(documentId, {
+      bypassConditions: !document.bypassConditions,
     });
 
     return documentId;
@@ -2327,6 +2351,16 @@ export const listGroupedByCategory = query({
               };
             }
           }
+        }
+
+        // Override conditions summary when bypass is active
+        if (doc.bypassConditions && conditionsSummary) {
+          conditionsSummary = {
+            ...conditionsSummary,
+            fulfilled: conditionsSummary.total,
+            conditions: conditionsSummary.conditions.map((c: { name: string; isFulfilled: boolean }) => ({ ...c, isFulfilled: true })),
+            bypassed: true,
+          };
         }
 
         // For info-only documents, fetch field values summary
