@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { useMutation } from "convex/react"
+import { useState, useRef, useMemo } from "react"
+import { useMutation, useQuery } from "convex/react"
 import { useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -20,8 +20,15 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Loader2, Upload, File, X, CheckCircle } from "lucide-react"
+import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, ClipboardCheck } from "lucide-react"
 import { formatFileSize } from "@/lib/validations/documents-delivered"
 
 interface UploadNewVersionDialogProps {
@@ -56,11 +63,29 @@ export function UploadNewVersionDialog({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [expiryDate, setExpiryDate] = useState<string>("")
+  const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
+  const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
+  const [isIllegible, setIsIllegible] = useState(false)
+  const [illegibleNotes, setIllegibleNotes] = useState("")
+  const [autoApprove, setAutoApprove] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
   const uploadDocument = useMutation(api.documentsDelivered.upload)
+
+  // Fetch conditions for this document type
+  const conditions = useQuery(
+    api.documentTypeConditions.listActiveByDocumentType,
+    { documentTypeId }
+  )
+
+  const hasUnfulfilledRequiredConditions = useMemo(() => {
+    if (!conditions || conditions.length === 0) return false
+    return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id))
+  }, [conditions, fulfilledConditionIds])
+
+  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions
 
   const nextVersion = currentVersion + 1
 
@@ -68,10 +93,12 @@ export function UploadNewVersionDialog({
     const file = event.target.files?.[0]
     if (!file) return
     setSelectedFile(file)
+    setAutoApprove(true)
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
+    setAutoApprove(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -112,7 +139,14 @@ export function UploadNewVersionDialog({
         fileSize: selectedFile.size,
         mimeType: selectedFile.type,
         expiryDate: expiryDate || undefined,
+        issueDate: issueDate || undefined,
         versionNotes: versionNotes || undefined,
+        preFulfilledConditionIds: fulfilledConditionIds.size > 0
+          ? Array.from(fulfilledConditionIds) as any
+          : undefined,
+        isIllegible: isIllegible || undefined,
+        rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
+        autoApprove: autoApprove || undefined,
       })
 
       setUploadProgress(100)
@@ -122,7 +156,12 @@ export function UploadNewVersionDialog({
 
       handleRemoveFile()
       setExpiryDate("")
+      setIssueDate("")
       setVersionNotes("")
+      setFulfilledConditionIds(new Set())
+      setIsIllegible(false)
+      setIllegibleNotes("")
+      setAutoApprove(false)
       setUploadProgress(0)
     } catch (error) {
       console.error("Error uploading document:", error)
@@ -134,7 +173,7 @@ export function UploadNewVersionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -196,7 +235,22 @@ export function UploadNewVersionDialog({
             </div>
           )}
 
-          {/* Version notes */}
+          {/* Auto-approve checkbox */}
+          {selectedFile && !isIllegible && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="autoApprove"
+                checked={autoApprove}
+                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                disabled={isUploading}
+              />
+              <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
+                {t("autoApprove")}
+              </label>
+            </div>
+          )}
+
+          {/* Version notes (optional) */}
           <div className="space-y-2">
             <Label htmlFor="versionNotes">{t("versionNotes")} ({tCommon("optional")})</Label>
             <Textarea
@@ -205,12 +259,124 @@ export function UploadNewVersionDialog({
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
               maxLength={500}
-              rows={3}
+              rows={2}
               disabled={isUploading}
             />
           </div>
 
-          {/* Expiry date */}
+          {/* Illegible document option */}
+          <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950 p-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isIllegible"
+                checked={isIllegible}
+                onCheckedChange={(checked) => {
+                  setIsIllegible(checked === true)
+                  if (checked) setAutoApprove(false)
+                }}
+                disabled={isUploading}
+              />
+              <Label htmlFor="isIllegible" className="text-sm font-medium cursor-pointer">
+                {t("markAsIllegible")}
+              </Label>
+            </div>
+            {isIllegible && (
+              <>
+                <p className="text-xs text-orange-700 dark:text-orange-300 ml-6">
+                  {t("illegibleWarning")}
+                </p>
+                <Textarea
+                  value={illegibleNotes}
+                  onChange={(e) => setIllegibleNotes(e.target.value)}
+                  placeholder={t("illegibleNotesPlaceholder")}
+                  maxLength={500}
+                  rows={2}
+                  disabled={isUploading}
+                  className="ml-6 w-[calc(100%-1.5rem)]"
+                />
+              </>
+            )}
+          </div>
+
+          {/* Conditions checkboxes */}
+          {conditions && conditions.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                <Label>{t("conditions")}</Label>
+              </div>
+              <div className={cn("space-y-2 rounded-lg border p-3", isAutoApproveBlocked && "border-red-500 border-2")}>
+                {conditions.map((condition) => (
+                  <div key={condition._id} className="flex items-start gap-2">
+                    <Checkbox
+                      id={`condition-${condition._id}`}
+                      checked={fulfilledConditionIds.has(condition._id)}
+                      onCheckedChange={(checked) => {
+                        setFulfilledConditionIds((prev) => {
+                          const next = new Set(prev)
+                          if (checked) {
+                            next.add(condition._id)
+                          } else {
+                            next.delete(condition._id)
+                          }
+                          return next
+                        })
+                      }}
+                      disabled={isUploading}
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={`condition-${condition._id}`}
+                        className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {condition.name}
+                        {condition.isRequired && (
+                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
+                            {t("conditionRequired")}
+                          </Badge>
+                        )}
+                      </label>
+                      {condition.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {condition.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("conditionsHint")}
+                </p>
+                {isAutoApproveBlocked && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                    {t("conditionsRequiredForAutoApprove")}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Issue date (optional) */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="issueDate">{t("issueDate")} ({tCommon("optional")})</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  {t("issueDateTooltip")}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <DatePicker
+              value={issueDate}
+              onChange={(value) => setIssueDate(value || "")}
+              disabled={isUploading}
+            />
+          </div>
+
+          {/* Expiry date (optional) */}
           <div className="space-y-2">
             <Label htmlFor="expiryDate">{t("expiryDate")} ({tCommon("optional")})</Label>
             <DatePicker
@@ -243,11 +409,12 @@ export function UploadNewVersionDialog({
           </Button>
           <Button
             type="button"
+            variant={isIllegible ? "destructive" : "default"}
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={!selectedFile || isUploading || isAutoApproveBlocked}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("upload")}
+            {isIllegible ? t("uploadAsIllegible") : t("upload")}
           </Button>
         </DialogFooter>
       </DialogContent>

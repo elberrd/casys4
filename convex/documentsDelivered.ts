@@ -2302,6 +2302,31 @@ export const listGroupedByCategory = query({
               conditions,
             };
           }
+        } else if (doc.documentTypeId) {
+          // For not_started documents, derive conditions from the document type definition
+          const conditionLinks = await ctx.db
+            .query("documentTypeConditionLinks")
+            .withIndex("by_documentType", (q) =>
+              q.eq("documentTypeId", doc.documentTypeId!)
+            )
+            .collect();
+
+          if (conditionLinks.length > 0) {
+            const conditions: Array<{ name: string; isFulfilled: boolean }> = [];
+            for (const link of conditionLinks) {
+              const condition = await ctx.db.get(link.documentTypeConditionId);
+              if (condition && condition.isActive) {
+                conditions.push({ name: condition.name, isFulfilled: false });
+              }
+            }
+            if (conditions.length > 0) {
+              conditionsSummary = {
+                total: conditions.length,
+                fulfilled: 0,
+                conditions,
+              };
+            }
+          }
         }
 
         // For info-only documents, fetch field values summary
@@ -3445,7 +3470,7 @@ export const listAvailableForLinking = query({
       return true;
     });
 
-    // Enrich with document type
+    // Enrich with document type and conditions
     const enriched = await Promise.all(
       available.map(async (doc) => {
         const documentType = doc.documentTypeId
@@ -3471,6 +3496,59 @@ export const listAvailableForLinking = query({
           }
         }
 
+        // Compute conditions summary
+        let conditionsSummary = undefined;
+        if (doc.status !== "not_started") {
+          const docConditions = await ctx.db
+            .query("documentDeliveredConditions")
+            .withIndex("by_documentDelivered", (q) =>
+              q.eq("documentsDeliveredId", doc._id)
+            )
+            .collect();
+
+          if (docConditions.length > 0) {
+            const conditions = await Promise.all(
+              docConditions.map(async (dc) => {
+                const condition = await ctx.db.get(dc.documentTypeConditionId);
+                return {
+                  name: condition?.name ?? "",
+                  isFulfilled: dc.isFulfilled,
+                };
+              })
+            );
+            conditionsSummary = {
+              total: conditions.length,
+              fulfilled: conditions.filter((c) => c.isFulfilled).length,
+              conditions,
+            };
+          }
+        } else if (doc.documentTypeId) {
+          // For not_started documents, derive conditions from the document type definition
+          const conditionLinks = await ctx.db
+            .query("documentTypeConditionLinks")
+            .withIndex("by_documentType", (q) =>
+              q.eq("documentTypeId", doc.documentTypeId!)
+            )
+            .collect();
+
+          if (conditionLinks.length > 0) {
+            const conditions: Array<{ name: string; isFulfilled: boolean }> = [];
+            for (const link of conditionLinks) {
+              const condition = await ctx.db.get(link.documentTypeConditionId);
+              if (condition && condition.isActive) {
+                conditions.push({ name: condition.name, isFulfilled: false });
+              }
+            }
+            if (conditions.length > 0) {
+              conditionsSummary = {
+                total: conditions.length,
+                fulfilled: 0,
+                conditions,
+              };
+            }
+          }
+        }
+
         return {
           _id: doc._id,
           fileName: doc.fileName,
@@ -3482,6 +3560,7 @@ export const listAvailableForLinking = query({
             : null,
           individualProcessStatusId: doc.individualProcessStatusId,
           linkedStatus,
+          conditionsSummary,
         };
       })
     );

@@ -96,6 +96,9 @@ export function DocumentReviewDialog({
   const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
+  const [editingNotes, setEditingNotes] = useState("")
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
@@ -159,6 +162,7 @@ export function DocumentReviewDialog({
   const changeStatus = useMutation(api.documentsDelivered.changeStatus)
   const updateFieldValues = useMutation(api.documentTypeFieldMappings.updateFieldValues)
   const removeDocument = useMutation(api.documentsDelivered.remove)
+  const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
 
   const isManuallyAdded = document
     ? !document.documentTypeLegalFrameworkId && !document.documentRequirementId
@@ -181,6 +185,30 @@ export function DocumentReviewDialog({
     }
   }, [documentId, removeDocument, t, onOpenChange, onSuccess])
 
+  const handleSaveNotes = useCallback(async () => {
+    const docId = effectiveDocumentId
+    if (!docId) return
+    setIsSavingNotes(true)
+    try {
+      await updateVersionNotes({
+        documentId: docId,
+        versionNotes: editingNotes.trim() || undefined,
+      })
+      toast.success(t("versionNotesSaved"))
+      setIsEditingNotes(false)
+    } catch {
+      toast.error(t("versionNotesError"))
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }, [effectiveDocumentId, editingNotes, updateVersionNotes, t])
+
+  // Reset notes editing when version changes
+  useEffect(() => {
+    setIsEditingNotes(false)
+    setEditingNotes("")
+  }, [effectiveDocumentId])
+
   // Sync missing conditions when dialog opens with a document
   useEffect(() => {
     if (open && effectiveDocumentId) {
@@ -198,6 +226,8 @@ export function DocumentReviewDialog({
       setSelectedVersionId(null)
       setShowUploadNewVersion(false)
       setIsIllegible(false)
+      setIsEditingNotes(false)
+      setEditingNotes("")
     }
   }, [open])
 
@@ -873,12 +903,77 @@ export function DocumentReviewDialog({
               </div>
             )}
 
-            {displayDocument?.versionNotes && (
-              <div className="text-sm">
+            {/* Inline editable version notes */}
+            <div className="text-sm">
+              <div className="flex items-center justify-between mb-1">
                 <p className="text-muted-foreground">{t("versionNotes")}</p>
-                <p className="font-medium">{displayDocument.versionNotes}</p>
+                {!isEditingNotes && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEditingNotes(displayDocument?.versionNotes || "")
+                      setIsEditingNotes(true)
+                    }}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    {displayDocument?.versionNotes ? t("editNotes") : t("addNotes")}
+                  </Button>
+                )}
               </div>
-            )}
+              {isEditingNotes ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={editingNotes}
+                    onChange={(e) => setEditingNotes(e.target.value)}
+                    placeholder={t("versionNotesPlaceholder")}
+                    className="min-h-[60px] text-sm"
+                    maxLength={500}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setIsEditingNotes(false)
+                        setEditingNotes("")
+                      }
+                    }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setIsEditingNotes(false)
+                        setEditingNotes("")
+                      }}
+                      disabled={isSavingNotes}
+                    >
+                      {tCommon("cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleSaveNotes}
+                      disabled={isSavingNotes}
+                    >
+                      {isSavingNotes ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Save className="h-3 w-3 mr-1" />
+                      )}
+                      {tCommon("save")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                displayDocument?.versionNotes ? (
+                  <p className="font-medium">{displayDocument.versionNotes}</p>
+                ) : (
+                  <p className="text-muted-foreground italic text-xs">{t("versionNotesPlaceholder")}</p>
+                )
+              )}
+            </div>
           </div>
 
           <Separator />

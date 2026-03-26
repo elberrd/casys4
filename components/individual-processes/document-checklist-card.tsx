@@ -556,7 +556,7 @@ export function DocumentChecklistCard({
       onClick={() => {
         if (doc.documentType?.isInformationOnly) {
           openInformationFieldsDialog(doc)
-        } else if (doc.status === "not_started") {
+        } else if (doc.status === "not_started" && (!doc.version || doc.version <= 1)) {
           if (doc.documentTypeId) {
             openUploadDialog(doc)
           } else {

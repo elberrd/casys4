@@ -48,6 +48,7 @@ export function IndividualProcessesClient() {
   const [selectedStatusId, setSelectedStatusId] = useState<Id<"individualProcessStatuses"> | undefined>(undefined)
   const [createFromDialogOpen, setCreateFromDialogOpen] = useState(false)
   const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
+  const [isCreatingFromExisting, setIsCreatingFromExisting] = useState(false)
   const [filters, setFilters] = useState<Filter<string>[]>(() => persisted?.advancedFilters ?? [])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>(() => persisted?.selectedCandidates ?? [])
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>(() => persisted?.selectedApplicants ?? [])
@@ -722,11 +723,19 @@ export function IndividualProcessesClient() {
     setCreateFromDialogOpen(true)
   }
 
-  const handleConfirmCreateFromExisting = async () => {
+  const handleConfirmCreateFromExisting = async (
+    userApplicantId?: Id<"people">,
+    userApplicantCompanyId?: Id<"companies">,
+  ) => {
     if (!sourceProcessId) return
 
+    setIsCreatingFromExisting(true)
     try {
-      const newProcessId = await createFromExisting({ sourceProcessId })
+      const newProcessId = await createFromExisting({
+        sourceProcessId,
+        userApplicantId,
+        userApplicantCompanyId,
+      })
       setCreateFromDialogOpen(false)
       setSourceProcessId(undefined)
 
@@ -737,6 +746,8 @@ export function IndividualProcessesClient() {
     } catch (error) {
       console.error("Error creating process from existing:", error)
       // Keep dialog open on error so user can try again
+    } finally {
+      setIsCreatingFromExisting(false)
     }
   }
 
@@ -982,6 +993,7 @@ export function IndividualProcessesClient() {
                 onOpenChange={setCreateFromDialogOpen}
                 onConfirm={handleConfirmCreateFromExisting}
                 sourceProcess={individualProcesses.find(p => p._id === sourceProcessId)}
+                isLoading={isCreatingFromExisting}
               />
             )}
 

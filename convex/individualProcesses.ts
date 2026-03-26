@@ -699,6 +699,8 @@ export const create = mutation({
 export const createFromExisting = mutation({
   args: {
     sourceProcessId: v.id("individualProcesses"),
+    userApplicantId: v.optional(v.id("people")),
+    userApplicantCompanyId: v.optional(v.id("companies")),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -736,8 +738,8 @@ export const createFromExisting = mutation({
       // Fields to COPY from source process
       personId: sourceProcess.personId, // Candidato
       companyApplicantId: sourceProcess.companyApplicantId, // Empresa Requerente
-      userApplicantId: sourceProcess.userApplicantId, // Solicitante
-      userApplicantCompanyId: sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
+      userApplicantId: args.userApplicantId ?? sourceProcess.userApplicantId, // Solicitante (override or copy)
+      userApplicantCompanyId: args.userApplicantCompanyId ?? sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
       processTypeId: sourceProcess.processTypeId, // Tipo de Autorização
       legalFrameworkId: sourceProcess.legalFrameworkId, // Amparo Legal
       consulateId: sourceProcess.consulateId, // Consulado

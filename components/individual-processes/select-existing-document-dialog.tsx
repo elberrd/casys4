@@ -35,6 +35,7 @@ import {
   FileQuestion,
   Link2,
   ArrowLeft,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -303,6 +304,22 @@ export function SelectExistingDocumentDialog({
                         {!doc.documentTypeId && (
                           <Badge variant="outline" className="text-xs gap-1">
                             <FileQuestion className="h-3 w-3" />
+                          </Badge>
+                        )}
+                        {doc.conditionsSummary && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "gap-1 text-xs",
+                              doc.conditionsSummary.fulfilled === doc.conditionsSummary.total
+                                ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                                : doc.conditionsSummary.fulfilled > 0
+                                  ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                  : "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                            )}
+                          >
+                            <ListChecks className="h-3 w-3" />
+                            {doc.conditionsSummary.fulfilled}/{doc.conditionsSummary.total}
                           </Badge>
                         )}
                         {doc.linkedStatus && (
