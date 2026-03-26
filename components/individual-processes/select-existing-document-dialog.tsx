@@ -118,16 +118,12 @@ export function SelectExistingDocumentDialog({
 
   const handleConfirmReject = async () => {
     if (!selectedDoc || !effectiveStatusId) return;
-    if (!rejectionReason.trim()) {
-      toast.error(t("rejectionReasonRequired"));
-      return;
-    }
     setIsSubmitting(true);
     try {
       await linkToStatusAndReject({
         documentId: selectedDoc._id,
         individualProcessStatusId: effectiveStatusId as Id<"individualProcessStatuses">,
-        rejectionReason: rejectionReason.trim(),
+        rejectionReason: rejectionReason.trim() || undefined,
       });
       toast.success(t("selectExistingRejectSuccess"));
       onSuccess?.();
@@ -205,7 +201,7 @@ export function SelectExistingDocumentDialog({
                 <Button
                   variant="destructive"
                   onClick={handleConfirmReject}
-                  disabled={isSubmitting || !rejectionReason.trim()}
+                  disabled={isSubmitting}
                 >
                   {t("confirmReject")}
                 </Button>

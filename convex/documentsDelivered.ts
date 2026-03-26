@@ -3538,14 +3538,10 @@ export const linkToStatusAndReject = mutation({
   args: {
     documentId: v.id("documentsDelivered"),
     individualProcessStatusId: v.id("individualProcessStatuses"),
-    rejectionReason: v.string(),
+    rejectionReason: v.optional(v.string()),
   },
   handler: async (ctx, { documentId, individualProcessStatusId, rejectionReason }) => {
     const adminProfile = await requireAdmin(ctx);
-
-    if (!rejectionReason || rejectionReason.trim() === "") {
-      throw new Error("Rejection reason is required");
-    }
 
     const document = await ctx.db.get(documentId);
     if (!document) {
@@ -3570,7 +3566,7 @@ export const linkToStatusAndReject = mutation({
       status: "rejected",
       reviewedBy: adminProfile.userId,
       reviewedAt: Date.now(),
-      rejectionReason,
+      rejectionReason: rejectionReason?.trim() || undefined,
       isLatest: false,
     });
 
