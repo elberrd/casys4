@@ -290,7 +290,7 @@ export function CompanyDocumentReuseDialog({
                 <p className="text-sm">{t("noCompanyDocuments")}</p>
               </div>
             ) : (
-              <ScrollArea className="max-h-[400px]">
+              <ScrollArea className="max-h-[400px]" type="always">
                 <div className="space-y-2">
                   {reusableDocuments.map((doc) => (
                     <div
