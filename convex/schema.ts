@@ -611,6 +611,7 @@ export default defineSchema({
     documentName: v.optional(v.string()), // Custom name for loose documents saved without file
     isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
     excludedFromReport: v.optional(v.boolean()), // Whether the document is excluded from PDF reports
+    bypassConditions: v.optional(v.boolean()), // When true, conditions are treated as all met (admin override)
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_documentType", ["documentTypeId"])
