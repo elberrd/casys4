@@ -87,12 +87,27 @@ export const listByDocument = query({
 export const getValidationStatus = query({
   args: { documentsDeliveredId: v.id("documentsDelivered") },
   handler: async (ctx, args) => {
+    // Check if conditions are bypassed for this document
+    const document = await ctx.db.get(args.documentsDeliveredId);
+
     const conditions = await ctx.db
       .query("documentDeliveredConditions")
       .withIndex("by_documentDelivered", (q) =>
         q.eq("documentsDeliveredId", args.documentsDeliveredId)
       )
       .collect();
+
+    if (document?.bypassConditions) {
+      return {
+        allRequiredFulfilled: true,
+        hasExpiredConditions: false,
+        unfulfilledRequired: [] as string[],
+        expiredConditions: [] as string[],
+        totalConditions: conditions.length,
+        fulfilledCount: conditions.length,
+        bypassed: true,
+      };
+    }
 
     const now = Date.now();
 
@@ -121,6 +136,7 @@ export const getValidationStatus = query({
       expiredConditions,
       totalConditions: conditions.length,
       fulfilledCount: conditions.filter((c) => c.isFulfilled).length,
+      bypassed: false,
     };
   },
 });
