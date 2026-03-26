@@ -579,7 +579,7 @@ export function DocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading || isAutoApproveBlocked}
+            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading}
             variant={isIllegible ? "destructive" : "default"}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -321,36 +321,38 @@ export const upload = mutation({
     }
 
     // Check if there's an existing document for this requirement
-    let existingDocuments = await ctx.db
+    const allProcessDocs = await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", args.individualProcessId))
       .collect();
 
-    existingDocuments = existingDocuments.filter(
+    const allMatchingDocs = allProcessDocs.filter(
       (doc) =>
         doc.documentTypeId === args.documentTypeId &&
-        doc.documentRequirementId === args.documentRequirementId &&
-        doc.isLatest
+        doc.documentRequirementId === args.documentRequirementId
     );
 
     let version = 1;
+    const currentLatest = allMatchingDocs.find((doc) => doc.isLatest);
 
-    // If replacing, mark old version as not latest
-    if (existingDocuments.length > 0) {
-      const existingDoc = existingDocuments[0];
-      version = existingDoc.version + 1;
+    if (allMatchingDocs.length > 0) {
+      // Calculate version from MAX of all versions to avoid duplicates
+      version = Math.max(...allMatchingDocs.map((doc) => doc.version)) + 1;
 
-      await ctx.db.patch(existingDoc._id, {
-        isLatest: false,
-      });
+      // Mark the current latest as not latest
+      if (currentLatest) {
+        await ctx.db.patch(currentLatest._id, {
+          isLatest: false,
+        });
+      }
     }
 
     // Create new document record
     const isIllegible = args.isIllegible === true;
-    const shouldAutoApprove = args.autoApprove === true && !isIllegible;
+    let canAutoApprove = args.autoApprove === true && !isIllegible;
 
-    // Validate conditions before auto-approving
-    if (shouldAutoApprove) {
+    // Check conditions — if required conditions are unfulfilled, skip auto-approve
+    if (canAutoApprove) {
       const conditionLinks = await ctx.db
         .query("documentTypeConditionLinks")
         .withIndex("by_documentType", (q) =>
@@ -364,15 +366,14 @@ export const upload = mutation({
           if (!link.isRequired) continue;
           const condition = await ctx.db.get(link.documentTypeConditionId);
           if (condition && condition.isActive && !preFulfilledSet.has(condition._id)) {
-            throw new Error(
-              "Cannot auto-approve: required condition not fulfilled"
-            );
+            canAutoApprove = false;
+            break;
           }
         }
       }
     }
 
-    const status = shouldAutoApprove ? "approved" : (isIllegible ? "rejected" : "uploaded");
+    const status = canAutoApprove ? "approved" : (isIllegible ? "rejected" : "uploaded");
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
       documentTypeId: args.documentTypeId,
@@ -386,8 +387,8 @@ export const upload = mutation({
       status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
-      reviewedBy: (shouldAutoApprove || isIllegible) ? uploaderUserId : undefined,
-      reviewedAt: (shouldAutoApprove || isIllegible) ? Date.now() : undefined,
+      reviewedBy: (canAutoApprove || isIllegible) ? uploaderUserId : undefined,
+      reviewedAt: (canAutoApprove || isIllegible) ? Date.now() : undefined,
       rejectionReason: isIllegible ? (args.rejectionReason || "Documento ilegível") : undefined,
       isIllegible: isIllegible || undefined,
       expiryDate: args.expiryDate,
@@ -396,9 +397,7 @@ export const upload = mutation({
       isLatest: true,
       versionNotes: args.versionNotes,
       // Preserve exigência link when uploading a new version
-      individualProcessStatusId: existingDocuments.length > 0
-        ? existingDocuments[0].individualProcessStatusId
-        : undefined,
+      individualProcessStatusId: currentLatest?.individualProcessStatusId,
     });
 
     // Record status history
@@ -416,7 +415,7 @@ export const upload = mutation({
           isIllegible: true,
         },
       });
-    } else if (shouldAutoApprove) {
+    } else if (canAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
         documentId,
         previousStatus: "uploaded",
@@ -440,10 +439,7 @@ export const upload = mutation({
           documentTypeId: args.documentTypeId,
           individualProcessId: args.individualProcessId,
           preFulfilledConditionIds: args.preFulfilledConditionIds,
-          previousDocumentsDeliveredId:
-            existingDocuments.length > 0
-              ? existingDocuments[0]._id
-              : undefined,
+          previousDocumentsDeliveredId: currentLatest?._id,
         }
       );
     } catch (error) {
@@ -459,7 +455,7 @@ export const upload = mutation({
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: uploaderUserId,
-        action: isIllegible ? "rejected" : (shouldAutoApprove ? "approved" : "uploaded"),
+        action: isIllegible ? "rejected" : (canAutoApprove ? "approved" : "uploaded"),
         entityType: "document",
         entityId: documentId,
         details: {
@@ -1785,34 +1781,35 @@ export const uploadWithType = mutation({
     }
 
     // Check for existing document of same type
-    let existingDocuments = await ctx.db
+    const allTypeDocs = await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", args.individualProcessId))
       .collect();
 
-    existingDocuments = existingDocuments.filter(
-      (doc) =>
-        doc.documentTypeId === args.documentTypeId &&
-        doc.isLatest
+    const allMatchingTypeDocs = allTypeDocs.filter(
+      (doc) => doc.documentTypeId === args.documentTypeId
     );
 
     let version = 1;
+    const currentLatestTyped = allMatchingTypeDocs.find((doc) => doc.isLatest);
 
-    // If replacing, mark old version as not latest
-    if (existingDocuments.length > 0) {
-      const existingDoc = existingDocuments[0];
-      version = existingDoc.version + 1;
+    if (allMatchingTypeDocs.length > 0) {
+      // Calculate version from MAX of all versions to avoid duplicates
+      version = Math.max(...allMatchingTypeDocs.map((doc) => doc.version)) + 1;
 
-      await ctx.db.patch(existingDoc._id, {
-        isLatest: false,
-      });
+      // Mark the current latest as not latest
+      if (currentLatestTyped) {
+        await ctx.db.patch(currentLatestTyped._id, {
+          isLatest: false,
+        });
+      }
     }
 
     // Determine status based on auto-approve
-    const shouldAutoApprove = args.autoApprove === true && hasFile;
+    let canAutoApprove = args.autoApprove === true && hasFile;
 
-    // Validate conditions before auto-approving
-    if (shouldAutoApprove) {
+    // Check conditions — if required conditions are unfulfilled, skip auto-approve
+    if (canAutoApprove) {
       const conditionLinks = await ctx.db
         .query("documentTypeConditionLinks")
         .withIndex("by_documentType", (q) =>
@@ -1826,15 +1823,14 @@ export const uploadWithType = mutation({
           if (!link.isRequired) continue;
           const condition = await ctx.db.get(link.documentTypeConditionId);
           if (condition && condition.isActive && !preFulfilledSet.has(condition._id)) {
-            throw new Error(
-              "Cannot auto-approve: required condition not fulfilled"
-            );
+            canAutoApprove = false;
+            break;
           }
         }
       }
     }
 
-    const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+    const status = canAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
 
     // Create document with type
     const documentId = await ctx.db.insert("documentsDelivered", {
@@ -1850,7 +1846,7 @@ export const uploadWithType = mutation({
       status,
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
-      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+      ...(canAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: version,
@@ -1862,7 +1858,7 @@ export const uploadWithType = mutation({
     });
 
     // Create status history for auto-approved documents
-    if (shouldAutoApprove) {
+    if (canAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
         documentId,
         previousStatus: "uploaded",
@@ -1886,10 +1882,7 @@ export const uploadWithType = mutation({
           documentTypeId: args.documentTypeId,
           individualProcessId: args.individualProcessId,
           preFulfilledConditionIds: args.preFulfilledConditionIds,
-          previousDocumentsDeliveredId:
-            existingDocuments.length > 0
-              ? existingDocuments[0]._id
-              : undefined,
+          previousDocumentsDeliveredId: currentLatestTyped?._id,
         }
       );
     } catch (error) {

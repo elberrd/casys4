@@ -533,7 +533,7 @@ export function TypedDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedDocumentTypeId || isUploading || isAutoApproveBlocked}
+            disabled={!selectedDocumentTypeId || isUploading}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedFile ? t("upload") : t("saveWithoutFile")}
