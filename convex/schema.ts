@@ -92,6 +92,7 @@ export default defineSchema({
     birthDate: v.optional(v.string()),
     birthCityId: v.optional(v.id("cities")),
     nationalityId: v.optional(v.id("countries")),
+    sex: v.optional(v.string()),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
     cargo: v.optional(v.string()),

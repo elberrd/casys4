@@ -31,6 +31,9 @@ export const personSchema = z.object({
   nationalityId: z.custom<Id<"countries">>((val) => typeof val === "string" && val.length > 0, {
     message: "Nationality ID must be valid",
   }).optional().or(z.literal("")),
+  sex: z.enum(["Male", "Female"], {
+    message: "Please select a sex",
+  }).optional().or(z.literal("")),
   maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"], {
     message: "Please select a marital status",
   }).optional().or(z.literal("")),
@@ -49,6 +52,12 @@ export const personSchema = z.object({
 });
 
 export type PersonFormData = z.infer<typeof personSchema>;
+
+// Sex options for form selects
+export const sexOptions = [
+  { value: "Male", label: "Male" },
+  { value: "Female", label: "Female" },
+] as const;
 
 // Marital status options for form selects
 export const maritalStatusOptions = [

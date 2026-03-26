@@ -336,6 +336,16 @@ export function IndividualProcessDetailClient({
                 <div className="text-sm">{(individualProcess.person as any)?.nationality?.name ? translateCountryName((individualProcess.person as any).nationality.name, locale) : '-'}</div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('sex')}
+                  <LinkedDocIcon entityType="person" fieldPath="sex" />
+                </div>
+                <div className="text-sm">
+                  {individualProcess.person?.sex
+                    ? tPeople(`sex${individualProcess.person.sex.charAt(0).toUpperCase() + individualProcess.person.sex.slice(1)}` as any)
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople('maritalStatus')}
                   <LinkedDocIcon entityType="person" fieldPath="maritalStatus" />
                 </div>

@@ -35,7 +35,7 @@ import { Separator } from "@/components/ui/separator"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { personSchema, PersonFormData, maritalStatusOptions } from "@/lib/validations/people"
+import { personSchema, PersonFormData, maritalStatusOptions, sexOptions } from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
@@ -140,6 +140,7 @@ export function PersonFormDialog({
         birthDate: person.birthDate,
         birthCityId: person.birthCityId,
         nationalityId: person.nationalityId,
+        sex: person.sex as "Male" | "Female" | undefined,
         maritalStatus: person.maritalStatus as "Single" | "Married" | "Divorced" | "Widowed",
         profession: person.profession,
         cargo: person.cargo,
@@ -161,6 +162,7 @@ export function PersonFormDialog({
         birthDate: "",
         birthCityId: "" as Id<"cities">,
         nationalityId: "" as Id<"countries">,
+        sex: "",
         maritalStatus: "",
         profession: "",
         cargo: "",
@@ -204,6 +206,7 @@ export function PersonFormDialog({
         birthDate: data.birthDate || undefined,
         birthCityId: data.birthCityId === "" ? undefined : data.birthCityId,
         nationalityId: data.nationalityId === "" ? undefined : data.nationalityId,
+        sex: data.sex || undefined,
         maritalStatus: data.maritalStatus || undefined,
         profession: data.profession || undefined,
         cargo: data.cargo || undefined,
@@ -446,6 +449,29 @@ export function PersonFormDialog({
             {/* Family Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">{t('familyInfo')}</h3>
+
+              <FormField
+                control={form.control}
+                name="sex"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center">{t('sex')}<DocIcon fieldPath="sex" /></FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={sexOptions.map((option) => ({
+                          value: option.value,
+                          label: t(`sex${option.value}` as any),
+                        }))}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t('selectSex')}
+                        showClearButton={true}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

@@ -338,6 +338,7 @@ export const create = mutation({
     birthDate: v.optional(v.string()),
     birthCityId: v.optional(v.id("cities")),
     nationalityId: v.optional(v.id("countries")),
+    sex: v.optional(v.string()),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
     cargo: v.optional(v.string()),
@@ -410,6 +411,7 @@ export const update = mutation({
     birthDate: v.optional(v.string()),
     birthCityId: v.optional(v.id("cities")),
     nationalityId: v.optional(v.id("countries")),
+    sex: v.optional(v.string()),
     maritalStatus: v.optional(v.string()),
     profession: v.optional(v.string()),
     cargo: v.optional(v.string()),
@@ -471,6 +473,7 @@ export const update = mutation({
     if (data.birthDate) replacement.birthDate = data.birthDate;
     if (data.birthCityId) replacement.birthCityId = data.birthCityId;
     if (data.nationalityId) replacement.nationalityId = data.nationalityId;
+    if (data.sex) replacement.sex = data.sex;
     if (data.maritalStatus) replacement.maritalStatus = data.maritalStatus;
     if (data.profession) replacement.profession = data.profession;
     if (data.cargo) replacement.cargo = data.cargo;
