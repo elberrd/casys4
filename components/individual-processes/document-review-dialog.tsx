@@ -48,6 +48,7 @@ import {
   Pencil,
   Info,
   Trash2,
+  ShieldOff,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -163,6 +164,7 @@ export function DocumentReviewDialog({
   const updateFieldValues = useMutation(api.documentTypeFieldMappings.updateFieldValues)
   const removeDocument = useMutation(api.documentsDelivered.remove)
   const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
+  const toggleBypassConditions = useMutation(api.documentsDelivered.toggleBypassConditions)
 
   const isManuallyAdded = document
     ? !document.documentTypeLegalFrameworkId && !document.documentRequirementId
@@ -284,8 +286,8 @@ export function DocumentReviewDialog({
   const handleApprove = async () => {
     if (!documentId) return
 
-    // Check conditions before approval
-    if (validationStatus) {
+    // Check conditions before approval (skip if conditions are bypassed)
+    if (validationStatus && !validationStatus.bypassed) {
       if (!validationStatus.allRequiredFulfilled) {
         toast.error(t("errorConditionsNotFulfilled") || `Não é possível aprovar: condições obrigatórias não cumpridas: ${validationStatus.unfulfilledRequired.join(", ")}`)
         return
@@ -533,12 +535,21 @@ export function DocumentReviewDialog({
             <TabsTrigger value="conditions" className="relative">
               {t("conditions") || "Condições"}
               {conditions && conditions.length > 0 && validationStatus && (
-                <Badge
-                  variant={validationStatus.allRequiredFulfilled ? "success" : "warning"}
-                  className="ml-1 h-5 min-w-5 px-1"
-                >
-                  {validationStatus.fulfilledCount}/{validationStatus.totalConditions}
-                </Badge>
+                validationStatus.bypassed ? (
+                  <Badge
+                    variant="outline"
+                    className="ml-1 h-5 min-w-5 px-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                  >
+                    <ShieldOff className="h-3 w-3" />
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant={validationStatus.allRequiredFulfilled ? "success" : "warning"}
+                    className="ml-1 h-5 min-w-5 px-1"
+                  >
+                    {validationStatus.fulfilledCount}/{validationStatus.totalConditions}
+                  </Badge>
+                )
               )}
             </TabsTrigger>
             <TabsTrigger value="linkedFields" className="relative">
@@ -571,8 +582,34 @@ export function DocumentReviewDialog({
           <TabsContent value="conditions" className="py-4 overflow-y-auto max-h-[55vh]">
             {conditions && conditions.length > 0 ? (
               <div className="space-y-4">
+                {/* Bypass conditions toggle */}
+                {documentId && (
+                  <div className="flex items-center gap-2 rounded-lg border p-3">
+                    <Checkbox
+                      id="bypass-conditions"
+                      checked={document?.bypassConditions ?? false}
+                      onCheckedChange={() => toggleBypassConditions({ documentId })}
+                    />
+                    <label htmlFor="bypass-conditions" className="text-sm font-medium cursor-pointer">
+                      {t("bypassConditions")}
+                    </label>
+                  </div>
+                )}
+
+                {/* Bypass active info banner */}
+                {validationStatus?.bypassed && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldOff className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        {t("conditionsBypassed")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Validation status warning */}
-                {validationStatus && (!validationStatus.allRequiredFulfilled || validationStatus.hasExpiredConditions) && (
+                {validationStatus && !validationStatus.bypassed && (!validationStatus.allRequiredFulfilled || validationStatus.hasExpiredConditions) && (
                   <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950 p-3">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5" />

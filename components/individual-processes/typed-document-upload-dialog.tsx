@@ -66,6 +66,7 @@ export function TypedDocumentUploadDialog({
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
+  const [bypassConditions, setBypassConditions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all active document types
@@ -113,7 +114,7 @@ export function TypedDocumentUploadDialog({
     return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id));
   }, [conditions, fulfilledConditionIds]);
 
-  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions;
+  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions && !bypassConditions;
 
   // Reset file and conditions when document type changes
   useEffect(() => {
@@ -219,6 +220,7 @@ export function TypedDocumentUploadDialog({
           ? (selectedStatusId as Id<"individualProcessStatuses">)
           : undefined,
         autoApprove: autoApprove || undefined,
+        bypassConditions: bypassConditions || undefined,
       });
 
       setUploadProgress(100);
@@ -239,6 +241,7 @@ export function TypedDocumentUploadDialog({
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
+      setBypassConditions(false);
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -258,6 +261,7 @@ export function TypedDocumentUploadDialog({
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
+      setBypassConditions(false);
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -423,7 +427,7 @@ export function TypedDocumentUploadDialog({
                   <div key={condition._id} className="flex items-start gap-2">
                     <Checkbox
                       id={`typed-condition-${condition._id}`}
-                      checked={fulfilledConditionIds.has(condition._id)}
+                      checked={bypassConditions || fulfilledConditionIds.has(condition._id)}
                       onCheckedChange={(checked) => {
                         setFulfilledConditionIds((prev) => {
                           const next = new Set(prev);
@@ -435,7 +439,7 @@ export function TypedDocumentUploadDialog({
                           return next;
                         });
                       }}
-                      disabled={isUploading}
+                      disabled={isUploading || bypassConditions}
                     />
                     <div className="grid gap-0.5 leading-none">
                       <label
@@ -465,6 +469,23 @@ export function TypedDocumentUploadDialog({
                     {t("conditionsRequiredForAutoApprove")}
                   </p>
                 )}
+              </div>
+              {/* Bypass conditions toggle */}
+              <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-3">
+                <Checkbox
+                  id="bypass-conditions-typed"
+                  checked={bypassConditions}
+                  onCheckedChange={(checked) => setBypassConditions(checked === true)}
+                  disabled={isUploading}
+                />
+                <div className="grid gap-0.5 leading-none">
+                  <label htmlFor="bypass-conditions-typed" className="text-sm font-medium cursor-pointer">
+                    {t("bypassConditions")}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("bypassConditionsHint")}
+                  </p>
+                </div>
               </div>
             </div>
           )}

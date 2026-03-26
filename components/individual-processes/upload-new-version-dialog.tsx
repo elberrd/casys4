@@ -69,6 +69,7 @@ export function UploadNewVersionDialog({
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
   const [autoApprove, setAutoApprove] = useState(false)
+  const [bypassConditions, setBypassConditions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
@@ -85,7 +86,7 @@ export function UploadNewVersionDialog({
     return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id))
   }, [conditions, fulfilledConditionIds])
 
-  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions
+  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions && !bypassConditions
 
   const nextVersion = currentVersion + 1
 
@@ -147,6 +148,7 @@ export function UploadNewVersionDialog({
         isIllegible: isIllegible || undefined,
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
+        bypassConditions: bypassConditions || undefined,
       })
 
       setUploadProgress(100)
@@ -162,6 +164,7 @@ export function UploadNewVersionDialog({
       setIsIllegible(false)
       setIllegibleNotes("")
       setAutoApprove(false)
+      setBypassConditions(false)
       setUploadProgress(0)
     } catch (error) {
       console.error("Error uploading document:", error)
@@ -310,7 +313,7 @@ export function UploadNewVersionDialog({
                   <div key={condition._id} className="flex items-start gap-2">
                     <Checkbox
                       id={`condition-${condition._id}`}
-                      checked={fulfilledConditionIds.has(condition._id)}
+                      checked={bypassConditions || fulfilledConditionIds.has(condition._id)}
                       onCheckedChange={(checked) => {
                         setFulfilledConditionIds((prev) => {
                           const next = new Set(prev)
@@ -322,7 +325,7 @@ export function UploadNewVersionDialog({
                           return next
                         })
                       }}
-                      disabled={isUploading}
+                      disabled={isUploading || bypassConditions}
                     />
                     <div className="grid gap-0.5 leading-none">
                       <label
@@ -352,6 +355,23 @@ export function UploadNewVersionDialog({
                     {t("conditionsRequiredForAutoApprove")}
                   </p>
                 )}
+              </div>
+              {/* Bypass conditions toggle */}
+              <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-3">
+                <Checkbox
+                  id="bypass-conditions-version"
+                  checked={bypassConditions}
+                  onCheckedChange={(checked) => setBypassConditions(checked === true)}
+                  disabled={isUploading}
+                />
+                <div className="grid gap-0.5 leading-none">
+                  <label htmlFor="bypass-conditions-version" className="text-sm font-medium cursor-pointer">
+                    {t("bypassConditions")}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("bypassConditionsHint")}
+                  </p>
+                </div>
               </div>
             </div>
           )}

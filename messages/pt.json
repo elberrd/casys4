@@ -2256,8 +2256,10 @@
     "informationOnly": "Só Info",
     "fillInformation": "Preencher Informações",
     "conditions": {
-      "title": "Condicionantes"
+      "title": "Condicionantes",
+      "bypassed": "Dispensado"
     },
+    "conditionsBypassed": "As condições deste documento foram dispensadas",
     "linkedStatusBadge": "{name} - {date}",
     "generatePdfReport": "Gerar Relatório PDF",
     "pdfReportFull": "Relatório completo",
@@ -2368,7 +2370,9 @@
     "illegibleNotesPlaceholder": "Observações adicionais sobre o documento ilegível (opcional)",
     "uploadAsIllegible": "Enviar como Ilegível",
     "autoApprove": "Aprovar automaticamente ao salvar",
-    "conditionsRequiredForAutoApprove": "Para aprovar automaticamente, todas as condições obrigatórias devem estar cumpridas"
+    "conditionsRequiredForAutoApprove": "Para aprovar automaticamente, todas as condições obrigatórias devem estar cumpridas",
+    "bypassConditions": "Dispensar condições (admin)",
+    "bypassConditionsHint": "Quando ativado, todas as condições são tratadas como cumpridas independente do status real"
   },
   "DocumentReview": {
     "title": "Revisar Documento",
@@ -2421,6 +2425,8 @@
     "fulfilled": "Cumprido",
     "expiresAt": "Expira em",
     "fulfilledBy": "Cumprido por",
+    "bypassConditions": "Dispensar condições",
+    "conditionsBypassed": "As condições deste documento foram dispensadas",
     "conditionFulfilled": "Condição marcada como cumprida",
     "conditionUnfulfilled": "Condição desmarcada",
     "errorToggleCondition": "Erro ao atualizar condição",

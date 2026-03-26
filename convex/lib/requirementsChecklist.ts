@@ -155,7 +155,7 @@ export const getChecklist = query({
         const hasInfoFields = activeFieldMappings.length > 0;
         const allInfoFilled = infoFields.every((f) => f.isFilled);
         const hasDocument = latestDoc && latestDoc.status !== "not_started" && latestDoc.status !== "pending_upload";
-        const allConditionsMet = conditions.length === 0 || conditions.every((c) => c.isFulfilled);
+        const allConditionsMet = latestDoc?.bypassConditions || conditions.length === 0 || conditions.every((c) => c.isFulfilled);
         const validityOk = !validityCheck || validityCheck.status === "valid" || validityCheck.status === "no_rule";
 
         let completionStatus: "completed" | "partial" | "pending" = "pending";

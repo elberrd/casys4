@@ -44,6 +44,7 @@ import {
   X,
   Link2,
   EyeOff,
+  ShieldOff,
 } from "lucide-react"
 import {
   Tooltip,
@@ -482,6 +483,7 @@ export function DocumentChecklistCard({
     .filter((doc) => {
       if (doc.status === "approved") return false
       if (doc.excludedFromReport) return false
+      if (doc.bypassConditions) return false
       if (!doc.conditionsSummary) return false
       return doc.conditionsSummary.fulfilled < doc.conditionsSummary.total
     })
@@ -677,7 +679,22 @@ export function DocumentChecklistCard({
         )}
 
         {/* Conditions badge */}
-        {doc.conditionsSummary && (
+        {doc.bypassConditions && doc.conditionsSummary ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className="gap-1 text-xs cursor-default border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+              >
+                <ShieldOff className="h-3 w-3" />
+                {t("conditions.bypassed")}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">{t("conditionsBypassed")}</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : doc.conditionsSummary && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge

@@ -280,11 +280,12 @@ export const upload = mutation({
     isIllegible: v.optional(v.boolean()),
     rejectionReason: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
+    bypassConditions: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Require admin role when auto-approving
+    // Require admin role when auto-approving or bypassing conditions
     let userProfile;
-    if (args.autoApprove) {
+    if (args.autoApprove || args.bypassConditions) {
       userProfile = await requireAdmin(ctx);
     } else {
       userProfile = await getCurrentUserProfile(ctx);
@@ -351,8 +352,8 @@ export const upload = mutation({
     const isIllegible = args.isIllegible === true;
     let canAutoApprove = args.autoApprove === true && !isIllegible;
 
-    // Check conditions — if required conditions are unfulfilled, skip auto-approve
-    if (canAutoApprove) {
+    // Check conditions — if required conditions are unfulfilled, skip auto-approve (unless bypassed)
+    if (canAutoApprove && !args.bypassConditions) {
       const conditionLinks = await ctx.db
         .query("documentTypeConditionLinks")
         .withIndex("by_documentType", (q) =>
@@ -391,6 +392,7 @@ export const upload = mutation({
       reviewedAt: (canAutoApprove || isIllegible) ? Date.now() : undefined,
       rejectionReason: isIllegible ? (args.rejectionReason || "Documento ilegível") : undefined,
       isIllegible: isIllegible || undefined,
+      bypassConditions: args.bypassConditions || undefined,
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: version,
@@ -892,6 +894,7 @@ export const restoreVersion = mutation({
       // Preserve exigência link from current latest version
       individualProcessStatusId: currentLatest?.individualProcessStatusId,
       excludedFromReport: oldDocument.excludedFromReport,
+      bypassConditions: oldDocument.bypassConditions,
     });
 
     // Auto-create conditions, carrying forward state from the restored version
@@ -1714,11 +1717,12 @@ export const uploadWithType = mutation({
     ),
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
     autoApprove: v.optional(v.boolean()),
+    bypassConditions: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Require admin role when auto-approving
+    // Require admin role when auto-approving or bypassing conditions
     let userProfile;
-    if (args.autoApprove) {
+    if (args.autoApprove || args.bypassConditions) {
       userProfile = await requireAdmin(ctx);
     } else {
       userProfile = await getCurrentUserProfile(ctx);
@@ -1832,8 +1836,8 @@ export const uploadWithType = mutation({
     // Determine status based on auto-approve
     let canAutoApprove = args.autoApprove === true && hasFile;
 
-    // Check conditions — if required conditions are unfulfilled, skip auto-approve
-    if (canAutoApprove) {
+    // Check conditions — if required conditions are unfulfilled, skip auto-approve (unless bypassed)
+    if (canAutoApprove && !args.bypassConditions) {
       const conditionLinks = await ctx.db
         .query("documentTypeConditionLinks")
         .withIndex("by_documentType", (q) =>
@@ -1871,6 +1875,7 @@ export const uploadWithType = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt: Date.now(),
       ...(canAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+      bypassConditions: args.bypassConditions || undefined,
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: version,
@@ -3583,6 +3588,16 @@ export const listAvailableForLinking = query({
           }
         }
 
+        // Override conditions summary when bypass is active
+        if (doc.bypassConditions && conditionsSummary) {
+          conditionsSummary = {
+            ...conditionsSummary,
+            fulfilled: conditionsSummary.total,
+            conditions: conditionsSummary.conditions.map((c: { name: string; isFulfilled: boolean }) => ({ ...c, isFulfilled: true })),
+            bypassed: true,
+          };
+        }
+
         return {
           _id: doc._id,
           fileName: doc.fileName,
@@ -3595,6 +3610,7 @@ export const listAvailableForLinking = query({
           individualProcessStatusId: doc.individualProcessStatusId,
           linkedStatus,
           conditionsSummary,
+          bypassConditions: doc.bypassConditions,
         };
       })
     );
@@ -3710,6 +3726,7 @@ export const linkToStatusAndReject = mutation({
       version: document.version + 1,
       isLatest: true,
       excludedFromReport: document.excludedFromReport,
+      bypassConditions: document.bypassConditions,
     });
 
     // Auto-create conditions for the new version
