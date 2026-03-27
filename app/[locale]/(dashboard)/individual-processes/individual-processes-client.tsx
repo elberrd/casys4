@@ -17,7 +17,7 @@ import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/fi
 import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Id } from "@/convex/_generated/dataModel"
-import type { VisibilityState } from "@tanstack/react-table"
+import type { VisibilityState, SortingState } from "@tanstack/react-table"
 import { ExcelExportDialog } from "@/components/ui/excel-export-dialog"
 import { useRouter } from "next/navigation"
 import { SaveFilterSheet } from "@/components/saved-filters/save-filter-sheet"
@@ -90,6 +90,9 @@ export function IndividualProcessesClient() {
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     () => persisted?.columnVisibility ?? initialColumnVisibility
+  )
+  const [sorting, setSorting] = useState<SortingState>(
+    () => persisted?.sorting ?? []
   )
   const [selectedFilterName, setSelectedFilterName] = useState<string | null>(null)
   const [editingFilter, setEditingFilter] = useState<{
@@ -296,19 +299,20 @@ export function IndividualProcessesClient() {
     if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
     if (isExigenciaModeActive) criteria.isExigenciaModeActive = true
     if (filters.length > 0) criteria.advancedFilters = filters
-    // Always save column visibility state
+    // Always save column visibility and sorting state
     criteria.columnVisibility = columnVisibility
+    if (sorting.length > 0) criteria.sorting = sorting
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
 
   // Persist filter state to sessionStorage on every change
   useEffect(() => {
-    if (hasActiveFilters) {
+    if (hasActiveFilters || sorting.length > 0) {
       persistFilters(getCurrentFilterCriteria())
     } else {
       clearPersistedFilters()
     }
-  }, [getCurrentFilterCriteria, hasActiveFilters])
+  }, [getCurrentFilterCriteria, hasActiveFilters, sorting])
 
   const handleApplySavedFilter = useCallback((filterCriteria: any, filterName: string) => {
     // Clear all filters
@@ -364,6 +368,8 @@ export function IndividualProcessesClient() {
     } else {
       setColumnVisibility(initialColumnVisibilityRef.current)
     }
+    // Apply saved sorting if present, otherwise reset
+    setSorting(filterCriteria.sorting ?? [])
 
     // Store the selected filter name
     setSelectedFilterName(filterName)
@@ -387,8 +393,9 @@ export function IndividualProcessesClient() {
     setIsExigenciaModeActive(false)
     setFilters([])
     setSelectedFilterName(null)
-    // Reset column visibility to initial state
+    // Reset column visibility and sorting to initial state
     setColumnVisibility(initialColumnVisibilityRef.current)
+    setSorting([])
     // Clear persisted filter state
     clearPersistedFilters()
 
@@ -966,6 +973,8 @@ export function IndividualProcessesClient() {
           isGroupedModeActive={selectedProgressStatuses.length >= 2}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          sorting={sorting}
+          onSortingChange={setSorting}
           onExportSnapshotChange={isClient ? undefined : handleExportSnapshotChange}
         />
 

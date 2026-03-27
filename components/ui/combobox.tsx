@@ -460,6 +460,16 @@ function ComboboxMultiple<T extends string = string>({
     }
 
     onValueChange?.(newValues);
+
+    // Clear search and refocus input after selection
+    setSearchQuery("");
+    setShowCreateButton(false);
+    requestAnimationFrame(() => {
+      const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
+      if (cmdkInput) {
+        cmdkInput.focus();
+      }
+    });
   };
 
   const handleRemove = (optionValue: T) => {
@@ -603,6 +613,7 @@ function ComboboxMultiple<T extends string = string>({
         >
           <CommandInput
             placeholder={searchPlaceholder}
+            value={searchQuery}
             onValueChange={(value) => {
               console.log('[Multi-Select CommandInput] onValueChange called with:', value);
               setSearchQuery(value);

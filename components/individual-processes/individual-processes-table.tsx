@@ -223,6 +223,9 @@ interface IndividualProcessesTableProps {
   // Column visibility props (controlled mode)
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
+  // Sorting props (controlled mode)
+  sorting?: SortingState;
+  onSortingChange?: (sorting: SortingState) => void;
   // Export snapshot callback (current table view: filters/search/sorting/visible columns)
   onExportSnapshotChange?: (snapshot: IndividualProcessesExportSnapshot) => void;
 }
@@ -267,6 +270,8 @@ export function IndividualProcessesTable({
   isGroupedModeActive = false,
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange,
+  sorting: controlledSorting,
+  onSortingChange: onControlledSortingChange,
   onExportSnapshotChange,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
@@ -311,7 +316,14 @@ export function IndividualProcessesTable({
   // Skip initial effect runs to avoid React 19 warning about state updates before mount
   const isInitialRenderRef = useRef(true);
 
-  const [sorting, setSorting] = useState<SortingState>([]);
+  // Support both controlled and uncontrolled sorting
+  const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+  const sorting = controlledSorting ?? internalSorting;
+  const setSorting = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
+    const newValue = typeof updater === 'function' ? updater(sorting) : updater;
+    setInternalSorting(newValue);
+    onControlledSortingChange?.(newValue);
+  }, [sorting, onControlledSortingChange]);
 
   // Grouping and expansion state for grouped table mode
   const [grouping, setGrouping] = useState<GroupingState>([]);
@@ -348,9 +360,11 @@ export function IndividualProcessesTable({
   }, []);
 
   // Handle RNM mode toggle - show/hide column and apply sorting
+  const prevRnmModeRef = useRef(isRnmModeActive);
   useEffect(() => {
-    // Skip initial render - defaults are already correct in initialColumnVisibility
-    if (isInitialRenderRef.current) return;
+    // Only react to actual changes, not initial mount
+    if (prevRnmModeRef.current === isRnmModeActive) return;
+    prevRnmModeRef.current = isRnmModeActive;
     if (isRnmModeActive) {
       // Save current sorting before switching to RNM mode
       previousSortingRef.current = sorting;
@@ -533,7 +547,7 @@ export function IndividualProcessesTable({
       if (!isMountedRef.current) return;
       setSorting(updaterOrValue);
     },
-    [],
+    [setSorting],
   );
 
   // Wrap setGrouping to prevent state updates during render
