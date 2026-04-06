@@ -556,6 +556,12 @@ export function DocumentChecklistCard({
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
       onClick={() => {
+        if (userRole !== "admin") {
+          if (doc.status !== "not_started") {
+            openReviewDialog(doc._id)
+          }
+          return
+        }
         if (doc.documentType?.isInformationOnly) {
           openInformationFieldsDialog(doc)
         } else if (doc.status === "not_started" && (!doc.version || doc.version <= 1)) {
@@ -570,7 +576,7 @@ export function DocumentChecklistCard({
       }}
     >
       <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
-        {doc.status !== "not_started" && (
+        {userRole === "admin" && doc.status !== "not_started" && (
           <Checkbox
             checked={selectedDocumentIds.has(doc._id)}
             onCheckedChange={() => toggleDocumentSelection(doc._id)}
@@ -650,8 +656,8 @@ export function DocumentChecklistCard({
       <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
         {getStatusBadge(doc.status)}
 
-        {/* Exclude from PDF report checkbox */}
-        {processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
+        {/* Exclude from PDF report checkbox (admin only) */}
+        {userRole === "admin" && processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center">
@@ -751,7 +757,7 @@ export function DocumentChecklistCard({
 
         {doc.status === "not_started" ? (
           <div className="flex flex-wrap gap-1">
-            {doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
+            {userRole === "admin" && doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -762,7 +768,7 @@ export function DocumentChecklistCard({
                 <RotateCcw className="h-4 w-4" />
               </Button>
             )}
-            {doc.documentTypeId ? (
+            {userRole === "admin" && (doc.documentTypeId ? (
               <Button
                 size="sm"
                 variant="ghost"
@@ -782,7 +788,7 @@ export function DocumentChecklistCard({
               >
                 <Upload className="h-4 w-4" />
               </Button>
-            )}
+            ))}
             {userRole === "admin" && (
               <Button
                 size="sm"
@@ -847,7 +853,7 @@ export function DocumentChecklistCard({
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
-            {isLoose && (
+            {isLoose && userRole === "admin" && (
               <Button
                 size="sm"
                 variant="outline"
@@ -858,7 +864,7 @@ export function DocumentChecklistCard({
                 {t("assignType")}
               </Button>
             )}
-            {doc.status === "rejected" && (
+            {doc.status === "rejected" && userRole === "admin" && (
               <Button
                 size="sm"
                 variant="outline"
@@ -880,7 +886,7 @@ export function DocumentChecklistCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
             <CardTitle className="flex flex-wrap items-center gap-3">
-              {selectableDocs.length > 0 && (
+              {userRole === "admin" && selectableDocs.length > 0 && (
                 <Checkbox
                   checked={allSelectableSelected}
                   onCheckedChange={toggleSelectAll}
@@ -895,7 +901,7 @@ export function DocumentChecklistCard({
             <CardDescription className="mt-2">{t("description")}</CardDescription>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-            {selectedDocuments.length > 0 && (
+            {userRole === "admin" && selectedDocuments.length > 0 && (
               <BulkDocumentActionsMenu
                 selectedDocuments={selectedDocuments.map(doc => ({
                   _id: doc._id,
@@ -908,8 +914,8 @@ export function DocumentChecklistCard({
                 userRole={userRole}
               />
             )}
-            {/* Bulk reuse company documents */}
-            {pendingReusableCount > 0 && (
+            {/* Bulk reuse company documents (admin only) */}
+            {userRole === "admin" && pendingReusableCount > 0 && (
               <Button
                 size="sm"
                 variant="outline"
@@ -921,8 +927,8 @@ export function DocumentChecklistCard({
                 {t("bulkReuse", { count: pendingReusableCount })}
               </Button>
             )}
-            {/* Generate PDF Report */}
-            {processInfo && pdfEligibleCount > 0 && (
+            {/* Generate PDF Report (admin only) */}
+            {userRole === "admin" && processInfo && pdfEligibleCount > 0 && (
               pdfExigenciaGroups.length > 0 ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -964,34 +970,36 @@ export function DocumentChecklistCard({
               individualProcessId={individualProcessId}
               onClick={() => setChecklistOpen(true)}
             />
-            {/* Upload dropdown */}
-            <div className="w-full sm:w-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" className="w-full sm:w-auto">
-                    <Plus className="h-4 w-4 mr-1" />
-                    {t("addDocument")}
-                    <ChevronDown className="h-4 w-4 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={openLooseUploadDialog}>
-                    <FileQuestion className="h-4 w-4 mr-2" />
-                    {t("uploadLoose")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={openTypedUploadDialog}>
-                    <FileType className="h-4 w-4 mr-2" />
-                    {t("uploadWithType")}
-                  </DropdownMenuItem>
-                  {hasExigencia && (
-                    <DropdownMenuItem onClick={() => setDialogs(prev => ({ ...prev, selectExisting: { open: true } }))}>
-                      <Link2 className="h-4 w-4 mr-2" />
-                      {t("selectExisting")}
+            {/* Upload dropdown (admin only) */}
+            {userRole === "admin" && (
+              <div className="w-full sm:w-auto">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="w-full sm:w-auto">
+                      <Plus className="h-4 w-4 mr-1" />
+                      {t("addDocument")}
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={openLooseUploadDialog}>
+                      <FileQuestion className="h-4 w-4 mr-2" />
+                      {t("uploadLoose")}
                     </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                    <DropdownMenuItem onClick={openTypedUploadDialog}>
+                      <FileType className="h-4 w-4 mr-2" />
+                      {t("uploadWithType")}
+                    </DropdownMenuItem>
+                    {hasExigencia && (
+                      <DropdownMenuItem onClick={() => setDialogs(prev => ({ ...prev, selectExisting: { open: true } }))}>
+                        <Link2 className="h-4 w-4 mr-2" />
+                        {t("selectExisting")}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -1052,7 +1060,7 @@ export function DocumentChecklistCard({
                 <AlertCircle className="h-4 w-4" />
                 {t("unfilledDocuments")}
                 <span className="flex items-center gap-1 sm:ml-auto">
-                  {processInfo && (
+                  {userRole === "admin" && processInfo && (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button

@@ -228,6 +228,8 @@ interface IndividualProcessesTableProps {
   onSortingChange?: (sorting: SortingState) => void;
   // Export snapshot callback (current table view: filters/search/sorting/visible columns)
   onExportSnapshotChange?: (snapshot: IndividualProcessesExportSnapshot) => void;
+  // Whether to show the column visibility toggle button
+  showColumnVisibility?: boolean;
 }
 
 export function IndividualProcessesTable({
@@ -273,6 +275,7 @@ export function IndividualProcessesTable({
   sorting: controlledSorting,
   onSortingChange: onControlledSortingChange,
   onExportSnapshotChange,
+  showColumnVisibility = true,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -2087,7 +2090,7 @@ export function IndividualProcessesTable({
             </div>
           )}
           {/* Column visibility button */}
-          <DataGridColumnVisibility
+          {showColumnVisibility && <DataGridColumnVisibility
             table={table}
             label={tCommon("columns")}
             showAllLabel={tCommon("showAll")}
@@ -2115,7 +2118,7 @@ export function IndividualProcessesTable({
                 {tCommon("columns")}
               </Button>
             }
-          />
+          />}
         </div>
         {/* Second row: Select filters */}
         {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange) && (

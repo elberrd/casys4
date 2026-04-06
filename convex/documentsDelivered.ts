@@ -2459,15 +2459,21 @@ export const listGroupedByCategory = query({
       }),
     );
 
+    // Filter out excluded-from-report documents for client users
+    const userProfile = await getCurrentUserProfile(ctx);
+    const visibleDocuments = userProfile.role === "client"
+      ? enrichedDocuments.filter((doc) => !doc.excludedFromReport)
+      : enrichedDocuments;
+
     // Group by category
-    const required = enrichedDocuments.filter(
+    const required = visibleDocuments.filter(
       (doc) => doc.isRequired === true && doc.documentTypeId
     );
     // Treat documents with isRequired === false OR undefined as optional (when they have a type)
-    const optional = enrichedDocuments.filter(
+    const optional = visibleDocuments.filter(
       (doc) => doc.isRequired !== true && doc.documentTypeId
     );
-    const loose = enrichedDocuments.filter(
+    const loose = visibleDocuments.filter(
       (doc) => !doc.documentTypeId
     );
 

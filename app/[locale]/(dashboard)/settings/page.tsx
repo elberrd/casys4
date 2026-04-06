@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import type { Metadata } from 'next';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { ChangePasswordForm } from '@/components/settings/change-password-form';
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import {
   Card,
@@ -69,6 +70,8 @@ export default async function SettingsPage({ params }: Props) {
               </div>
             </CardContent>
           </Card>
+
+          <ChangePasswordForm />
         </div>
       </div>
     </>

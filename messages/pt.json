@@ -2157,7 +2157,18 @@
     "selectLanguage": "Selecionar Idioma",
     "portuguese": "Português",
     "english": "Inglês",
-    "languageChanged": "Idioma alterado com sucesso"
+    "languageChanged": "Idioma alterado com sucesso",
+    "changePassword": "Alterar Senha",
+    "changePasswordDescription": "Altere sua senha de acesso ao sistema",
+    "currentPassword": "Senha Atual",
+    "newPassword": "Nova Senha",
+    "confirmNewPassword": "Confirmar Nova Senha",
+    "passwordMinLength": "A senha deve ter no mínimo 8 caracteres",
+    "passwordsDoNotMatch": "As senhas não coincidem",
+    "passwordChanged": "Senha alterada com sucesso",
+    "passwordChangeError": "Erro ao alterar senha",
+    "currentPasswordIncorrect": "Senha atual incorreta",
+    "changePasswordButton": "Alterar Senha"
   },
   "DocumentChecklist": {
     "title": "Lista de Documentos",

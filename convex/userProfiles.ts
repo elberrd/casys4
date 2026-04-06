@@ -4,6 +4,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { getCurrentUserProfile } from "./lib/auth";
+import { Scrypt } from "lucia";
 
 /**
  * USER LIFECYCLE DOCUMENTATION
@@ -520,6 +521,30 @@ export const remove = mutation({
     // - Check if user has created processes
     // - Consider soft delete instead of hard delete
 
+    // Clean up auth records if user has a linked auth account
+    if (targetUser.userId) {
+      // Delete authAccounts for this user
+      const authAccounts = await ctx.db
+        .query("authAccounts")
+        .filter((q) => q.eq(q.field("userId"), targetUser.userId))
+        .collect();
+      for (const account of authAccounts) {
+        await ctx.db.delete(account._id);
+      }
+
+      // Delete auth sessions for this user
+      const sessions = await ctx.db
+        .query("authSessions")
+        .filter((q) => q.eq(q.field("userId"), targetUser.userId))
+        .collect();
+      for (const session of sessions) {
+        await ctx.db.delete(session._id);
+      }
+
+      // Delete the users record
+      await ctx.db.delete(targetUser.userId);
+    }
+
     await ctx.db.delete(id);
 
     // Log activity (non-blocking)
@@ -552,7 +577,9 @@ export const preRegisterUser = mutation({
     fullName: v.string(),
     role: v.union(v.literal("admin"), v.literal("client")),
     companyId: v.optional(v.id("companies")),
+    personId: v.optional(v.id("people")),
     phoneNumber: v.optional(v.string()),
+    password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -580,18 +607,84 @@ export const preRegisterUser = mutation({
       throw new Error("Admin users cannot be assigned to a company");
     }
 
+    // Validate password if provided
+    if (args.password && args.password.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+
     const now = Date.now();
 
-    // Insert user profile without userId (will be linked during sign up)
+    let userId: Id<"users"> | undefined = undefined;
+
+    // If password provided, create full auth account so user can sign in immediately
+    if (args.password) {
+      // Check if auth user already exists with this email
+      const existingAuthUser = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", args.email))
+        .first();
+
+      if (existingAuthUser) {
+        // Reuse the existing auth user
+        userId = existingAuthUser._id;
+
+        // Check if they already have a password auth account
+        const existingAuthAccount = await ctx.db
+          .query("authAccounts")
+          .withIndex("providerAndAccountId", (q) =>
+            q.eq("provider", "password").eq("providerAccountId", args.email)
+          )
+          .first();
+
+        if (existingAuthAccount) {
+          // Update the existing password
+          const scrypt = new Scrypt();
+          const hashedPassword = await scrypt.hash(args.password);
+          await ctx.db.patch(existingAuthAccount._id, {
+            secret: hashedPassword,
+          });
+        } else {
+          // Create password auth account for existing user
+          const scrypt = new Scrypt();
+          const hashedPassword = await scrypt.hash(args.password);
+          await ctx.db.insert("authAccounts", {
+            userId,
+            provider: "password",
+            providerAccountId: args.email,
+            secret: hashedPassword,
+          });
+        }
+      } else {
+        // Create the users record
+        userId = await ctx.db.insert("users", {
+          email: args.email,
+          name: args.fullName,
+        });
+
+        // Hash password and create authAccounts record
+        const scrypt = new Scrypt();
+        const hashedPassword = await scrypt.hash(args.password);
+
+        await ctx.db.insert("authAccounts", {
+          userId,
+          provider: "password",
+          providerAccountId: args.email,
+          secret: hashedPassword,
+        });
+      }
+    }
+
+    // Insert user profile — active immediately if auth was created
     const userProfileId = await ctx.db.insert("userProfiles", {
-      userId: undefined, // Will be set when user activates account
+      userId,
+      personId: args.personId,
       email: args.email,
       fullName: args.fullName,
       role: args.role,
       companyId: args.companyId,
       phoneNumber: args.phoneNumber,
       photoUrl: undefined,
-      isActive: false, // Inactive until user activates account
+      isActive: !!userId,
       createdAt: now,
       updatedAt: now,
     });
@@ -610,6 +703,7 @@ export const preRegisterUser = mutation({
           fullName: args.fullName,
           role: args.role,
           companyName: company?.name,
+          personId: args.personId,
         },
       });
     } catch (error) {
@@ -816,3 +910,56 @@ export const seedAdminUser = internalMutation({
   },
 });
 
+/**
+ * Mutation to change the current user's own password.
+ * Verifies the current password before updating.
+ */
+export const changeOwnPassword = mutation({
+  args: {
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Authentication required");
+    }
+
+    if (args.newPassword.length < 8) {
+      throw new Error("New password must be at least 8 characters long");
+    }
+
+    // Find the password auth account for this user
+    const authAccount = await ctx.db
+      .query("authAccounts")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("userId"), userId),
+          q.eq(q.field("provider"), "password")
+        )
+      )
+      .first();
+
+    if (!authAccount) {
+      throw new Error("No password account found");
+    }
+
+    // Verify current password
+    const scrypt = new Scrypt();
+    const isValid = await scrypt.verify(
+      authAccount.secret as string,
+      args.currentPassword
+    );
+    if (!isValid) {
+      throw new Error("Current password is incorrect");
+    }
+
+    // Hash new password and update
+    const newHash = await scrypt.hash(args.newPassword);
+    await ctx.db.patch(authAccount._id, {
+      secret: newHash,
+    });
+
+    return { success: true };
+  },
+});

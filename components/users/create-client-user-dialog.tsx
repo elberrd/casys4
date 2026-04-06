@@ -125,6 +125,8 @@ export function CreateClientUserDialog({
         fullName: selectedPerson.fullName,
         role: "client",
         companyId: selectedPerson.companyId,
+        personId: selectedPerson.personId,
+        password,
       })
 
       setCreatedEmail(selectedPerson.email)

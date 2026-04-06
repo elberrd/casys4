@@ -146,6 +146,8 @@ export function IndividualProcessDetailClient({
     )
   }
 
+  const isAdmin = currentUser?.role === "admin"
+
   const statusVariant = individualProcess.status === "completed"
     ? "default"
     : individualProcess.status === "in_progress"
@@ -176,23 +178,25 @@ export function IndividualProcessDetailClient({
               {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
             </p>
           </div>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-            <Button
-              onClick={() => setIsStatusDialogOpen(true)}
-              variant="outline"
-              className="flex-1 sm:flex-none"
-            >
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              {t('updateStatus')}
-            </Button>
-            <Button
-              onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}
-              className="flex-1 sm:flex-none"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              {tCommon('edit')}
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+              <Button
+                onClick={() => setIsStatusDialogOpen(true)}
+                variant="outline"
+                className="flex-1 sm:flex-none"
+              >
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                {t('updateStatus')}
+              </Button>
+              <Button
+                onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}
+                className="flex-1 sm:flex-none"
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                {tCommon('edit')}
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -311,15 +315,17 @@ export function IndividualProcessDetailClient({
                 <CardTitle>{t('personInformation')}</CardTitle>
                 <CardDescription>{t('personInformationDescription')}</CardDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsPersonEditDialogOpen(true)}
-                className="self-start"
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                {tCommon('edit')}
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsPersonEditDialogOpen(true)}
+                  className="self-start"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  {tCommon('edit')}
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
@@ -520,50 +526,60 @@ export function IndividualProcessDetailClient({
           }}
         />
 
-        {/* Notes Section */}
-        <ProcessNotesSection
-          individualProcessId={processId}
-          currentUserId={currentUser?.userId}
-          isAdmin={currentUser?.role === "admin"}
-        />
+        {/* Notes Section (admin only) */}
+        {isAdmin && (
+          <ProcessNotesSection
+            individualProcessId={processId}
+            currentUserId={currentUser?.userId}
+            isAdmin={true}
+          />
+        )}
 
-        {/* Tasks Section */}
-        <ProcessTasksSection
-          individualProcessId={processId}
-          currentUserId={currentUser?.userId}
-          isAdmin={currentUser?.role === "admin"}
-        />
+        {/* Tasks Section (admin only) */}
+        {isAdmin && (
+          <ProcessTasksSection
+            individualProcessId={processId}
+            currentUserId={currentUser?.userId}
+            isAdmin={true}
+          />
+        )}
 
-        {/* Activity History */}
-        <EntityHistory
-          entityType="individualProcess"
-          entityId={processId}
-          title={t('activityHistory')}
-          fullProcessHistory
-        />
+        {/* Activity History (admin only) */}
+        {isAdmin && (
+          <EntityHistory
+            entityType="individualProcess"
+            entityId={processId}
+            title={t('activityHistory')}
+            fullProcessHistory
+          />
+        )}
       </div>
 
-      {/* Status Update Dialog */}
-      <StatusUpdateDialog
-        open={isStatusDialogOpen}
-        onOpenChange={setIsStatusDialogOpen}
-        individualProcessId={processId}
-        currentStatus={individualProcess.activeStatus?.statusName || individualProcess.status || ""}
-        onSuccess={() => {
-          // Dialog will close automatically, data will refresh via Convex
-        }}
-      />
+      {/* Status Update Dialog (admin only) */}
+      {isAdmin && (
+        <StatusUpdateDialog
+          open={isStatusDialogOpen}
+          onOpenChange={setIsStatusDialogOpen}
+          individualProcessId={processId}
+          currentStatus={individualProcess.activeStatus?.statusName || individualProcess.status || ""}
+          onSuccess={() => {
+            // Dialog will close automatically, data will refresh via Convex
+          }}
+        />
+      )}
 
-      {/* Person Edit Dialog */}
-      <PersonFormDialog
-        open={isPersonEditDialogOpen}
-        onOpenChange={setIsPersonEditDialogOpen}
-        personId={individualProcess.personId}
-        individualProcessId={processId}
-        onSuccess={() => {
-          setIsPersonEditDialogOpen(false)
-        }}
-      />
+      {/* Person Edit Dialog (admin only) */}
+      {isAdmin && (
+        <PersonFormDialog
+          open={isPersonEditDialogOpen}
+          onOpenChange={setIsPersonEditDialogOpen}
+          personId={individualProcess.personId}
+          individualProcessId={processId}
+          onSuccess={() => {
+            setIsPersonEditDialogOpen(false)
+          }}
+        />
+      )}
 
       {/* Document Review Dialog (opened from paperclip icons) */}
       {reviewDocumentId && (

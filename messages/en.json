@@ -2133,7 +2133,18 @@
     "selectLanguage": "Select Language",
     "portuguese": "Portuguese",
     "english": "English",
-    "languageChanged": "Language changed successfully"
+    "languageChanged": "Language changed successfully",
+    "changePassword": "Change Password",
+    "changePasswordDescription": "Change your system access password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmNewPassword": "Confirm New Password",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "passwordChanged": "Password changed successfully",
+    "passwordChangeError": "Error changing password",
+    "currentPasswordIncorrect": "Current password is incorrect",
+    "changePasswordButton": "Change Password"
   },
   "DocumentChecklist": {
     "title": "Document Checklist",

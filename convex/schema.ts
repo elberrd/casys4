@@ -11,6 +11,7 @@ export default defineSchema({
   // User profiles with role-based access control
   userProfiles: defineTable({
     userId: v.optional(v.id("users")),
+    personId: v.optional(v.id("people")),
     email: v.string(),
     fullName: v.string(),
     role: v.union(v.literal("admin"), v.literal("client")),
@@ -25,7 +26,8 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_role", ["role"])
     .index("by_company", ["companyId"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_person", ["personId"]),
 
   // Geographic lookup tables
   countries: defineTable({

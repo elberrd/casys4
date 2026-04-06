@@ -942,10 +942,10 @@ export function IndividualProcessesClient() {
           onFillFields={isClient ? undefined : handleFillFields}
           onCreateFromExisting={isClient ? undefined : handleCreateFromExisting}
           onRowClick={handleView}
-          candidateOptions={candidateOptions}
-          selectedCandidates={selectedCandidates}
-          onCandidateFilterChange={setSelectedCandidates}
           {...(!isClient && {
+            candidateOptions,
+            selectedCandidates,
+            onCandidateFilterChange: setSelectedCandidates,
             applicantOptions,
             selectedApplicants,
             onApplicantFilterChange: setSelectedApplicants,
@@ -964,15 +964,16 @@ export function IndividualProcessesClient() {
             onUrgentModeToggle: handleUrgentModeToggle,
             isQualExpProfModeActive,
             onQualExpProfModeToggle: handleQualExpProfModeToggle,
+            progressStatusOptions,
+            selectedProgressStatuses,
+            onProgressStatusFilterChange: setSelectedProgressStatuses,
+            isExigenciaModeActive,
+            onExigenciaModeToggle: handleExigenciaModeToggle,
+            isGroupedModeActive: selectedProgressStatuses.length >= 2,
           })}
-          progressStatusOptions={progressStatusOptions}
-          selectedProgressStatuses={selectedProgressStatuses}
-          onProgressStatusFilterChange={setSelectedProgressStatuses}
-          isExigenciaModeActive={isExigenciaModeActive}
-          onExigenciaModeToggle={handleExigenciaModeToggle}
-          isGroupedModeActive={selectedProgressStatuses.length >= 2}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          showColumnVisibility={!isClient}
           sorting={sorting}
           onSortingChange={setSorting}
           onExportSnapshotChange={isClient ? undefined : handleExportSnapshotChange}
