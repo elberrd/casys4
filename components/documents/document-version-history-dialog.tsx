@@ -222,7 +222,7 @@ export function DocumentVersionHistoryDialog({
                           {doc.versionNotes && (
                             <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
                               <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                              <p className="text-sm italic text-muted-foreground">
+                              <p className="text-sm italic text-muted-foreground whitespace-pre-wrap">
                                 {doc.versionNotes}
                               </p>
                             </div>

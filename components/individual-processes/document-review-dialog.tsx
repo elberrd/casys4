@@ -1005,7 +1005,7 @@ export function DocumentReviewDialog({
                 </div>
               ) : (
                 displayDocument?.versionNotes ? (
-                  <p className="font-medium">{displayDocument.versionNotes}</p>
+                  <p className="font-medium whitespace-pre-wrap">{displayDocument.versionNotes}</p>
                 ) : (
                   <p className="text-muted-foreground italic text-xs">{t("versionNotesPlaceholder")}</p>
                 )
@@ -1073,7 +1073,7 @@ export function DocumentReviewDialog({
                         </Badge>
                       )}
                     </div>
-                    <p className="mt-1">{displayDocument.rejectionReason}</p>
+                    <p className="mt-1 whitespace-pre-wrap">{displayDocument.rejectionReason}</p>
                   </div>
                 )}
               </div>
@@ -1288,7 +1288,7 @@ export function DocumentReviewDialog({
                             </div>
                             {entry.notes && (
                               <div className={cn(
-                                "mt-1 p-2 rounded text-sm",
+                                "mt-1 p-2 rounded text-sm whitespace-pre-wrap",
                                 entry.newStatus === "rejected" ? "bg-destructive/10 text-destructive" : "bg-muted"
                               )}>
                                 {entry.notes}
