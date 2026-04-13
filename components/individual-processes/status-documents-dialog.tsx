@@ -370,6 +370,11 @@ export function StatusDocumentsDialog({
                             </Badge>
                           )}
                         </div>
+                        {doc.previousRejectionReason && (
+                          <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-wrap">
+                            {doc.previousRejectionReason}
+                          </p>
+                        )}
                         {doc.versionNotes && (
                           <p className="mt-1 text-xs text-muted-foreground italic [overflow-wrap:anywhere]">
                             {doc.versionNotes}
