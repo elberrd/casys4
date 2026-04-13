@@ -282,20 +282,37 @@ export function StatusDocumentsDialog({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => openSubDialog("looseUpload")}>
-                    <FileQuestion className="h-4 w-4 mr-2" />
-                    {tDoc("uploadLoose")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openSubDialog("typedUpload")}>
-                    <FileType className="h-4 w-4 mr-2" />
-                    {tDoc("uploadWithType")}
-                  </DropdownMenuItem>
-                  {caseStatusCode === "exigencia" && (
-                    <DropdownMenuItem onClick={() => openSubDialog("selectExisting")}>
-                      <Link2 className="h-4 w-4 mr-2" />
-                      {tDoc("selectExisting")}
-                    </DropdownMenuItem>
-                  )}
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuItem onClick={() => openSubDialog("looseUpload")}>
+                          <FileQuestion className="h-4 w-4 mr-2 text-amber-500" />
+                          {tDoc("uploadLoose")}
+                        </DropdownMenuItem>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">{tDoc("uploadLoose")}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuItem onClick={() => openSubDialog("typedUpload")}>
+                          <FileType className="h-4 w-4 mr-2 text-sky-500" />
+                          {tDoc("uploadWithType")}
+                        </DropdownMenuItem>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">{tDoc("uploadWithType")}</TooltipContent>
+                    </Tooltip>
+                    {caseStatusCode === "exigencia" && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuItem onClick={() => openSubDialog("selectExisting")}>
+                            <Link2 className="h-4 w-4 mr-2 text-emerald-500" />
+                            {tDoc("selectExisting")}
+                          </DropdownMenuItem>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">{tDoc("selectExisting")}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </TooltipProvider>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -353,11 +370,6 @@ export function StatusDocumentsDialog({
                             </Badge>
                           )}
                         </div>
-                        {doc.previousRejectionReason && (
-                          <p className="mt-1 text-xs text-destructive [overflow-wrap:anywhere]">
-                            {tDoc("requirementReason")}: {doc.previousRejectionReason}
-                          </p>
-                        )}
                         {doc.versionNotes && (
                           <p className="mt-1 text-xs text-muted-foreground italic [overflow-wrap:anywhere]">
                             {doc.versionNotes}

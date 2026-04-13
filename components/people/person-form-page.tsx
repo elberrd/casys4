@@ -26,7 +26,7 @@ import { PassportsSubtable } from "@/components/people/passports-subtable"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { personSchema, PersonFormData, maritalStatusOptions } from "@/lib/validations/people"
+import { personSchema, PersonFormData, maritalStatusOptions, sexOptions } from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -73,6 +73,7 @@ export function PersonFormPage({
       birthCityId: "" as Id<"cities">,
       nationalityId: "" as Id<"countries">,
       maritalStatus: "",
+      sex: "",
       profession: "",
       cargo: "",
       motherName: "",
@@ -108,6 +109,7 @@ export function PersonFormPage({
         birthCityId: person.birthCityId,
         nationalityId: person.nationalityId,
         maritalStatus: person.maritalStatus as "Single" | "Married" | "Divorced" | "Widowed",
+        sex: person.sex as "Male" | "Female" | undefined,
         profession: person.profession,
         cargo: person.cargo ?? "",
         motherName: person.motherName,
@@ -151,6 +153,7 @@ export function PersonFormPage({
         birthCityId: data.birthCityId || undefined,
         nationalityId: data.nationalityId || undefined,
         maritalStatus: data.maritalStatus || undefined,
+        sex: data.sex || undefined,
         profession: data.profession || undefined,
         cargo: data.cargo || undefined,
         motherName: data.motherName || undefined,
@@ -401,6 +404,29 @@ export function PersonFormPage({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t('selectMaritalStatus')}
+                        showClearButton={true}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="sex"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('sex')}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={sexOptions.map((option) => ({
+                          value: option.value,
+                          label: t(`sex${option.value}` as any),
+                        }))}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t('selectSex')}
                         showClearButton={true}
                       />
                     </FormControl>

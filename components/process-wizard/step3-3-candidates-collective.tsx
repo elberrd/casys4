@@ -120,19 +120,9 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
       consulateId: newCandidateConsulateId ? (newCandidateConsulateId as Id<"consulates">) : undefined,
     }
 
-    // Determine if this is the first candidate BEFORE adding
-    const isFirstCandidate = wizardData.candidates.length === 0
-
-    // Save the values to use after adding
-    // If first candidate, use current values; otherwise use first candidate's values
-    const dateToUse = isFirstCandidate ? newCandidateRequestDate : wizardData.candidates[0].requestDate
-    const consulateToUse = isFirstCandidate ? newCandidateConsulateId : (wizardData.candidates[0].consulateId as string || "")
-
     addCandidate(newCandidate)
 
-    // Reset fields with the appropriate values
-    setNewCandidateRequestDate(dateToUse)
-    setNewCandidateConsulateId(consulateToUse)
+    // Only clear candidate; keep request date and consulate as selected
     setNewCandidatePersonId("")
   }
 

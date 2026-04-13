@@ -50,7 +50,7 @@ import {
   Trash2,
   ShieldOff,
 } from "lucide-react"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import {
   Tooltip,
@@ -877,7 +877,7 @@ export function DocumentReviewDialog({
                     </Tooltip>
                   </div>
                   <p className="font-medium">
-                    {format(new Date(displayDocument.issueDate), "PPP")}
+                    {format(parseISO(displayDocument.issueDate), "PPP")}
                   </p>
                 </div>
               )}
@@ -895,7 +895,7 @@ export function DocumentReviewDialog({
                     </Tooltip>
                   </div>
                   <p className="font-medium">
-                    {format(new Date(displayDocument.expiryDate), "PPP")}
+                    {format(parseISO(displayDocument.expiryDate), "PPP")}
                   </p>
                 </div>
               )}
