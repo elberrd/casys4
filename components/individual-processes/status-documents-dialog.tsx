@@ -351,11 +351,22 @@ export function StatusDocumentsDialog({
                     }}
                   >
                     <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
-                      {doc.documentTypeId ? (
-                        <FileType className="h-5 w-5 text-sky-500 shrink-0" />
-                      ) : (
-                        <FileQuestion className="h-5 w-5 text-amber-500 shrink-0" />
-                      )}
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                              {doc.documentTypeId ? (
+                                <FileType className="h-5 w-5 text-sky-500" />
+                              ) : (
+                                <FileQuestion className="h-5 w-5 text-amber-500" />
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {doc.documentTypeId ? tDoc("uploadWithType") : tDoc("looseDocument")}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <div className="flex-1 min-w-0">
                         <div className="flex min-w-0 flex-wrap items-start gap-2">
                           <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
