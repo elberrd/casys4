@@ -160,8 +160,6 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
 
     addCandidate(newCandidate)
     setNewCandidatePersonId("")
-    setNewCandidateConsulateId("")
-    setNewCandidateRequestDate(wizardData.requestDate || new Date().toISOString().split('T')[0])
   }
 
   const handleRemoveCandidate = (index: number) => {
