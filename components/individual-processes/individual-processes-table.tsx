@@ -77,6 +77,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -198,6 +199,9 @@ interface IndividualProcessesTableProps {
   progressStatusOptions?: Array<{ value: string; label: string }>;
   selectedProgressStatuses?: string[];
   onProgressStatusFilterChange?: (statuses: string[]) => void;
+  // Progress date filter prop (YYYY-MM-DD)
+  progressDate?: string;
+  onProgressDateChange?: (value: string | undefined) => void;
   // Authorization Type filter props
   authorizationTypeOptions?: Array<{ value: string; label: string }>;
   selectedAuthorizationTypes?: string[];
@@ -255,6 +259,8 @@ export function IndividualProcessesTable({
   progressStatusOptions = [],
   selectedProgressStatuses = [],
   onProgressStatusFilterChange,
+  progressDate,
+  onProgressDateChange,
   authorizationTypeOptions = [],
   selectedAuthorizationTypes = [],
   onAuthorizationTypeFilterChange,
@@ -297,7 +303,7 @@ export function IndividualProcessesTable({
     qualification: false,
     professionalExperience: false,
     notes: true,
-    groupedStatusDate: false, // Hidden by default, shown only in grouped mode
+    progressDate: true,
   };
 
   // Support both controlled and uncontrolled column visibility
@@ -441,21 +447,19 @@ export function IndividualProcessesTable({
       setGrouping(["caseStatus.name"]);
       // Set all groups to collapsed by default when entering grouped mode
       setExpanded({});
-      // Hide the caseStatus column and show groupedStatusDate when grouped mode is active
+      // Hide the caseStatus column when grouped mode is active (status shown in group header)
       setColumnVisibility(prev => ({
         ...prev,
         "caseStatus.name": false,
-        groupedStatusDate: true,
       }));
     } else {
       // Deactivate grouping
       setGrouping([]);
       setExpanded({});
-      // Restore the caseStatus column visibility and hide groupedStatusDate when leaving grouped mode
+      // Restore the caseStatus column visibility when leaving grouped mode
       setColumnVisibility(prev => ({
         ...prev,
         "caseStatus.name": initialColumnVisibilityRef.current["caseStatus.name"] ?? true,
-        groupedStatusDate: false,
       }));
     }
   }, [isGroupedModeActive]);
@@ -469,11 +473,9 @@ export function IndividualProcessesTable({
     // Grouped mode adjustments
     if (isGroupedModeActive) {
       resetVisibility["caseStatus.name"] = false;
-      resetVisibility.groupedStatusDate = true;
     } else {
       resetVisibility["caseStatus.name"] =
         initialColumnVisibilityRef.current["caseStatus.name"] ?? true;
-      resetVisibility.groupedStatusDate = false;
     }
 
     // RNM mode adjustments
@@ -610,46 +612,6 @@ export function IndividualProcessesTable({
   const columns = useMemo<ColumnDef<IndividualProcess>[]>(
     () => [
       createSelectColumn<IndividualProcess>(),
-      {
-        id: "groupedStatusDate",
-        accessorFn: (row) => {
-          const activeStatus = row.activeStatus;
-          if (!activeStatus) return null;
-          return activeStatus.date ||
-            new Date(activeStatus.changedAt).toISOString().split("T")[0];
-        },
-        minSize: 90,
-        maxSize: 110,
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("statusDate")} />
-        ),
-        cell: ({ row }) => {
-          const activeStatus = row.original.activeStatus;
-
-          if (!activeStatus) {
-            return <span className="text-sm text-muted-foreground">-</span>;
-          }
-
-          const displayDate = activeStatus.date ||
-            new Date(activeStatus.changedAt).toISOString().split("T")[0];
-          const datePart = displayDate.split("T")[0];
-          const [year, month, day] = datePart.split("-").map(Number);
-
-          if (!year || !month || !day) {
-            return <span className="text-sm text-muted-foreground">-</span>;
-          }
-
-          const date = new Date(year, month - 1, day);
-          const formattedDate = date.toLocaleDateString(
-            locale === "en" ? "en-US" : "pt-BR",
-            { day: "2-digit", month: "2-digit", year: "numeric" }
-          );
-
-          return <span className="text-sm">{formattedDate}</span>;
-        },
-        enableSorting: true,
-        enableHiding: false,
-      },
       {
         accessorKey: "person.fullName",
         minSize: 100,
@@ -1037,6 +999,49 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
+        id: "progressDate",
+        accessorFn: (row) => {
+          const activeStatus = row.activeStatus;
+          if (!activeStatus) return null;
+          return (
+            activeStatus.date ||
+            new Date(activeStatus.changedAt).toISOString().split("T")[0]
+          );
+        },
+        minSize: 100,
+        maxSize: 120,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("progressDate")} />
+        ),
+        cell: ({ row }) => {
+          const activeStatus = row.original.activeStatus;
+
+          if (!activeStatus) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const displayDate =
+            activeStatus.date ||
+            new Date(activeStatus.changedAt).toISOString().split("T")[0];
+          const datePart = displayDate.split("T")[0];
+          const [year, month, day] = datePart.split("-").map(Number);
+
+          if (!year || !month || !day) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const date = new Date(year, month - 1, day);
+          const formattedDate = date.toLocaleDateString(
+            locale === "en" ? "en-US" : "pt-BR",
+            { day: "2-digit", month: "2-digit", year: "numeric" },
+          );
+
+          return <span className="text-sm">{formattedDate}</span>;
+        },
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
         accessorKey: "caseStatus.name",
         id: "caseStatus.name",
         minSize: 120,
@@ -1064,34 +1069,6 @@ export function IndividualProcessesTable({
             locale === "en" && caseStatus.nameEn
               ? caseStatus.nameEn
               : caseStatus.name;
-
-          // Format the date - prioritize user-editable date field, fallback to changedAt
-          let formattedDate = "";
-          if (activeStatus) {
-            // Use date field if available, otherwise fallback to changedAt formatted as ISO date
-            const displayDate =
-              activeStatus.date ||
-              new Date(activeStatus.changedAt).toISOString().split("T")[0];
-
-            // Extract just the date part if datetime includes time (e.g., "2025-12-08T10:30" -> "2025-12-08")
-            const datePart = displayDate.split("T")[0];
-
-            // Parse the ISO date string (YYYY-MM-DD) to avoid timezone issues
-            const [year, month, day] = datePart.split("-").map(Number);
-            if (year && month && day) {
-              const date = new Date(year, month - 1, day);
-              if (!isNaN(date.getTime())) {
-                formattedDate = date.toLocaleDateString(
-                  locale === "en" ? "en-US" : "pt-BR",
-                  {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                  },
-                );
-              }
-            }
-          }
 
           // Get filled fields data for tooltip
           const filledFieldsData = activeStatus?.filledFieldsData;
@@ -1181,11 +1158,6 @@ export function IndividualProcessesTable({
           const badgeElement = (
             <div className="flex items-center justify-between gap-2 w-full">
               <div className="flex flex-col gap-1 items-start">
-                {formattedDate && (
-                  <span className="text-xs text-muted-foreground">
-                    {formattedDate}
-                  </span>
-                )}
                 <StatusBadge
                   status={statusName}
                   type="individual_process"
@@ -1220,11 +1192,6 @@ export function IndividualProcessesTable({
                     <TooltipTrigger asChild>
                       <div className="cursor-help inline-block">
                         <div className="flex flex-col gap-1 items-start">
-                          {formattedDate && (
-                            <span className="text-xs text-muted-foreground">
-                              {formattedDate}
-                            </span>
-                          )}
                           <div className="relative inline-block">
                             <StatusBadge
                               status={statusName}
@@ -1673,7 +1640,7 @@ export function IndividualProcessesTable({
     ]);
 
     const headerByColumnId: Record<string, string> = {
-      groupedStatusDate: t("statusDate"),
+      progressDate: t("progressDate"),
       person_fullName: t("personName"),
       protocolNumber: t("protocol"),
       companyApplicant_name: t("applicant"),
@@ -1715,14 +1682,9 @@ export function IndividualProcessesTable({
       const caseStatus = process.caseStatus;
       if (!caseStatus) return "-";
 
-      const statusName =
-        locale === "en" && caseStatus.nameEn ? caseStatus.nameEn : caseStatus.name;
-      const activeStatus = process.activeStatus;
-      const statusDate = activeStatus?.date || (activeStatus
-        ? new Date(activeStatus.changedAt).toISOString().split("T")[0]
-        : undefined);
-      const formattedDate = formatIsoDate(statusDate);
-      return formattedDate === "-" ? statusName : `${formattedDate} - ${statusName}`;
+      return locale === "en" && caseStatus.nameEn
+        ? caseStatus.nameEn
+        : caseStatus.name;
     };
 
     const formatQualification = (process: IndividualProcess): string => {
@@ -1796,7 +1758,7 @@ export function IndividualProcessesTable({
       columnId: string,
     ): string => {
       switch (columnId) {
-        case "groupedStatusDate":
+        case "progressDate":
           return formatIsoDate(
             process.activeStatus?.date ||
               (process.activeStatus
@@ -2107,6 +2069,7 @@ export function IndividualProcessesTable({
               "legalFramework_name": t("legalFramework"),
               "qualification": t("qualification"),
               "professionalExperience": t("professionalExperienceSince"),
+              "progressDate": t("progressDate"),
               "caseStatus.name": t("caseStatus"),
               "filledFields": t("filledFields"),
               "processStatus": t("processStatus"),
@@ -2177,6 +2140,14 @@ export function IndividualProcessesTable({
                 triggerClassName="min-w-[160px] max-w-[280px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearProgressStatus")}
+              />
+            )}
+            {onProgressDateChange && (
+              <DatePicker
+                value={progressDate}
+                onChange={onProgressDateChange}
+                placeholder={t("filters.progressDate")}
+                className="min-w-[180px] max-w-[220px]"
               />
             )}
             {onAuthorizationTypeFilterChange && authorizationTypeOptions.length > 0 && (

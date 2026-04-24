@@ -54,6 +54,7 @@ export function IndividualProcessesClient() {
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>(() => persisted?.selectedApplicants ?? [])
   const [selectedUserApplicants, setSelectedUserApplicants] = useState<string[]>(() => persisted?.selectedUserApplicants ?? [])
   const [selectedProgressStatuses, setSelectedProgressStatuses] = useState<string[]>(() => persisted?.selectedProgressStatuses ?? [])
+  const [progressDate, setProgressDate] = useState<string | undefined>(() => persisted?.progressDate)
   const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>(() => persisted?.selectedAuthorizationTypes ?? [])
   const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>(() => persisted?.selectedLegalFrameworks ?? [])
   const [isRnmModeActive, setIsRnmModeActive] = useState<boolean>(() => persisted?.isRnmModeActive ?? false)
@@ -271,13 +272,14 @@ export function IndividualProcessesClient() {
       selectedProgressStatuses.length > 0 ||
       selectedAuthorizationTypes.length > 0 ||
       selectedLegalFrameworks.length > 0 ||
+      !!progressDate ||
       isRnmModeActive ||
       isUrgentModeActive ||
       isQualExpProfModeActive ||
       isExigenciaModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -294,6 +296,7 @@ export function IndividualProcessesClient() {
     if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
     if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes
     if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
+    if (progressDate) criteria.progressDate = progressDate
     if (isRnmModeActive) criteria.isRnmModeActive = true
     if (isUrgentModeActive) criteria.isUrgentModeActive = true
     if (isQualExpProfModeActive) criteria.isQualExpProfModeActive = true
@@ -303,7 +306,7 @@ export function IndividualProcessesClient() {
     criteria.columnVisibility = columnVisibility
     if (sorting.length > 0) criteria.sorting = sorting
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
 
   // Persist filter state to sessionStorage on every change
   useEffect(() => {
@@ -322,6 +325,7 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setProgressDate(undefined)
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
@@ -346,6 +350,9 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedLegalFrameworks) {
       setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
+    }
+    if (filterCriteria.progressDate) {
+      setProgressDate(filterCriteria.progressDate)
     }
     if (filterCriteria.isRnmModeActive) {
       setIsRnmModeActive(true)
@@ -387,6 +394,7 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setProgressDate(undefined)
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
     setIsQualExpProfModeActive(false)
@@ -493,6 +501,18 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const legalFrameworkId = process.legalFramework?._id
         return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
+      })
+    }
+
+    // Apply progress date filter (exact match on YYYY-MM-DD)
+    if (progressDate) {
+      result = result.filter((process) => {
+        const activeStatus = process.activeStatus
+        if (!activeStatus) return false
+        const displayDate =
+          activeStatus.date ||
+          new Date(activeStatus.changedAt).toISOString().split("T")[0]
+        return displayDate.split("T")[0] === progressDate
       })
     }
 
@@ -653,7 +673,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, isUrgentModeActive, isExigenciaModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isUrgentModeActive, isExigenciaModeActive])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -967,6 +987,8 @@ export function IndividualProcessesClient() {
             progressStatusOptions,
             selectedProgressStatuses,
             onProgressStatusFilterChange: setSelectedProgressStatuses,
+            progressDate,
+            onProgressDateChange: setProgressDate,
             isExigenciaModeActive,
             onExigenciaModeToggle: handleExigenciaModeToggle,
             isGroupedModeActive: selectedProgressStatuses.length >= 2,
