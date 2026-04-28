@@ -933,7 +933,11 @@
       "selectLegalFrameworks": "Amparos legais...",
       "searchLegalFrameworks": "Pesquisar amparos legais...",
       "noLegalFrameworksFound": "Nenhum amparo legal encontrado.",
-      "clearLegalFrameworks": "Limpar seleção de amparos legais"
+      "clearLegalFrameworks": "Limpar seleção de amparos legais",
+      "selectProcessStatus": "Status do processo...",
+      "searchProcessStatus": "Pesquisar status do processo...",
+      "noProcessStatusFound": "Nenhum status de processo encontrado.",
+      "clearProcessStatus": "Limpar filtro de status do processo"
     },
     "createFromExisting": "Novo Processo a partir deste",
     "createFromExistingTitle": "Criar Novo Processo?",

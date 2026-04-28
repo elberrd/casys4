@@ -210,6 +210,10 @@ interface IndividualProcessesTableProps {
   legalFrameworkOptions?: Array<{ value: string; label: string }>;
   selectedLegalFrameworks?: string[];
   onLegalFrameworkFilterChange?: (frameworks: string[]) => void;
+  // Process Status filter props (Atual / Anterior)
+  processStatusOptions?: Array<{ value: string; label: string }>;
+  selectedProcessStatuses?: string[];
+  onProcessStatusFilterChange?: (statuses: string[]) => void;
   // RNM mode toggle props
   isRnmModeActive?: boolean;
   onRnmModeToggle?: () => void;
@@ -267,6 +271,9 @@ export function IndividualProcessesTable({
   legalFrameworkOptions = [],
   selectedLegalFrameworks = [],
   onLegalFrameworkFilterChange,
+  processStatusOptions = [],
+  selectedProcessStatuses = [],
+  onProcessStatusFilterChange,
   isRnmModeActive = false,
   onRnmModeToggle,
   isUrgentModeActive = false,
@@ -2084,7 +2091,7 @@ export function IndividualProcessesTable({
           />}
         </div>
         {/* Second row: Select filters */}
-        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange) && (
+        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange || onProcessStatusFilterChange) && (
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             {onApplicantFilterChange && applicantOptions.length > 0 && (
               <Combobox
@@ -2176,6 +2183,20 @@ export function IndividualProcessesTable({
                 triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
+              />
+            )}
+            {onProcessStatusFilterChange && processStatusOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={processStatusOptions as ComboboxOption<string>[]}
+                value={selectedProcessStatuses}
+                onValueChange={onProcessStatusFilterChange}
+                placeholder={t("filters.selectProcessStatus")}
+                searchPlaceholder={t("filters.searchProcessStatus")}
+                emptyText={t("filters.noProcessStatusFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearProcessStatus")}
               />
             )}
           </div>

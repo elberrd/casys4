@@ -57,6 +57,7 @@ export function IndividualProcessesClient() {
   const [progressDate, setProgressDate] = useState<string | undefined>(() => persisted?.progressDate)
   const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>(() => persisted?.selectedAuthorizationTypes ?? [])
   const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>(() => persisted?.selectedLegalFrameworks ?? [])
+  const [selectedProcessStatuses, setSelectedProcessStatuses] = useState<string[]>(() => persisted?.selectedProcessStatuses ?? ["Atual"])
   const [isRnmModeActive, setIsRnmModeActive] = useState<boolean>(() => persisted?.isRnmModeActive ?? false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState<boolean>(() => persisted?.isUrgentModeActive ?? false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState<boolean>(() => persisted?.isQualExpProfModeActive ?? false)
@@ -191,6 +192,12 @@ export function IndividualProcessesClient() {
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [legalFrameworks])
 
+  // Process status options (Atual / Anterior)
+  const processStatusOptions = useMemo(() => [
+    { value: "Atual", label: t("processStatusCurrent") },
+    { value: "Anterior", label: t("processStatusPrevious") },
+  ], [t])
+
   // Filter field configuration
   const filterFields: FilterFieldConfig<string>[] = useMemo(() => [
     {
@@ -265,6 +272,8 @@ export function IndividualProcessesClient() {
 
   // Saved Filters functionality
   const hasActiveFilters = useMemo(() => {
+    const isDefaultProcessStatus =
+      selectedProcessStatuses.length === 1 && selectedProcessStatuses[0] === "Atual"
     return (
       selectedCandidates.length > 0 ||
       selectedApplicants.length > 0 ||
@@ -272,6 +281,7 @@ export function IndividualProcessesClient() {
       selectedProgressStatuses.length > 0 ||
       selectedAuthorizationTypes.length > 0 ||
       selectedLegalFrameworks.length > 0 ||
+      (selectedProcessStatuses.length > 0 && !isDefaultProcessStatus) ||
       !!progressDate ||
       isRnmModeActive ||
       isUrgentModeActive ||
@@ -279,7 +289,7 @@ export function IndividualProcessesClient() {
       isExigenciaModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -296,6 +306,7 @@ export function IndividualProcessesClient() {
     if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
     if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes
     if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
+    if (selectedProcessStatuses.length > 0) criteria.selectedProcessStatuses = selectedProcessStatuses
     if (progressDate) criteria.progressDate = progressDate
     if (isRnmModeActive) criteria.isRnmModeActive = true
     if (isUrgentModeActive) criteria.isUrgentModeActive = true
@@ -306,7 +317,7 @@ export function IndividualProcessesClient() {
     criteria.columnVisibility = columnVisibility
     if (sorting.length > 0) criteria.sorting = sorting
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
 
   // Persist filter state to sessionStorage on every change
   useEffect(() => {
@@ -325,6 +336,7 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setSelectedProcessStatuses([])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
@@ -350,6 +362,9 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedLegalFrameworks) {
       setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
+    }
+    if (filterCriteria.selectedProcessStatuses) {
+      setSelectedProcessStatuses(filterCriteria.selectedProcessStatuses)
     }
     if (filterCriteria.progressDate) {
       setProgressDate(filterCriteria.progressDate)
@@ -394,6 +409,7 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setSelectedProcessStatuses(["Atual"])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
     setIsUrgentModeActive(false)
@@ -501,6 +517,16 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const legalFrameworkId = process.legalFramework?._id
         return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
+      })
+    }
+
+    // Apply process status multi-select filter (Atual / Anterior)
+    if (selectedProcessStatuses.length > 0) {
+      result = result.filter((process) => {
+        const processStatus =
+          (process as any).processStatus ||
+          (process.isActive === false ? "Anterior" : "Atual")
+        return selectedProcessStatuses.includes(processStatus)
       })
     }
 
@@ -673,7 +699,7 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, progressDate, isUrgentModeActive, isExigenciaModeActive])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -978,6 +1004,9 @@ export function IndividualProcessesClient() {
             legalFrameworkOptions,
             selectedLegalFrameworks,
             onLegalFrameworkFilterChange: setSelectedLegalFrameworks,
+            processStatusOptions,
+            selectedProcessStatuses,
+            onProcessStatusFilterChange: setSelectedProcessStatuses,
             isRnmModeActive,
             onRnmModeToggle: handleRnmModeToggle,
             isUrgentModeActive,
