@@ -42,13 +42,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isClient = userProfile?.role === "client"
 
-  // Client-only navigation: just Individual Processes
+  // Client-only navigation: dashboard, individual processes, settings
   const clientNav = [
+    {
+      title: t('dashboard'),
+      url: "/dashboard",
+      icon: LayoutDashboard,
+      isActive: true,
+      items: [],
+    },
     {
       title: t('individualProcesses'),
       url: "/individual-processes",
       icon: FolderKanban,
-      isActive: true,
+      isActive: false,
       items: [],
     },
     {

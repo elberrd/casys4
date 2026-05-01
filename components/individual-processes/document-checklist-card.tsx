@@ -965,11 +965,13 @@ export function DocumentChecklistCard({
                 </Button>
               )
             )}
-            {/* Checklist sidebar trigger */}
-            <ChecklistTriggerButton
-              individualProcessId={individualProcessId}
-              onClick={() => setChecklistOpen(true)}
-            />
+            {/* Checklist sidebar trigger (admin only) */}
+            {userRole === "admin" && (
+              <ChecklistTriggerButton
+                individualProcessId={individualProcessId}
+                onClick={() => setChecklistOpen(true)}
+              />
+            )}
             {/* Upload dropdown (admin only) */}
             {userRole === "admin" && (
               <div className="w-full sm:w-auto">

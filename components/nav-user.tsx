@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuthActions } from "@convex-dev/auth/react"
 import { useRouter } from "@/i18n/routing"
+import { useTranslations } from "next-intl"
 
 export function NavUser({
   user,
@@ -42,10 +43,20 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const { signOut } = useAuthActions()
   const router = useRouter()
+  const tNav = useTranslations("Navigation")
+  const tNotifications = useTranslations("Notifications")
 
   const handleSignOut = async () => {
     await signOut()
     router.push("/login")
+  }
+
+  const handleAccount = () => {
+    router.push("/settings")
+  }
+
+  const handleNotifications = () => {
+    router.push("/notifications")
   }
 
   return (
@@ -88,19 +99,19 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAccount}>
                 <BadgeCheck />
-                Account
+                {tNav("settings")}
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleNotifications}>
                 <Bell />
-                Notifications
+                {tNotifications("notifications")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />
-              Log out
+              {tNav("logOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

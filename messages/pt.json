@@ -113,7 +113,8 @@
     "documentTemplates": "Modelos de Documentos",
     "activityLogs": "Registros de Atividade",
     "settings": "Configurações",
-    "rnmCalendar": "RNM"
+    "rnmCalendar": "RNM",
+    "logOut": "Sair"
   },
   "Breadcrumbs": {
     "dashboard": "Painel",
@@ -1000,7 +1001,29 @@
     "addAllMissing": "Adicionar {count} faltante(s)",
     "addMissingSuccess": "Documento adicionado à lista",
     "addAllMissingSuccess": "{count} documento(s) adicionado(s) à lista",
-    "addMissingError": "Erro ao adicionar documento"
+    "addMissingError": "Erro ao adicionar documento",
+    "pendingDocs": "Pendências",
+    "pendingDocsCount": "{count} pendente(s)",
+    "pendingDocsUpToDate": "Em dia",
+    "onlyPendingToggleLabel": "Mostrar apenas processos com documentos pendentes"
+  },
+  "ClientPortal": {
+    "checklistTitle": "Documentos do processo",
+    "pendingDocsSummary": "Faltam {count} documento(s) para você enviar",
+    "allUpToDate": "Todos os documentos foram enviados",
+    "noDocuments": "Nenhum documento associado a este processo",
+    "exigenciaTitle": "Exigências do dia {date}",
+    "deadlineUntil": "Prazo até {date}",
+    "pendingTitle": "Faltam ser entregues",
+    "deliveredTitle": "Já entregues / em análise",
+    "sendFile": "Enviar arquivo",
+    "reupload": "Reenviar",
+    "requiredBadge": "Obrigatório",
+    "rejectionReasonLabel": "Motivo da rejeição:",
+    "statusApproved": "Aprovado",
+    "statusRejected": "Rejeitado",
+    "statusAwaitingReview": "Aguardando análise",
+    "genericDocument": "Documento"
   },
   "ProcessTimeline": {
     "title": "Histórico do Processo",

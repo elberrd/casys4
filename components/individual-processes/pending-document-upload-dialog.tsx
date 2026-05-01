@@ -31,6 +31,7 @@ interface PendingDocumentUploadDialogProps {
   documentName: string;
   existingVersionNotes?: string;
   onSuccess?: () => void;
+  hideAutoApprove?: boolean;
 }
 
 export function PendingDocumentUploadDialog({
@@ -40,6 +41,7 @@ export function PendingDocumentUploadDialog({
   documentName,
   existingVersionNotes,
   onSuccess,
+  hideAutoApprove,
 }: PendingDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -229,8 +231,8 @@ export function PendingDocumentUploadDialog({
             </div>
           )}
 
-          {/* Auto-approve checkbox */}
-          {selectedFile && (
+          {/* Auto-approve checkbox (hidden for clients) */}
+          {selectedFile && !hideAutoApprove && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="autoApprove"

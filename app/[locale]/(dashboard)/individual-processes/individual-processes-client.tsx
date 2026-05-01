@@ -14,7 +14,9 @@ import { FillFieldsModal } from "@/components/individual-processes/fill-fields-m
 import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
 import { Button } from "@/components/ui/button"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
-import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil } from "lucide-react"
+import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil, FileWarning } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Id } from "@/convex/_generated/dataModel"
 import type { VisibilityState, SortingState } from "@tanstack/react-table"
@@ -62,15 +64,11 @@ export function IndividualProcessesClient() {
   const [isUrgentModeActive, setIsUrgentModeActive] = useState<boolean>(() => persisted?.isUrgentModeActive ?? false)
   const [isQualExpProfModeActive, setIsQualExpProfModeActive] = useState<boolean>(() => persisted?.isQualExpProfModeActive ?? false)
   const [isExigenciaModeActive, setIsExigenciaModeActive] = useState<boolean>(() => persisted?.isExigenciaModeActive ?? false)
+  const [onlyPendingMode, setOnlyPendingMode] = useState<boolean>(false)
 
-  // For client users, activate "Exigência" filter by default on mount (only if no persisted state)
-  const [clientDefaultApplied, setClientDefaultApplied] = useState(false)
-  useEffect(() => {
-    if (isClient && !clientDefaultApplied && !persisted) {
-      setIsExigenciaModeActive(true)
-    }
-    setClientDefaultApplied(true)
-  }, [isClient, clientDefaultApplied, persisted])
+  // Clients see all of their company's processes by default. The "Exigência"
+  // filter is only applied when explicitly selected (via persisted state),
+  // since clients don't have a UI toggle to clear it once auto-activated.
   const [isSaveFilterSheetOpen, setIsSaveFilterSheetOpen] = useState(false)
   const [excelSnapshot, setExcelSnapshot] = useState<IndividualProcessesExportSnapshot>({
     columns: [],
@@ -88,6 +86,7 @@ export function IndividualProcessesClient() {
     qualification: false,
     professionalExperience: false,
     notes: true,
+    pendingDocs: true,
   }
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
@@ -560,10 +559,25 @@ export function IndividualProcessesClient() {
       })
     }
 
+    // Client mode: filter by "only with pending docs" toggle
+    if (onlyPendingMode) {
+      result = result.filter((process) => ((process as any).pendingDocsCount ?? 0) > 0)
+    }
+
+    // Client mode: sort by pendingDocsCount desc to surface processes that need action
+    if (isClient) {
+      result = [...result].sort((a, b) => {
+        const ap = (a as any).pendingDocsCount ?? 0
+        const bp = (b as any).pendingDocsCount ?? 0
+        if (ap !== bp) return bp - ap
+        return (b.createdAt ?? 0) - (a.createdAt ?? 0)
+      })
+    }
+
     // Apply advanced filters (hidden for now)
     if (filters.length === 0) return result
 
-    return result.filter((process) => {
+    const filtered = result.filter((process) => {
       return filters.every((filter) => {
         const { field, operator, values } = filter
 
@@ -699,7 +713,9 @@ export function IndividualProcessesClient() {
         }
       })
     })
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive])
+
+    return filtered
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive, onlyPendingMode, isClient])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -969,6 +985,21 @@ export function IndividualProcessesClient() {
             {t('description')}
           </p>
         </div>
+
+        {/* Client-only toggle: filter processes that need their action */}
+        {isClient && (
+          <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+            <FileWarning className="h-4 w-4 text-orange-500" />
+            <Label htmlFor="only-pending-toggle" className="flex-1 cursor-pointer text-sm font-medium">
+              {t('onlyPendingToggleLabel')}
+            </Label>
+            <Switch
+              id="only-pending-toggle"
+              checked={onlyPendingMode}
+              onCheckedChange={setOnlyPendingMode}
+            />
+          </div>
+        )}
 
 {/* Hidden: Advanced filters - preserved for future use
         <Filters

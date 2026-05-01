@@ -22,6 +22,7 @@ import {
   SortingState,
   GroupingState,
   ExpandedState,
+  PaginationState,
 } from "@tanstack/react-table";
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
 import { DataGridTable } from "@/components/ui/data-grid-table";
@@ -50,6 +51,7 @@ import {
   ChevronRight,
   X,
   StickyNote,
+  FileWarning,
 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
@@ -150,6 +152,7 @@ interface IndividualProcess {
   qualification?: string;
   professionalExperienceSince?: string;
   notesCount?: number;
+  pendingDocsCount?: number;
 }
 
 interface CandidateFilterOption {
@@ -345,6 +348,14 @@ export function IndividualProcessesTable({
   const [grouping, setGrouping] = useState<GroupingState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [globalFilter, setGlobalFilter] = useState("");
+  // Controlled pagination state — owning it here lets tanstack-table's
+  // auto-reset on data change route through React's normal setState flow,
+  // avoiding the "state update on unmounted component" warning fired when
+  // table.resetPageIndex runs during the initial data load.
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 50,
+  });
   // Optimistic state for urgent flag toggles
   const [optimisticUrgent, setOptimisticUrgent] = useState<
     Map<Id<"individualProcesses">, boolean>
@@ -403,8 +414,10 @@ export function IndividualProcessesTable({
   }, [isRnmModeActive]);
 
   // Handle Urgent mode toggle - show Protocol column, hide Process Status column
+  const prevUrgentModeRef = useRef(isUrgentModeActive);
   useEffect(() => {
-    if (isInitialRenderRef.current) return;
+    if (prevUrgentModeRef.current === isUrgentModeActive) return;
+    prevUrgentModeRef.current = isUrgentModeActive;
     if (isUrgentModeActive) {
       setColumnVisibility((prev) => ({
         ...prev,
@@ -420,11 +433,14 @@ export function IndividualProcessesTable({
         notes: true,
       }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUrgentModeActive]);
 
   // Handle QUAL/EXP PROF mode toggle - show specific columns for qualification view
+  const prevQualExpProfModeRef = useRef(isQualExpProfModeActive);
   useEffect(() => {
-    if (isInitialRenderRef.current) return;
+    if (prevQualExpProfModeRef.current === isQualExpProfModeActive) return;
+    prevQualExpProfModeRef.current = isQualExpProfModeActive;
     if (isQualExpProfModeActive) {
       setColumnVisibility((prev) => ({
         ...prev,
@@ -444,11 +460,14 @@ export function IndividualProcessesTable({
       }));
     }
     // Note: Restoration is handled by the clear filters button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isQualExpProfModeActive]);
 
   // Handle Grouped Mode - activate grouping by status when multiple status filters are selected
+  const prevGroupedModeRef = useRef(isGroupedModeActive);
   useEffect(() => {
-    if (isInitialRenderRef.current) return;
+    if (prevGroupedModeRef.current === isGroupedModeActive) return;
+    prevGroupedModeRef.current = isGroupedModeActive;
     if (isGroupedModeActive) {
       // Activate grouping by case status name
       setGrouping(["caseStatus.name"]);
@@ -469,6 +488,7 @@ export function IndividualProcessesTable({
         "caseStatus.name": initialColumnVisibilityRef.current["caseStatus.name"] ?? true,
       }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGroupedModeActive]);
 
   // Build reset visibility based on currently active mode(s)
@@ -1466,6 +1486,38 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
+        accessorKey: "pendingDocsCount",
+        id: "pendingDocs",
+        minSize: 110,
+        maxSize: 140,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("pendingDocs")}>
+            <FileWarning className="h-4 w-4" />
+          </DataGridColumnHeader>
+        ),
+        cell: ({ row }) => {
+          const count = row.original.pendingDocsCount || 0;
+          if (count === 0) {
+            return (
+              <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
+                {t("pendingDocsUpToDate")}
+              </Badge>
+            );
+          }
+          return (
+            <Badge
+              variant="outline"
+              className="gap-1 text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300"
+            >
+              <FileWarning className="h-3 w-3" />
+              {t("pendingDocsCount", { count })}
+            </Badge>
+          );
+        },
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
         accessorKey: "notesCount",
         id: "notes",
         minSize: 40,
@@ -1619,11 +1671,7 @@ export function IndividualProcessesTable({
     onGroupingChange: handleGroupingChange,
     onExpandedChange: handleExpandedChange,
     onGlobalFilterChange: setGlobalFilter,
-    initialState: {
-      pagination: {
-        pageSize: 50,
-      },
-    },
+    onPaginationChange: setPagination,
     state: {
       rowSelection,
       columnVisibility,
@@ -1631,6 +1679,7 @@ export function IndividualProcessesTable({
       grouping,
       expanded,
       globalFilter,
+      pagination,
     },
   });
 

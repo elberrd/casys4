@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
+import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist"
 import {
   Tooltip,
   TooltipContent,
@@ -511,20 +512,24 @@ export function IndividualProcessDetailClient({
           </Card>
         </div>
 
-        {/* Document Checklist Section (includes Requirements Checklist sidebar) */}
-        <DocumentChecklistCard
-          individualProcessId={processId}
-          userRole={currentUser?.role}
-          processInfo={{
-            personFullName: individualProcess.person ? getFullName(individualProcess.person) : undefined,
-            legalFrameworkName: individualProcess.legalFramework?.name,
-            processTypeName: individualProcess.processType?.name,
-            companyApplicantName: individualProcess.companyApplicant?.name,
-            referenceNumber: individualProcess.collectiveProcess?.referenceNumber,
-            protocolNumber: individualProcess.protocolNumber,
-            dateProcess: individualProcess.dateProcess,
-          }}
-        />
+        {/* Document Checklist Section — branch by role for cleaner client UX */}
+        {isAdmin ? (
+          <DocumentChecklistCard
+            individualProcessId={processId}
+            userRole={currentUser?.role}
+            processInfo={{
+              personFullName: individualProcess.person ? getFullName(individualProcess.person) : undefined,
+              legalFrameworkName: individualProcess.legalFramework?.name,
+              processTypeName: individualProcess.processType?.name,
+              companyApplicantName: individualProcess.companyApplicant?.name,
+              referenceNumber: individualProcess.collectiveProcess?.referenceNumber,
+              protocolNumber: individualProcess.protocolNumber,
+              dateProcess: individualProcess.dateProcess,
+            }}
+          />
+        ) : (
+          <ClientDocumentChecklist individualProcessId={processId} />
+        )}
 
         {/* Notes Section (admin only) */}
         {isAdmin && (

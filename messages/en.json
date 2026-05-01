@@ -113,7 +113,8 @@
     "documentTemplates": "Document Templates",
     "activityLogs": "Activity Logs",
     "settings": "Settings",
-    "rnmCalendar": "RNM"
+    "rnmCalendar": "RNM",
+    "logOut": "Log out"
   },
   "Breadcrumbs": {
     "dashboard": "Dashboard",
@@ -1001,7 +1002,29 @@
     "addAllMissing": "Add {count} missing",
     "addMissingSuccess": "Document added to list",
     "addAllMissingSuccess": "{count} document(s) added to list",
-    "addMissingError": "Error adding document"
+    "addMissingError": "Error adding document",
+    "pendingDocs": "Pending",
+    "pendingDocsCount": "{count} pending",
+    "pendingDocsUpToDate": "Up to date",
+    "onlyPendingToggleLabel": "Show only processes with pending documents"
+  },
+  "ClientPortal": {
+    "checklistTitle": "Process documents",
+    "pendingDocsSummary": "{count} document(s) still need to be sent",
+    "allUpToDate": "All documents have been sent",
+    "noDocuments": "No documents associated with this process",
+    "exigenciaTitle": "Requirements from {date}",
+    "deadlineUntil": "Deadline: {date}",
+    "pendingTitle": "Still to be sent",
+    "deliveredTitle": "Sent / under review",
+    "sendFile": "Send file",
+    "reupload": "Resend",
+    "requiredBadge": "Required",
+    "rejectionReasonLabel": "Rejection reason:",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "statusAwaitingReview": "Awaiting review",
+    "genericDocument": "Document"
   },
   "ProcessTimeline": {
     "title": "Process History",
