@@ -767,9 +767,9 @@ export const checkPreRegisteredEmail = query({
 
 /**
  * Mutation to reset a user's password (admin only)
- * Allows admin to set a new password for any user account
- *
- * TODO: Complete implementation after resolving lucia import issue
+ * Allows admin to set a new password for any user account.
+ * Hashes via Scrypt (same algorithm @convex-dev/auth Password provider uses)
+ * and invalidates all active sessions.
  */
 export const resetUserPassword = mutation({
   args: {
@@ -777,85 +777,75 @@ export const resetUserPassword = mutation({
     newPassword: v.string(),
   },
   handler: async (ctx, args) => {
-    // Require admin role
     const currentUser = await getCurrentUserProfile(ctx);
     if (currentUser.role !== "admin") {
       throw new Error("Access denied: Admin role required");
     }
 
-    // Get target user profile
     const targetUser = await ctx.db.get(args.userProfileId);
     if (!targetUser) {
       throw new Error("User not found");
     }
 
-    // Prevent admin from resetting their own password (use normal password change flow)
     if (currentUser._id === args.userProfileId) {
       throw new Error("Cannot reset your own password. Please use the password change flow.");
     }
 
-    // Check if user has an auth account (userId exists)
     if (!targetUser.userId) {
       throw new Error("User has not activated their account yet");
     }
 
-    // Validate password strength (minimum 8 characters)
     if (args.newPassword.length < 8) {
       throw new Error("Password must be at least 8 characters long");
     }
 
-    // TODO: Implement password hashing and reset
-    // Blocked by lucia import issue - need to find alternative approach
-    throw new Error("Password reset feature is not yet fully implemented");
+    const targetUserId = targetUser.userId;
 
-    // // Hash the new password using Scrypt (same as @convex-dev/auth default)
-    // const hashedPassword = await new Scrypt().hash(args.newPassword);
+    const authAccount = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) =>
+        q.eq("userId", targetUserId).eq("provider", "password")
+      )
+      .first();
 
-    // // Find the password auth account for this user
-    // const authAccount = await ctx.db
-    //   .query("authAccounts")
-    //   .withIndex("userIdAndProvider", (q) =>
-    //     q.eq("userId", targetUser.userId).eq("provider", "password")
-    //   )
-    //   .first();
+    if (!authAccount) {
+      throw new Error("No password account found for this user");
+    }
 
-    // if (!authAccount) {
-    //   throw new Error("No password account found for this user");
-    // }
+    const hashedPassword = await new Scrypt().hash(args.newPassword);
 
-    // // Update the password in authAccounts table
-    // await ctx.db.patch(authAccount._id, {
-    //   secret: hashedPassword,
-    // });
+    await ctx.db.patch(authAccount._id, {
+      secret: hashedPassword,
+    });
 
-    // // Invalidate all existing sessions for security
-    // const sessions = await ctx.db
-    //   .query("authSessions")
-    //   .withIndex("userId", (q) => q.eq("userId", targetUser.userId))
-    //   .collect();
+    const sessions = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", targetUserId))
+      .collect();
 
-    // for (const session of sessions) {
-    //   await ctx.db.delete(session._id);
-    // }
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+    }
 
-    // // Log activity
-    // try {
-    //   await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-    //     userId: currentUser.userId,
-    //     action: "password_reset",
-    //     entityType: "userProfile",
-    //     entityId: args.userProfileId,
-    //     details: {
-    //       targetUserEmail: targetUser.email,
-    //       targetUserName: targetUser.fullName,
-    //       sessionsInvalidated: sessions.length,
-    //     },
-    //   });
-    // } catch (error) {
-    //   console.error("Failed to log activity:", error);
-    // }
+    if (currentUser.userId) {
+      try {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: currentUser.userId,
+          action: "password_reset",
+          entityType: "userProfile",
+          entityId: args.userProfileId,
+          details: {
+            targetUserEmail: targetUser.email,
+            targetUserName: targetUser.fullName,
+            sessionsInvalidated: sessions.length,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+    }
 
-    // return { success: true };
+    return { success: true, sessionsInvalidated: sessions.length };
   },
 });
 
