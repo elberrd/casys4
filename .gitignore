@@ -41,3 +41,13 @@ yarn-error.log*
 next-env.d.ts
 backup.zip
 backup.zip
+
+# Claude Code runtime (local-only)
+.claude/scheduled_tasks.lock
+.claude/skills/
+.agents/
+skills-lock.json
+
+# Local screenshots
+CleanShot*.png
+
