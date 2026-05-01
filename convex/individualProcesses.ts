@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
 import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
@@ -74,19 +74,33 @@ export const list = query({
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
-    // Apply role-based access control via collectiveProcess.companyId
+    // Apply role-based access control: clients see processes only for the
+    // companies they are currently assigned to (peopleCompanies.isCurrent).
+    // A person may have past affiliations — those must be excluded so they
+    // cannot view processes belonging to former employers.
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Filter by collectiveProcess.companyId - fetch collectiveProcesses for each result
       const filteredByCompany = await Promise.all(
         filteredResults.map(async (process) => {
-          if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
+          if (
+            (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
+            (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId))
+          ) {
             return process;
+          }
+          if (process.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+            if (
+              collectiveProcess &&
+              collectiveProcess.companyId &&
+              currentCompanyIds.has(collectiveProcess.companyId)
+            ) {
+              return process;
+            }
           }
           return null;
         })
@@ -98,7 +112,7 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, consulate, notesCount] = await Promise.all([
+        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, consulate, notesCount, pendingDocsCount] = await Promise.all([
           ctx.db.get(process.personId),
           process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
@@ -137,6 +151,16 @@ export const list = query({
             )
             .collect()
             .then((notes) => notes.length),
+          // Count pending documents (status="not_started", latest version) for this process
+          ctx.db
+            .query("documentsDelivered")
+            .withIndex("by_individualProcess", (q) =>
+              q.eq("individualProcessId", process._id)
+            )
+            .collect()
+            .then((docs) =>
+              docs.filter((d) => d.status === "not_started" && d.isLatest !== false).length
+            ),
         ]);
 
         // Get caseStatus from the most recent activeStatus (not from process.caseStatusId which may be stale)
@@ -255,6 +279,7 @@ export const list = query({
           } : null, // Include user applicant details with stored company
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
+          pendingDocsCount, // Count of documents with status="not_started" (client portal badge)
         };
       }),
     );
@@ -344,9 +369,19 @@ export const get = query({
       };
     }
 
-    // Check access permissions for client users
+    // Check access permissions for client users — restrict to processes whose
+    // company matches one of the user's CURRENT company assignments only
+    // (past employers in peopleCompanies are excluded).
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || !collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const hasAccess =
+        currentCompanyIds.size > 0 &&
+        ((process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
+          (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId)) ||
+          (collectiveProcess &&
+            collectiveProcess.companyId &&
+            currentCompanyIds.has(collectiveProcess.companyId)));
+      if (!hasAccess) {
         throw new Error(
           "Access denied: You do not have permission to view this individual process"
         );
@@ -1353,9 +1388,14 @@ export const listByCollectiveProcess = query({
       throw new Error("Collective process not found");
     }
 
-    // Check access permissions for client users
+    // Check access permissions for client users — only allow if the collective
+    // process belongs to one of their CURRENT company assignments.
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || collectiveProcess.companyId !== userProfile.companyId) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (
+        !collectiveProcess.companyId ||
+        !currentCompanyIds.has(collectiveProcess.companyId)
+      ) {
         throw new Error(
           "Access denied: You do not have permission to view individual processes for this main process"
         );
@@ -1646,21 +1686,29 @@ export const listRNMAppointments = query({
       (process) => process.appointmentDateTime !== undefined && process.appointmentDateTime !== null
     );
 
-    // Apply access control for client users
+    // Apply access control for client users — filter by CURRENT company assignments
     let filteredProcesses = processesWithAppointments;
-    if (userProfile.role === "client" && userProfile.companyId) {
-      // Get all collective processes for the client's company
-      const clientCollectiveProcesses = await ctx.db
-        .query("collectiveProcesses")
-        .withIndex("by_company", (q) => q.eq("companyId", userProfile.companyId!))
-        .collect();
+    if (userProfile.role === "client") {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        filteredProcesses = [];
+      } else {
+        // Collect collective processes for those current companies
+        const clientCollectiveProcessIds = new Set<string>();
+        for (const cId of currentCompanyIds) {
+          const collectives = await ctx.db
+            .query("collectiveProcesses")
+            .withIndex("by_company", (q) => q.eq("companyId", cId))
+            .collect();
+          for (const cp of collectives) clientCollectiveProcessIds.add(cp._id);
+        }
 
-      const clientCollectiveProcessIds = new Set(clientCollectiveProcesses.map((cp) => cp._id));
-
-      // Filter to only include processes from client's collective processes
-      filteredProcesses = processesWithAppointments.filter((process) =>
-        process.collectiveProcessId && clientCollectiveProcessIds.has(process.collectiveProcessId)
-      );
+        filteredProcesses = processesWithAppointments.filter((process) =>
+          (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
+          (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId)) ||
+          (process.collectiveProcessId && clientCollectiveProcessIds.has(process.collectiveProcessId))
+        );
+      }
     }
 
     // Enrich with person and company data
@@ -1700,19 +1748,30 @@ export const listForSelector = query({
 
     let processes = await ctx.db.query("individualProcesses").collect();
 
-    // Apply role-based access control
+    // Apply role-based access control: only the user's CURRENT companies
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Filter by collectiveProcess.companyId
       const filteredByCompany = await Promise.all(
         processes.map(async (process) => {
-          if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
+          if (
+            (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
+            (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId))
+          ) {
             return process;
+          }
+          if (process.collectiveProcessId) {
+            const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+            if (
+              collectiveProcess &&
+              collectiveProcess.companyId &&
+              currentCompanyIds.has(collectiveProcess.companyId)
+            ) {
+              return process;
+            }
           }
           return null;
         })

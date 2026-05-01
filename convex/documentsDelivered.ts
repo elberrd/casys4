@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin, getCurrentUserProfile, canAccessCompany } from "./lib/auth";
+import { requireAdmin, getCurrentUserProfile, canAccessCompany, requireClientCanAccessProcess } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 
@@ -26,19 +26,11 @@ export const list = query({
       throw new Error("Individual process not found");
     }
 
-    // Get main process to get company ID (if exists)
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    // Check access control
+    // Check access control — clients only see processes belonging to their
+    // CURRENT companies (companyApplicantId, userApplicantCompanyId, or
+    // collectiveProcess.companyId via peopleCompanies.isCurrent).
     const userProfile = await getCurrentUserProfile(ctx);
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to view these documents");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query documents by individual process
     let documentsQuery = ctx.db
@@ -127,17 +119,8 @@ export const listByStatus = query({
       throw new Error("Individual process not found");
     }
 
-    // Check access control
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query documents linked to this status entry
     const documents = await ctx.db
@@ -207,16 +190,8 @@ export const get = query({
       throw new Error("Individual process not found");
     }
 
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to view this document");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Enrich with related data
     const documentType = document.documentTypeId
@@ -301,13 +276,8 @@ export const upload = mutation({
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to upload documents for this process");
-      }
-    }
+    // Check access control — handles client access via any of the company linkages
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Ensure user has userId (pre-registered users cannot upload documents)
     if (!userProfile.userId) {
@@ -473,6 +443,38 @@ export const upload = mutation({
       });
     } catch (error) {
       console.error("Failed to log activity:", error);
+    }
+
+    // Notify all admins when a client uploads a document (status="uploaded")
+    if (userProfile.role === "client" && !canAutoApprove && !isIllegible) {
+      try {
+        const [person, documentType, admins] = await Promise.all([
+          ctx.db.get(individualProcess.personId),
+          ctx.db.get(args.documentTypeId),
+          ctx.db
+            .query("userProfiles")
+            .withIndex("by_role", (q) => q.eq("role", "admin"))
+            .collect(),
+        ]);
+
+        const docName = documentType?.name || args.fileName;
+        const personName = person ? getFullName(person) : "candidato";
+        const clientName = userProfile.fullName || "Cliente";
+
+        for (const admin of admins) {
+          if (!admin.userId || !admin.isActive) continue;
+          await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+            userId: admin.userId,
+            type: "client_document_uploaded",
+            title: "Cliente enviou um documento",
+            message: `${clientName} enviou "${docName}" no processo de ${personName}`,
+            entityType: "individualProcess",
+            entityId: args.individualProcessId,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to notify admins of client upload:", error);
+      }
     }
 
     return documentId;
@@ -2093,13 +2095,9 @@ export const uploadForPending = mutation({
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to upload documents for this process");
-      }
-    }
+    // Check access control — handles client access via any of the company linkages
+    // (companyApplicantId, userApplicantCompanyId, collectiveProcess.companyId)
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     if (!userProfile.userId) {
       throw new Error("User profile must be activated before uploading documents");
@@ -2229,6 +2227,38 @@ export const uploadForPending = mutation({
       console.error("Failed to log activity:", error);
     }
 
+    // Notify all admins when a client uploads a document
+    if (userProfile.role === "client" && !shouldAutoApprove) {
+      try {
+        const [person, documentType, admins] = await Promise.all([
+          ctx.db.get(individualProcess.personId),
+          document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
+          ctx.db
+            .query("userProfiles")
+            .withIndex("by_role", (q) => q.eq("role", "admin"))
+            .collect(),
+        ]);
+
+        const docName = documentType?.name || document.documentName || args.fileName;
+        const personName = person ? getFullName(person) : "candidato";
+        const clientName = userProfile.fullName || "Cliente";
+
+        for (const admin of admins) {
+          if (!admin.userId || !admin.isActive) continue;
+          await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+            userId: admin.userId,
+            type: "client_document_uploaded",
+            title: "Cliente enviou um documento",
+            message: `${clientName} enviou "${docName}" no processo de ${personName}`,
+            entityType: "individualProcess",
+            entityId: document.individualProcessId,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to notify admins of client upload:", error);
+      }
+    }
+
     return args.documentId;
   },
 });
@@ -2248,17 +2278,12 @@ export const listGroupedByCategory = query({
       throw new Error("Individual process not found");
     }
 
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+
     const collectiveProcess = individualProcess.collectiveProcessId
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
-
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to view these documents");
-      }
-    }
 
     // Get all latest documents for this process
     let documents = await ctx.db
@@ -2460,7 +2485,6 @@ export const listGroupedByCategory = query({
     );
 
     // Filter out excluded-from-report documents for client users
-    const userProfile = await getCurrentUserProfile(ctx);
     const visibleDocuments = userProfile.role === "client"
       ? enrichedDocuments.filter((doc) => !doc.excludedFromReport)
       : enrichedDocuments;

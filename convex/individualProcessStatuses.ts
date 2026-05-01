@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getCurrentUserProfile, requireAdmin, requireClientCanAccessProcess } from "./lib/auth";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { normalizeStatusDateTime } from "./lib/statusDateTime";
@@ -24,20 +24,7 @@ export const list = query({
       throw new Error("Individual process not found");
     }
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check if the individual process belongs to the client's company
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query all statuses for this individual process
     const statuses = await ctx.db
@@ -91,19 +78,7 @@ export const getActiveStatus = query({
       throw new Error("Individual process not found");
     }
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query for the active status
     const activeStatus = await ctx.db
@@ -155,19 +130,7 @@ export const getStatusHistory = query({
       throw new Error("Individual process not found");
     }
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query all statuses
     const statuses = await ctx.db
@@ -236,19 +199,7 @@ export const listWithDocumentsAllowed = query({
       throw new Error("Individual process not found");
     }
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Query all statuses for this individual process
     const statuses = await ctx.db
@@ -768,19 +719,7 @@ export const saveFilledFields = mutation({
       throw new Error("Individual process not found");
     }
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get fillable fields from the case status (source of truth)
     // Always use case status fillableFields, not the individual status record's fillableFields
@@ -868,17 +807,8 @@ export const getFillableFields = query({
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .first();
 
-      if (userProfile && userProfile.role === "client") {
-        if (!userProfile.companyId) {
-          throw new Error("Client user must have a company assignment");
-        }
-
-        const collectiveProcess = individualProcess.collectiveProcessId
-          ? await ctx.db.get(individualProcess.collectiveProcessId)
-          : null;
-        if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-          throw new Error("Access denied: Process does not belong to your company");
-        }
+      if (userProfile) {
+        await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
       }
     }
 
