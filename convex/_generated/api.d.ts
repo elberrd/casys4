@@ -58,6 +58,7 @@ import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/add
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
 import type * as migrations_addRnmProtocolToFillableFields from "../migrations/addRnmProtocolToFillableFields.js";
 import type * as migrations_backfillExigenciaDates from "../migrations/backfillExigenciaDates.js";
+import type * as migrations_backfillPlaceholderVersionZero from "../migrations/backfillPlaceholderVersionZero.js";
 import type * as migrations_backfillUserApplicantCompanyId from "../migrations/backfillUserApplicantCompanyId.js";
 import type * as migrations_fixRnmFillableFields from "../migrations/fixRnmFillableFields.js";
 import type * as migrations_forceRnmCacheInvalidation from "../migrations/forceRnmCacheInvalidation.js";
@@ -165,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
   "migrations/addRnmProtocolToFillableFields": typeof migrations_addRnmProtocolToFillableFields;
   "migrations/backfillExigenciaDates": typeof migrations_backfillExigenciaDates;
+  "migrations/backfillPlaceholderVersionZero": typeof migrations_backfillPlaceholderVersionZero;
   "migrations/backfillUserApplicantCompanyId": typeof migrations_backfillUserApplicantCompanyId;
   "migrations/fixRnmFillableFields": typeof migrations_fixRnmFillableFields;
   "migrations/forceRnmCacheInvalidation": typeof migrations_forceRnmCacheInvalidation;
