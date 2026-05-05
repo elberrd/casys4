@@ -2524,6 +2524,7 @@
     "versionCreated": "Versão {version} criada",
     "waitingForUpload": "Aguardando envio do arquivo",
     "newVersionAfterRejection": "Nova versão criada após rejeição",
+    "requestCreated": "Pedido de documento criado",
     "noTimeline": "Nenhum histórico disponível"
   },
   "DocumentHistory": {

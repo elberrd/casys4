@@ -784,6 +784,9 @@ export const getVersionHistory = query({
         doc.documentRequirementId === documentRequirementId
     );
 
+    // Exclude v0 placeholder records — they have no content to display
+    documents = documents.filter((doc) => doc.version > 0);
+
     // Enrich with related data including user profile names
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
@@ -1634,6 +1637,8 @@ export const uploadLoose = mutation({
     // Determine status based on auto-approve
     const shouldAutoApprove = args.autoApprove === true && hasFile;
     const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+    // Placeholder records (no file) start at version 0; filled records start at 1
+    const initialVersion = hasFile ? 1 : 0;
 
     // Create document without type (loose document)
     const documentId = await ctx.db.insert("documentsDelivered", {
@@ -1652,7 +1657,7 @@ export const uploadLoose = mutation({
       ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
-      version: 1,
+      version: initialVersion,
       isLatest: true,
       versionNotes: args.versionNotes,
       individualProcessStatusId: args.individualProcessStatusId,
@@ -1669,7 +1674,7 @@ export const uploadLoose = mutation({
         changedAt: Date.now(),
         metadata: {
           fileName: args.fileName,
-          version: 1,
+          version: initialVersion,
         },
       });
     }
@@ -1820,7 +1825,8 @@ export const uploadWithType = mutation({
       (doc) => doc.documentTypeId === args.documentTypeId
     );
 
-    let version = 1;
+    // Default version: 0 for placeholder records (no file), 1 for filled records
+    let version = hasFile ? 1 : 0;
     const currentLatestTyped = allMatchingTypeDocs.find((doc) => doc.isLatest);
 
     if (allMatchingTypeDocs.length > 0) {
@@ -2142,6 +2148,8 @@ export const uploadForPending = mutation({
     // Determine status based on auto-approve
     const shouldAutoApprove = args.autoApprove === true;
     const status = shouldAutoApprove ? "approved" : "uploaded";
+    // Bump version 0 (placeholder) → 1 on first fill; preserve existing for higher placeholders
+    const newVersion = document.version === 0 ? 1 : document.version;
 
     // Update the pending document with file information
     await ctx.db.patch(args.documentId, {
@@ -2157,6 +2165,7 @@ export const uploadForPending = mutation({
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       versionNotes: args.versionNotes,
+      version: newVersion,
     });
 
     // Create status history for auto-approved documents
@@ -2169,7 +2178,7 @@ export const uploadForPending = mutation({
         changedAt: Date.now(),
         metadata: {
           fileName: args.fileName,
-          version: document.version,
+          version: newVersion,
         },
       });
     }
@@ -2884,6 +2893,8 @@ export const reuseCompanyDocument = mutation({
     }
 
     const previousStatus = targetDoc.status;
+    // Bump version 0 (placeholder) → 1 on first fill via reuse
+    const newVersion = targetDoc.version === 0 ? 1 : targetDoc.version;
 
     // Copy file data from source to target
     await ctx.db.patch(targetDocumentId, {
@@ -2900,6 +2911,7 @@ export const reuseCompanyDocument = mutation({
       uploadedAt: Date.now(),
       reviewedBy: userProfile.userId!,
       reviewedAt: Date.now(),
+      version: newVersion,
     });
 
     // Auto-create conditions for the document
@@ -3032,6 +3044,9 @@ export const bulkReuseCompanyDocuments = mutation({
       const sourceDoc = sourceByType.get(targetDoc.documentTypeId!);
       if (!sourceDoc) continue;
 
+      // Bump version 0 (placeholder) → 1 on first fill via reuse
+      const newVersion = targetDoc.version === 0 ? 1 : targetDoc.version;
+
       await ctx.db.patch(targetDoc._id, {
         storageId: sourceDoc.storageId,
         fileName: sourceDoc.fileName,
@@ -3046,6 +3061,7 @@ export const bulkReuseCompanyDocuments = mutation({
         uploadedAt: Date.now(),
         reviewedBy: userProfile.userId!,
         reviewedAt: Date.now(),
+        version: newVersion,
       });
 
       await ctx.db.insert("documentStatusHistory", {
@@ -3168,7 +3184,7 @@ export const addMissingDocument = mutation({
       status: "not_started",
       uploadedBy: adminProfile.userId,
       uploadedAt: Date.now(),
-      version: 1,
+      version: 0,
       isLatest: true,
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
@@ -3264,7 +3280,7 @@ export const syncMissingDocuments = mutation({
         status: "not_started",
         uploadedBy: adminProfile.userId,
         uploadedAt: Date.now(),
-        version: 1,
+        version: 0,
         isLatest: true,
         excludedFromReport: documentType.excludeFromReportByDefault || undefined,
       });
@@ -3445,6 +3461,8 @@ export const submitInformationFields = mutation({
     const now = Date.now();
 
     if (existingDoc) {
+      // Bump version 0 (placeholder) → 1 on first fill; preserve existing for re-edit
+      const newVersion = existingDoc.version > 0 ? existingDoc.version : 1;
       // Update the existing record - auto-approve
       await ctx.db.patch(existingDoc._id, {
         status: "approved",
@@ -3456,7 +3474,7 @@ export const submitInformationFields = mutation({
         uploadedAt: existingDoc.uploadedAt ?? now,
         reviewedBy: userProfile.userId,
         reviewedAt: now,
-        version: existingDoc.version || 1,
+        version: newVersion,
         isLatest: true,
       });
 

@@ -2500,6 +2500,7 @@
     "versionCreated": "Version {version} created",
     "waitingForUpload": "Waiting for file upload",
     "newVersionAfterRejection": "New version created after rejection",
+    "requestCreated": "Document request created",
     "noTimeline": "No history available"
   },
   "DocumentHistory": {

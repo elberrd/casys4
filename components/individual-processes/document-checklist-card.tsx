@@ -278,7 +278,7 @@ export function DocumentChecklistCard({
           individualProcessId,
           documentTypeId: doc.documentTypeId,
           documentRequirementId: doc.documentRequirementId,
-          currentVersion: doc.version || 1,
+          currentVersion: doc.version ?? 0,
           currentFileName: doc.fileName || "",
           currentFileSize: doc.fileSize || 0,
           currentStatus: doc.status,
@@ -564,7 +564,7 @@ export function DocumentChecklistCard({
         }
         if (doc.documentType?.isInformationOnly) {
           openInformationFieldsDialog(doc)
-        } else if (doc.status === "not_started" && (!doc.version || doc.version <= 1)) {
+        } else if (doc.status === "not_started" && (doc.version ?? 0) <= 1) {
           if (doc.documentTypeId) {
             openUploadDialog(doc)
           } else {

@@ -1258,7 +1258,7 @@ export function DocumentReviewDialog({
                               </div>
                             ) : entry.status === "not_started" ? (
                               <div className="mt-1 text-xs text-muted-foreground italic">
-                                {t("newVersionAfterRejection")}
+                                {entry.version === 0 ? t("requestCreated") : t("newVersionAfterRejection")}
                               </div>
                             ) : null}
                             {entry.versionNotes && (
