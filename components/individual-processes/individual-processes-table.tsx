@@ -52,6 +52,7 @@ import {
   X,
   StickyNote,
   FileWarning,
+  Paperclip,
 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
@@ -153,6 +154,13 @@ interface IndividualProcess {
   professionalExperienceSince?: string;
   notesCount?: number;
   pendingDocsCount?: number;
+  exigenciaDocs?: Array<{
+    _id: Id<"documentsDelivered">;
+    fileName: string;
+    documentName?: string;
+    documentTypeName?: string;
+    status: string;
+  }>;
 }
 
 interface CandidateFilterOption {
@@ -344,8 +352,12 @@ export function IndividualProcessesTable({
     onControlledSortingChange?.(newValue);
   }, [sorting, onControlledSortingChange]);
 
-  // Grouping and expansion state for grouped table mode
-  const [grouping, setGrouping] = useState<GroupingState>([]);
+  // Grouping and expansion state for grouped table mode.
+  // Initialize from `isGroupedModeActive` so grouping is restored on remount
+  // (e.g., when returning from a process detail page with persisted filters).
+  const [grouping, setGrouping] = useState<GroupingState>(
+    isGroupedModeActive ? ["caseStatus.name"] : []
+  );
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [globalFilter, setGlobalFilter] = useState("");
   // Controlled pagination state — owning it here lets tanstack-table's
@@ -1182,15 +1194,69 @@ export function IndividualProcessesTable({
             );
           })() : null;
 
+          // Small chip shown next to the "Exigência" badge when documents are
+          // linked to the active exigência status. Hover reveals their names.
+          const exigenciaDocs = row.original.exigenciaDocs;
+          const exigenciaDocsChip =
+            isExigencia && exigenciaDocs && exigenciaDocs.length > 0 ? (
+              <TooltipProvider>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 shadow-sm cursor-help ring-1 ring-amber-600/40 hover:bg-amber-600 transition-colors"
+                      aria-label={t("exigenciaDocsBadgeAriaLabel", {
+                        count: exigenciaDocs.length,
+                      })}
+                    >
+                      <Paperclip className="h-2.5 w-2.5" aria-hidden="true" />
+                      {exigenciaDocs.length}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    align="start"
+                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
+                  >
+                    <div className="space-y-1.5 text-sm">
+                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                        {t("exigenciaDocsBadgeTooltip")}
+                      </div>
+                      <ul className="space-y-1">
+                        {exigenciaDocs.map((d) => (
+                          <li
+                            key={d._id}
+                            className="flex items-start gap-1.5 text-foreground"
+                          >
+                            <Paperclip
+                              className="h-3 w-3 mt-0.5 shrink-0 text-amber-600"
+                              aria-hidden="true"
+                            />
+                            <span>
+                              {d.documentTypeName ||
+                                d.documentName ||
+                                d.fileName}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null;
+
           const badgeElement = (
             <div className="flex items-center justify-between gap-2 w-full">
               <div className="flex flex-col gap-1 items-start">
-                <StatusBadge
-                  status={statusName}
-                  type="individual_process"
-                  color={caseStatus.color}
-                  category={caseStatus.category}
-                />
+                <div className="flex items-center gap-1.5">
+                  <StatusBadge
+                    status={statusName}
+                    type="individual_process"
+                    color={caseStatus.color}
+                    category={caseStatus.category}
+                  />
+                  {exigenciaDocsChip}
+                </div>
                 {exigenciaDatesEl}
               </div>
               {onUpdateStatus && (
@@ -1216,29 +1282,32 @@ export function IndividualProcessesTable({
               <div className="flex items-center justify-between gap-2 w-full">
                 <TooltipProvider>
                   <Tooltip delayDuration={200}>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help inline-block">
-                        <div className="flex flex-col gap-1 items-start">
-                          <div className="relative inline-block">
-                            <StatusBadge
-                              status={statusName}
-                              type="individual_process"
-                              color={caseStatus.color}
-                              category={caseStatus.category}
-                            />
-                            {/* Green indicator dot */}
-                            <span
-                              className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
-                              aria-hidden="true"
-                            >
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
-                            </span>
+                    <div className="flex flex-col gap-1 items-start">
+                      <div className="flex items-center gap-1.5">
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help inline-block">
+                            <div className="relative inline-block">
+                              <StatusBadge
+                                status={statusName}
+                                type="individual_process"
+                                color={caseStatus.color}
+                                category={caseStatus.category}
+                              />
+                              {/* Green indicator dot */}
+                              <span
+                                className="absolute -top-0.5 -right-0.5 flex h-2 w-2"
+                                aria-hidden="true"
+                              >
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 ring-1 ring-white"></span>
+                              </span>
+                            </div>
                           </div>
-                          {exigenciaDatesEl}
-                        </div>
+                        </TooltipTrigger>
+                        {exigenciaDocsChip}
                       </div>
-                    </TooltipTrigger>
+                      {exigenciaDatesEl}
+                    </div>
                     <TooltipContent
                       side="right"
                       align="start"

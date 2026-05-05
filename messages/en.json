@@ -663,6 +663,8 @@
     "fieldsError": "Failed to save fields",
     "filledFields": "Filled Fields",
     "noFieldsFilled": "No fields filled",
+    "exigenciaDocsBadgeTooltip": "Documents linked to this requirement",
+    "exigenciaDocsBadgeAriaLabel": "{count, plural, one {# document in requirement} other {# documents in requirement}}",
     "rnmModeEnable": "Enable RNM mode: sort by RNM deadline",
     "rnmModeDisable": "Disable RNM mode: return to default sorting",
     "rnmExpired": "Expired",

@@ -663,6 +663,8 @@
     "fieldsError": "Falha ao salvar campos",
     "filledFields": "Campos Preenchidos",
     "noFieldsFilled": "Nenhum campo preenchido",
+    "exigenciaDocsBadgeTooltip": "Documentos vinculados à exigência",
+    "exigenciaDocsBadgeAriaLabel": "{count, plural, one {# documento na exigência} other {# documentos na exigência}}",
     "rnmModeEnable": "Ativar modo RNM: ordenar por validade do RNM",
     "rnmModeDisable": "Desativar modo RNM: voltar à ordenação padrão",
     "rnmExpired": "Vencido",

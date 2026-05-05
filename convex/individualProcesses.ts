@@ -174,6 +174,37 @@ export const list = query({
           caseStatus,
         } : null;
 
+        // Documents linked to the active "exigência" status entry
+        // Used by the table to display a small indicator on the status badge
+        let exigenciaDocs: Array<{
+          _id: Id<"documentsDelivered">;
+          fileName: string;
+          documentName?: string;
+          documentTypeName?: string;
+          status: string;
+        }> = [];
+        if (caseStatus?.code === "exigencia" && activeStatusRaw) {
+          const docs = await ctx.db
+            .query("documentsDelivered")
+            .withIndex("by_individualProcessStatus", (q) =>
+              q.eq("individualProcessStatusId", activeStatusRaw._id)
+            )
+            .collect();
+          const latestDocs = docs.filter((d) => d.isLatest);
+          exigenciaDocs = await Promise.all(
+            latestDocs.map(async (d) => {
+              const docType = d.documentTypeId ? await ctx.db.get(d.documentTypeId) : null;
+              return {
+                _id: d._id,
+                fileName: d.fileName,
+                documentName: d.documentName,
+                documentTypeName: docType?.name,
+                status: d.status,
+              };
+            })
+          );
+        }
+
         // Enrich person with nationality and computed fullName
         let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
         if (rawPerson) {
@@ -280,6 +311,7 @@ export const list = query({
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
           pendingDocsCount, // Count of documents with status="not_started" (client portal badge)
+          exigenciaDocs, // Documents linked to the active exigência status (empty unless caseStatus is "exigencia")
         };
       }),
     );
