@@ -27,6 +27,7 @@ import { ProcessNotesSection } from "@/components/notes/process-notes-section"
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 import { PersonFormDialog } from "@/components/people/person-form-dialog"
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog"
+import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog"
 import { formatDate } from "@/lib/format-field-value"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { translateCountryName } from "@/lib/utils/country-translations"
@@ -55,6 +56,7 @@ export function IndividualProcessDetailClient({
 
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
   const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false)
+  const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] = useState(false)
   const [reviewDocumentId, setReviewDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
 
   const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
@@ -455,9 +457,22 @@ export function IndividualProcessDetailClient({
 
           {/* Passport Information Card */}
           <Card>
-            <CardHeader>
-              <CardTitle>{t('passportInformation')}</CardTitle>
-              <CardDescription>{t('passportInformationDescription')}</CardDescription>
+            <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+              <div className="space-y-1.5">
+                <CardTitle>{t('passportInformation')}</CardTitle>
+                <CardDescription>{t('passportInformationDescription')}</CardDescription>
+              </div>
+              {isAdmin && individualProcess.personId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsPassportLinkDialogOpen(true)}
+                  className="self-start"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  {tCommon('edit')}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {individualProcess.passport ? (
@@ -506,7 +521,20 @@ export function IndividualProcessDetailClient({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{t('noPassportLinked')}</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">{t('noPassportLinked')}</p>
+                  {isAdmin && individualProcess.personId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsPassportLinkDialogOpen(true)}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      {tPassports('addPassport')}
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -583,6 +611,17 @@ export function IndividualProcessDetailClient({
           onSuccess={() => {
             setIsPersonEditDialogOpen(false)
           }}
+        />
+      )}
+
+      {/* Passport Link Dialog (admin only) */}
+      {isAdmin && individualProcess.personId && (
+        <LinkPassportDialog
+          open={isPassportLinkDialogOpen}
+          onOpenChange={setIsPassportLinkDialogOpen}
+          individualProcessId={processId}
+          personId={individualProcess.personId}
+          currentPassportId={individualProcess.passportId ?? null}
         />
       )}
 
