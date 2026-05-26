@@ -4,7 +4,8 @@
     "beforeShellExecution": [
       {
         "command": ".cursor/hooks/validate-pnpm.sh",
-        "matcher": "^(npm|npx)\\b"
+        "matcher": "^(npm|npx|yarn|yarnpkg)\\b",
+        "failClosed": true
       }
     ],
     "stop": [

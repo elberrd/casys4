@@ -25,6 +25,23 @@ pnpm lint             # ESLint
 
 Nunca use `npm`, `npx` ou `yarn`. Use `pnpm dlx` no lugar de `npx`.
 
+## Package manager — enforcement
+
+Este projeto **bloqueia ativamente** comandos `npm`, `npx`, `yarn` e `yarnpkg` no agente Cursor via hook em [`.cursor/hooks.json`](.cursor/hooks.json) (`beforeShellExecution`). Tentativas são negadas com mensagem corretiva.
+
+**Comandos permitidos:**
+
+| Objetivo | Comando |
+|----------|---------|
+| Instalar deps | `pnpm install` |
+| Adicionar pacote | `pnpm add <pkg>` |
+| Rodar script | `pnpm run <script>` ou `pnpm <script>` |
+| Executar binário one-off | `pnpm dlx <pkg>` |
+| Executar binário instalado | `pnpm exec <cmd>` |
+| Dev / build / lint | `pnpm dev`, `pnpm run build`, `pnpm lint` |
+
+**Verificação:** Cursor → Settings → Hooks (ou output channel "Hooks"). Se o hook não carregar, reinicie o Cursor após salvar `hooks.json`.
+
 ## Estrutura do Projeto
 
 ```
@@ -43,7 +60,7 @@ ai_docs/                # Documentação interna, todos, PRD parcial
 ## Convenções Obrigatórias
 
 ### Package manager
-- Sempre `pnpm`. Hook bloqueia `npm`/`npx`.
+- Sempre `pnpm`. Hook em `.cursor/hooks.json` bloqueia `npm`/`npx`/`yarn`.
 
 ### Internacionalização
 - Todo texto visível ao usuário deve usar next-intl.

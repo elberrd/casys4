@@ -23,7 +23,7 @@ pnpm run build
 
 ### Step 2: Deploy Convex to Production
 ```bash
-npx convex deploy -y
+pnpm dlx convex deploy -y
 ```
 - Deploys all Convex functions to production deployment
 - The `-y` flag auto-confirms the deployment
@@ -60,7 +60,7 @@ git push origin main
 ### Step 1: Configure Build Command
 1. Go to: https://vercel.com/elberrds-projects/casys4/settings/general
 2. Scroll to "Build & Development Settings"
-3. Override "Build Command" with: `npx convex deploy --cmd 'pnpm run build'`
+3. Override "Build Command" with: `pnpm dlx convex deploy --cmd 'pnpm run build'`
 4. Click "Save"
 
 ### Step 2: Add CONVEX_DEPLOY_KEY Environment Variable
@@ -85,7 +85,7 @@ If you want to transfer your development data to production (useful for initial 
 
 ### Method 1: One-Line Command (Recommended)
 ```bash
-npx convex export --path ./backup.zip && npx convex import --prod --replace ./backup.zip
+pnpm dlx convex export --path ./backup.zip && pnpm dlx convex import --prod --replace ./backup.zip
 ```
 
 This will:
@@ -95,10 +95,10 @@ This will:
 ### Method 2: Two-Step Process
 ```bash
 # Step 1: Export from development
-npx convex export --path ./backup.zip
+pnpm dlx convex export --path ./backup.zip
 
 # Step 2: Import to production (with confirmation)
-npx convex import --prod --replace ./backup.zip
+pnpm dlx convex import --prod --replace ./backup.zip
 ```
 
 ### Options
@@ -126,14 +126,14 @@ After the manual steps above are complete, deployments are automatic:
 ### Automatic Deployments (via GitHub):
 - Push to `main` branch triggers production deployment
 - Vercel automatically:
-  1. Runs `npx convex deploy` (deploys Convex functions)
+  1. Runs `pnpm dlx convex deploy` (deploys Convex functions)
   2. Runs `pnpm run build` (builds Next.js app)
   3. Deploys to https://casys4.vercel.app
 
 ### Manual Deployment (via CLI):
 ```bash
 # Deploy production build locally
-CONVEX_DEPLOY_KEY='your-key-here' npx convex deploy --cmd 'pnpm run build'
+CONVEX_DEPLOY_KEY='your-key-here' pnpm dlx convex deploy --cmd 'pnpm run build'
 
 # Then deploy to Vercel
 vercel --prod
@@ -183,7 +183,7 @@ If you see `AuthenticationFailed: Invalid Convex deploy key` in build logs:
 ### Build Command Not Found
 If Convex deploy command isn't running:
 1. Verify build command override in Project Settings → General
-2. Ensure it's exactly: `npx convex deploy --cmd 'pnpm run build'`
+2. Ensure it's exactly: `pnpm dlx convex deploy --cmd 'pnpm run build'`
 3. Check that override toggle is enabled (blue)
 
 ### Other Issues
