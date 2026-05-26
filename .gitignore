@@ -1,7 +1,13 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# local screenshots dropped in the repo root
+/Screenshot*.png
+
 # dependencies
 /node_modules
+# enforce pnpm — never commit npm/yarn lockfiles
+package-lock.json
+yarn.lock
 /.pnp
 .pnp.*
 .yarn/*
