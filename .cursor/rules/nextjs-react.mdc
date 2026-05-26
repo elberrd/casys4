@@ -1,0 +1,37 @@
+---
+description: Padrões Next.js App Router e React para componentes CASYS4
+globs: app/**/*.tsx,components/**/*.tsx,hooks/**/*.ts
+alwaysApply: false
+---
+
+# Next.js + React
+
+## Estrutura
+
+- Server Components por padrão; `"use client"` só quando necessário (hooks, eventos, browser APIs)
+- Páginas em `app/[locale]/(dashboard)/` com client components separados (`*-client.tsx`)
+- Layouts compartilhados em `layout.tsx` dentro de route groups
+
+## Componentes
+
+- Functional components com TypeScript
+- Props tipadas; evitar prop drilling excessivo
+- Reutilizar: `DataGrid`, `Combobox`, `Sheet`, `Dialog`, `StatusBadge` de `components/ui/`
+- Formulários: react-hook-form + Zod resolver + traduções i18n
+
+## Data Fetching
+
+- Convex: `useQuery` / `useMutation` do `convex/react` em client components
+- Respeitar loading states (`undefined` = loading) e empty states
+
+## Estilo
+
+- Tailwind CSS 4 com classes utilitárias
+- Responsivo: mobile-first (sm, md, lg, xl)
+- Dark mode via `next-themes`
+- Touch targets mínimos de 44px em mobile
+
+## Acessibilidade
+
+- Labels em inputs, ARIA quando necessário
+- Navegação por teclado em dialogs e dropdowns

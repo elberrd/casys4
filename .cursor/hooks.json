@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/validate-pnpm.sh",
+        "matcher": "^(npm|npx)\\b"
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/senior-dev-chain.sh",
+        "loop_limit": 2
+      }
+    ]
+  }
+}

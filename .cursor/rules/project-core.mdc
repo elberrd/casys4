@@ -1,0 +1,42 @@
+---
+description: Regras centrais do projeto CASYS4 — pnpm, i18n, arquitetura e padrões gerais
+alwaysApply: true
+---
+
+# CASYS4 — Regras do Projeto
+
+## Package Manager
+
+Use **pnpm** exclusivamente. Nunca `npm install`, `npm run`, `npx` ou `yarn`.
+
+- `pnpm add` / `pnpm install`
+- `pnpm dlx` no lugar de `npx`
+- `pnpm run dev` / `pnpm exec tsc --noEmit`
+
+## Arquitetura
+
+- Next.js 15 App Router com rotas em `app/[locale]/`
+- Backend Convex em `convex/` com auth via `@convex-dev/auth`
+- Roles: `admin` (staff) e `client` (portal) — respeitar RBAC em queries/mutations
+- Multi-tenant por `companyId` para clientes
+
+## i18n (Obrigatório)
+
+- Textos visíveis ao usuário: next-intl com chaves em `messages/pt.json` e `messages/en.json`
+- Locale primário: pt. Secundário: en.
+- Rotas com prefixo: `/pt/...`, `/en/...`
+
+## Código
+
+- TypeScript strict, sem `any`
+- Zod para validação de formulários e dados externos
+- Reutilizar componentes de `components/ui/` antes de criar novos
+- Mudanças focadas — não refatorar código não relacionado à tarefa
+- Commits e push só quando o usuário pedir explicitamente
+
+## Documentação Interna
+
+- Tarefas: `ai_docs/todo.md`
+- PRD: `app/[locale]/(dashboard)/prd.md`
+- Componentes UI: `ai_docs/ui-components/`
+- Guia completo: `AGENTS.md`

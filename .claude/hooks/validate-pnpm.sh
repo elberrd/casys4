@@ -10,7 +10,7 @@ if [[ "$COMMAND" =~ ^npm[[:space:]] ]] || [[ "$COMMAND" =~ ^npx[[:space:]] ]] ||
 {
   "hookEventName": "PreToolUse",
   "permissionDecision": "deny",
-  "permissionDecisionReason": "❌ ERROR: This project uses pnpm exclusively. NEVER use npm or npx.\n\nInstead use:\n  • 'pnpm install' instead of 'npm install'\n  • 'pnpm add' instead of 'npm add'\n  • 'pnpm dlx' instead of 'npx'\n  • 'pnpm run' instead of 'npm run'\n\nSee CLAUDE.md for more details."
+  "permissionDecisionReason": "❌ ERROR: This project uses pnpm exclusively. NEVER use npm or npx.\n\nInstead use:\n  • 'pnpm install' instead of 'npm install'\n  • 'pnpm add' instead of 'npm add'\n  • 'pnpm dlx' instead of 'npx'\n  • 'pnpm run' instead of 'npm run'\n\nSee AGENTS.md and CLAUDE.md for more details."
 }
 EOF
 else

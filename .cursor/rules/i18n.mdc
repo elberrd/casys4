@@ -1,0 +1,40 @@
+---
+description: Regras de internacionalização com next-intl
+globs: messages/**/*.json,app/**/*.tsx,components/**/*.tsx,i18n/**/*
+alwaysApply: false
+---
+
+# Internacionalização (next-intl)
+
+## Regra Principal
+
+Nunca hardcode strings visíveis ao usuário. Sempre usar traduções.
+
+## Arquivos
+
+- `messages/pt.json` — português (primário)
+- `messages/en.json` — inglês (secundário)
+- Manter mesma estrutura de chaves nos dois arquivos
+
+## Uso em Componentes
+
+```tsx
+// Client component
+import { useTranslations } from "next-intl";
+const t = useTranslations("Namespace");
+return <span>{t("key")}</span>;
+
+// Server component
+import { getTranslations } from "next-intl/server";
+const t = await getTranslations("Namespace");
+```
+
+## Convenções de Chaves
+
+- Organizar por namespace: `Common`, `Navigation`, `IndividualProcesses`, etc.
+- Nomes descritivos em camelCase: `saveChanges`, `editModeDescription`
+- Pluralização e interpolação via sintaxe next-intl
+
+## Referência
+
+Ver `I18N_IMPLEMENTATION.md` para configuração completa.
