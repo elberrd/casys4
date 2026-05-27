@@ -26,10 +26,8 @@ export const list = query({
     // For client users, override companyId filter to their own company
     let effectiveCompanyId = args.companyId;
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      effectiveCompanyId = userProfile.companyId;
+      const { companyId } = await requireClient(ctx);
+      effectiveCompanyId = companyId;
     }
 
     // Apply filters
@@ -129,7 +127,8 @@ export const get = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || request.companyId !== userProfile.companyId) {
+      const { companyId } = await requireClient(ctx);
+      if (request.companyId !== companyId) {
         throw new Error(
           "Access denied: You do not have permission to view this request"
         );

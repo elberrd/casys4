@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
@@ -27,18 +27,21 @@ export const list = query({
 
     // Apply role-based access control via peopleCompanies relationship
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Get all peopleCompanies relationships for client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
       const companyPeople = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
         .collect();
 
-      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
+      const allowedPersonIds = new Set(
+        companyPeople
+          .filter((pc) => pc.companyId && currentCompanyIds.has(pc.companyId))
+          .map((pc) => pc.personId)
+      );
 
       // Filter to only people associated with client's company
       people = people.filter((person) => allowedPersonIds.has(person._id));
@@ -120,18 +123,21 @@ export const search = query({
 
     // Apply role-based access control
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Get allowed person IDs for client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
       const companyPeople = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
         .collect();
 
-      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
+      const allowedPersonIds = new Set(
+        companyPeople
+          .filter((pc) => pc.companyId && currentCompanyIds.has(pc.companyId))
+          .map((pc) => pc.personId)
+      );
       people = people.filter((person) => allowedPersonIds.has(person._id));
     }
 
@@ -164,10 +170,8 @@ export const listPeopleByCompany = query({
 
     // For clients, verify they can only access their own company
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      if (userProfile.companyId !== args.companyId) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (!currentCompanyIds.has(args.companyId)) {
         throw new Error("Access denied: You can only view people from your own company");
       }
     }
@@ -276,20 +280,21 @@ export const get = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Check if person is associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
+      const personCompanies = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", id).eq("companyId", clientCompanyId)
-        )
-        .first();
+        .withIndex("by_person", (q) => q.eq("personId", id))
+        .collect();
 
-      if (!personCompany) {
+      const hasCurrentCompanyAccess = personCompanies.some(
+        (pc) => pc.isCurrent && pc.companyId && currentCompanyIds.has(pc.companyId)
+      );
+
+      if (!hasCurrentCompanyAccess) {
         throw new Error(
           "Access denied: You do not have permission to view this person"
         );
@@ -665,14 +670,13 @@ export const listPeopleWithCompanies = query({
 
     // Apply role-based access control for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Filter to only people-companies relationships for client's company
-      const clientCompanyId = userProfile.companyId;
       peopleCompanies = peopleCompanies.filter(
-        (pc) => pc.companyId === clientCompanyId
+        (pc) => pc.companyId && currentCompanyIds.has(pc.companyId)
       );
     }
 

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { calculateCollectiveProcessStatus } from "./lib/statusCalculation";
@@ -28,14 +28,7 @@ export const list = query({
 
     let results;
 
-    // For client users, override companyId filter to their own company
     let effectiveCompanyId = args.companyId;
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      effectiveCompanyId = userProfile.companyId;
-    }
 
     // Apply filters
     if (effectiveCompanyId !== undefined) {
@@ -62,9 +55,13 @@ export const list = query({
       results = await ctx.db.query("collectiveProcesses").collect();
     }
 
-    // For client users, ensure all results are filtered by their company
-    if (userProfile.role === "client" && effectiveCompanyId) {
-      results = results.filter((r) => r.companyId === effectiveCompanyId);
+    // For client users, restrict to companies currently assigned via peopleCompanies.isCurrent.
+    if (userProfile.role === "client") {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
+      }
+      results = results.filter((r) => r.companyId && currentCompanyIds.has(r.companyId));
     }
 
     // Filter by additional criteria if needed
@@ -193,7 +190,8 @@ export const get = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || process.companyId !== userProfile.companyId) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (!process.companyId || !currentCompanyIds.has(process.companyId)) {
         throw new Error(
           "Access denied: You do not have permission to view this process"
         );
@@ -599,7 +597,8 @@ export const getByReferenceNumber = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId || process.companyId !== userProfile.companyId) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (!process.companyId || !currentCompanyIds.has(process.companyId)) {
         throw new Error(
           "Access denied: You do not have permission to view this process"
         );

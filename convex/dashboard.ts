@@ -1,8 +1,71 @@
 import { query } from "./_generated/server";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  getIndividualProcessCompanyIds,
+  requireAdmin,
+} from "./lib/auth";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+function setsOverlap<T>(left: Set<T>, right: Set<T>): boolean {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
+}
+
+async function getClientCompanyIdsOrThrow(
+  ctx: QueryCtx,
+  userProfile: Doc<"userProfiles">
+): Promise<Set<Id<"companies">>> {
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+
+  if (currentCompanyIds.size === 0) {
+    throw new Error("Client user must have a current company assignment");
+  }
+
+  return currentCompanyIds;
+}
+
+async function processBelongsToCompanies(
+  ctx: QueryCtx,
+  process: Doc<"individualProcesses">,
+  companyIds: Set<Id<"companies">>
+): Promise<boolean> {
+  const processCompanyIds = await getIndividualProcessCompanyIds(ctx, process);
+  return setsOverlap(processCompanyIds, companyIds);
+}
+
+async function filterProcessesForUser(
+  ctx: QueryCtx,
+  userProfile: Doc<"userProfiles">,
+  processes: Array<Doc<"individualProcesses">>
+): Promise<Array<Doc<"individualProcesses">>> {
+  if (userProfile.role !== "client") {
+    return processes;
+  }
+
+  const currentCompanyIds = await getClientCompanyIdsOrThrow(ctx, userProfile);
+  const filtered = await Promise.all(
+    processes.map(async (process) =>
+      (await processBelongsToCompanies(ctx, process, currentCompanyIds)) ? process : null
+    )
+  );
+
+  return filtered.filter((process): process is Doc<"individualProcesses"> => process !== null);
+}
+
+function isActionRequiredDocument(doc: Doc<"documentsDelivered">): boolean {
+  return doc.status === "not_started" || doc.status === "rejected";
+}
+
+function isAwaitingReviewDocument(doc: Doc<"documentsDelivered">): boolean {
+  return doc.status === "uploaded" || doc.status === "under_review";
 }
 
 /**
@@ -17,26 +80,7 @@ export const getProcessStats = query({
     // Get all individual processes
     let processes = await ctx.db.query("individualProcesses").collect();
 
-    // Filter by company for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter by company through collectiveProcess
-      const filteredProcesses = await Promise.all(
-        processes.map(async (process) => {
-          if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-            return process;
-          }
-          return null;
-        })
-      );
-
-      processes = filteredProcesses.filter((p) => p !== null) as typeof processes;
-    }
+    processes = await filterProcessesForUser(ctx, userProfile, processes);
 
     // Count by case status
     const statusCounts: Record<string, { count: number; name: string; code: string }> = {};
@@ -85,12 +129,24 @@ export const getDocumentReviewQueue = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
 
-    // Get documents with status "under_review"
-    const documents = await ctx.db
-      .query("documentsDelivered")
-      .withIndex("by_status", (q) => q.eq("status", "under_review"))
-      .order("desc")
-      .take(20);
+    // Client uploads are stored as "uploaded"; include explicit "under_review"
+    // records too so staff sees every document waiting for action.
+    const [uploadedDocuments, underReviewDocuments] = await Promise.all([
+      ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_status", (q) => q.eq("status", "uploaded"))
+        .order("desc")
+        .take(20),
+      ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_status", (q) => q.eq("status", "under_review"))
+        .order("desc")
+        .take(20),
+    ]);
+    const documents = [...uploadedDocuments, ...underReviewDocuments]
+      .filter((doc) => doc.isLatest)
+      .sort((a, b) => b.uploadedAt - a.uploadedAt)
+      .slice(0, 20);
 
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
@@ -246,25 +302,7 @@ export const getUpcomingDeadlines = query({
 
     processes = filteredByStatus.filter((p) => p !== null) as typeof processes;
 
-    // Filter by company for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const filteredProcesses = await Promise.all(
-        processes.map(async (process) => {
-          if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-            return process;
-          }
-          return null;
-        })
-      );
-
-      processes = filteredProcesses.filter((p) => p !== null) as typeof processes;
-    }
+    processes = await filterProcessesForUser(ctx, userProfile, processes);
 
     // Enrich with related data
     const enrichedProcesses = await Promise.all(
@@ -377,27 +415,20 @@ export const getRecentActivity = query({
       .order("desc")
       .take(20);
 
-    // Filter by company for client users
     let filteredHistory = historyEntries;
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
+      const currentCompanyIds = await getClientCompanyIdsOrThrow(ctx, userProfile);
       const filtered = await Promise.all(
         historyEntries.map(async (entry) => {
           const individualProcess = await ctx.db.get(entry.individualProcessId);
-          if (individualProcess && individualProcess.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
-            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-              return entry;
-            }
-          }
-          return null;
+          if (!individualProcess) return null;
+          return (await processBelongsToCompanies(ctx, individualProcess, currentCompanyIds))
+            ? entry
+            : null;
         })
       );
 
-      filteredHistory = filtered.filter((e) => e !== null) as typeof historyEntries;
+      filteredHistory = filtered.filter((entry): entry is (typeof historyEntries)[number] => entry !== null);
     }
 
     // Enrich with related data
@@ -456,30 +487,11 @@ export const getCompanyDocumentStatus = query({
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
-    if (userProfile.role === "client" && !userProfile.companyId) {
-      throw new Error("Client user must have a company assignment");
-    }
-
-    const companyId = userProfile.role === "admin" ? null : userProfile.companyId;
-
-    // Get all main processes for the company
-    let collectiveProcesses = await ctx.db.query("collectiveProcesses").collect();
-
-    if (companyId) {
-      collectiveProcesses = collectiveProcesses.filter((mp) => mp.companyId === companyId);
-    }
-
-    // Get all individual processes for these main processes
-    const individualProcesses = await Promise.all(
-      collectiveProcesses.map(async (mp) => {
-        return await ctx.db
-          .query("individualProcesses")
-          .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", mp._id))
-          .collect();
-      })
+    const flatIndividualProcesses = await filterProcessesForUser(
+      ctx,
+      userProfile,
+      await ctx.db.query("individualProcesses").collect()
     );
-
-    const flatIndividualProcesses = individualProcesses.flat();
 
     // Get documents for all individual processes
     const documentsPromises = flatIndividualProcesses.map(async (ip) => {
@@ -493,7 +505,9 @@ export const getCompanyDocumentStatus = query({
       return {
         personId: ip.personId,
         personName: person ? getFullName(person) : "Unknown",
-        documents: docs,
+        documents: userProfile.role === "client"
+          ? docs.filter((doc) => doc.isLatest && !doc.excludedFromReport)
+          : docs.filter((doc) => doc.isLatest),
       };
     });
 
@@ -501,11 +515,10 @@ export const getCompanyDocumentStatus = query({
 
     // Aggregate document status by person
     const statusByPerson = documentsData.map((data) => {
-      const pending = data.documents.filter((d) => d.status === "pending_upload").length;
+      const pending = data.documents.filter((d) => d.status === "not_started").length;
       const approved = data.documents.filter((d) => d.status === "approved").length;
       const rejected = data.documents.filter((d) => d.status === "rejected").length;
-      const underReview = data.documents.filter((d) => d.status === "under_review")
-        .length;
+      const underReview = data.documents.filter(isAwaitingReviewDocument).length;
 
       return {
         personId: data.personId,
@@ -519,5 +532,237 @@ export const getCompanyDocumentStatus = query({
     });
 
     return statusByPerson;
+  },
+});
+
+/**
+ * Maximum number of actionable documents returned to the client dashboard.
+ * The widget displays them inside a scrollable list with tabs and search;
+ * clients with more pending docs can drill down via /individual-processes.
+ */
+const CLIENT_DASHBOARD_DOC_LIMIT = 100;
+
+type ActionableDocSummary = {
+  _id: Id<"documentsDelivered">;
+  individualProcessId: Id<"individualProcesses">;
+  personName: string;
+  referenceNumber?: string;
+  processTypeName?: string;
+  documentName: string;
+  status: Doc<"documentsDelivered">["status"];
+  isExigencia: boolean;
+  caseStatusName?: string;
+  clientDeadlineDate?: string;
+  priority: number;
+};
+
+/**
+ * Query to get actionable missing documents grouped by process for the client dashboard.
+ * Clients are scoped by their current company assignment, not the legacy profile company.
+ *
+ * Returns both an aggregated per-process summary and a flat, priority-sorted list of
+ * individual actionable documents so the dashboard can render a doc-level action center
+ * that stays manageable even when clients have many processes or documents.
+ */
+export const getClientMissingDocumentsSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const processes = await filterProcessesForUser(
+      ctx,
+      userProfile,
+      await ctx.db.query("individualProcesses").collect()
+    );
+
+    const actionableDocsFlat: ActionableDocSummary[] = [];
+
+    const processSummaries = await Promise.all(
+      processes.map(async (process) => {
+        const documents = await ctx.db
+          .query("documentsDelivered")
+          .withIndex("by_individualProcess", (q) =>
+            q.eq("individualProcessId", process._id)
+          )
+          .collect();
+
+        const visibleDocuments = documents.filter(
+          (doc) =>
+            doc.isLatest &&
+            (userProfile.role !== "client" || !doc.excludedFromReport)
+        );
+
+        const actionableDocuments = visibleDocuments.filter(isActionRequiredDocument);
+        if (actionableDocuments.length === 0 && visibleDocuments.length === 0) {
+          return null;
+        }
+
+        const [person, collectiveProcess, processType, companyApplicant] = await Promise.all([
+          ctx.db.get(process.personId),
+          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
+          process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+        ]);
+
+        const collectiveCompany = collectiveProcess?.companyId
+          ? await ctx.db.get(collectiveProcess.companyId)
+          : null;
+        const company = companyApplicant ?? collectiveCompany;
+        const personName = person ? getFullName(person) : "Unknown";
+        const referenceNumber = collectiveProcess?.referenceNumber;
+        const processTypeName = processType?.name;
+
+        const enrichedActionableDocuments = await Promise.all(
+          actionableDocuments.map(async (doc) => {
+            const documentType = doc.documentTypeId
+              ? await ctx.db.get(doc.documentTypeId)
+              : null;
+
+            let linkedStatus:
+              | {
+                  caseStatusName: string;
+                  caseStatusCode: string;
+                  clientDeadlineDate?: string;
+                  date?: string;
+                }
+              | undefined;
+
+            if (doc.individualProcessStatusId) {
+              const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+              const caseStatus = statusEntry
+                ? await ctx.db.get(statusEntry.caseStatusId)
+                : null;
+              if (statusEntry && caseStatus) {
+                linkedStatus = {
+                  caseStatusName: caseStatus.name,
+                  caseStatusCode: caseStatus.code,
+                  clientDeadlineDate: statusEntry.clientDeadlineDate,
+                  date: statusEntry.date,
+                };
+              }
+            }
+
+            const isExigencia = linkedStatus?.caseStatusCode === "exigencia";
+            const isRejected = doc.status === "rejected";
+            // Priority: lower is more urgent.
+            // 0=exigencia, 1=rejected, 2=pending
+            const priority = isExigencia ? 0 : isRejected ? 1 : 2;
+
+            const docName =
+              documentType?.name ||
+              doc.documentName ||
+              doc.fileName ||
+              "Documento";
+
+            actionableDocsFlat.push({
+              _id: doc._id,
+              individualProcessId: process._id,
+              personName,
+              referenceNumber,
+              processTypeName,
+              documentName: docName,
+              status: doc.status,
+              isExigencia,
+              caseStatusName: linkedStatus?.caseStatusName,
+              clientDeadlineDate: linkedStatus?.clientDeadlineDate,
+              priority,
+            });
+
+            return {
+              _id: doc._id,
+              documentName: docName,
+              status: doc.status,
+              isRequired: doc.isRequired === true,
+              linkedStatus,
+            };
+          })
+        );
+
+        const exigenciaDocuments = enrichedActionableDocuments.filter(
+          (doc) => doc.linkedStatus?.caseStatusCode === "exigencia"
+        );
+        const clientDeadlineDate = exigenciaDocuments
+          .map((doc) => doc.linkedStatus?.clientDeadlineDate)
+          .filter((date): date is string => Boolean(date))
+          .sort()[0];
+
+        return {
+          individualProcessId: process._id,
+          personName,
+          referenceNumber,
+          processTypeName,
+          companyName: company?.name,
+          pendingCount: visibleDocuments.filter((doc) => doc.status === "not_started").length,
+          rejectedCount: visibleDocuments.filter((doc) => doc.status === "rejected").length,
+          exigenciaCount: exigenciaDocuments.length,
+          awaitingReviewCount: visibleDocuments.filter(isAwaitingReviewDocument).length,
+          approvedCount: visibleDocuments.filter((doc) => doc.status === "approved").length,
+          totalCount: visibleDocuments.length,
+          clientDeadlineDate,
+          nextDocument: enrichedActionableDocuments[0] ?? null,
+          documents: enrichedActionableDocuments.slice(0, 5),
+        };
+      })
+    );
+
+    const processesWithDocuments = processSummaries.filter(
+      (summary): summary is NonNullable<typeof summary> => summary !== null
+    );
+    const processesNeedingAction = processesWithDocuments
+      .filter((process) => process.pendingCount + process.rejectedCount > 0)
+      .sort((a, b) => {
+        if (a.exigenciaCount !== b.exigenciaCount) {
+          return b.exigenciaCount - a.exigenciaCount;
+        }
+        if (a.clientDeadlineDate && b.clientDeadlineDate) {
+          return a.clientDeadlineDate.localeCompare(b.clientDeadlineDate);
+        }
+        if (a.clientDeadlineDate) return -1;
+        if (b.clientDeadlineDate) return 1;
+        return (b.pendingCount + b.rejectedCount) - (a.pendingCount + a.rejectedCount);
+      });
+
+    const totals = processesWithDocuments.reduce(
+      (acc, process) => ({
+        pending: acc.pending + process.pendingCount,
+        rejected: acc.rejected + process.rejectedCount,
+        exigencia: acc.exigencia + process.exigenciaCount,
+        awaitingReview: acc.awaitingReview + process.awaitingReviewCount,
+        approved: acc.approved + process.approvedCount,
+        total: acc.total + process.totalCount,
+      }),
+      {
+        pending: 0,
+        rejected: 0,
+        exigencia: 0,
+        awaitingReview: 0,
+        approved: 0,
+        total: 0,
+      }
+    );
+
+    actionableDocsFlat.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.clientDeadlineDate && b.clientDeadlineDate) {
+        return a.clientDeadlineDate.localeCompare(b.clientDeadlineDate);
+      }
+      if (a.clientDeadlineDate) return -1;
+      if (b.clientDeadlineDate) return 1;
+      return a.personName.localeCompare(b.personName);
+    });
+
+    const actionableTotal = actionableDocsFlat.length;
+    const limitedDocuments = actionableDocsFlat.slice(0, CLIENT_DASHBOARD_DOC_LIMIT);
+
+    return {
+      totals: {
+        ...totals,
+        actionRequired: totals.pending + totals.rejected,
+        processesNeedingAction: processesNeedingAction.length,
+      },
+      processes: processesNeedingAction,
+      documents: limitedDocuments,
+      documentsTotal: actionableTotal,
+      documentsLimit: CLIENT_DASHBOARD_DOC_LIMIT,
+    };
   },
 });

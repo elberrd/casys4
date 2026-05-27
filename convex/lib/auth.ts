@@ -76,9 +76,11 @@ export async function requireAdmin(
 }
 
 /**
- * Verify that the current user has client role
- * Throws an error if not authenticated, not a client, or missing companyId
- * Returns the client user's profile and their companyId
+ * Verify that the current user has client role and a current company.
+ *
+ * `peopleCompanies.isCurrent` is the source of truth for linked client users;
+ * `userProfiles.companyId` is kept as a legacy fallback for profiles without a
+ * linked person.
  */
 export async function requireClient(
   ctx: QueryCtx | MutationCtx
@@ -92,15 +94,18 @@ export async function requireClient(
     throw new Error("Access denied: This operation requires client role");
   }
 
-  if (!userProfile.companyId) {
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+  const companyId = currentCompanyIds.values().next().value;
+
+  if (!companyId) {
     throw new Error(
-      "Invalid client profile: Missing company assignment. Please contact an administrator."
+      "Invalid client profile: Missing current company assignment. Please contact an administrator."
     );
   }
 
   return {
     profile: userProfile,
-    companyId: userProfile.companyId,
+    companyId,
   };
 }
 
@@ -189,9 +194,11 @@ export async function requireClientCanAccessProcess(
 }
 
 /**
- * Check if the current user can access data for a specific company
- * Admin users can access all companies
- * Client users can only access their own company
+ * Check if the current user can access data for a specific company.
+ * Admin users can access all companies.
+ * Client users can access only companies currently linked via
+ * `peopleCompanies.isCurrent`, with `userProfiles.companyId` as a legacy
+ * fallback for profiles without a linked person.
  */
 export async function canAccessCompany(
   ctx: QueryCtx | MutationCtx,
@@ -204,9 +211,9 @@ export async function canAccessCompany(
     return true;
   }
 
-  // Client users can only access their own company
   if (userProfile.role === "client") {
-    return userProfile.companyId === companyId;
+    const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+    return currentCompanyIds.has(companyId);
   }
 
   return false;

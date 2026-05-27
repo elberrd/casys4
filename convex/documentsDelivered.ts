@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin, getCurrentUserProfile, canAccessCompany, requireClientCanAccessProcess } from "./lib/auth";
+import { requireAdmin, getCurrentUserProfile, requireClientCanAccessProcess } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 
@@ -760,16 +760,8 @@ export const getVersionHistory = query({
       throw new Error("Individual process not found");
     }
 
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to view this document history");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get all versions
     let documents = await ctx.db
@@ -1121,16 +1113,7 @@ export const updateVersionNotes = mutation({
       throw new Error("Individual process not found");
     }
 
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     await ctx.db.patch(args.documentId, {
       versionNotes: args.versionNotes,
@@ -1595,13 +1578,7 @@ export const uploadLoose = mutation({
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to upload documents for this process");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     if (!userProfile.userId) {
       throw new Error("User profile must be activated before uploading documents");
@@ -1745,13 +1722,7 @@ export const uploadWithType = mutation({
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to upload documents for this process");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     if (!userProfile.userId) {
       throw new Error("User profile must be activated before uploading documents");
@@ -1985,13 +1956,7 @@ export const assignType = mutation({
       ? await ctx.db.get(individualProcess.collectiveProcessId)
       : null;
 
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to modify this document");
-      }
-    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get document type
     const documentType = await ctx.db.get(args.documentTypeId);
@@ -2086,8 +2051,9 @@ export const uploadForPending = mutation({
       throw new Error("Document not found");
     }
 
-    // Must be a pending document (not_started status)
-    if (document.status !== "not_started") {
+    // Must be a missing document or a rejected latest document being resubmitted.
+    const isRejectedResubmission = document.status === "rejected";
+    if (document.status !== "not_started" && !isRejectedResubmission) {
       throw new Error("Document already has a file uploaded");
     }
 
@@ -2148,31 +2114,76 @@ export const uploadForPending = mutation({
     // Determine status based on auto-approve
     const shouldAutoApprove = args.autoApprove === true;
     const status = shouldAutoApprove ? "approved" : "uploaded";
-    // Bump version 0 (placeholder) → 1 on first fill; preserve existing for higher placeholders
-    const newVersion = document.version === 0 ? 1 : document.version;
+    let savedDocumentId = args.documentId;
+    let newVersion = document.version === 0 ? 1 : document.version;
 
-    // Update the pending document with file information
-    await ctx.db.patch(args.documentId, {
-      storageId: args.storageId,
-      fileName: args.fileName,
-      fileUrl: fileUrl,
-      fileSize: args.fileSize,
-      mimeType: args.mimeType,
-      status,
-      uploadedBy: uploaderUserId,
-      uploadedAt: Date.now(),
-      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
-      expiryDate: args.expiryDate,
-      issueDate: args.issueDate,
-      versionNotes: args.versionNotes,
-      version: newVersion,
-    });
+    if (isRejectedResubmission) {
+      const allProcessDocs = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", document.individualProcessId)
+        )
+        .collect();
+      const matchingDocs = allProcessDocs.filter(
+        (doc) =>
+          doc.documentTypeId === document.documentTypeId &&
+          doc.documentRequirementId === document.documentRequirementId &&
+          doc.documentTypeLegalFrameworkId === document.documentTypeLegalFrameworkId
+      );
+      newVersion = Math.max(...matchingDocs.map((doc) => doc.version)) + 1;
+
+      await ctx.db.patch(args.documentId, { isLatest: false });
+      savedDocumentId = await ctx.db.insert("documentsDelivered", {
+        individualProcessId: document.individualProcessId,
+        documentTypeId: document.documentTypeId,
+        documentRequirementId: document.documentRequirementId,
+        documentTypeLegalFrameworkId: document.documentTypeLegalFrameworkId,
+        isRequired: document.isRequired,
+        personId: document.personId ?? individualProcess.personId,
+        companyId: document.companyId ?? collectiveProcess?.companyId,
+        storageId: args.storageId,
+        fileName: args.fileName,
+        fileUrl,
+        fileSize: args.fileSize,
+        mimeType: args.mimeType,
+        status,
+        uploadedBy: uploaderUserId,
+        uploadedAt: Date.now(),
+        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+        expiryDate: args.expiryDate,
+        issueDate: args.issueDate,
+        versionNotes: args.versionNotes,
+        version: newVersion,
+        isLatest: true,
+        reusedFromDocumentId: document.reusedFromDocumentId,
+        individualProcessStatusId: document.individualProcessStatusId,
+        documentName: document.documentName,
+        excludedFromReport: document.excludedFromReport,
+      });
+    } else {
+      // Bump version 0 (placeholder) → 1 on first fill; preserve existing for higher placeholders
+      await ctx.db.patch(args.documentId, {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        fileUrl: fileUrl,
+        fileSize: args.fileSize,
+        mimeType: args.mimeType,
+        status,
+        uploadedBy: uploaderUserId,
+        uploadedAt: Date.now(),
+        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+        expiryDate: args.expiryDate,
+        issueDate: args.issueDate,
+        versionNotes: args.versionNotes,
+        version: newVersion,
+      });
+    }
 
     // Create status history for auto-approved documents
     if (shouldAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
-        documentId: args.documentId,
-        previousStatus: "uploaded",
+        documentId: savedDocumentId,
+        previousStatus: document.status,
         newStatus: "approved",
         changedBy: uploaderUserId,
         changedAt: Date.now(),
@@ -2189,7 +2200,7 @@ export const uploadForPending = mutation({
       const existingConditions = await ctx.db
         .query("documentDeliveredConditions")
         .withIndex("by_documentDelivered", (q) =>
-          q.eq("documentsDeliveredId", args.documentId)
+          q.eq("documentsDeliveredId", savedDocumentId)
         )
         .first();
 
@@ -2200,9 +2211,10 @@ export const uploadForPending = mutation({
             0,
             internal.documentDeliveredConditions.autoCreateForDocument,
             {
-              documentsDeliveredId: args.documentId,
+              documentsDeliveredId: savedDocumentId,
               documentTypeId: document.documentTypeId,
               individualProcessId: document.individualProcessId,
+              previousDocumentsDeliveredId: isRejectedResubmission ? args.documentId : undefined,
             }
           );
         } catch (error) {
@@ -2222,7 +2234,7 @@ export const uploadForPending = mutation({
         userId: uploaderUserId,
         action: "uploaded_pending",
         entityType: "document",
-        entityId: args.documentId,
+        entityId: savedDocumentId,
         details: {
           fileName: args.fileName,
           fileSize: args.fileSize,
@@ -2268,7 +2280,7 @@ export const uploadForPending = mutation({
       }
     }
 
-    return args.documentId;
+    return savedDocumentId;
   },
 });
 
@@ -2549,17 +2561,8 @@ export const getStatusHistory = query({
       throw new Error("Individual process not found");
     }
 
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    // Check access control
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied: You do not have permission to view this document history");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get all status history entries
     const history = await ctx.db
@@ -3530,17 +3533,8 @@ export const listAvailableForLinking = query({
       throw new Error("Individual process not found");
     }
 
-    // Access control
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get all latest documents for this process
     const documents = await ctx.db
@@ -3863,16 +3857,8 @@ export const getUnifiedDocumentHistory = query({
       throw new Error("Individual process not found");
     }
 
-    const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
-      : null;
-
-    if (collectiveProcess?.companyId) {
-      const hasAccess = await canAccessCompany(ctx, collectiveProcess.companyId);
-      if (!hasAccess) {
-        throw new Error("Access denied");
-      }
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     // Get all matching documents
     let documents;

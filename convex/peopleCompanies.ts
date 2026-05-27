@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
@@ -40,13 +40,13 @@ export const list = query({
 
     // Apply role-based access control
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Filter to only relationships involving client's company
       relationships = relationships.filter(
-        (r) => r.companyId === userProfile.companyId
+        (r) => r.companyId && currentCompanyIds.has(r.companyId)
       );
     }
 
@@ -115,11 +115,12 @@ export const getCurrentByPerson = query({
 
     // Apply role-based access control
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      if (currentRelationship.companyId !== userProfile.companyId) {
+      if (!currentRelationship.companyId || !currentCompanyIds.has(currentRelationship.companyId)) {
         throw new Error(
           "Access denied: This person is not associated with your company"
         );
@@ -159,13 +160,13 @@ export const listByPerson = query({
 
     // Apply role-based access control
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      // Check if any relationship involves client's company
       const hasAccess = relationships.some(
-        (r) => r.companyId === userProfile.companyId
+        (r) => r.companyId && currentCompanyIds.has(r.companyId)
       );
 
       if (!hasAccess) {
@@ -174,9 +175,8 @@ export const listByPerson = query({
         );
       }
 
-      // Filter to only show relationships with client's company
       const filteredRelationships = relationships.filter(
-        (r) => r.companyId === userProfile.companyId
+        (r) => r.companyId && currentCompanyIds.has(r.companyId)
       );
 
       const relationshipsWithData = await Promise.all(
@@ -230,11 +230,12 @@ export const listByCompany = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      if (args.companyId !== userProfile.companyId) {
+      if (!currentCompanyIds.has(args.companyId)) {
         throw new Error(
           "Access denied: You can only view relationships for your own company"
         );
@@ -281,11 +282,12 @@ export const get = query({
 
     // Check access permissions for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      if (currentCompanyIds.size === 0) {
+        throw new Error("Client user must have a current company assignment");
       }
 
-      if (relationship.companyId !== userProfile.companyId) {
+      if (!relationship.companyId || !currentCompanyIds.has(relationship.companyId)) {
         throw new Error(
           "Access denied: You do not have permission to view this relationship"
         );

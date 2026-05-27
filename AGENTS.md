@@ -111,6 +111,25 @@ ai_docs/                # Documentação interna, todos, PRD parcial
 - **Convex prod**: pleasant-mosquito-546
 - Use `/deploy` para o fluxo completo (build → convex deploy → git push).
 
+## Testes (web app local)
+
+Use estas credenciais para validar fluxos autenticados (sign-in, dashboard, RBAC). Comando dedicado: `/test`.
+
+| Campo | Valor |
+|-------|-------|
+| URL | http://localhost:3000/ |
+| Email | elber@impactus.ai |
+| Senha | Senha@123 |
+
+**Fluxo do agente:**
+
+1. Se a porta 3000 estiver ocupada, liberar e subir com `pnpm dev`
+2. Browser MCP para navegar e testar a UI
+3. Convex MCP para verificar backend/dados, se necessário
+4. Ao encontrar problema, corrigir e retestar
+
+Detalhes do comando em `.cursor/commands/test.md`.
+
 ## Agentes e Comandos Customizados
 
 Definidos em `.cursor/agents/` e `.cursor/commands/` (espelhados em `.claude/` para compatibilidade).

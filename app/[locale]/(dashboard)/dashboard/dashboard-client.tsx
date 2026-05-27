@@ -101,14 +101,15 @@ export function DashboardClient() {
         {/* Client Dashboard */}
         {isClient && (
           <>
-            {/* Top Row - Overview */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <ClientProcessesWidget />
-              <ClientDocumentsWidget />
-              <UpcomingDeadlinesWidget />
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <ClientDocumentsWidget />
+              </div>
+              <div className="lg:col-span-1">
+                <ClientProcessesWidget />
+              </div>
             </div>
 
-            {/* Bottom Row - Recent Updates */}
             <div className="grid gap-4">
               <ClientUpdatesWidget />
             </div>
