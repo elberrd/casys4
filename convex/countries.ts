@@ -38,6 +38,40 @@ export const get = query({
 });
 
 /**
+ * Resolve a country by ISO alpha-2 / alpha-3 code or (accent-insensitive) name.
+ * Used to map passport OCR output (e.g. MRZ "BRA" or "Brazil") to a country ID.
+ * Returns the matching country ID or null.
+ */
+export const findByCodeOrName = query({
+  args: { value: v.string() },
+  handler: async (ctx, { value }) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const all = await ctx.db.query("countries").collect();
+    const upper = trimmed.toUpperCase();
+    const normalized = normalizeString(trimmed);
+
+    const byIso3 = all.find((c) => c.iso3 && c.iso3.toUpperCase() === upper);
+    if (byIso3) return byIso3._id;
+
+    const byCode = all.find((c) => c.code && c.code.toUpperCase() === upper);
+    if (byCode) return byCode._id;
+
+    const byExactName = all.find(
+      (c) => normalizeString(c.name) === normalized
+    );
+    if (byExactName) return byExactName._id;
+
+    const byPartialName = all.find((c) => {
+      const cn = normalizeString(c.name);
+      return cn.includes(normalized) || normalized.includes(cn);
+    });
+    return byPartialName?._id ?? null;
+  },
+});
+
+/**
  * Mutation to create country (admin only)
  */
 export const create = mutation({

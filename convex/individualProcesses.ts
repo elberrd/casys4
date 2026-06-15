@@ -1016,6 +1016,17 @@ export const update = mutation({
     exchangeRateToBRL: v.optional(v.number()),
     salaryInBRL: v.optional(v.number()),
     monthlyAmountToReceive: v.optional(v.number()),
+    // Visa receipt location & foreign residence details (copied from the
+    // approved process request, also editable directly on the process)
+    visaReceiptLocation: v.optional(v.union(v.literal("brazil"), v.literal("abroad"))),
+    residenceCountryCode: v.optional(v.string()),
+    residenceCountryName: v.optional(v.string()),
+    residenceStateCode: v.optional(v.string()),
+    residenceCity: v.optional(v.string()),
+    residenceSince: v.optional(v.string()),
+    residenceAddressAbroad: v.optional(v.string()),
+    consularPost: v.optional(v.string()),
+    professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
     urgent: v.optional(v.boolean()),
@@ -1109,6 +1120,16 @@ export const update = mutation({
     if (args.exchangeRateToBRL !== undefined) updates.exchangeRateToBRL = args.exchangeRateToBRL;
     if (args.salaryInBRL !== undefined) updates.salaryInBRL = args.salaryInBRL;
     if (args.monthlyAmountToReceive !== undefined) updates.monthlyAmountToReceive = args.monthlyAmountToReceive;
+    // Visa receipt location & foreign residence details
+    if (args.visaReceiptLocation !== undefined) updates.visaReceiptLocation = args.visaReceiptLocation;
+    if (args.residenceCountryCode !== undefined) updates.residenceCountryCode = args.residenceCountryCode;
+    if (args.residenceCountryName !== undefined) updates.residenceCountryName = args.residenceCountryName;
+    if (args.residenceStateCode !== undefined) updates.residenceStateCode = args.residenceStateCode;
+    if (args.residenceCity !== undefined) updates.residenceCity = args.residenceCity;
+    if (args.residenceSince !== undefined) updates.residenceSince = args.residenceSince;
+    if (args.residenceAddressAbroad !== undefined) updates.residenceAddressAbroad = args.residenceAddressAbroad;
+    if (args.consularPost !== undefined) updates.consularPost = args.consularPost;
+    if (args.professionalExperience !== undefined) updates.professionalExperience = args.professionalExperience;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.urgent !== undefined) updates.urgent = args.urgent;
 

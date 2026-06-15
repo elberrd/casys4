@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Briefcase,
   Calendar,
+  ClipboardList,
   FileText,
   FolderKanban,
   FolderTree,
@@ -42,13 +43,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isClient = userProfile?.role === "client"
 
-  // Client-only navigation: dashboard, individual processes, settings
+  // Client-only navigation: dashboard, process requests, individual processes, settings
   const clientNav = [
     {
       title: t('dashboard'),
       url: "/dashboard",
       icon: LayoutDashboard,
       isActive: true,
+      items: [],
+    },
+    {
+      title: t('processRequests'),
+      url: "/process-requests",
+      icon: ClipboardList,
+      isActive: false,
       items: [],
     },
     {

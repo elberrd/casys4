@@ -63,8 +63,8 @@ interface CollectiveProcessDetailCardProps {
     originRequest?: {
       _id: Id<"processRequests">
       status: string
-      requestDate: string
-      isUrgent: boolean
+      requestDate?: string
+      isUrgent?: boolean
       requesterProfile?: {
         fullName: string
         email: string

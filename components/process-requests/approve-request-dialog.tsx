@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
@@ -24,10 +25,11 @@ interface ApproveRequestDialogProps {
   requestId: Id<"processRequests"> | null;
   requestInfo?: {
     company: string;
+    candidate: string;
     processType: string;
-    contactPerson: string;
   };
-  onSuccess?: () => void;
+  /** Called with the newly created individual-process id on success. */
+  onApproved?: (individualProcessId: Id<"individualProcesses">) => void;
 }
 
 export function ApproveRequestDialog({
@@ -35,9 +37,10 @@ export function ApproveRequestDialog({
   onOpenChange,
   requestId,
   requestInfo,
-  onSuccess,
+  onApproved,
 }: ApproveRequestDialogProps) {
   const t = useTranslations("ProcessRequests");
+  const router = useRouter();
   const [isApproving, setIsApproving] = useState(false);
 
   const approve = useMutation(api.processRequests.approve);
@@ -48,15 +51,18 @@ export function ApproveRequestDialog({
     try {
       setIsApproving(true);
 
-      const collectiveProcessId = await approve({ id: requestId });
+      const individualProcessId = await approve({ id: requestId });
 
-      toast.success(t("approvedSuccess"));
+      toast.success(t("approved"), {
+        action: {
+          label: t("viewProcess"),
+          onClick: () =>
+            router.push(`/individual-processes/${individualProcessId}`),
+        },
+      });
 
       onOpenChange(false);
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      onApproved?.(individualProcessId);
     } catch (error) {
       console.error("Error approving process request:", error);
       toast.error(t("errorApprove"));
@@ -74,24 +80,26 @@ export function ApproveRequestDialog({
             <AlertDialogTitle>{t("approveRequest")}</AlertDialogTitle>
           </div>
           <AlertDialogDescription className="text-left space-y-2">
-            <p>{t("approveConfirmation")}</p>
+            <span className="block">{t("approveConfirm")}</span>
             {requestInfo && (
-              <div className="mt-4 space-y-2 text-sm bg-muted p-3 rounded-md">
-                <div>
+              <span className="mt-4 block space-y-2 text-sm bg-muted p-3 rounded-md">
+                <span className="block">
                   <span className="font-medium">{t("company")}:</span>{" "}
                   {requestInfo.company}
-                </div>
-                <div>
+                </span>
+                <span className="block">
+                  <span className="font-medium">{t("candidate")}:</span>{" "}
+                  {requestInfo.candidate}
+                </span>
+                <span className="block">
                   <span className="font-medium">{t("processType")}:</span>{" "}
                   {requestInfo.processType}
-                </div>
-                <div>
-                  <span className="font-medium">{t("contactPerson")}:</span>{" "}
-                  {requestInfo.contactPerson}
-                </div>
-              </div>
+                </span>
+              </span>
             )}
-            <p className="text-muted-foreground">{t("approveDescription")}</p>
+            <span className="block text-muted-foreground">
+              {t("approveDescription")}
+            </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

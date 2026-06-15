@@ -169,6 +169,7 @@ export default defineSchema({
     issueDate: v.optional(v.string()),
     expiryDate: v.optional(v.string()),
     fileUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")), // Convex storage ref for the scanned passport image/PDF (used by OCR autofill)
     isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -443,6 +444,18 @@ export default defineSchema({
     exchangeRateToBRL: v.optional(v.number()), // Exchange rate value (BRL per unit of foreign currency)
     salaryInBRL: v.optional(v.number()), // Calculated salary in BRL
     monthlyAmountToReceive: v.optional(v.number()), // Monthly amount candidate will receive in BRL
+    // Visa receipt location + foreign residence (mirrored from process requests on approval)
+    visaReceiptLocation: v.optional(
+      v.union(v.literal("brazil"), v.literal("abroad"))
+    ), // Where the candidate will collect the visa
+    residenceCountryCode: v.optional(v.string()), // ISO2 country code (from country-state-city) when abroad
+    residenceCountryName: v.optional(v.string()), // Country display name when abroad
+    residenceStateCode: v.optional(v.string()), // Optional state/province code (from country-state-city)
+    residenceCity: v.optional(v.string()), // City of residence abroad (denormalized name)
+    residenceSince: v.optional(v.string()), // ISO date YYYY-MM-DD - since when the candidate lives at the abroad residence
+    residenceAddressAbroad: v.optional(v.string()), // Free-text foreign residence street address
+    consularPost: v.optional(v.string()), // Brazilian consular post where the visa will be collected (driven by residence country)
+    professionalExperience: v.optional(v.string()), // Free-text professional experience narrative
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
     urgent: v.optional(v.boolean()), // Flag to mark process as urgent
@@ -520,22 +533,60 @@ export default defineSchema({
     .index("by_storageId", ["storageId"])
     .index("by_originalDocument", ["originalDocumentId"]),
 
-  // Process Request Workflow - Client users submit requests for admin approval
+  // Process Request Workflow - Client users build a draft request (passport-first),
+  // submit it for admin review, converse with the admin, and on approval the
+  // request is copied into a fully pre-filled individualProcesses record.
   processRequests: defineTable({
+    // Requester scoping (set at creation from the client's CURRENT company)
     companyId: v.id("companies"),
-    contactPersonId: v.id("people"),
-    processTypeId: v.id("processTypes"),
-    workplaceCityId: v.id("cities"),
-    consulateId: v.optional(v.id("consulates")),
-    isUrgent: v.boolean(),
-    requestDate: v.string(),
-    notes: v.optional(v.string()),
-    status: v.string(), // "pending", "approved", "rejected"
+    createdBy: v.id("users"),
+    // --- Lifecycle ---
+    // status: "draft" (editable by client) | "submitted" (locked for client, under review)
+    //         | "approved" | "rejected". Legacy rows may still carry "pending".
+    status: v.string(),
+    version: v.optional(v.number()), // current submission version (1, 2, 3...); undefined while never submitted
+    submittedAt: v.optional(v.number()),
     reviewedBy: v.optional(v.id("users")),
     reviewedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
-    approvedCollectiveProcessId: v.optional(v.id("collectiveProcesses")),
-    createdBy: v.id("users"),
+    approvedIndividualProcessId: v.optional(v.id("individualProcesses")), // set on approval (new target)
+    approvedCollectiveProcessId: v.optional(v.id("collectiveProcesses")), // DEPRECATED legacy target
+    // --- Candidate (created/linked at wizard step 1 via passport upload + OCR) ---
+    candidatePersonId: v.optional(v.id("people")),
+    candidatePassportId: v.optional(v.id("passports")),
+    passportStorageId: v.optional(v.id("_storage")), // uploaded passport file (image/PDF) for this request
+    // Candidate person-level draft fields (applied to the person on approval)
+    candidateEmail: v.optional(v.string()),
+    maritalStatus: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    motherName: v.optional(v.string()),
+    // --- Process-level draft fields (copied into individualProcesses on approval) ---
+    processTypeId: v.optional(v.id("processTypes")),
+    legalFrameworkId: v.optional(v.id("legalFrameworks")),
+    workplaceCityId: v.optional(v.id("cities")),
+    consulateId: v.optional(v.id("consulates")),
+    contactPersonId: v.optional(v.id("people")), // DEPRECATED legacy company-contact link
+    isUrgent: v.optional(v.boolean()),
+    requestDate: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    // Salary block (mirrors individualProcesses salary fields)
+    lastSalaryCurrency: v.optional(v.string()),
+    lastSalaryAmount: v.optional(v.number()),
+    exchangeRateToBRL: v.optional(v.number()),
+    salaryInBRL: v.optional(v.number()),
+    monthlyAmountToReceive: v.optional(v.number()),
+    // Visa receipt + foreign residence
+    visaReceiptLocation: v.optional(
+      v.union(v.literal("brazil"), v.literal("abroad"))
+    ),
+    residenceCountryCode: v.optional(v.string()),
+    residenceCountryName: v.optional(v.string()),
+    residenceStateCode: v.optional(v.string()),
+    residenceCity: v.optional(v.string()),
+    residenceSince: v.optional(v.string()),
+    residenceAddressAbroad: v.optional(v.string()),
+    consularPost: v.optional(v.string()),
+    professionalExperience: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -543,7 +594,37 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_createdBy", ["createdBy"])
     .index("by_reviewedBy", ["reviewedBy"])
+    .index("by_candidatePerson", ["candidatePersonId"])
+    .index("by_approvedIndividualProcess", ["approvedIndividualProcessId"])
     .index("by_approvedCollectiveProcess", ["approvedCollectiveProcessId"]),
+
+  // Conversation thread + admin observations attached to a process request.
+  // kind "message" = shared social-style conversation (admin <-> requester).
+  // kind "observation" with isInternal=true = admin-only private note.
+  processRequestMessages: defineTable({
+    processRequestId: v.id("processRequests"),
+    authorUserId: v.id("users"),
+    authorRole: v.union(v.literal("admin"), v.literal("client")),
+    kind: v.union(v.literal("message"), v.literal("observation")),
+    isInternal: v.boolean(), // true => visible to admins only
+    body: v.string(),
+    isActive: v.boolean(), // soft delete
+    editedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_processRequest", ["processRequestId"])
+    .index("by_processRequest_createdAt", ["processRequestId", "createdAt"]),
+
+  // Immutable snapshot of a process request taken at each submission (versioning).
+  processRequestVersions: defineTable({
+    processRequestId: v.id("processRequests"),
+    version: v.number(),
+    snapshot: v.any(), // frozen copy of the request's fields at submission time
+    submittedBy: v.id("users"),
+    submittedAt: v.number(),
+  })
+    .index("by_processRequest", ["processRequestId"])
+    .index("by_processRequest_version", ["processRequestId", "version"]),
 
   // Document Template System - Admin-created templates for authorization types
   documentTemplates: defineTable({

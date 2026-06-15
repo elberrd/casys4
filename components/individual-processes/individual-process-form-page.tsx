@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import {
   Select,
@@ -36,6 +37,7 @@ import { QuickPersonFormDialog } from "@/components/individual-processes/quick-p
 import { QuickUserApplicantFormDialog } from "@/components/individual-processes/quick-user-applicant-form-dialog"
 import { QuickCompanyApplicantFormDialog } from "@/components/individual-processes/quick-company-applicant-form-dialog"
 import { QuickConsulateFormDialog } from "@/components/individual-processes/quick-consulate-form-dialog"
+import { ResidenceSelect, type ResidenceValue } from "@/components/process-requests/residence-select"
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form"
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
 import { useTranslations, useLocale } from "next-intl"
@@ -132,6 +134,15 @@ export function IndividualProcessFormPage({
       exchangeRateToBRL: undefined,
       salaryInBRL: undefined,
       monthlyAmountToReceive: undefined,
+      visaReceiptLocation: "",
+      residenceCountryCode: "",
+      residenceCountryName: "",
+      residenceStateCode: "",
+      residenceCity: "",
+      residenceSince: "",
+      residenceAddressAbroad: "",
+      consularPost: "",
+      professionalExperience: "",
       isActive: true,
     },
   })
@@ -151,6 +162,39 @@ export function IndividualProcessFormPage({
 
   // Watch deadline unit for conditional field display
   const selectedDeadlineUnit = form.watch("deadlineUnit")
+
+  // Watch visa receipt location & residence fields so the ResidenceSelect
+  // component stays in sync with react-hook-form state.
+  const visaReceiptLocation = form.watch("visaReceiptLocation")
+  const residenceCountryCode = form.watch("residenceCountryCode")
+  const residenceCountryName = form.watch("residenceCountryName")
+  const residenceStateCode = form.watch("residenceStateCode")
+  const residenceCity = form.watch("residenceCity")
+  const residenceSince = form.watch("residenceSince")
+  const residenceAddressAbroad = form.watch("residenceAddressAbroad")
+  const consularPost = form.watch("consularPost")
+
+  const residenceValue: ResidenceValue = {
+    visaReceiptLocation: visaReceiptLocation || undefined,
+    residenceCountryCode: residenceCountryCode || undefined,
+    residenceCountryName: residenceCountryName || undefined,
+    residenceStateCode: residenceStateCode || undefined,
+    residenceCity: residenceCity || undefined,
+    residenceSince: residenceSince || undefined,
+    residenceAddressAbroad: residenceAddressAbroad || undefined,
+    consularPost: consularPost || undefined,
+  }
+
+  const handleResidenceChange = (next: ResidenceValue) => {
+    form.setValue("visaReceiptLocation", next.visaReceiptLocation ?? "")
+    form.setValue("residenceCountryCode", next.residenceCountryCode ?? "")
+    form.setValue("residenceCountryName", next.residenceCountryName ?? "")
+    form.setValue("residenceStateCode", next.residenceStateCode ?? "")
+    form.setValue("residenceCity", next.residenceCity ?? "")
+    form.setValue("residenceSince", next.residenceSince ?? "")
+    form.setValue("residenceAddressAbroad", next.residenceAddressAbroad ?? "")
+    form.setValue("consularPost", next.consularPost ?? "")
+  }
 
   // Watch salary fields for currency conversion
   const selectedCurrency = form.watch("lastSalaryCurrency")
@@ -277,6 +321,15 @@ export function IndividualProcessFormPage({
         exchangeRateToBRL: individualProcess.exchangeRateToBRL,
         salaryInBRL: individualProcess.salaryInBRL,
         monthlyAmountToReceive: individualProcess.monthlyAmountToReceive,
+        visaReceiptLocation: individualProcess.visaReceiptLocation ?? "",
+        residenceCountryCode: individualProcess.residenceCountryCode ?? "",
+        residenceCountryName: individualProcess.residenceCountryName ?? "",
+        residenceStateCode: individualProcess.residenceStateCode ?? "",
+        residenceCity: individualProcess.residenceCity ?? "",
+        residenceSince: individualProcess.residenceSince ?? "",
+        residenceAddressAbroad: individualProcess.residenceAddressAbroad ?? "",
+        consularPost: individualProcess.consularPost ?? "",
+        professionalExperience: individualProcess.professionalExperience ?? "",
         isActive: individualProcess.isActive,
       })
       setHasInitializedForm(true)
@@ -408,6 +461,15 @@ export function IndividualProcessFormPage({
         exchangeRateToBRL: undefined,
         salaryInBRL: undefined,
         monthlyAmountToReceive: undefined,
+        visaReceiptLocation: "",
+        residenceCountryCode: "",
+        residenceCountryName: "",
+        residenceStateCode: "",
+        residenceCity: "",
+        residenceSince: "",
+        residenceAddressAbroad: "",
+        consularPost: "",
+        professionalExperience: "",
         isActive: true,
       })
       setHasInitializedForm(true)
@@ -498,6 +560,15 @@ export function IndividualProcessFormPage({
         exchangeRateToBRL: data.exchangeRateToBRL,
         salaryInBRL: data.salaryInBRL,
         monthlyAmountToReceive: data.monthlyAmountToReceive,
+        visaReceiptLocation: data.visaReceiptLocation || undefined,
+        residenceCountryCode: data.residenceCountryCode || undefined,
+        residenceCountryName: data.residenceCountryName || undefined,
+        residenceStateCode: data.residenceStateCode || undefined,
+        residenceCity: data.residenceCity || undefined,
+        residenceSince: data.residenceSince || undefined,
+        residenceAddressAbroad: data.residenceAddressAbroad || undefined,
+        consularPost: data.consularPost || undefined,
+        professionalExperience: data.professionalExperience || undefined,
       }
 
       if (individualProcessId) {
@@ -1131,6 +1202,39 @@ export function IndividualProcessFormPage({
                   )}
                 />
               </div>
+            </div>
+
+            {/* Visa Receipt & Residence Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("visaReceiptResidence")}</h3>
+              <ResidenceSelect
+                value={residenceValue}
+                onChange={handleResidenceChange}
+              />
+            </div>
+
+            {/* Professional Experience Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("professionalExperience")}</h3>
+              <FormField
+                control={form.control}
+                name="professionalExperience"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("professionalExperience")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={t("professionalExperiencePlaceholder")}
+                        rows={4}
+                        {...field}
+                        value={field.value ?? ""}
+                        className="resize-none"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Deadline Information Section */}

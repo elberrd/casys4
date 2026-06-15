@@ -42,6 +42,13 @@ export interface ComboboxProps<T = string> {
   searchPlaceholder?: string;
   emptyText?: string;
   disabled?: boolean;
+  /**
+   * Show a loading state: disables the trigger and renders a spinner with
+   * `loadingText` (or the placeholder) instead of the value.
+   */
+  loading?: boolean;
+  /** Text shown next to the spinner while loading. Defaults to the placeholder. */
+  loadingText?: string;
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
@@ -109,6 +116,8 @@ function ComboboxSingle<T extends string = string>({
   searchPlaceholder = "Search...",
   emptyText = "No results found.",
   disabled = false,
+  loading = false,
+  loadingText,
   className,
   triggerClassName,
   contentClassName,
@@ -209,14 +218,20 @@ function ComboboxSingle<T extends string = string>({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          disabled={disabled}
+          aria-busy={loading}
+          disabled={disabled || loading}
           className={cn(
             "w-full justify-between",
-            !selectedValue && "text-muted-foreground",
+            (!selectedValue || loading) && "text-muted-foreground",
             triggerClassName,
           )}
         >
-          {selectedOption ? (
+          {loading ? (
+            <span className="flex items-center gap-2 truncate min-w-0">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              <span className="truncate">{loadingText ?? placeholder}</span>
+            </span>
+          ) : selectedOption ? (
             <span className="flex items-center gap-2 truncate min-w-0">
               {selectedOption.icon && <span className="shrink-0">{selectedOption.icon}</span>}
               <span className="truncate">{selectedOption.label}</span>
@@ -224,7 +239,7 @@ function ComboboxSingle<T extends string = string>({
           ) : (
             placeholder
           )}
-          {showClearButton && selectedValue && (
+          {!loading && showClearButton && selectedValue && (
             <span
               role="button"
               tabIndex={0}
@@ -241,7 +256,9 @@ function ComboboxSingle<T extends string = string>({
               <X className="h-4 w-4" />
             </span>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          {!loading && (
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent

@@ -25,8 +25,8 @@ interface RejectRequestDialogProps {
   requestId: Id<"processRequests"> | null;
   requestInfo?: {
     company: string;
+    candidate: string;
     processType: string;
-    contactPerson: string;
   };
   onSuccess?: () => void;
 }
@@ -60,14 +60,11 @@ export function RejectRequestDialog({
         rejectionReason: rejectionReason.trim(),
       });
 
-      toast.success(t("rejectedSuccess"));
+      toast.success(t("rejected"));
 
       onOpenChange(false);
       setRejectionReason("");
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      onSuccess?.();
     } catch (error) {
       console.error("Error rejecting process request:", error);
       toast.error(t("errorReject"));
@@ -76,11 +73,11 @@ export function RejectRequestDialog({
     }
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && !isRejecting) {
+  const handleOpenChange = (next: boolean) => {
+    if (!next && !isRejecting) {
       setRejectionReason("");
     }
-    onOpenChange(open);
+    onOpenChange(next);
   };
 
   return (
@@ -89,25 +86,25 @@ export function RejectRequestDialog({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <XCircle className="h-5 w-5 text-destructive" />
-            <DialogTitle>{t("rejectRequest")}</DialogTitle>
+            <DialogTitle>{t("rejectTitle")}</DialogTitle>
           </div>
           <DialogDescription className="text-left space-y-2">
-            <p>{t("rejectConfirmation")}</p>
+            <span className="block">{t("rejectConfirmation")}</span>
             {requestInfo && (
-              <div className="mt-4 space-y-2 text-sm bg-muted p-3 rounded-md">
-                <div>
+              <span className="mt-4 block space-y-2 text-sm bg-muted p-3 rounded-md">
+                <span className="block">
                   <span className="font-medium">{t("company")}:</span>{" "}
                   {requestInfo.company}
-                </div>
-                <div>
+                </span>
+                <span className="block">
+                  <span className="font-medium">{t("candidate")}:</span>{" "}
+                  {requestInfo.candidate}
+                </span>
+                <span className="block">
                   <span className="font-medium">{t("processType")}:</span>{" "}
                   {requestInfo.processType}
-                </div>
-                <div>
-                  <span className="font-medium">{t("contactPerson")}:</span>{" "}
-                  {requestInfo.contactPerson}
-                </div>
-              </div>
+                </span>
+              </span>
             )}
           </DialogDescription>
         </DialogHeader>

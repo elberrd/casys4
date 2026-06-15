@@ -6,7 +6,12 @@ import { usePathname } from "next/navigation"
 import { useRouter } from "@/i18n/routing"
 import { useEffect } from "react"
 
-const CLIENT_ALLOWED_PATHS = ["/dashboard", "/individual-processes", "/settings"]
+const CLIENT_ALLOWED_PATHS = [
+  "/dashboard",
+  "/process-requests",
+  "/individual-processes",
+  "/settings",
+]
 
 function isPathAllowed(pathname: string): boolean {
   // Remove locale prefix (e.g., /pt/individual-processes -> /individual-processes)

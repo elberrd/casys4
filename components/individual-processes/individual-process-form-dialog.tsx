@@ -375,6 +375,14 @@ export function IndividualProcessFormDialog({
         exchangeRateToBRL: data.exchangeRateToBRL,
         salaryInBRL: data.salaryInBRL,
         monthlyAmountToReceive: data.monthlyAmountToReceive,
+        visaReceiptLocation: data.visaReceiptLocation || undefined,
+        residenceCountryCode: data.residenceCountryCode || undefined,
+        residenceCountryName: data.residenceCountryName || undefined,
+        residenceStateCode: data.residenceStateCode || undefined,
+        residenceCity: data.residenceCity || undefined,
+        residenceSince: data.residenceSince || undefined,
+        residenceAddressAbroad: data.residenceAddressAbroad || undefined,
+        professionalExperience: data.professionalExperience || undefined,
       }
 
       if (individualProcessId) {

@@ -32,6 +32,7 @@ import { formatDate } from "@/lib/format-field-value"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { translateCountryName } from "@/lib/utils/country-translations"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
+import { formatResidenceDuration } from "@/lib/utils/residence-duration"
 import { getFullName } from "@/lib/utils/person-names"
 
 interface IndividualProcessDetailClientProps {
@@ -306,6 +307,50 @@ export function IndividualProcessDetailClient({
                         return relativeDate ? `${exactDate} (${relativeDate})` : exactDate;
                       })()
                     : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('visaReceiptLocation')}</div>
+                <div className="text-sm">
+                  {individualProcess.visaReceiptLocation
+                    ? t(`visaReceiptLocationOptions.${individualProcess.visaReceiptLocation}`)
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('residence')}</div>
+                <div className="text-sm">
+                  {individualProcess.visaReceiptLocation === 'abroad' &&
+                  (individualProcess.residenceCountryName || individualProcess.residenceCity)
+                    ? (() => {
+                        const place = [
+                          individualProcess.residenceCity,
+                          individualProcess.residenceCountryName,
+                        ]
+                          .filter(Boolean)
+                          .join(', ');
+                        const duration = individualProcess.residenceSince
+                          ? formatResidenceDuration(
+                              individualProcess.residenceSince,
+                              (key, vars) => t(key as never, vars as never),
+                            )
+                          : '';
+                        return duration ? `${place} (${duration})` : place || '-';
+                      })()
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('consularPost')}</div>
+                <div className="text-sm">
+                  {individualProcess.consularPost || '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('residenceAddressAbroad')}</div>
+                <div className="text-sm whitespace-pre-line">
+                  {individualProcess.residenceAddressAbroad || '-'}
+                </div>
+
+                <div className="text-sm font-medium">{t('professionalExperience')}</div>
+                <div className="text-sm whitespace-pre-line">
+                  {individualProcess.professionalExperience || '-'}
                 </div>
               </div>
             </CardContent>

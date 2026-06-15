@@ -1,92 +1,49 @@
-# TODO: Implementar Edição de Views (Filtros Salvos) com Modo de Edição Visual
+# TODO: Solicitação de Processos (Process Requests) — passport-first workflow
 
-## Context
+Refazendo a página "Solicitação de Processos": o usuário regular monta uma solicitação
+(passaporte primeiro, com OCR via Gemini), conversa com o admin, envia (trava + versão),
+e ao ser aprovada vira um Processo Individual totalmente preenchido.
 
-O usuário solicitou as seguintes mudanças na página "Processos Individuais":
+## Decisões (ver memory: process-requests-feature.md)
+- Estender a tabela `processRequests` (não reusar individualProcesses). NÃO mexer no `components/process-wizard/` do admin.
+- Estados: draft → submitted (trava cliente, versão++ + snapshot) → admin: reopen | approve (→ processo individual) | reject. Conversa sempre aberta.
+- RBAC: cliente vê só as próprias solicitações, sob a empresa atual. Admin vê todas, agrupa por requerente.
+- OCR: `gemini-3.5-flash` (@google/genai), Convex "use node" action. Aceitar PNG/JPEG/WebP + PDF, 10MB.
+- Residência: brazil|abroad → país→cidade (`country-state-city`) + data + duração calculada + endereço livre.
 
-1. Mudar o texto "Filtros Salvos" para "Views Salvas"
-2. Quando uma View (antigo filtro) for selecionada para edição:
-   - Edição inline do nome dentro do dropdown
-   - Página inteira com visual azul indicando modo de edição
-   - Banner no topo com botões Cancelar e Salvar Alterações
-   - Usuário pode modificar os filtros na página enquanto está em modo de edição
-   - Ao salvar, tanto o nome quanto os filtros modificados são salvos
+## Fase 1 — Fundação ✅
+- [x] Instalar `@google/genai` + `country-state-city`
+- [x] `GEMINI_API_KEY` no Convex (dev + prod)
+- [x] Schema: processRequests estendido; passports.storageId; individualProcesses (visaReceiptLocation/residence*/professionalExperience); novas tabelas processRequestMessages, processRequestVersions
 
-## Implementation Summary
+## Fase 2 — Backend ✅ (typecheck OK, deploy dev OK)
+- [x] `convex/lib/createIndividualProcess.ts` — core reutilizável de criação de processo
+- [x] `convex/processRequests.ts` — createDraft / saveDraft / submit / reopen / approve(→individual) / reject / remove + list/get enriquecidos
+- [x] `convex/processRequestMessages.ts` — conversa + observações privadas + notificações
+- [x] `convex/passportUpload.ts` — generateUploadUrl + applyCandidate (permitido ao cliente)
+- [x] `convex/passportOcr.ts` — action Gemini
+- [x] `convex/countries.findByCodeOrName`, `convex/people.findByNormalizedName`
 
-### Completed Tasks:
+## Fase 3 — Frontend ✅ (typecheck limpo + build OK)
+- [x] i18n: chaves em `messages/pt.json` + `messages/en.json` (ProcessRequests + IndividualProcesses)
+- [x] `lib/utils/residence-duration.ts` — "mora há X" a partir de uma data
+- [x] `components/process-requests/residence-select.tsx` — brazil/abroad + país→cidade + data + duração
+- [x] `components/process-requests/legal-framework-select.tsx` — seletor com nome + descrição
+- [x] `components/process-requests/passport-upload-step.tsx` — upload + OCR + resolução de duplicado
+- [x] `components/process-requests/request-conversation.tsx` — chat (bolhas) + observações admin
+- [x] `components/process-requests/process-request-wizard.tsx` (+ steps + state) — sequência travada
+- [x] Rota `new/page.tsx` → novo wizard (substituiu form antigo)
+- [x] `process-requests-client.tsx` — lista (cliente: próprias; admin: todas, agrupar por requerente)
+- [x] Detalhe da solicitação (admin): observações, conversa, aprovar/rejeitar/reabrir, ver versões
+- [x] Campos novos no Processo Individual (edit form + detail card): visaReceiptLocation, residência exterior, experiência profissional (texto)
+- [x] Typecheck (`pnpm exec tsc --noEmit`) ✅ + `pnpm run build` ✅
 
-- [x] 1. **Traduções atualizadas (i18n)**
-  - "Filtros Salvos" → "Views Salvas" em pt.json e en.json
-  - Adicionadas chaves: `editMode`, `editModeDescription`, `saveChanges`
+## Falta testar em runtime (precisa do app rodando + login)
+- [ ] Fluxo completo do wizard com upload de passaporte real (OCR Gemini ao vivo)
+- [ ] Aprovação → criação do processo individual preenchido
+- [ ] Conversa + notificações entre cliente e admin
+- [ ] Deploy: push para main (auto-deploy Convex+Next). Env GEMINI_API_KEY já está em prod.
 
-- [x] 2. **Backend verificado**
-  - A mutation `update` em `convex/savedFilters.ts` já aceita `filterCriteria` opcional
-
-- [x] 3. **SavedFiltersList atualizado**
-  - Novas props: `editingViewId`, `editingViewName`, `onEditingViewNameChange`, `onCancelEdit`, `onSaveEdit`
-  - Input inline para editar nome quando em modo de edição
-  - Visual azul no item sendo editado
-  - Botões Check (salvar) e X (cancelar) inline
-
-- [x] 4. **individual-processes-client.tsx atualizado**
-  - Estado `isEditingView` e `editingViewName` adicionados
-  - Mutation `updateSavedFilter` para salvar alterações
-  - `handleEditFilter` aplica filtros e ativa modo de edição (não abre Sheet)
-  - `handleCancelEditView` cancela edição
-  - `handleSaveEditView` salva nome + critérios de filtro
-  - Visual azul na página inteira quando em modo de edição (`ring-2 ring-blue-500`)
-  - Banner com botões Cancelar e Salvar Alterações
-
-- [x] 5. **SaveFilterSheet simplificado**
-  - Usado apenas para criar novas views
-  - Removido código de modo de edição
-
-- [x] 6. **TypeScript compila sem erros**
-
-## Files Modified
-
-- `messages/pt.json` - Traduções atualizadas para "Views Salvas"
-- `messages/en.json` - Traduções atualizadas para "Saved Views"
-- `components/saved-filters/saved-filters-list.tsx` - Edição inline
-- `components/saved-filters/save-filter-sheet.tsx` - Simplificado (só criar)
-- `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx` - Modo de edição visual na página
-
-## New Edit Flow
-
-1. Usuário clica no dropdown "Views Salvas"
-2. Clica no ícone de lápis (editar) em uma view
-3. Os filtros da view são aplicados na página
-4. O item no dropdown fica azul com input para editar nome
-5. A página inteira fica com borda azul e banner no topo
-6. Usuário pode:
-   - Editar o nome da view no dropdown
-   - Modificar os filtros na página
-   - Fechar o dropdown e continuar modificando filtros
-7. Ao clicar em "Salvar Alterações" no banner:
-   - Nome atualizado
-   - Critérios de filtro atualizados com estado atual
-8. Modo de edição é desativado
-
-## Visual Design
-
-**Dropdown - Item sendo editado:**
-- Background: `bg-blue-50 dark:bg-blue-950/30`
-- Border: `border-2 border-blue-500`
-- Input inline para nome
-- Botões Check (verde) e X
-
-**Página em modo de edição:**
-- Ring: `ring-2 ring-blue-500 ring-inset`
-- Background: `bg-blue-50/30 dark:bg-blue-950/10`
-- Banner: `bg-blue-100 dark:bg-blue-900/50 border-blue-300`
-
-## Next Steps (Manual Testing)
-
-- [ ] Testar seleção de view para edição
-- [ ] Verificar edição inline do nome
-- [ ] Verificar visual azul na página
-- [ ] Testar modificação de filtros durante edição
-- [ ] Testar salvamento de alterações
-- [ ] Testar cancelamento
-- [ ] Verificar responsividade mobile
+## Notas
+- Bugs antigos do form a descartar na reescrita: namespace i18n minúsculo `processRequests`; redirect `/dashboard/process-requests`.
+- approve() antigo gerava número de referência com `length+1` (corrida) — não reaproveitar.

@@ -7,8 +7,11 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   getFilteredRowModel,
+  getGroupedRowModel,
+  getExpandedRowModel,
   ColumnDef,
-  RowSelectionState,
+  GroupingState,
+  ExpandedState,
 } from "@tanstack/react-table";
 import { DataGrid, DataGridContainer } from "@/components/ui/data-grid";
 import { DataGridTable } from "@/components/ui/data-grid-table";
@@ -16,169 +19,82 @@ import { DataGridPagination } from "@/components/ui/data-grid-pagination";
 import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header";
 import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility";
 import { DataGridFilter } from "@/components/ui/data-grid-filter";
-import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
-import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Eye, Clock } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useTranslations } from "next-intl";
-import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { createSelectColumn } from "@/lib/data-grid-utils";
 import { globalFuzzyFilter } from "@/lib/fuzzy-search";
-import { formatDate } from "@/lib/format-field-value";
-
-interface ProcessRequest {
-  _id: Id<"processRequests">;
-  companyId: Id<"companies">;
-  contactPersonId: Id<"people">;
-  processTypeId: Id<"processTypes">;
-  workplaceCityId: Id<"cities">;
-  consulateId?: Id<"consulates">;
-  isUrgent: boolean;
-  requestDate: string;
-  notes?: string;
-  status: string;
-  reviewedBy?: Id<"users">;
-  reviewedAt?: number;
-  rejectionReason?: string;
-  approvedCollectiveProcessId?: Id<"collectiveProcesses">;
-  createdBy: Id<"users">;
-  createdAt: number;
-  updatedAt: number;
-  company: {
-    name: string;
-  } | null;
-  contactPerson: {
-    fullName: string;
-  } | null;
-  processType: {
-    name: string;
-  } | null;
-  workplaceCity: {
-    name: string;
-  } | null;
-  consulate: {
-    city?: {
-      name: string;
-    } | null;
-  } | null;
-  reviewerProfile: {
-    fullName: string;
-  } | null;
-  approvedCollectiveProcess: {
-    referenceNumber: string;
-  } | null;
-}
+import { RequestStatusBadge } from "./request-status-badge";
+import type { ProcessRequestListItem } from "./types";
 
 interface ProcessRequestsDataGridProps {
-  processRequests: ProcessRequest[];
-  onApprove?: (id: Id<"processRequests">) => void;
-  onReject?: (id: Id<"processRequests">) => void;
-  onViewDetails?: (id: Id<"processRequests">) => void;
-  userRole: "admin" | "client";
+  processRequests: ProcessRequestListItem[];
+  onRowClick: (request: ProcessRequestListItem) => void;
 }
 
 export function ProcessRequestsDataGrid({
   processRequests,
-  onApprove,
-  onReject,
-  onViewDetails,
-  userRole,
+  onRowClick,
 }: ProcessRequestsDataGridProps) {
   const t = useTranslations("ProcessRequests");
   const tCommon = useTranslations("Common");
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Clock className="h-3 w-3" />
-            {t("statusPending")}
-          </Badge>
-        );
-      case "approved":
-        return (
-          <Badge variant="default" className="gap-1 bg-green-600">
-            <CheckCircle className="h-3 w-3" />
-            {t("statusApproved")}
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            {t("statusRejected")}
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const [groupByRequester, setGroupByRequester] = useState(false);
+  const [expanded, setExpanded] = useState<ExpandedState>(true);
 
-  const columns = useMemo<ColumnDef<ProcessRequest>[]>(
+  const grouping = useMemo<GroupingState>(
+    () => (groupByRequester ? ["company"] : []),
+    [groupByRequester]
+  );
+
+  const columns = useMemo<ColumnDef<ProcessRequestListItem>[]>(
     () => [
-      createSelectColumn<ProcessRequest>(),
-      {
-        id: "reference",
-        accessorFn: (row) => row._id.slice(-8),
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("reference")} />
-        ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell
-            text={`#${row.original._id.slice(-8).toUpperCase()}`}
-          />
-        ),
-      },
       {
         id: "company",
         accessorFn: (row) => row.company?.name || "-",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("company")} />
+          <DataGridColumnHeader column={column} title={t("requestedBy")} />
+        ),
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.company?.name || "-"}</span>
+        ),
+      },
+      {
+        id: "candidate",
+        accessorFn: (row) => row.candidatePerson?.fullName || "-",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("candidate")} />
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.company?.name || "-"}
+            {row.original.candidatePerson?.fullName || "-"}
           </span>
         ),
       },
       {
-        id: "processType",
-        accessorFn: (row) => row.processType?.name || "-",
+        accessorKey: "status",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("processType")} />
+          <DataGridColumnHeader column={column} title={t("status")} />
         ),
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.processType?.name || "-"}
-          </span>
-        ),
+        cell: ({ row }) => <RequestStatusBadge status={row.original.status} />,
+        filterFn: (row, id, value) => value.includes(row.getValue(id)),
       },
       {
-        id: "contactPerson",
-        accessorFn: (row) => row.contactPerson?.fullName || "-",
+        id: "version",
+        accessorFn: (row) => row.version ?? 0,
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("contactPerson")} />
+          <DataGridColumnHeader column={column} title={t("version")} />
         ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {row.original.contactPerson?.fullName || "-"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "requestDate",
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("requestDate")} />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {formatDate(row.original.requestDate)}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.version ? (
+            <Badge variant="outline" className="font-mono text-xs">
+              v{row.original.version}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          ),
       },
       {
         accessorKey: "isUrgent",
@@ -191,66 +107,23 @@ export function ProcessRequestsDataGrid({
               {t("urgent")}
             </Badge>
           ) : null,
-        filterFn: (row, id, value) => {
-          return value.includes(row.getValue(id));
-        },
       },
       {
-        accessorKey: "status",
+        id: "submittedAt",
+        accessorFn: (row) => row.submittedAt ?? 0,
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("status")} />
+          <DataGridColumnHeader column={column} title={t("submittedAt")} />
         ),
-        cell: ({ row }) => getStatusBadge(row.original.status),
-        filterFn: (row, id, value) => {
-          return value.includes(row.getValue(id));
-        },
-      },
-      {
-        id: "actions",
-        header: () => <span className="sr-only">{tCommon("actions")}</span>,
-        cell: ({ row }) => {
-          const actions = [];
-
-          // View details action - available for all
-          if (onViewDetails) {
-            actions.push({
-              label: t("viewDetails"),
-              icon: <Eye className="h-4 w-4" />,
-              onClick: () => onViewDetails(row.original._id),
-              variant: "default" as const,
-            });
-          }
-
-          // Admin-only actions for pending requests
-          if (userRole === "admin" && row.original.status === "pending") {
-            if (onApprove) {
-              actions.push({
-                label: t("approve"),
-                icon: <CheckCircle className="h-4 w-4" />,
-                onClick: () => onApprove(row.original._id),
-                variant: "default" as const,
-              });
-            }
-
-            if (onReject) {
-              actions.push({
-                label: t("reject"),
-                icon: <XCircle className="h-4 w-4" />,
-                onClick: () => onReject(row.original._id),
-                variant: "destructive" as const,
-                separator: true,
-              });
-            }
-          }
-
-          return <DataGridRowActions actions={actions} />;
-        },
-        size: 50,
-        enableSorting: false,
-        enableHiding: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.submittedAt
+              ? new Date(row.original.submittedAt).toLocaleDateString()
+              : "-"}
+          </span>
+        ),
       },
     ],
-    [t, tCommon, onApprove, onReject, onViewDetails, userRole]
+    [t]
   );
 
   const table = useReactTable({
@@ -260,11 +133,16 @@ export function ProcessRequestsDataGrid({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getGroupedRowModel: getGroupedRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     globalFilterFn: globalFuzzyFilter,
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
     state: {
-      rowSelection,
+      grouping,
+      expanded,
+    },
+    initialState: {
+      pagination: { pageSize: 50 },
     },
   });
 
@@ -272,22 +150,36 @@ export function ProcessRequestsDataGrid({
     <DataGrid
       table={table}
       recordCount={processRequests.length}
-      emptyMessage={t("noResults")}
-      tableLayout={{
-        columnsVisibility: true,
-      }}
+      emptyMessage={t("noRequests")}
+      onRowClick={(row) => onRowClick(row)}
+      tableLayout={{ columnsVisibility: true }}
     >
       <div className="w-full space-y-2.5">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
           <DataGridFilter table={table} className="w-full sm:max-w-sm" />
-          <DataGridColumnVisibility
-            table={table}
-            trigger={
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                Columns
-              </Button>
-            }
-          />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="group-by-requester"
+                checked={groupByRequester}
+                onCheckedChange={setGroupByRequester}
+              />
+              <Label
+                htmlFor="group-by-requester"
+                className="cursor-pointer text-sm font-medium"
+              >
+                {t("groupByRequester")}
+              </Label>
+            </div>
+            <DataGridColumnVisibility
+              table={table}
+              trigger={
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  {tCommon("columns")}
+                </Button>
+              }
+            />
+          </div>
         </div>
         <DataGridContainer>
           <ScrollArea>

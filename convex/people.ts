@@ -403,6 +403,42 @@ export const create = mutation({
 });
 
 /**
+ * Find people whose full name matches the given name (accent/case-insensitive,
+ * exact match on the normalized full name). Used by passport OCR autofill to
+ * detect whether a candidate already exists before creating a new person.
+ */
+export const findByNormalizedName = query({
+  args: { fullName: v.string() },
+  handler: async (ctx, { fullName }) => {
+    await getCurrentUserProfile(ctx);
+
+    const target = normalizeString(fullName.trim());
+    if (!target) return [];
+
+    const all = await ctx.db.query("people").collect();
+    const matches = all.filter(
+      (p) => normalizeString(getFullName(p)) === target
+    );
+
+    return matches.map((p) => ({
+      _id: p._id,
+      fullName: getFullName(p),
+      givenNames: p.givenNames,
+      middleName: p.middleName ?? null,
+      surname: p.surname ?? null,
+      cpf: p.cpf ?? null,
+      birthDate: p.birthDate ?? null,
+      email: p.email ?? null,
+      sex: p.sex ?? null,
+      maritalStatus: p.maritalStatus ?? null,
+      fatherName: p.fatherName ?? null,
+      motherName: p.motherName ?? null,
+      nationalityId: p.nationalityId ?? null,
+    }));
+  },
+});
+
+/**
  * Mutation to update a person (admin only)
  */
 export const update = mutation({

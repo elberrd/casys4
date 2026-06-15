@@ -102,6 +102,17 @@ export const individualProcessSchema = z.object({
   exchangeRateToBRL: z.coerce.number().positive("Exchange rate must be positive").optional(),
   salaryInBRL: z.coerce.number().optional(),
   monthlyAmountToReceive: z.coerce.number().positive("Monthly amount must be positive").optional(),
+  // Visa receipt location & foreign residence details (copied from the approved
+  // process request, also editable directly on the process)
+  visaReceiptLocation: z.enum(["brazil", "abroad"]).optional().or(z.literal("")),
+  residenceCountryCode: z.string().optional().or(z.literal("")),
+  residenceCountryName: z.string().optional().or(z.literal("")),
+  residenceStateCode: z.string().optional().or(z.literal("")),
+  residenceCity: z.string().optional().or(z.literal("")),
+  residenceSince: z.string().optional().or(z.literal("")),
+  residenceAddressAbroad: z.string().optional().or(z.literal("")),
+  consularPost: z.string().optional().or(z.literal("")),
+  professionalExperience: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(), // DEPRECATED: Use processStatus instead
   processStatus: z.enum(["Atual", "Anterior"]).optional().default("Atual"),
 });
