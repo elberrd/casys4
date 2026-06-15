@@ -1930,9 +1930,16 @@ export function IndividualProcessesTable({
     const sortedRows = table.getSortedRowModel().rows;
 
     if (isGroupedExport) {
+      // In grouped mode the top-level rows are group rows; the actual process
+      // rows live in their leaf rows. Flatten to leaf rows so every process in
+      // each group is exported (not just the first one in each group).
+      const leafRows = sortedRows.flatMap((row) =>
+        row.getIsGrouped() ? row.getLeafRows() : [row],
+      );
+
       const groupedMap = new Map<string, Array<Record<string, string>>>();
 
-      sortedRows.forEach((row) => {
+      leafRows.forEach((row) => {
         const process = row.original;
         const groupName = process.caseStatus
           ? locale === "en" && process.caseStatus.nameEn
