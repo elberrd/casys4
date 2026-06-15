@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
-  ChevronLeft,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
   Download,
@@ -15,6 +13,7 @@ import {
   Maximize2,
   Minimize2,
   AlertCircle,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -31,7 +30,6 @@ interface PDFViewerInnerProps {
 
 export function PDFViewerInner({ fileUrl, className }: PDFViewerInnerProps) {
   const [numPages, setNumPages] = useState<number>(0)
-  const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,14 +46,6 @@ export function PDFViewerInner({ fileUrl, className }: PDFViewerInnerProps) {
     console.error("PDF load error:", err)
     setIsLoading(false)
     setError("Não foi possível carregar o PDF")
-  }
-
-  const goToPreviousPage = () => {
-    setPageNumber((prev) => Math.max(prev - 1, 1))
-  }
-
-  const goToNextPage = () => {
-    setPageNumber((prev) => Math.min(prev + 1, numPages))
   }
 
   const zoomIn = () => {
@@ -96,28 +86,11 @@ export function PDFViewerInner({ fileUrl, className }: PDFViewerInnerProps) {
     <div className={cn("flex flex-col", isFullscreen ? "fixed inset-0 z-50 bg-background" : "", className)}>
       {/* Controls */}
       <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/50 rounded-t-lg">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToPreviousPage}
-            disabled={pageNumber <= 1}
-            className="cursor-pointer"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm min-w-[80px] text-center">
-            {pageNumber} / {numPages || "..."}
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <FileText className="h-4 w-4" />
+          <span>
+            {numPages ? `${numPages} ${numPages === 1 ? "página" : "páginas"}` : "..."}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToNextPage}
-            disabled={pageNumber >= numPages}
-            className="cursor-pointer"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
         </div>
 
         <div className="flex items-center gap-1">
@@ -181,16 +154,19 @@ export function PDFViewerInner({ fileUrl, className }: PDFViewerInnerProps) {
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}
-            className={cn(isLoading ? "hidden" : "")}
+            className={cn("flex flex-col items-center gap-4", isLoading ? "hidden" : "")}
           >
-            <Page
-              pageNumber={pageNumber}
-              scale={scale}
-              rotate={rotation}
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-              className="shadow-lg"
-            />
+            {Array.from({ length: numPages }, (_, index) => (
+              <Page
+                key={`page_${index + 1}`}
+                pageNumber={index + 1}
+                scale={scale}
+                rotate={rotation}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                className="shadow-lg"
+              />
+            ))}
           </Document>
         </div>
         <ScrollBar orientation="horizontal" />

@@ -526,12 +526,12 @@ export function DocumentReviewDialog({
           )}
         </div>
 
-        <Tabs defaultValue={document?.documentType?.isInformationOnly ? "linkedFields" : "details"} className="w-full min-h-0 flex flex-col flex-1">
+        <Tabs defaultValue={document?.documentType?.isInformationOnly ? "linkedFields" : "preview"} className="w-full min-h-0 flex flex-col flex-1">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 shrink-0">
-            <TabsTrigger value="details">{t("details")}</TabsTrigger>
             {!document?.documentType?.isInformationOnly && (
               <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
             )}
+            <TabsTrigger value="details">{t("details")}</TabsTrigger>
             <TabsTrigger value="conditions" className="relative">
               {t("conditions") || "Condições"}
               {conditions && conditions.length > 0 && validationStatus && (
