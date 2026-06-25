@@ -28,7 +28,7 @@ import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
 import { PersonFormDialog } from "@/components/people/person-form-dialog"
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog"
 import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog"
-import { formatDate } from "@/lib/format-field-value"
+import { formatDate, calculateAge } from "@/lib/format-field-value"
 import { formatCPF } from "@/lib/utils/document-masks"
 import { translateCountryName } from "@/lib/utils/country-translations"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
@@ -415,7 +415,13 @@ export function IndividualProcessDetailClient({
                 </div>
                 <div className="text-sm">
                   {individualProcess.person?.birthDate
-                    ? formatDate(individualProcess.person.birthDate, locale)
+                    ? (() => {
+                        const formatted = formatDate(individualProcess.person.birthDate, locale);
+                        const age = calculateAge(individualProcess.person.birthDate);
+                        return age !== null
+                          ? `${formatted} - ${tPeople('yearsOld', { age })}`
+                          : formatted;
+                      })()
                     : '-'}
                 </div>
 

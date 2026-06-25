@@ -43,6 +43,35 @@ export function formatDate(dateString: string, locale: string = "en"): string {
 }
 
 /**
+ * Calculate the current age in years from a birth date string.
+ * Handles "YYYY-MM-DD" format without timezone issues.
+ * Returns null if the date is invalid or in the future.
+ */
+export function calculateAge(dateString: string): number | null {
+  if (!dateString) return null;
+
+  let birth: Date;
+  const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch;
+    birth = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  } else {
+    birth = new Date(dateString);
+  }
+
+  if (isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+
+  return age < 0 ? null : age;
+}
+
+/**
  * Format a datetime string in locale-aware format
  */
 export function formatDateTime(dateTimeString: string, locale: string = "en"): string {
