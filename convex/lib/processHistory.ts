@@ -25,9 +25,12 @@ export async function logStatusChange(
   metadata?: any,
   previousStatusId?: Id<"individualProcessStatuses">,
   newStatusId?: Id<"individualProcessStatuses">,
+  // When provided (e.g. migrations/crons running without an auth session), this
+  // is used instead of the ambient authenticated user.
+  actingUserId?: Id<"users">,
 ): Promise<Id<"processHistory">> {
-  // Get current user ID from auth session
-  const userId = await getAuthUserId(ctx);
+  // Get current user ID from the auth session, or the explicit acting user.
+  const userId = actingUserId ?? (await getAuthUserId(ctx));
 
   if (userId === null) {
     throw new Error("Not authenticated");

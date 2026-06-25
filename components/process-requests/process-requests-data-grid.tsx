@@ -23,9 +23,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { formatDate } from "@/lib/format-field-value";
 import { RequestStatusBadge } from "./request-status-badge";
 import type { ProcessRequestListItem } from "./types";
 
@@ -40,6 +41,7 @@ export function ProcessRequestsDataGrid({
 }: ProcessRequestsDataGridProps) {
   const t = useTranslations("ProcessRequests");
   const tCommon = useTranslations("Common");
+  const locale = useLocale();
 
   const [groupByRequester, setGroupByRequester] = useState(false);
   const [expanded, setExpanded] = useState<ExpandedState>(true);
@@ -63,67 +65,69 @@ export function ProcessRequestsDataGrid({
       },
       {
         id: "candidate",
-        accessorFn: (row) => row.candidatePerson?.fullName || "-",
+        accessorFn: (row) => row.person?.fullName || "-",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("candidate")} />
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.candidatePerson?.fullName || "-"}
+            {row.original.person?.fullName || "-"}
           </span>
         ),
       },
       {
-        accessorKey: "status",
+        id: "legalFramework",
+        accessorFn: (row) => row.legalFramework?.name || "-",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("legalFramework")} />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.legalFramework?.name || "-"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "requestStatus",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("status")} />
         ),
-        cell: ({ row }) => <RequestStatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <RequestStatusBadge status={row.original.requestStatus} />
+        ),
         filterFn: (row, id, value) => value.includes(row.getValue(id)),
       },
       {
-        id: "version",
-        accessorFn: (row) => row.version ?? 0,
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("version")} />
-        ),
-        cell: ({ row }) =>
-          row.original.version ? (
-            <Badge variant="outline" className="font-mono text-xs">
-              v{row.original.version}
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          ),
-      },
-      {
-        accessorKey: "isUrgent",
+        accessorKey: "urgent",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("urgent")} />
         ),
         cell: ({ row }) =>
-          row.original.isUrgent ? (
+          row.original.urgent ? (
             <Badge variant="destructive" className="text-xs">
               {t("urgent")}
             </Badge>
           ) : null,
       },
       {
-        id: "submittedAt",
-        accessorFn: (row) => row.submittedAt ?? 0,
+        id: "requestedAt",
+        accessorFn: (row) => row.requestedAt ?? 0,
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("submittedAt")} />
+          <DataGridColumnHeader column={column} title={t("requestedAt")} />
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.submittedAt
-              ? new Date(row.original.submittedAt).toLocaleDateString()
+            {row.original.requestedAt
+              ? formatDate(
+                  new Date(row.original.requestedAt).toISOString().slice(0, 10),
+                  locale
+                )
               : "-"}
           </span>
         ),
       },
     ],
-    [t]
+    [t, locale]
   );
 
   const table = useReactTable({

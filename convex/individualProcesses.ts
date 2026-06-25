@@ -75,6 +75,13 @@ export const list = query({
       filteredResults = filteredResults.filter((r) => r.status === args.status);
     }
 
+    // Hide client-request drafts: an in-progress requested process only shows
+    // in the Solicitações screen. Once finalized ("solicitado") it is a live
+    // process and appears here like any other.
+    filteredResults = filteredResults.filter(
+      (r) => r.requestStatus !== "draft"
+    );
+
     // Apply role-based access control: clients see processes only for the
     // companies they are currently assigned to (peopleCompanies.isCurrent).
     // A person may have past affiliations — those must be excluded so they
@@ -349,6 +356,10 @@ export const get = query({
 
     const process = await ctx.db.get(id);
     if (!process) return null;
+
+    // A client-request draft is not a real process; it is only viewable through
+    // the Solicitações flow (api.processRequests.get), never the process detail.
+    if (process.requestStatus === "draft") return null;
 
     const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate, processType] = await Promise.all([
       ctx.db.get(process.personId),
@@ -1366,6 +1377,16 @@ export const remove = mutation({
       await ctx.db.delete(task._id);
     }
 
+    // 5. Delete the process-request conversation thread (if any)
+    const requestMessages = await ctx.db
+      .query("processRequestMessages")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
+      .collect();
+
+    for (const message of requestMessages) {
+      await ctx.db.delete(message._id);
+    }
+
     // Finally, delete the individual process itself
     await ctx.db.delete(id);
 
@@ -1473,10 +1494,14 @@ export const listByCollectiveProcess = query({
       }
     }
 
-    const results = await ctx.db
+    const allResults = await ctx.db
       .query("individualProcesses")
       .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", collectiveProcessId))
       .collect();
+
+    // Exclude any client-request drafts (defensive — drafts are never linked
+    // to a collective process).
+    const results = allResults.filter((r) => r.requestStatus !== "draft");
 
     // Enrich with person data
     const enrichedResults = await Promise.all(
@@ -1752,9 +1777,12 @@ export const listRNMAppointments = query({
       .query("individualProcesses")
       .collect();
 
-    // Filter processes with appointmentDateTime
+    // Filter processes with appointmentDateTime (excluding client-request drafts)
     const processesWithAppointments = allProcesses.filter(
-      (process) => process.appointmentDateTime !== undefined && process.appointmentDateTime !== null
+      (process) =>
+        process.requestStatus !== "draft" &&
+        process.appointmentDateTime !== undefined &&
+        process.appointmentDateTime !== null
     );
 
     // Apply access control for client users — filter by CURRENT company assignments
@@ -1817,7 +1845,9 @@ export const listForSelector = query({
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
-    let processes = await ctx.db.query("individualProcesses").collect();
+    const allProcesses = await ctx.db.query("individualProcesses").collect();
+    // Exclude client-request drafts from selectors/comboboxes.
+    let processes = allProcesses.filter((p) => p.requestStatus !== "draft");
 
     // Apply role-based access control: only the user's CURRENT companies
     if (userProfile.role === "client") {

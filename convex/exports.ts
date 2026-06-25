@@ -126,8 +126,11 @@ export const exportIndividualProcesses = query({
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Get all individual processes
-    let processes = await ctx.db.query("individualProcesses").collect();
+    // Get all individual processes (excluding client-request drafts, which are
+    // not live processes and must never appear in exports).
+    let processes = (await ctx.db.query("individualProcesses").collect()).filter(
+      (p) => p.requestStatus !== "draft"
+    );
 
     // Apply role-based filtering via collective process company
     if (userProfile.role === "client") {

@@ -25,7 +25,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -49,7 +48,6 @@ import {
   type PassportCandidateResult,
 } from "./passport-upload-step";
 import { ResidenceSelect, type ResidenceValue } from "./residence-select";
-import { LegalFrameworkSelect } from "./legal-framework-select";
 
 // ---------------------------------------------------------------------------
 // Wizard state shape (mirrors the editable fields accepted by the backend)
@@ -63,9 +61,7 @@ interface WizardFields {
   maritalStatus?: string;
   fatherName?: string;
   motherName?: string;
-  processTypeId?: Id<"processTypes">;
   legalFrameworkId?: Id<"legalFrameworks">;
-  workplaceCityId?: Id<"cities">;
   consulateId?: Id<"consulates">;
   isUrgent?: boolean;
   requestDate?: string;
@@ -86,9 +82,13 @@ interface WizardFields {
   professionalExperience?: string;
   // Display-only metadata (not sent to the backend)
   candidateName?: string;
+  legalFrameworkName?: string;
 }
 
+// The legal framework is now the FIRST step (gated by showInRequest), followed
+// by the passport step, then the candidate detail steps.
 const STEP_KEYS = [
+  "stepLegalFramework",
   "stepPassport",
   "stepCivil",
   "stepFamily",
@@ -96,7 +96,6 @@ const STEP_KEYS = [
   "stepVisa",
   "stepContact",
   "stepExperience",
-  "stepLegal",
   "stepReview",
 ] as const;
 
@@ -109,15 +108,44 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   GBP: "£",
 };
 
-/** Strips the display-only metadata before sending to the backend. */
-function toBackendFields(fields: WizardFields) {
-  const { candidateName: _candidateName, ...rest } = fields;
-  return rest;
+/**
+ * Maps the wizard state into the editable args accepted by the backend
+ * (individualProcesses-shaped: urgent/dateProcess/requestNotes + person-level
+ * fields applied to the candidate on save). Display-only metadata is dropped.
+ */
+function toProcessArgs(fields: WizardFields) {
+  return {
+    passportId: fields.candidatePassportId,
+    legalFrameworkId: fields.legalFrameworkId,
+    consulateId: fields.consulateId,
+    urgent: fields.isUrgent,
+    dateProcess: fields.requestDate,
+    requestNotes: fields.notes,
+    lastSalaryCurrency: fields.lastSalaryCurrency,
+    lastSalaryAmount: fields.lastSalaryAmount,
+    exchangeRateToBRL: fields.exchangeRateToBRL,
+    salaryInBRL: fields.salaryInBRL,
+    monthlyAmountToReceive: fields.monthlyAmountToReceive,
+    visaReceiptLocation: fields.visaReceiptLocation,
+    residenceCountryCode: fields.residenceCountryCode,
+    residenceCountryName: fields.residenceCountryName,
+    residenceStateCode: fields.residenceStateCode,
+    residenceCity: fields.residenceCity,
+    residenceSince: fields.residenceSince,
+    residenceAddressAbroad: fields.residenceAddressAbroad,
+    consularPost: fields.consularPost,
+    professionalExperience: fields.professionalExperience,
+    // Person-level fields (applied to the candidate's people record on save)
+    candidateEmail: fields.candidateEmail,
+    maritalStatus: fields.maritalStatus,
+    fatherName: fields.fatherName,
+    motherName: fields.motherName,
+  };
 }
 
 export interface ProcessRequestWizardProps {
   /** When set, resumes an existing draft instead of creating a new one. */
-  requestId?: Id<"processRequests">;
+  requestId?: Id<"individualProcesses">;
 }
 
 export function ProcessRequestWizard({
@@ -130,9 +158,11 @@ export function ProcessRequestWizard({
 
   const saveDraft = useMutation(api.processRequests.saveDraft);
   const createDraft = useMutation(api.processRequests.createDraft);
-  const submitRequest = useMutation(api.processRequests.submit);
+  const finalizeRequest = useMutation(api.processRequests.finalize);
+  const removeDraft = useMutation(api.processRequests.removeDraft);
 
-  const processTypes = useQuery(api.processTypes.list, { isActive: true });
+  // Legal frameworks offered to clients (admin-gated via showInRequest).
+  const requestFrameworks = useQuery(api.legalFrameworks.listForRequest, {});
 
   // Hydrate an existing draft when resuming.
   const existing = useQuery(
@@ -141,7 +171,7 @@ export function ProcessRequestWizard({
   );
 
   const [requestId, setRequestId] = React.useState<
-    Id<"processRequests"> | undefined
+    Id<"individualProcesses"> | undefined
   >(initialRequestId);
   const [fields, setFields] = React.useState<WizardFields>({});
   const [stepIndex, setStepIndex] = React.useState(0);
@@ -159,20 +189,17 @@ export function ProcessRequestWizard({
 
     setRequestId(existing._id);
     setFields({
-      candidatePersonId: existing.candidatePersonId ?? undefined,
-      candidatePassportId: existing.candidatePassportId ?? undefined,
-      passportStorageId: existing.passportStorageId ?? undefined,
-      candidateEmail: existing.candidateEmail ?? undefined,
-      maritalStatus: existing.maritalStatus ?? undefined,
-      fatherName: existing.fatherName ?? undefined,
-      motherName: existing.motherName ?? undefined,
-      processTypeId: existing.processTypeId ?? undefined,
+      candidatePersonId: existing.personId ?? undefined,
+      candidatePassportId: existing.passportId ?? undefined,
+      candidateEmail: existing.person?.email ?? undefined,
+      maritalStatus: existing.person?.maritalStatus ?? undefined,
+      fatherName: existing.person?.fatherName ?? undefined,
+      motherName: existing.person?.motherName ?? undefined,
       legalFrameworkId: existing.legalFrameworkId ?? undefined,
-      workplaceCityId: existing.workplaceCityId ?? undefined,
       consulateId: existing.consulateId ?? undefined,
-      isUrgent: existing.isUrgent ?? undefined,
-      requestDate: existing.requestDate ?? undefined,
-      notes: existing.notes ?? undefined,
+      isUrgent: existing.urgent ?? undefined,
+      requestDate: existing.dateProcess ?? undefined,
+      notes: existing.requestNotes ?? undefined,
       lastSalaryCurrency: existing.lastSalaryCurrency ?? undefined,
       lastSalaryAmount: existing.lastSalaryAmount ?? undefined,
       exchangeRateToBRL: existing.exchangeRateToBRL ?? undefined,
@@ -187,11 +214,14 @@ export function ProcessRequestWizard({
       residenceAddressAbroad: existing.residenceAddressAbroad ?? undefined,
       consularPost: existing.consularPost ?? undefined,
       professionalExperience: existing.professionalExperience ?? undefined,
-      candidateName: existing.candidatePerson?.fullName ?? undefined,
+      candidateName: existing.person?.fullName ?? undefined,
+      legalFrameworkName: existing.legalFramework?.name ?? undefined,
     });
   }, [existing]);
 
-  // candidatePersonId is the gate: everything past step 1 stays locked until set.
+  // Step gates: the legal framework must be chosen before the passport, and the
+  // passport (candidate) must exist before any of the detail steps.
+  const legalFrameworkComplete = Boolean(fields.legalFrameworkId);
   const passportComplete = Boolean(fields.candidatePersonId);
 
   const steps = STEP_KEYS.map((key, index) => ({
@@ -213,12 +243,19 @@ export function ProcessRequestWizard({
 
   /** Ensures a draft exists, creating one on first use. Returns its id. */
   const ensureDraft = React.useCallback(
-    async (current: WizardFields): Promise<Id<"processRequests">> => {
+    async (current: WizardFields): Promise<Id<"individualProcesses">> => {
       if (requestId) {
-        await saveDraft({ id: requestId, ...toBackendFields(current) });
+        await saveDraft({ id: requestId, ...toProcessArgs(current) });
         return requestId;
       }
-      const newId = await createDraft(toBackendFields(current));
+      if (!current.candidatePersonId) {
+        // The draft row requires a candidate (created at the passport step).
+        throw new Error("Candidate passport is required before saving");
+      }
+      const newId = await createDraft({
+        personId: current.candidatePersonId,
+        ...toProcessArgs(current),
+      });
       setRequestId(newId);
       return newId;
     },
@@ -226,16 +263,18 @@ export function ProcessRequestWizard({
   );
 
   const persist = React.useCallback(
-    async (current: WizardFields) => {
+    async (current: WizardFields): Promise<boolean> => {
       // Only persist once a candidate exists; before that there is nothing
       // meaningful (and the draft is created at the passport step).
-      if (!current.candidatePersonId) return;
+      if (!current.candidatePersonId) return false;
       try {
         setIsSaving(true);
         await ensureDraft(current);
+        return true;
       } catch (error) {
         console.error("Error saving draft:", error);
         toast.error(t("createError"));
+        return false;
       } finally {
         setIsSaving(false);
       }
@@ -270,11 +309,50 @@ export function ProcessRequestWizard({
     [ensureDraft, fields, t],
   );
 
+  // Reset the linked candidate so a different passport can be uploaded. The
+  // draft row's personId is immutable, so we drop the draft and let a fresh one
+  // be created when the new candidate is linked.
+  const handleResetCandidate = React.useCallback(async () => {
+    if (requestId) {
+      try {
+        await removeDraft({ id: requestId });
+      } catch (error) {
+        // Keep the draft + state intact if the delete failed, to avoid leaving
+        // an orphaned draft row behind.
+        console.error("Error discarding draft on candidate reset:", error);
+        toast.error(t("createError"));
+        return;
+      }
+      setRequestId(undefined);
+      hydratedRef.current = true; // don't re-hydrate from the (now-deleted) draft
+    }
+    setFields((prev) => ({
+      ...prev,
+      candidatePersonId: undefined,
+      candidatePassportId: undefined,
+      passportStorageId: undefined,
+      candidateName: undefined,
+      candidateEmail: undefined,
+      maritalStatus: undefined,
+      fatherName: undefined,
+      motherName: undefined,
+    }));
+  }, [removeDraft, requestId, t]);
+
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
+  // Locked steps: passport needs the legal framework; detail steps need both.
+  const isStepLocked = (index: number) =>
+    (index >= 1 && !legalFrameworkComplete) ||
+    (index >= 2 && !passportComplete);
+
   const goNext = async () => {
-    if (isFirstStep && !passportComplete) {
+    if (stepIndex === 0 && !legalFrameworkComplete) {
+      toast.error(t("mustSelectLegalFramework"));
+      return;
+    }
+    if (stepIndex === 1 && !passportComplete) {
       toast.error(t("mustUploadPassport"));
       return;
     }
@@ -287,13 +365,19 @@ export function ProcessRequestWizard({
   };
 
   const goToStep = (index: number) => {
-    // Step 1 is always reachable; later steps only after the passport gate.
-    if (index > 0 && !passportComplete) return;
+    if (isStepLocked(index)) return;
     setStepIndex(index);
   };
 
   const handleFinishDraft = async () => {
-    await persist(fields);
+    // Nothing to save until a candidate exists (passport step). Tell the user
+    // instead of silently navigating away and losing the legal-framework pick.
+    if (!fields.candidatePersonId) {
+      toast.error(t("mustUploadPassport"));
+      return;
+    }
+    const ok = await persist(fields);
+    if (!ok) return; // persist already surfaced the error
     toast.success(t("saved"));
     router.push(`/${locale}/process-requests`);
   };
@@ -302,9 +386,9 @@ export function ProcessRequestWizard({
     if (!requestId) return;
     try {
       setIsSubmitting(true);
-      // Persist the latest edits before submitting.
-      await saveDraft({ id: requestId, ...toBackendFields(fields) });
-      await submitRequest({ id: requestId });
+      // Persist the latest edits before finalizing.
+      await saveDraft({ id: requestId, ...toProcessArgs(fields) });
+      await finalizeRequest({ id: requestId });
       toast.success(t("createSuccess"));
       router.push(`/${locale}/process-requests`);
     } catch (error) {
@@ -315,15 +399,6 @@ export function ProcessRequestWizard({
       setShowSubmitDialog(false);
     }
   };
-
-  const processTypeOptions = React.useMemo(
-    () =>
-      (processTypes ?? []).map((type) => ({
-        value: type._id,
-        label: type.name,
-      })),
-    [processTypes],
-  );
 
   const residenceValue: ResidenceValue = {
     visaReceiptLocation: fields.visaReceiptLocation,
@@ -348,7 +423,7 @@ export function ProcessRequestWizard({
             {steps.map((step, index) => {
               const isActive = index === stepIndex;
               const isCompleted = index < stepIndex;
-              const isLocked = index > 0 && !passportComplete;
+              const isLocked = isStepLocked(index);
               const isClickable = !isLocked && !isActive;
               return (
                 <div key={step.id} className="flex flex-1 items-center">
@@ -434,6 +509,17 @@ export function ProcessRequestWizard({
           </div>
 
           <div className="min-h-[350px]">
+            {currentStepId === "stepLegalFramework" && (
+              <RequestLegalFrameworkStep
+                frameworks={requestFrameworks}
+                value={fields.legalFrameworkId}
+                onSelect={(id, name) =>
+                  patch({ legalFrameworkId: id, legalFrameworkName: name })
+                }
+                disabled={busy}
+              />
+            )}
+
             {currentStepId === "stepPassport" && (
               <PassportUploadStep
                 value={{
@@ -443,6 +529,7 @@ export function ProcessRequestWizard({
                   summary: fields.candidateName,
                 }}
                 onComplete={handlePassportComplete}
+                onReset={handleResetCandidate}
                 disabled={isSubmitting}
               />
             )}
@@ -553,44 +640,11 @@ export function ProcessRequestWizard({
               </div>
             )}
 
-            {currentStepId === "stepLegal" && (
-              <div className="max-w-2xl space-y-4">
-                <div className="space-y-2">
-                  <Label>{t("processType")}</Label>
-                  <Combobox
-                    options={processTypeOptions}
-                    value={fields.processTypeId}
-                    onValueChange={(value) =>
-                      patch({
-                        processTypeId: value as
-                          | Id<"processTypes">
-                          | undefined,
-                        // Changing the process type invalidates the framework.
-                        legalFrameworkId: undefined,
-                      })
-                    }
-                    placeholder={t("selectProcessType")}
-                    searchPlaceholder={t("searchProcessTypes")}
-                    emptyText={t("noProcessTypesFound")}
-                    disabled={busy}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("legalFramework")}</Label>
-                  <LegalFrameworkSelect
-                    processTypeId={fields.processTypeId}
-                    value={fields.legalFrameworkId}
-                    onChange={(value) => patch({ legalFrameworkId: value })}
-                    disabled={busy}
-                  />
-                </div>
-              </div>
-            )}
-
             {currentStepId === "stepReview" && (
-              <ReviewStep fields={fields} processTypeName={
-                processTypes?.find((p) => p._id === fields.processTypeId)?.name
-              } />
+              <ReviewStep
+                fields={fields}
+                legalFrameworkName={fields.legalFrameworkName}
+              />
             )}
           </div>
         </CardContent>
@@ -647,7 +701,11 @@ export function ProcessRequestWizard({
                 <Button
                   type="button"
                   onClick={goNext}
-                  disabled={busy || (isFirstStep && !passportComplete)}
+                  disabled={
+                    busy ||
+                    (stepIndex === 0 && !legalFrameworkComplete) ||
+                    (stepIndex === 1 && !passportComplete)
+                  }
                   className="min-w-[120px]"
                 >
                   {isSaving ? (
@@ -937,10 +995,10 @@ function ReviewGroup({
 
 function ReviewStep({
   fields,
-  processTypeName,
+  legalFrameworkName,
 }: {
   fields: WizardFields;
-  processTypeName?: string;
+  legalFrameworkName?: string;
 }) {
   const t = useTranslations("ProcessRequests");
 
@@ -1014,7 +1072,7 @@ function ReviewStep({
       </ReviewGroup>
 
       <ReviewGroup title={t("legalFramework")}>
-        <ReviewRow label={t("processType")} value={processTypeName} />
+        <ReviewRow label={t("legalFramework")} value={legalFrameworkName} />
       </ReviewGroup>
 
       {fields.notes && (
@@ -1022,6 +1080,89 @@ function ReviewStep({
           <ReviewRow label={t("notes")} value={fields.notes} />
         </ReviewGroup>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — Legal framework (amparo legal), gated by showInRequest
+// ---------------------------------------------------------------------------
+
+interface RequestFrameworkOption {
+  _id: Id<"legalFrameworks">;
+  name: string;
+  description?: string;
+  processTypeName?: string;
+}
+
+function RequestLegalFrameworkStep({
+  frameworks,
+  value,
+  onSelect,
+  disabled,
+}: {
+  frameworks: RequestFrameworkOption[] | undefined;
+  value?: Id<"legalFrameworks">;
+  onSelect: (id: Id<"legalFrameworks">, name: string) => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("ProcessRequests");
+
+  if (frameworks === undefined) {
+    return (
+      <div className="flex h-[300px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (frameworks.length === 0) {
+    return (
+      <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-center">
+        <p className="text-sm text-muted-foreground">
+          {t("noRequestFrameworks")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        {t("selectLegalFrameworkHint")}
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {frameworks.map((framework) => {
+          const selected = framework._id === value;
+          return (
+            <button
+              key={framework._id}
+              type="button"
+              disabled={disabled}
+              onClick={() => onSelect(framework._id, framework.name)}
+              className={cn(
+                "flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all",
+                selected
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                  : "hover:border-muted-foreground/40 hover:bg-muted/40",
+                disabled && "cursor-not-allowed opacity-60",
+              )}
+            >
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="font-medium">{framework.name}</span>
+                {selected && (
+                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                )}
+              </div>
+              {framework.description && (
+                <span className="text-sm text-muted-foreground">
+                  {framework.description}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

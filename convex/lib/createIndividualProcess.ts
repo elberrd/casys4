@@ -20,155 +20,58 @@ function getFullName(person: {
 }
 
 /**
- * Shared input for creating an individual process. Mirrors the public
- * `individualProcesses.create` mutation args, plus the request-derived fields
- * (visa receipt location, foreign residence, professional experience narrative).
- */
-export interface CreateIndividualProcessInput {
-  collectiveProcessId?: Id<"collectiveProcesses">;
-  dateProcess?: string;
-  personId: Id<"people">;
-  passportId?: Id<"passports">;
-  applicantId?: Id<"people">;
-  companyApplicantId?: Id<"companies">;
-  userApplicantId?: Id<"people">;
-  userApplicantCompanyId?: Id<"companies">;
-  consulateId?: Id<"consulates">;
-  caseStatusId?: Id<"caseStatuses">;
-  status?: string;
-  processTypeId?: Id<"processTypes">;
-  legalFrameworkId?: Id<"legalFrameworks">;
-  funcao?: string;
-  cboId?: Id<"cboCodes">;
-  qualification?: string;
-  professionalExperienceSince?: string;
-  mreOfficeNumber?: string;
-  douNumber?: string;
-  douSection?: string;
-  douPage?: string;
-  douDate?: string;
-  protocolNumber?: string;
-  rnmNumber?: string;
-  rnmProtocol?: string;
-  rnmDeadline?: string;
-  appointmentDateTime?: string;
-  deadlineDate?: string;
-  deadlineUnit?: string;
-  deadlineQuantity?: number;
-  deadlineSpecificDate?: string;
-  lastSalaryCurrency?: string;
-  lastSalaryAmount?: number;
-  exchangeRateToBRL?: number;
-  salaryInBRL?: number;
-  monthlyAmountToReceive?: number;
-  isActive?: boolean;
-  processStatus?: "Atual" | "Anterior";
-  urgent?: boolean;
-  // Request-derived fields (visa receipt + foreign residence + professional experience)
-  visaReceiptLocation?: "brazil" | "abroad";
-  residenceCountryCode?: string;
-  residenceCountryName?: string;
-  residenceStateCode?: string;
-  residenceCity?: string;
-  residenceSince?: string;
-  residenceAddressAbroad?: string;
-  consularPost?: string;
-  professionalExperience?: string;
-}
-
-/**
- * Core logic to create an individual process, including the initial active
- * status record, status history, and auto-generated document checklists.
+ * Run every "process creation" side effect on an EXISTING individualProcesses
+ * row: resolve + persist the initial case status, create the active status
+ * record, log the status to history, generate the document checklists, auto-reuse
+ * company documents, and log the activity.
  *
- * This mirrors `individualProcesses.create` so that approving a process request
- * yields a fully-populated process identical to one created by an admin. The
- * caller is responsible for authorization (e.g. `requireAdmin`).
+ * This is the moment a process "becomes real". It is invoked by the
+ * process-request finalize mutation (and the data migration) when a client's
+ * "draft" requested process becomes "solicitado" — the row already exists, so
+ * only the side effects run here (no insert, no data copy). `userId` is threaded
+ * explicitly so it works without an ambient auth session (e.g. migrations).
+ *
+ * If the row already carries a `caseStatusId` it is honored; otherwise the
+ * default "em_preparacao" status is resolved and persisted onto the row.
  */
-export async function createIndividualProcessCore(
+export async function runProcessCreationSideEffects(
   ctx: MutationCtx,
-  args: CreateIndividualProcessInput,
+  processId: Id<"individualProcesses">,
   userId: Id<"users">
-): Promise<Id<"individualProcesses">> {
+): Promise<void> {
   const now = Date.now();
 
-  // Get case status - default to "em_preparacao" if not provided
-  let caseStatus;
-  if (args.caseStatusId) {
-    caseStatus = await ctx.db.get(args.caseStatusId);
-    if (!caseStatus) {
-      throw new Error("Case status not found");
-    }
-  } else {
+  const process = await ctx.db.get(processId);
+  if (!process) {
+    throw new Error("Individual process not found");
+  }
+
+  // Resolve the case status: honor an existing one, else default to em_preparacao.
+  let caseStatus = process.caseStatusId
+    ? await ctx.db.get(process.caseStatusId)
+    : null;
+  if (!caseStatus) {
     caseStatus = await ctx.db
       .query("caseStatuses")
       .withIndex("by_code", (q) => q.eq("code", "em_preparacao"))
       .first();
-
     if (!caseStatus) {
       throw new Error("Default status 'em_preparacao' not found in database");
     }
   }
 
-  const statusString = args.status || caseStatus.code;
+  const statusString = process.status || caseStatus.code;
 
-  const processId = await ctx.db.insert("individualProcesses", {
-    collectiveProcessId: args.collectiveProcessId,
-    dateProcess: args.dateProcess,
-    personId: args.personId,
-    passportId: args.passportId,
-    applicantId: args.applicantId,
-    companyApplicantId: args.companyApplicantId,
-    userApplicantId: args.userApplicantId,
-    userApplicantCompanyId: args.userApplicantCompanyId,
-    consulateId: args.consulateId,
+  // Persist the resolved status onto the row (drafts have none yet).
+  await ctx.db.patch(processId, {
     caseStatusId: caseStatus._id,
     status: statusString,
-    processTypeId: args.processTypeId,
-    legalFrameworkId: args.legalFrameworkId,
-    funcao: args.funcao,
-    cboId: args.cboId,
-    qualification: args.qualification,
-    professionalExperienceSince: args.professionalExperienceSince,
-    mreOfficeNumber: args.mreOfficeNumber,
-    douNumber: args.douNumber,
-    douSection: args.douSection,
-    douPage: args.douPage,
-    douDate: args.douDate,
-    protocolNumber: args.protocolNumber,
-    rnmNumber: args.rnmNumber,
-    rnmProtocol: args.rnmProtocol,
-    rnmDeadline: args.rnmDeadline,
-    appointmentDateTime: args.appointmentDateTime,
-    deadlineDate: args.deadlineDate,
-    deadlineUnit: args.deadlineUnit,
-    deadlineQuantity: args.deadlineQuantity,
-    deadlineSpecificDate: args.deadlineSpecificDate,
-    lastSalaryCurrency: args.lastSalaryCurrency,
-    lastSalaryAmount: args.lastSalaryAmount,
-    exchangeRateToBRL: args.exchangeRateToBRL,
-    salaryInBRL: args.salaryInBRL,
-    monthlyAmountToReceive: args.monthlyAmountToReceive,
-    // Request-derived fields
-    visaReceiptLocation: args.visaReceiptLocation,
-    residenceCountryCode: args.residenceCountryCode,
-    residenceCountryName: args.residenceCountryName,
-    residenceStateCode: args.residenceStateCode,
-    residenceCity: args.residenceCity,
-    residenceSince: args.residenceSince,
-    residenceAddressAbroad: args.residenceAddressAbroad,
-    consularPost: args.consularPost,
-    professionalExperience: args.professionalExperience,
-    isActive:
-      args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
-    processStatus: args.processStatus ?? "Atual",
-    urgent: args.urgent,
-    createdAt: now,
     updatedAt: now,
   });
 
-  // Create initial status record in the status system with current date
+  // Create initial status record in the status system with the process date.
   try {
-    const statusDate = normalizeStatusDateTime(args.dateProcess, now);
+    const statusDate = normalizeStatusDateTime(process.dateProcess, now);
     await ctx.db.insert("individualProcessStatuses", {
       individualProcessId: processId,
       caseStatusId: caseStatus._id,
@@ -184,14 +87,19 @@ export async function createIndividualProcessCore(
     console.error("Failed to create initial status record:", error);
   }
 
-  // Log initial status to history
+  // Log initial status to history. `userId` is threaded explicitly so this
+  // works in contexts without an ambient auth session (e.g. the migration).
   try {
     await logStatusChange(
       ctx,
       processId,
       undefined,
       caseStatus.name,
-      `Individual process created with status: ${caseStatus.name}`
+      `Individual process created with status: ${caseStatus.name}`,
+      undefined,
+      undefined,
+      undefined,
+      userId
     );
   } catch (error) {
     console.error("Failed to log initial status to history:", error);
@@ -199,14 +107,14 @@ export async function createIndividualProcessCore(
 
   // Auto-generate document checklist (template-based)
   try {
-    await generateDocumentChecklist(ctx, processId);
+    await generateDocumentChecklist(ctx, processId, userId);
   } catch (error) {
     console.error("Failed to generate document checklist:", error);
   }
 
   // Auto-generate document checklist based on legal framework associations
   try {
-    await generateDocumentChecklistByLegalFramework(ctx, processId);
+    await generateDocumentChecklistByLegalFramework(ctx, processId, userId);
   } catch (error) {
     console.error(
       "Failed to generate document checklist by legal framework:",
@@ -215,9 +123,9 @@ export async function createIndividualProcessCore(
   }
 
   // Auto-reuse company documents from other processes of the same company
-  if (args.companyApplicantId) {
+  if (process.companyApplicantId) {
     try {
-      await autoReuseCompanyDocuments(ctx, processId);
+      await autoReuseCompanyDocuments(ctx, processId, userId);
     } catch (error) {
       console.error("Failed to auto-reuse company documents:", error);
     }
@@ -226,9 +134,9 @@ export async function createIndividualProcessCore(
   // Log activity (non-blocking)
   try {
     const [person, collectiveProcess] = await Promise.all([
-      ctx.db.get(args.personId),
-      args.collectiveProcessId
-        ? ctx.db.get(args.collectiveProcessId)
+      ctx.db.get(process.personId),
+      process.collectiveProcessId
+        ? ctx.db.get(process.collectiveProcessId)
         : Promise.resolve(null),
     ]);
 
@@ -242,12 +150,10 @@ export async function createIndividualProcessCore(
         collectiveProcessReference: collectiveProcess?.referenceNumber,
         caseStatusName: caseStatus.name,
         caseStatusId: caseStatus._id,
-        legalFrameworkId: args.legalFrameworkId,
+        legalFrameworkId: process.legalFrameworkId,
       },
     });
   } catch (error) {
     console.error("Failed to log activity:", error);
   }
-
-  return processId;
 }

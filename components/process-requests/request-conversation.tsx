@@ -19,14 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export interface RequestConversationProps {
-  processRequestId: Id<"processRequests">;
+  individualProcessId: Id<"individualProcesses">;
   currentUserRole: "admin" | "client";
   currentUserId?: Id<"users">;
 }
 
 type ConversationMessage = {
   _id: Id<"processRequestMessages">;
-  processRequestId: Id<"processRequests">;
+  individualProcessId?: Id<"individualProcesses">;
   authorUserId: Id<"users">;
   authorRole: "admin" | "client";
   kind: "message" | "observation";
@@ -50,7 +50,7 @@ function getInitials(name: string): string {
 }
 
 export function RequestConversation({
-  processRequestId,
+  individualProcessId,
   currentUserRole,
   currentUserId,
 }: RequestConversationProps) {
@@ -61,7 +61,7 @@ export function RequestConversation({
   const isAdmin = currentUserRole === "admin";
 
   const messages = useQuery(api.processRequestMessages.list, {
-    processRequestId,
+    individualProcessId,
   }) as ConversationMessage[] | undefined;
 
   const postMessage = useMutation(api.processRequestMessages.post);
@@ -90,7 +90,7 @@ export function RequestConversation({
     setIsSending(true);
     try {
       await postMessage({
-        processRequestId,
+        individualProcessId,
         body: trimmed,
         kind: isAdmin && isInternal ? "observation" : "message",
       });

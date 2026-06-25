@@ -276,49 +276,10 @@ export const get = query({
     // Calculate collective process status from individual processes
     const calculatedStatus = calculateCollectiveProcessStatus(individualProcesses, "pt");
 
-    // Check if this collective process was created from a process request
-    let originRequest = null;
-    const request = await ctx.db
-      .query("processRequests")
-      .withIndex("by_approvedCollectiveProcess", (q) =>
-        q.eq("approvedCollectiveProcessId", process._id),
-      )
-      .first();
-
-    if (request) {
-      // Get reviewer profile
-      let reviewerProfile = null;
-      if (request.reviewedBy) {
-        const reviewer = await ctx.db.get(request.reviewedBy);
-        if (reviewer) {
-          reviewerProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_userId", (q) => q.eq("userId", reviewer._id))
-            .first();
-        }
-      }
-
-      // Get requester profile (the person who created the request)
-      let requesterProfile = null;
-      if (request.createdBy) {
-        requesterProfile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (q) => q.eq("userId", request.createdBy))
-          .first();
-      }
-
-      originRequest = {
-        _id: request._id,
-        status: request.status,
-        requestDate: request.requestDate,
-        isUrgent: request.isUrgent,
-        reviewedBy: request.reviewedBy,
-        reviewedAt: request.reviewedAt,
-        reviewerProfile,
-        requesterProfile,
-        createdAt: request.createdAt,
-      };
-    }
+    // NOTE: collective processes are no longer created from the legacy
+    // processRequests table (that workflow was merged into individualProcesses).
+    // originRequest is kept null for backward compatibility of the return shape.
+    const originRequest = null;
 
     return {
       ...process,
@@ -539,19 +500,8 @@ export const remove = mutation({
       );
     }
 
-    // Check if this process was created from an approved request
-    const originRequest = await ctx.db
-      .query("processRequests")
-      .withIndex("by_approvedCollectiveProcess", (q) =>
-        q.eq("approvedCollectiveProcessId", id),
-      )
-      .first();
-
-    if (originRequest) {
-      throw new Error(
-        "Cannot delete collective process created from an approved request. Please reject or unlink the request first.",
-      );
-    }
+    // (The legacy "created from an approved processRequest" guard was removed:
+    // collective processes are no longer created from that table.)
 
     await ctx.db.delete(id);
 

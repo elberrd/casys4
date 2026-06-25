@@ -70,8 +70,13 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    // When true, this legal framework is offered to client users as the first
+    // step of the process-request wizard (name + description are shown). Admins
+    // toggle this from the legal frameworks management screen.
+    showInRequest: v.optional(v.boolean()),
   })
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_showInRequest", ["showInRequest"]),
 
   // Junction table for many-to-many relationship between Authorization Types and Legal Frameworks
   processTypesLegalFrameworks: defineTable({
@@ -106,6 +111,9 @@ export default defineSchema({
     residenceSince: v.optional(v.string()), // YYYY-MM - since when residing in current city
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // Who created this person record (set when a client creates a candidate via
+    // the request wizard's passport step). Used to authorize person edits.
+    createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -461,6 +469,21 @@ export default defineSchema({
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
     urgent: v.optional(v.boolean()), // Flag to mark process as urgent
     completedAt: v.optional(v.number()),
+    // --- Client request workflow (formerly the separate processRequests table) ---
+    // A client-originated process IS an individualProcesses row. requestStatus
+    // discriminates it from an admin-created process:
+    //   "draft"      => client is still building it in the wizard; hidden from
+    //                   the main process list / dashboard / selectors. No side
+    //                   effects generated yet.
+    //   "solicitado" => client finalized the request; side effects fired and the
+    //                   row is a live process, flagged as client-originated.
+    //   undefined    => admin-created process (normal behavior, always visible).
+    requestStatus: v.optional(
+      v.union(v.literal("draft"), v.literal("solicitado"))
+    ),
+    requestedBy: v.optional(v.id("users")), // client user who created the request
+    requestedAt: v.optional(v.number()), // when the request was finalized (solicitado)
+    requestNotes: v.optional(v.string()), // free-text note the client left on the request
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -478,7 +501,9 @@ export default defineSchema({
     .index("by_active", ["isActive"]) // DEPRECATED: Use by_processStatus instead
     .index("by_processStatus", ["processStatus"])
     .index("by_qualification", ["qualification"])
-    .index("by_urgent", ["urgent"]),
+    .index("by_urgent", ["urgent"])
+    .index("by_requestStatus", ["requestStatus"]) // Client request workflow filtering
+    .index("by_requestedBy", ["requestedBy"]), // A client's own requests
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({
@@ -538,9 +563,11 @@ export default defineSchema({
     .index("by_storageId", ["storageId"])
     .index("by_originalDocument", ["originalDocumentId"]),
 
-  // Process Request Workflow - Client users build a draft request (passport-first),
-  // submit it for admin review, converse with the admin, and on approval the
-  // request is copied into a fully pre-filled individualProcesses record.
+  // DEPRECATED / DORMANT: The process-request workflow now lives directly on
+  // `individualProcesses` (see requestStatus / requestedBy / requestedAt). This
+  // table is no longer read or written by application code; it is retained only
+  // so any remaining rows validate until the data migration runs in production,
+  // after which it (and processRequestVersions) is dropped in a cleanup deploy.
   processRequests: defineTable({
     // Requester scoping (set at creation from the client's CURRENT company)
     companyId: v.id("companies"),
@@ -607,7 +634,11 @@ export default defineSchema({
   // kind "message" = shared social-style conversation (admin <-> requester).
   // kind "observation" with isInternal=true = admin-only private note.
   processRequestMessages: defineTable({
-    processRequestId: v.id("processRequests"),
+    // The conversation now attaches directly to the individual process. The old
+    // processRequestId is kept (optional) only so existing rows validate during
+    // the transition; new rows use individualProcessId.
+    individualProcessId: v.optional(v.id("individualProcesses")),
+    processRequestId: v.optional(v.id("processRequests")), // DEPRECATED legacy FK
     authorUserId: v.id("users"),
     authorRole: v.union(v.literal("admin"), v.literal("client")),
     kind: v.union(v.literal("message"), v.literal("observation")),
@@ -617,10 +648,13 @@ export default defineSchema({
     editedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
-    .index("by_processRequest", ["processRequestId"])
+    .index("by_individualProcess", ["individualProcessId"])
+    .index("by_individualProcess_createdAt", ["individualProcessId", "createdAt"])
+    .index("by_processRequest", ["processRequestId"]) // DEPRECATED legacy index
     .index("by_processRequest_createdAt", ["processRequestId", "createdAt"]),
 
-  // Immutable snapshot of a process request taken at each submission (versioning).
+  // DEPRECATED / DORMANT: submission snapshots are obsolete now that there is no
+  // submit/review/resubmit cycle. No longer read or written; dropped in cleanup.
   processRequestVersions: defineTable({
     processRequestId: v.id("processRequests"),
     version: v.number(),

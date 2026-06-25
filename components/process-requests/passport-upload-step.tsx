@@ -52,6 +52,8 @@ export interface PassportUploadStepProps {
     summary?: string;
   };
   onComplete: (r: PassportCandidateResult) => void;
+  /** Clears the linked candidate in the parent so a different one can be uploaded. */
+  onReset?: () => void;
   disabled?: boolean;
 }
 
@@ -115,6 +117,7 @@ type EditableFields = {
 export function PassportUploadStep({
   value,
   onComplete,
+  onReset,
   disabled = false,
 }: PassportUploadStepProps) {
   const t = useTranslations("ProcessRequests");
@@ -343,7 +346,10 @@ export function PassportUploadStep({
             type="button"
             variant="outline"
             size="sm"
-            onClick={resetState}
+            onClick={() => {
+              resetState();
+              onReset?.();
+            }}
             disabled={disabled}
             className="shrink-0"
           >

@@ -11,6 +11,7 @@ import { syncPassportDocumentForProcess } from "./passportDocumentSync";
 export async function generateDocumentChecklist(
   ctx: MutationCtx,
   individualProcessId: Id<"individualProcesses">,
+  actingUserId?: Id<"users">,
 ): Promise<Id<"documentsDelivered">[]> {
   // Get the individual process
   const individualProcess = await ctx.db.get(individualProcessId);
@@ -66,7 +67,7 @@ export async function generateDocumentChecklist(
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
 
   // Get current user to set as uploader (will be admin who created the process)
-  const userId = await getAuthUserId(ctx);
+  const userId = actingUserId ?? (await getAuthUserId(ctx));
   if (!userId) {
     throw new Error("Not authenticated");
   }
@@ -128,6 +129,7 @@ export async function generateDocumentChecklist(
 export async function generateDocumentChecklistByLegalFramework(
   ctx: MutationCtx,
   individualProcessId: Id<"individualProcesses">,
+  actingUserId?: Id<"users">,
 ): Promise<Id<"documentsDelivered">[]> {
   // Get the individual process
   const individualProcess = await ctx.db.get(individualProcessId);
@@ -166,7 +168,7 @@ export async function generateDocumentChecklistByLegalFramework(
   }
 
   // Get current user
-  const userId = await getAuthUserId(ctx);
+  const userId = actingUserId ?? (await getAuthUserId(ctx));
   if (!userId) {
     throw new Error("Not authenticated");
   }
@@ -268,6 +270,7 @@ export async function regenerateDocumentChecklistForLegalFramework(
 export async function autoReuseCompanyDocuments(
   ctx: MutationCtx,
   individualProcessId: Id<"individualProcesses">,
+  actingUserId?: Id<"users">,
 ): Promise<number> {
   const process = await ctx.db.get(individualProcessId);
   if (!process?.companyApplicantId) return 0;
@@ -331,7 +334,7 @@ export async function autoReuseCompanyDocuments(
   }
 
   // Get user for history records
-  const userId = await getAuthUserId(ctx);
+  const userId = actingUserId ?? (await getAuthUserId(ctx));
   if (!userId) return 0;
 
   let reusedCount = 0;

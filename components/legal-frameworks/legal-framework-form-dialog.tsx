@@ -87,6 +87,7 @@ export function LegalFrameworkFormDialog({
       description: "",
       processTypeIds: [],
       isActive: true,
+      showInRequest: false,
       documentTypeAssociations: [],
     },
   })
@@ -115,6 +116,7 @@ export function LegalFrameworkFormDialog({
         description: legalFramework.description,
         processTypeIds: legalFramework.processTypes?.map((pt) => pt._id) || [],
         isActive: legalFramework.isActive,
+        showInRequest: legalFramework.showInRequest ?? false,
         documentTypeAssociations: legalFramework.documentTypeAssociations?.map((a) => ({
           documentTypeId: a.documentTypeId,
           isRequired: a.isRequired,
@@ -128,6 +130,7 @@ export function LegalFrameworkFormDialog({
         description: "",
         processTypeIds: [],
         isActive: true,
+        showInRequest: false,
         documentTypeAssociations: [],
       })
     }
@@ -304,6 +307,27 @@ export function LegalFrameworkFormDialog({
                     </FormLabel>
                     <FormDescription>
                       Active legal frameworks are available for selection
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="showInRequest"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>{t('showInRequest')}</FormLabel>
+                    <FormDescription>
+                      {t('showInRequestDescription')}
                     </FormDescription>
                   </div>
                 </FormItem>

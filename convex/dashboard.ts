@@ -46,6 +46,10 @@ async function filterProcessesForUser(
   userProfile: Doc<"userProfiles">,
   processes: Array<Doc<"individualProcesses">>
 ): Promise<Array<Doc<"individualProcesses">>> {
+  // Client-request drafts are not yet live processes — keep them out of every
+  // dashboard aggregation (counts, deadlines, document stats).
+  processes = processes.filter((p) => p.requestStatus !== "draft");
+
   if (userProfile.role !== "client") {
     return processes;
   }
@@ -360,7 +364,9 @@ export const getProcessCompletionRate = query({
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const processes = await ctx.db.query("individualProcesses").collect();
+    const allProcesses = await ctx.db.query("individualProcesses").collect();
+    // Exclude client-request drafts.
+    const processes = allProcesses.filter((p) => p.requestStatus !== "draft");
 
     // Filter processes created in last 30 days
     const recentProcesses = processes.filter(

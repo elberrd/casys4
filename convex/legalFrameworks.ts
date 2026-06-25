@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 
@@ -76,6 +76,46 @@ export const listActive = query({
       .query("legalFrameworks")
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
+  },
+});
+
+/**
+ * List the legal frameworks offered to client users in the process-request
+ * wizard (active + showInRequest). Returns name, description and the derived
+ * authorization type(s) so the client can pick a framework as the first step.
+ */
+export const listForRequest = query({
+  args: {},
+  handler: async (ctx) => {
+    // Any authenticated user (clients use it in the request wizard).
+    await getCurrentUserProfile(ctx);
+
+    const frameworks = await ctx.db
+      .query("legalFrameworks")
+      .withIndex("by_showInRequest", (q) => q.eq("showInRequest", true))
+      .collect();
+
+    // Only active ones are selectable.
+    const active = frameworks.filter((f) => f.isActive !== false);
+
+    return Promise.all(
+      active.map(async (framework) => {
+        const link = await ctx.db
+          .query("processTypesLegalFrameworks")
+          .withIndex("by_legalFramework", (q) =>
+            q.eq("legalFrameworkId", framework._id)
+          )
+          .first();
+        const processType = link ? await ctx.db.get(link.processTypeId) : null;
+        return {
+          _id: framework._id,
+          name: framework.name,
+          description: framework.description,
+          processTypeId: processType?._id,
+          processTypeName: processType?.name,
+        };
+      })
+    );
   },
 });
 
@@ -187,6 +227,7 @@ export const create = mutation({
     description: v.optional(v.string()),
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
+    showInRequest: v.optional(v.boolean()),
     documentTypeAssociations: v.optional(
       v.array(
         v.object({
@@ -213,6 +254,7 @@ export const create = mutation({
       name: args.name,
       description: args.description ?? "",
       isActive: args.isActive ?? true,
+      showInRequest: args.showInRequest ?? false,
     });
 
     const now = Date.now();
@@ -271,6 +313,7 @@ export const update = mutation({
     description: v.optional(v.string()),
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
+    showInRequest: v.optional(v.boolean()),
     documentTypeAssociations: v.optional(
       v.array(
         v.object({
@@ -303,6 +346,8 @@ export const update = mutation({
 
     if (args.description !== undefined) updates.description = args.description;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
+    if (args.showInRequest !== undefined)
+      updates.showInRequest = args.showInRequest;
 
     await ctx.db.patch(id, updates);
 

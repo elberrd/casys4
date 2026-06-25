@@ -5,37 +5,45 @@ import { internal } from "./_generated/api";
 import { getCurrentUserProfile } from "./lib/auth";
 
 /**
- * Ensure the current user can access the given request.
- * Admins always can; clients only for requests they created.
+ * Conversation thread + admin observations attached to a requested process.
+ * The thread now hangs directly off the `individualProcesses` row.
+ */
+
+/**
+ * Ensure the current user can access the given requested process.
+ * Admins always can; clients only for requests they created (requestedBy).
  */
 async function requireRequestAccess(
   ctx: QueryCtx | MutationCtx,
-  requestId: Id<"processRequests">
-): Promise<{ request: Doc<"processRequests">; profile: Doc<"userProfiles"> }> {
+  individualProcessId: Id<"individualProcesses">
+): Promise<{
+  process: Doc<"individualProcesses">;
+  profile: Doc<"userProfiles">;
+}> {
   const profile = await getCurrentUserProfile(ctx);
-  const request = await ctx.db.get(requestId);
-  if (!request) throw new Error("Process request not found");
+  const process = await ctx.db.get(individualProcessId);
+  if (!process) throw new Error("Process request not found");
 
-  if (profile.role === "client" && request.createdBy !== profile.userId) {
+  if (profile.role === "client" && process.requestedBy !== profile.userId) {
     throw new Error("Access denied: This is not your request");
   }
-  return { request, profile };
+  return { process, profile };
 }
 
 /**
- * List the conversation for a request.
+ * List the conversation for a requested process.
  * - Admins see everything (shared messages + internal observations).
  * - Clients see only shared, non-internal, non-deleted messages.
  */
 export const list = query({
-  args: { processRequestId: v.id("processRequests") },
-  handler: async (ctx, { processRequestId }) => {
-    const { profile } = await requireRequestAccess(ctx, processRequestId);
+  args: { individualProcessId: v.id("individualProcesses") },
+  handler: async (ctx, { individualProcessId }) => {
+    const { profile } = await requireRequestAccess(ctx, individualProcessId);
 
     const messages = await ctx.db
       .query("processRequestMessages")
-      .withIndex("by_processRequest_createdAt", (q) =>
-        q.eq("processRequestId", processRequestId)
+      .withIndex("by_individualProcess_createdAt", (q) =>
+        q.eq("individualProcessId", individualProcessId)
       )
       .collect();
 
@@ -62,18 +70,18 @@ export const list = query({
 });
 
 /**
- * Post a message or (admin-only) internal observation to a request.
+ * Post a message or (admin-only) internal observation to a requested process.
  */
 export const post = mutation({
   args: {
-    processRequestId: v.id("processRequests"),
+    individualProcessId: v.id("individualProcesses"),
     body: v.string(),
     kind: v.optional(v.union(v.literal("message"), v.literal("observation"))),
   },
-  handler: async (ctx, { processRequestId, body, kind }) => {
-    const { request, profile } = await requireRequestAccess(
+  handler: async (ctx, { individualProcessId, body, kind }) => {
+    const { process, profile } = await requireRequestAccess(
       ctx,
-      processRequestId
+      individualProcessId
     );
     if (!profile.userId) throw new Error("User profile not activated");
 
@@ -89,7 +97,7 @@ export const post = mutation({
 
     const now = Date.now();
     const messageId = await ctx.db.insert("processRequestMessages", {
-      processRequestId,
+      individualProcessId,
       authorUserId: profile.userId,
       authorRole: profile.role === "admin" ? "admin" : "client",
       kind: resolvedKind,
@@ -118,22 +126,22 @@ export const post = mutation({
               title: "Nova mensagem na solicitação",
               message: trimmed.slice(0, 140),
               entityType: "processRequest",
-              entityId: processRequestId,
+              entityId: individualProcessId,
             }
           );
         }
-      } else {
+      } else if (process.requestedBy) {
         // Admin -> notify the requester.
         await ctx.scheduler.runAfter(
           0,
           internal.notifications.createNotification,
           {
-            userId: request.createdBy,
+            userId: process.requestedBy,
             type: "process_request_message",
             title: "Nova mensagem do administrador",
             message: trimmed.slice(0, 140),
             entityType: "processRequest",
-            entityId: processRequestId,
+            entityId: individualProcessId,
           }
         );
       }

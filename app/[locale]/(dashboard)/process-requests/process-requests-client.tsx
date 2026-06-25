@@ -39,8 +39,9 @@ export function ProcessRequestsClient() {
   ];
 
   const openRequest = (request: ProcessRequestListItem) => {
-    // Drafts resume in the wizard; everything else opens the detail dialog.
-    if (request.status === "draft") {
+    // The client resumes their own draft in the wizard; admins (and finalized
+    // requests) open the read-only detail dialog.
+    if (request.requestStatus === "draft" && currentUser?.role === "client") {
       router.push(`/process-requests/new?id=${request._id}`);
       return;
     }
@@ -119,23 +120,18 @@ export function ProcessRequestsClient() {
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium">
-                      {request.candidatePerson?.fullName ||
-                        request.processType?.name ||
+                      {request.person?.fullName ||
+                        request.legalFramework?.name ||
                         t("newRequest")}
                     </span>
-                    {request.version ? (
-                      <Badge variant="outline" className="font-mono text-xs">
-                        v{request.version}
-                      </Badge>
-                    ) : null}
-                    {request.isUrgent && (
+                    {request.urgent && (
                       <Badge variant="destructive" className="text-xs">
                         {t("urgent")}
                       </Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {request.processType?.name ? `${request.processType.name} · ` : ""}
+                    {request.legalFramework?.name ? `${request.legalFramework.name} · ` : ""}
                     {t("updatedAt")}: {formatDate(
                       new Date(request.updatedAt).toISOString().slice(0, 10),
                       locale
@@ -143,7 +139,7 @@ export function ProcessRequestsClient() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <RequestStatusBadge status={request.status} />
+                  <RequestStatusBadge status={request.requestStatus} />
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
               </Card>

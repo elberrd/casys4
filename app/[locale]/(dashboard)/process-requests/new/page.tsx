@@ -19,7 +19,7 @@ export default function NewProcessRequestPage() {
   const locale = params.locale as string;
 
   const idParam = searchParams.get("id");
-  const requestId = idParam ? (idParam as Id<"processRequests">) : undefined;
+  const requestId = idParam ? (idParam as Id<"individualProcesses">) : undefined;
 
   // Gate: only clients can create/resume requests; redirect admins away.
   const currentUser = useQuery(api.userProfiles.getCurrentUser);

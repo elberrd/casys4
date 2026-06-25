@@ -88,7 +88,9 @@ export const getUpcomingAppointments = internalQuery({
     const allProcesses = await ctx.db.query("individualProcesses").collect();
 
     // Filter for those with appointments in the target time range
+    // (client-request drafts excluded — they are not live processes).
     const upcomingAppointments = allProcesses.filter((process) => {
+      if (process.requestStatus === "draft") return false;
       if (!process.appointmentDateTime) return false;
 
       const appointmentTime = new Date(process.appointmentDateTime).getTime();
@@ -116,7 +118,9 @@ export const listUpcomingAppointments = query({
     const allProcesses = await ctx.db.query("individualProcesses").collect();
 
     // Filter for those with appointments in the next N days
+    // (client-request drafts excluded — they are not live processes).
     const upcomingAppointments = allProcesses.filter((process) => {
+      if (process.requestStatus === "draft") return false;
       if (!process.appointmentDateTime) return false;
 
       const appointmentTime = new Date(process.appointmentDateTime).getTime();

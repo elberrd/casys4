@@ -15,6 +15,7 @@ export const legalFrameworkSchema = z.object({
   description: z.string().min(1, "Description must be at least 1 character").optional().or(z.literal("")),
   processTypeIds: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
+  showInRequest: z.boolean().optional(),
   documentTypeAssociations: z.array(documentTypeAssociationSchema).optional(),
 });
 

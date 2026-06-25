@@ -410,15 +410,39 @@ export const create = mutation({
 export const findByNormalizedName = query({
   args: { fullName: v.string() },
   handler: async (ctx, { fullName }) => {
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
 
     const target = normalizeString(fullName.trim());
     if (!target) return [];
 
     const all = await ctx.db.query("people").collect();
-    const matches = all.filter(
+    let matches = all.filter(
       (p) => normalizeString(getFullName(p)) === target
     );
+
+    // Clients may only dedup against people they can legitimately see: members
+    // of their current companies, or candidates they themselves created. This
+    // prevents enumerating / leaking PII of other tenants' people.
+    if (userProfile.role === "client") {
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile
+      );
+      const visible = await Promise.all(
+        matches.map(async (p) => {
+          if (p.createdBy && p.createdBy === userProfile.userId) return p;
+          const links = await ctx.db
+            .query("peopleCompanies")
+            .withIndex("by_person", (q) => q.eq("personId", p._id))
+            .collect();
+          const inCompany = links.some(
+            (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
+          );
+          return inCompany ? p : null;
+        })
+      );
+      matches = visible.filter((p): p is (typeof matches)[number] => p !== null);
+    }
 
     return matches.map((p) => ({
       _id: p._id,
@@ -582,10 +606,12 @@ export const remove = mutation({
       throw new Error("Person not found");
     }
 
-    // Check if there are individual processes associated with this person
+    // Check if there are individual processes associated with this person.
+    // Client-request drafts don't count as real processes here.
     const individualProcesses = await ctx.db
       .query("individualProcesses")
       .withIndex("by_person", (q) => q.eq("personId", id))
+      .filter((q) => q.neq(q.field("requestStatus"), "draft"))
       .first();
 
     if (individualProcesses) {

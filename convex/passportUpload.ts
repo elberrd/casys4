@@ -1,7 +1,10 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  getClientCurrentCompanyIds,
+} from "./lib/auth";
 import { logActivitySafely } from "./lib/activityLogger";
 
 /**
@@ -64,6 +67,26 @@ export const applyCandidate = mutation({
       const person = await ctx.db.get(personId);
       if (!person) throw new Error("Person not found");
 
+      // A client may only reuse an existing person who belongs to one of their
+      // current companies or whom they created — never another tenant's person.
+      if (profile.role === "client") {
+        const currentCompanyIds = await getClientCurrentCompanyIds(ctx, profile);
+        const links = await ctx.db
+          .query("peopleCompanies")
+          .withIndex("by_person", (q) => q.eq("personId", personId))
+          .collect();
+        const inCompany = links.some(
+          (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
+        );
+        const isOwnCandidate =
+          person.createdBy != null && person.createdBy === profile.userId;
+        if (!inCompany && !isOwnCandidate) {
+          throw new Error(
+            "Access denied: you cannot use this person as a candidate"
+          );
+        }
+      }
+
       if (args.fillGaps) {
         const patch: Record<string, unknown> = {};
         if (!person.middleName && args.middleName) patch.middleName = args.middleName;
@@ -88,6 +111,7 @@ export const applyCandidate = mutation({
         sex: args.sex,
         birthDate: args.birthDate,
         nationalityId: args.nationalityId,
+        createdBy: profile.userId,
         createdAt: now,
         updatedAt: now,
       });
