@@ -498,6 +498,10 @@ export default defineSchema({
   })
     .index("by_individualProcess", ["individualProcessId"])
     .index("by_individualProcess_active", ["individualProcessId", "isActive"])
+    // Lets the list query fetch the most recent status for a process with a
+    // single indexed read (order by date desc, take first) instead of reading
+    // and sorting every status row for that process.
+    .index("by_individualProcess_date", ["individualProcessId", "date"])
     .index("by_caseStatus", ["caseStatusId"])
     .index("by_changedAt", ["changedAt"]),
 
@@ -701,6 +705,9 @@ export default defineSchema({
     .index("by_documentType", ["documentTypeId"])
     .index("by_requirement", ["documentRequirementId"])
     .index("by_status", ["status"])
+    // Lets the list query count pending ("not_started") documents per process by
+    // reading only those rows, instead of reading every document for the process.
+    .index("by_individualProcess_status", ["individualProcessId", "status"])
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
     .index("by_latest", ["isLatest"])

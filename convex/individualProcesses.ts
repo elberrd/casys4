@@ -118,22 +118,17 @@ export const list = query({
           process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
           process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
           process.cboId ? ctx.db.get(process.cboId) : null,
-          // Get most recent status by date (regardless of isActive flag)
+          // Get most recent status by date (regardless of isActive flag).
+          // Uses the by_individualProcess_date index to read a single row
+          // (ordered by date desc) instead of scanning + sorting every status
+          // row for this process — the main per-row cost in the old version.
           ctx.db
             .query("individualProcessStatuses")
-            .withIndex("by_individualProcess", (q) =>
+            .withIndex("by_individualProcess_date", (q) =>
               q.eq("individualProcessId", process._id)
             )
-            .collect()
-            .then((statuses) => {
-              if (statuses.length === 0) return null;
-              // Sort by date descending (most recent first), falling back to changedAt
-              return statuses.sort((a, b) => {
-                const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
-                const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
-                return dateB.localeCompare(dateA);
-              })[0];
-            }),
+            .order("desc")
+            .first(),
           // Get passport details if passportId exists
           process.passportId ? ctx.db.get(process.passportId) : null,
           // Get process type details if processTypeId exists
@@ -152,15 +147,17 @@ export const list = query({
             )
             .collect()
             .then((notes) => notes.length),
-          // Count pending documents (status="not_started", latest version) for this process
+          // Count pending documents (status="not_started", latest version) for this process.
+          // Uses the by_individualProcess_status index to read only "not_started"
+          // rows instead of every document for the process.
           ctx.db
             .query("documentsDelivered")
-            .withIndex("by_individualProcess", (q) =>
-              q.eq("individualProcessId", process._id)
+            .withIndex("by_individualProcess_status", (q) =>
+              q.eq("individualProcessId", process._id).eq("status", "not_started")
             )
             .collect()
             .then((docs) =>
-              docs.filter((d) => d.status === "not_started" && d.isLatest !== false).length
+              docs.filter((d) => d.isLatest !== false).length
             ),
         ]);
 
