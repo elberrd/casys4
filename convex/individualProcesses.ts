@@ -388,16 +388,30 @@ export const get = query({
       process.processTypeId ? ctx.db.get(process.processTypeId) : null,
     ]);
 
-    // Enrich person with nationality and computed fullName
-    let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
+    // Enrich person with nationality, birth city and computed fullName
+    let person:
+      | (typeof rawPerson & { fullName: string; nationality: any; birthCity: any })
+      | null = null;
     if (rawPerson) {
       const nationality = rawPerson.nationalityId
         ? await ctx.db.get(rawPerson.nationalityId)
+        : null;
+      const rawBirthCity = rawPerson.birthCityId
+        ? await ctx.db.get(rawPerson.birthCityId)
+        : null;
+      const birthCity = rawBirthCity
+        ? {
+            ...rawBirthCity,
+            state: rawBirthCity.stateId
+              ? await ctx.db.get(rawBirthCity.stateId)
+              : null,
+          }
         : null;
       person = {
         ...rawPerson,
         fullName: getFullName(rawPerson),
         nationality,
+        birthCity,
       };
     }
 

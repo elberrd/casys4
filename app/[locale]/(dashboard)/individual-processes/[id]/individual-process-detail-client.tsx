@@ -420,6 +420,16 @@ export function IndividualProcessDetailClient({
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople('birthCity')}
+                  <LinkedDocIcon entityType="person" fieldPath="birthCityId" />
+                </div>
+                <div className="text-sm">
+                  {(individualProcess.person as any)?.birthCity?.name
+                    ? `${(individualProcess.person as any).birthCity.name}${(individualProcess.person as any).birthCity.state?.code ? ` - ${(individualProcess.person as any).birthCity.state.code}` : ''}`
+                    : '-'}
+                </div>
+
+                <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople('fatherName')}
                   <LinkedDocIcon entityType="person" fieldPath="fatherName" />
                 </div>
