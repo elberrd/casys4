@@ -11,7 +11,8 @@ export const passportSchema = z.object({
   }),
   issueDate: z.string().min(1, "Issue date is required"),
   expiryDate: z.string().min(1, "Expiry date is required"),
-  fileUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
+  // Holds the resolved storage URL of the uploaded document (not user-typed).
+  fileUrl: z.string().optional(),
   isActive: z.boolean().optional(),
 }).refine(
   (data) => {

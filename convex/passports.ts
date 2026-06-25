@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
+import { syncPassportDocumentForPassport } from "./lib/passportDocumentSync";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -384,6 +385,7 @@ export const create = mutation({
     issueDate: v.string(),
     expiryDate: v.string(),
     fileUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -421,13 +423,21 @@ export const create = mutation({
       );
     }
 
+    // When a file was uploaded to storage, resolve its serving URL so the
+    // document stays viewable everywhere fileUrl is read.
+    let fileUrl = args.fileUrl;
+    if (args.storageId) {
+      fileUrl = (await ctx.storage.getUrl(args.storageId)) ?? undefined;
+    }
+
     const passportId = await ctx.db.insert("passports", {
       personId: args.personId,
       passportNumber: args.passportNumber,
       issuingCountryId: args.issuingCountryId,
       issueDate: args.issueDate,
       expiryDate: args.expiryDate,
-      fileUrl: args.fileUrl,
+      fileUrl,
+      storageId: args.storageId,
       isActive,
       createdAt: now,
       updatedAt: now,
@@ -451,6 +461,11 @@ export const create = mutation({
       },
     });
 
+    // If this passport is already complete and linked to a process, mark its
+    // "Passaporte" document as sent. (Usually a no-op at create time, since the
+    // process links the passport afterwards — kept for completeness.)
+    await syncPassportDocumentForPassport(ctx, passportId);
+
     return passportId;
   },
 });
@@ -468,13 +483,14 @@ export const update = mutation({
     issueDate: v.string(),
     expiryDate: v.string(),
     fileUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
 
-    const { id, ...updateData } = args;
+    const { id, storageId, fileUrl: fileUrlArg, ...updateData } = args;
     const now = Date.now();
     const isActive = updateData.isActive ?? true;
     const existing = await ctx.db.get(id);
@@ -514,11 +530,33 @@ export const update = mutation({
       );
     }
 
-    await ctx.db.patch(id, {
+    const patchData: Record<string, unknown> = {
       ...updateData,
       isActive,
       updatedAt: now,
-    });
+    };
+
+    // Document file handling:
+    // - storageId set  -> a new file was uploaded; store it + its resolved URL
+    // - fileUrl === "" -> the existing file was removed; clear both fields
+    // - otherwise      -> leave the existing file untouched
+    if (storageId !== undefined) {
+      patchData.storageId = storageId;
+      patchData.fileUrl = (await ctx.storage.getUrl(storageId)) ?? undefined;
+    } else if (fileUrlArg !== undefined) {
+      if (fileUrlArg === "") {
+        patchData.fileUrl = undefined;
+        patchData.storageId = undefined;
+      } else {
+        patchData.fileUrl = fileUrlArg;
+      }
+    }
+
+    await ctx.db.patch(id, patchData);
+
+    // The passport may have just become complete (missing data filled or photo
+    // attached) — sync the "Passaporte" document of every process using it.
+    await syncPassportDocumentForPassport(ctx, id);
 
     const [previousPerson, nextPerson, previousCountry, nextCountry] = await Promise.all([
       existing.personId ? ctx.db.get(existing.personId) : null,

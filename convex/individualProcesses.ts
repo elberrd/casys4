@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
 import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
+import { syncPassportDocumentForProcess } from "./lib/passportDocumentSync";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
@@ -1160,6 +1161,12 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updates);
+
+    // When a passport is linked/changed, mark its "Passaporte" document as sent
+    // if the passport is already complete (data + photo).
+    if (args.passportId !== undefined) {
+      await syncPassportDocumentForProcess(ctx, id);
+    }
 
     // Sync dateProcess changes to "em preparação" status
     if (args.dateProcess !== undefined) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -17,11 +17,13 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { DatePicker } from "@/components/ui/date-picker"
+import { File as FileIcon, X } from "lucide-react"
 import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -32,6 +34,18 @@ interface PassportFormPageProps {
   passportId?: Id<"passports">
   personId?: Id<"people">
   onSuccess?: () => void
+}
+
+const MAX_FILE_SIZE_MB = 10
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+const ACCEPTED_FILE_TYPES = ".pdf,.jpg,.jpeg,.png,.webp"
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 Bytes"
+  const k = 1024
+  const sizes = ["Bytes", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i]
 }
 
 function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
@@ -80,6 +94,11 @@ export function PassportFormPage({
 
   const createPassport = useMutation(api.passports.create)
   const updatePassport = useMutation(api.passports.update)
+  const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl)
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const form = useForm<PassportFormData>({
     resolver: zodResolver(passportSchema),
@@ -119,6 +138,31 @@ export function PassportFormPage({
     }
   }, [passport, personId, form])
 
+  const currentFileUrl = form.watch("fileUrl")
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({
+        title: t("errorFileSize", { maxSize: MAX_FILE_SIZE_MB }),
+        variant: "destructive",
+      })
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
+    setSelectedFile(file)
+  }
+
+  const handleRemoveSelectedFile = () => {
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const handleRemoveCurrentFile = () => {
+    form.setValue("fileUrl", "", { shouldDirty: true })
+  }
+
   const onSubmit = async (data: PassportFormData) => {
     if (isPassportChecking) {
       toast({
@@ -136,6 +180,22 @@ export function PassportFormPage({
     }
 
     try {
+      // Upload the picked document to Convex storage first (if any).
+      let storageId: Id<"_storage"> | undefined
+      if (selectedFile) {
+        setIsUploading(true)
+        const uploadUrl = await generateUploadUrl()
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile.type },
+          body: selectedFile,
+        })
+        if (!result.ok) throw new Error("Failed to upload file")
+        const json = await result.json()
+        storageId = json.storageId as Id<"_storage">
+        setIsUploading(false)
+      }
+
       if (passportId) {
         await updatePassport({
           id: passportId,
@@ -144,7 +204,9 @@ export function PassportFormPage({
           issuingCountryId: data.issuingCountryId as Id<"countries">,
           issueDate: data.issueDate,
           expiryDate: data.expiryDate,
-          fileUrl: data.fileUrl || undefined,
+          // New upload wins; otherwise pass the current value so an unchanged
+          // file is preserved and a removed one ("") is cleared.
+          ...(storageId ? { storageId } : { fileUrl: data.fileUrl ?? "" }),
           isActive: data.isActive,
         })
         toast({
@@ -157,7 +219,7 @@ export function PassportFormPage({
           issuingCountryId: data.issuingCountryId as Id<"countries">,
           issueDate: data.issueDate,
           expiryDate: data.expiryDate,
-          fileUrl: data.fileUrl || undefined,
+          ...(storageId ? { storageId } : {}),
           isActive: data.isActive,
         })
         toast({
@@ -172,6 +234,7 @@ export function PassportFormPage({
         router.push('/passports')
       }
     } catch (error) {
+      setIsUploading(false)
       toast({
         title: passportId ? t("errorUpdate") : t("errorCreate"),
         description: error instanceof Error ? error.message : String(error),
@@ -316,19 +379,66 @@ export function PassportFormPage({
                 </div>
               )}
 
-              <FormField
-                control={form.control}
-                name="fileUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("fileUrl")}</FormLabel>
-                    <FormControl>
-                      <Input type="url" placeholder="https://..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-2">
+                <Label>{t("fileUpload")}</Label>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  accept={ACCEPTED_FILE_TYPES}
+                  onChange={handleFileSelect}
+                  disabled={isUploading || form.formState.isSubmitting}
+                  className="cursor-pointer"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("uploadHint", { maxSize: MAX_FILE_SIZE_MB })}
+                </p>
+
+                {selectedFile ? (
+                  <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
+                    <FileIcon className="h-8 w-8 flex-shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{selectedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(selectedFile.size)}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveSelectedFile}
+                      disabled={isUploading || form.formState.isSubmitting}
+                      className="flex-shrink-0"
+                      aria-label={t("removeFile")}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : currentFileUrl ? (
+                  <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
+                    <FileIcon className="h-8 w-8 flex-shrink-0 text-muted-foreground" />
+                    <a
+                      href={currentFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 flex-1 truncate text-sm font-medium text-primary hover:underline"
+                    >
+                      {t("viewCurrentFile")}
+                    </a>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveCurrentFile}
+                      disabled={isUploading || form.formState.isSubmitting}
+                      className="flex-shrink-0"
+                      aria-label={t("removeFile")}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
 
               <FormField
                 control={form.control}
@@ -357,8 +467,8 @@ export function PassportFormPage({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting || isPassportChecking || isPassportAvailable === false}>
-                {form.formState.isSubmitting ? tCommon("loading") : tCommon("save")}
+              <Button type="submit" disabled={form.formState.isSubmitting || isUploading || isPassportChecking || isPassportAvailable === false}>
+                {form.formState.isSubmitting || isUploading ? tCommon("loading") : tCommon("save")}
               </Button>
             </div>
           </form>

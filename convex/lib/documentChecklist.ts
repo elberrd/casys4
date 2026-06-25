@@ -2,6 +2,7 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { syncPassportDocumentForProcess } from "./passportDocumentSync";
 
 /**
  * Helper function to generate document checklist for an individual process
@@ -112,6 +113,10 @@ export async function generateDocumentChecklist(
     createdDocumentIds.push(documentId);
   }
 
+  // If the process already has a complete passport linked, auto-send its
+  // freshly-created "Passaporte" document.
+  await syncPassportDocumentForProcess(ctx, individualProcessId);
+
   return createdDocumentIds;
 }
 
@@ -216,6 +221,10 @@ export async function generateDocumentChecklistByLegalFramework(
 
     createdDocumentIds.push(documentId);
   }
+
+  // If the process already has a complete passport linked, auto-send its
+  // freshly-created "Passaporte" document.
+  await syncPassportDocumentForProcess(ctx, individualProcessId);
 
   return createdDocumentIds;
 }
