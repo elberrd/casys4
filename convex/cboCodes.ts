@@ -56,6 +56,7 @@ export const create = mutation({
   args: {
     code: v.optional(v.string()),
     title: v.string(),
+    activity: v.optional(v.string()),
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -76,6 +77,7 @@ export const create = mutation({
     const cboCodeId = await ctx.db.insert("cboCodes", {
       code: args.code,
       title: args.title,
+      activity: args.activity,
       description: args.description,
     });
 
@@ -102,6 +104,7 @@ export const update = mutation({
     id: v.id("cboCodes"),
     code: v.optional(v.string()),
     title: v.string(),
+    activity: v.optional(v.string()),
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -131,11 +134,13 @@ export const update = mutation({
       {
         code: existing.code,
         title: existing.title,
+        activity: existing.activity,
         description: existing.description,
       },
       {
         code: updateData.code,
         title: updateData.title,
+        activity: updateData.activity,
         description: updateData.description,
       }
     );

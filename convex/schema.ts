@@ -205,6 +205,7 @@ export default defineSchema({
   cboCodes: defineTable({
     code: v.optional(v.string()),
     title: v.string(),
+    activity: v.optional(v.string()),
     description: v.optional(v.string()),
   })
     .index("by_code", ["code"])

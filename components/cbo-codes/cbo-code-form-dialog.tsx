@@ -63,6 +63,7 @@ export function CboCodeFormDialog({
     defaultValues: {
       code: cboCode?.code ?? "",
       title: cboCode?.title ?? "",
+      activity: cboCode?.activity ?? "",
       description: cboCode?.description ?? "",
     },
   });
@@ -88,6 +89,7 @@ export function CboCodeFormDialog({
     form.reset({
       code: cboCode.code,
       title: cboCode.title,
+      activity: cboCode.activity ?? "",
       description: cboCode.description,
     });
   }
@@ -101,6 +103,7 @@ export function CboCodeFormDialog({
           id: cboCodeId,
           code: data.code,
           title: data.title,
+          activity: data.activity,
           description: data.description,
         });
         toast.success(t("updatedSuccess"));
@@ -108,6 +111,7 @@ export function CboCodeFormDialog({
         await createCboCode({
           code: data.code,
           title: data.title,
+          activity: data.activity,
           description: data.description,
         });
         toast.success(t("createdSuccess"));
@@ -172,6 +176,20 @@ export function CboCodeFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("cboTitle")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="activity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("activity")}</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>

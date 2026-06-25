@@ -1576,6 +1576,7 @@
     "deleteConfirmMessage": "Are you sure you want to delete this CBO code? This action cannot be undone.",
     "code": "Code",
     "cboTitle": "Title",
+    "activity": "Activity",
     "codeFormat": "Format: ####-## (e.g., 2521-05)",
     "createdSuccess": "CBO code created successfully",
     "updatedSuccess": "CBO code updated successfully",

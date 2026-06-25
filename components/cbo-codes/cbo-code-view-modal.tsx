@@ -47,6 +47,7 @@ export function CBOCodeViewModal({
       fields: [
         createField(t("code"), cboCode.code),
         createField(t("title"), cboCode.title),
+        createField(t("activity"), cboCode.activity),
         {
           label: t("description"),
           value: cboCode.description || "-",

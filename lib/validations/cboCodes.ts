@@ -11,6 +11,7 @@ export const cboCodeSchema = z.object({
     .optional()
     .or(z.literal("")),
   title: z.string().min(3, "Title must be at least 3 characters"),
+  activity: z.string().optional().or(z.literal("")),
   description: z.string().min(10, "Description must be at least 10 characters").optional().or(z.literal("")),
 });
 

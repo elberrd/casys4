@@ -1601,6 +1601,7 @@
     "deleteConfirmMessage": "Tem certeza de que deseja excluir este código CBO? Esta ação não pode ser desfeita.",
     "code": "Código",
     "cboTitle": "Título",
+    "activity": "Atividade",
     "codeFormat": "Formato: ####-## (ex: 2521-05)",
     "createdSuccess": "Código CBO criado com sucesso",
     "updatedSuccess": "Código CBO atualizado com sucesso",
