@@ -9,9 +9,46 @@ export interface StatusBadgeProps
   extends React.HTMLAttributes<HTMLDivElement> {
   status?: string;
   type: "main_process" | "individual_process";
-  color?: string; // Optional: Case status color
+  color?: string; // Optional: Case status color (named, e.g. "blue", or hex, e.g. "#574444")
   category?: string; // Optional: Case status category
   className?: string;
+}
+
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** True when the value is a hex color like "#574444" or "#abc". */
+function isHexColor(value?: string): value is string {
+  return typeof value === "string" && HEX_COLOR_RE.test(value.trim());
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  let h = hex.trim().replace(/^#/, "");
+  if (h.length === 3) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  const num = parseInt(h, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+/**
+ * Builds inline badge styles for an admin-configured hex color. Mirrors the
+ * named-color look: full-strength border (~500), faint tinted background (~50),
+ * and a darker text shade (~700) for readable contrast. Inline styles are used
+ * (instead of Tailwind arbitrary-value classes) because the JIT does not reliably
+ * generate `var()`-based color utilities here; the app is light-mode only.
+ */
+function getHexBadgeStyle(hex: string): React.CSSProperties {
+  const { r, g, b } = hexToRgb(hex);
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  const darken = (c: number) => clamp(c * 0.6); // toward a ~700 shade for the text
+  return {
+    borderColor: hex,
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
+    color: `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`,
+  };
 }
 
 /**
@@ -25,6 +62,7 @@ export function StatusBadge({
   color,
   category,
   className,
+  style: styleProp,
   ...props
 }: StatusBadgeProps) {
   const t = useTranslations("ProcessStatuses");
@@ -36,9 +74,14 @@ export function StatusBadge({
 
   // Get color classes - use provided color/category if available, otherwise fallback to utility
   let colorClasses = "";
+  let inlineStyle: React.CSSProperties | undefined;
 
-  if (color && category) {
-    // Use case status color and category for styling
+  if (isHexColor(color)) {
+    // Admin-configured hex color (from the case status "Cor" picker). Apply it via
+    // inline styles so the selected color is actually shown instead of falling back to blue.
+    inlineStyle = getHexBadgeStyle(color);
+  } else if (color && category) {
+    // Legacy named colors mapped to Tailwind classes
     const colorMap: Record<string, string> = {
       blue: "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
       yellow: "border-yellow-500 bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
@@ -51,7 +94,7 @@ export function StatusBadge({
 
     colorClasses = colorMap[color] || colorMap.blue
   } else {
-    // Fallback to old status validation utility
+    // Fallback to old status validation utility (default blue/gray when no color set)
     colorClasses = getStatusColor(status);
   }
 
@@ -68,6 +111,7 @@ export function StatusBadge({
         colorClasses,
         className
       )}
+      style={{ ...inlineStyle, ...styleProp }}
       role="status"
       aria-label={`Status: ${label}`}
       {...props}

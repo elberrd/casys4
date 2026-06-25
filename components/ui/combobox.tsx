@@ -265,6 +265,20 @@ function ComboboxSingle<T extends string = string>({
         align="start"
         className={cn("p-0", contentClassName)}
         style={{ width: "var(--radix-popover-trigger-width)" }}
+        onOpenAutoFocus={(event) => {
+          // When the combobox is rendered inside a Dialog, the search input
+          // isn't auto-focused on open, so the user has to click it again
+          // before typing. Focus it explicitly so they can start filtering
+          // immediately after opening.
+          event.preventDefault();
+          const content = event.currentTarget as HTMLElement | null;
+          requestAnimationFrame(() => {
+            const input =
+              content?.querySelector<HTMLInputElement>("[cmdk-input]") ??
+              document.querySelector<HTMLInputElement>("[cmdk-input]");
+            input?.focus();
+          });
+        }}
       >
         <Command
           filter={(value, search) => {
@@ -611,6 +625,20 @@ function ComboboxMultiple<T extends string = string>({
         align="start"
         className={cn("p-0", contentClassName)}
         style={{ width: "var(--radix-popover-trigger-width)" }}
+        onOpenAutoFocus={(event) => {
+          // When the combobox is rendered inside a Dialog, the search input
+          // isn't auto-focused on open, so the user has to click it again
+          // before typing. Focus it explicitly so they can start filtering
+          // immediately after opening.
+          event.preventDefault();
+          const content = event.currentTarget as HTMLElement | null;
+          requestAnimationFrame(() => {
+            const input =
+              content?.querySelector<HTMLInputElement>("[cmdk-input]") ??
+              document.querySelector<HTMLInputElement>("[cmdk-input]");
+            input?.focus();
+          });
+        }}
       >
         <Command
           filter={(value, search) => {
