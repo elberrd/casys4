@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format-field-value";
-import { RequestConversation } from "@/components/process-requests/request-conversation";
 import { RequestStatusBadge } from "@/components/process-requests/request-status-badge";
 import type { ProcessRequestDetail } from "@/components/process-requests/types";
 
@@ -150,12 +149,9 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="space-y-4 lg:col-span-2">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-40 w-full" />
-            </div>
-            <Skeleton className="h-[480px] w-full lg:col-span-1" />
+          <div className="space-y-4">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-40 w-full" />
           </div>
         ) : request === null ? (
           <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
@@ -168,9 +164,7 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
             </Button>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* Details column */}
-            <div className="space-y-4 lg:col-span-2">
+          <div className="space-y-4">
               {/* Candidate + passport */}
               <Card>
                 <CardHeader>
@@ -384,19 +378,6 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
                   </CardContent>
                 </Card>
               )}
-            </div>
-
-            {/* Conversation column */}
-            <div className="lg:col-span-1">
-              <div className="lg:sticky lg:top-4">
-                <RequestConversation
-                  individualProcessId={request._id}
-                  currentUserRole={currentUser?.role ?? "client"}
-                  currentUserId={currentUser?.userId}
-                  heightClassName="h-[460px] lg:h-[calc(100vh-15rem)]"
-                />
-              </div>
-            </div>
           </div>
         )}
       </div>
