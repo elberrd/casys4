@@ -330,6 +330,41 @@ export function RequestDetailsDialog({
                 </>
               )}
 
+              {/* Resume a draft (client only) */}
+              {request.requestStatus === "draft" &&
+                currentUserRole === "client" && (
+                  <>
+                    <Separator />
+                    <section className="space-y-2">
+                      <div className="flex items-center justify-between rounded-md bg-muted p-3">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {t("statusDraft")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {t("draftContinueHint")}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const gid = request.requestGroupId;
+                            router.push(
+                              gid
+                                ? `/process-requests/new?group=${gid}`
+                                : `/process-requests/new?id=${request._id}`,
+                            );
+                            onOpenChange(false);
+                          }}
+                        >
+                          {t("continueEditing")}
+                        </Button>
+                      </div>
+                    </section>
+                  </>
+                )}
+
               {/* Link to the live process (finalized requests) */}
               {request.requestStatus === "solicitado" && (
                 <>
