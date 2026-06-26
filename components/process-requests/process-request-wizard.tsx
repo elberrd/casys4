@@ -49,7 +49,7 @@ import {
   PassportUploadStep,
   type PassportCandidateResult,
 } from "./passport-upload-step";
-import { ResidenceSelect, type ResidenceValue } from "./residence-select";
+import { ResidenceSelect } from "./residence-select";
 
 // ---------------------------------------------------------------------------
 // Per-candidate state. A multi-candidate request shares ONE legal framework
@@ -131,17 +131,15 @@ const STEP_KEYS = [
   "stepLegalFramework",
   "stepPassports",
   "stepPersonalData",
-  "stepVisa",
-  "stepContact",
   "stepReview",
 ] as const;
 
 // Steps edited individually per candidate (rendered with a candidate tab bar).
-const PER_CANDIDATE_STEP_KEYS = new Set<string>([
-  "stepPersonalData",
-  "stepVisa",
-  "stepContact",
-]);
+// "Dados Pessoais" holds ALL per-candidate fields in one step.
+const PER_CANDIDATE_STEP_KEYS = new Set<string>(["stepPersonalData"]);
+
+// Maximum candidates per request (also the max passports selectable at once).
+const MAX_CANDIDATES = 10;
 
 const MARITAL_OPTIONS = ["single", "married", "divorced", "widowed"] as const;
 const CURRENCY_OPTIONS = ["USD", "EUR", "BRL", "GBP"] as const;
@@ -391,46 +389,80 @@ export function ProcessRequestWizard({
   // ---------------------------------------------------------------------------
   // Candidate add / remove
   // ---------------------------------------------------------------------------
-  const handleAddCandidate = React.useCallback(
-    async (result: PassportCandidateResult) => {
-      if (candidates.some((c) => c.personId === result.personId)) {
+  // Adds one OR many candidates (multi-passport selection) in a single batch,
+  // sharing one request group. Dedups against existing candidates and caps the
+  // total at MAX_CANDIDATES.
+  const handleAddCandidates = React.useCallback(
+    async (results: PassportCandidateResult[]) => {
+      const capacity = MAX_CANDIDATES - candidates.length;
+      if (capacity <= 0) {
+        toast.error(t("maxCandidatesReached", { max: MAX_CANDIDATES }));
+        return;
+      }
+      const seen = new Set(candidates.map((c) => c.personId));
+      const fresh: PassportCandidateResult[] = [];
+      for (const r of results) {
+        if (seen.has(r.personId)) continue;
+        seen.add(r.personId);
+        fresh.push(r);
+      }
+      const toAdd = fresh.slice(0, capacity);
+      if (toAdd.length === 0) {
         toast.error(t("candidateAlreadyAdded"));
         return;
       }
+
+      setIsAddingCandidate(true);
+      let groupId = requestGroupId;
+      const newCandidates: CandidateFields[] = [];
       try {
-        setIsAddingCandidate(true);
         // Backfill: a legacy draft resumed via ?id= has no group yet — assign one
         // to the existing row first so the whole batch finalizes together.
-        let groupId = requestGroupId;
         if (!groupId) {
           for (const existing of candidates) {
             if (existing.processId) {
               groupId = await ensureRequestGroup({ id: existing.processId });
             }
           }
-          if (groupId) setRequestGroupId(groupId);
         }
-        const { processId, requestGroupId: gid } = await createDraft({
-          personId: result.personId,
-          requestGroupId: groupId,
-          passportId: result.passportId,
-          legalFrameworkId,
-        });
-        setRequestGroupId(gid);
-        const candidate: CandidateFields = {
-          processId,
-          personId: result.personId,
-          passportId: result.passportId,
-          name: result.fullName,
-          passportNumber: result.passportNumber,
-        };
-        setCandidates((prev) => [...prev, candidate]);
-        setActiveCandidateId(result.personId);
-        toast.success(t("candidateAdded"));
+        // This loop MUST stay sequential: createDraft reuses the passed group id
+        // only if a row already committed in it is owned by the caller, so
+        // parallelizing would make each call mint a SEPARATE group.
+        for (const r of toAdd) {
+          const { processId, requestGroupId: gid } = await createDraft({
+            personId: r.personId,
+            requestGroupId: groupId,
+            passportId: r.passportId,
+            legalFrameworkId,
+          });
+          groupId = gid;
+          setRequestGroupId(gid); // persist the group as soon as it's known
+          newCandidates.push({
+            processId,
+            personId: r.personId,
+            passportId: r.passportId,
+            name: r.fullName,
+            passportNumber: r.passportNumber,
+          });
+        }
       } catch (error) {
-        console.error("Error adding candidate:", error);
+        console.error("Error adding candidates:", error);
         toast.error(t("createError"));
       } finally {
+        // Commit whatever succeeded so a partial failure never orphans the rows
+        // already created in the DB.
+        if (newCandidates.length > 0) {
+          setCandidates((prev) => [...prev, ...newCandidates]);
+          setActiveCandidateId(newCandidates[0].personId);
+          toast.success(
+            newCandidates.length === 1
+              ? t("candidateAdded")
+              : t("candidatesAdded", { count: newCandidates.length }),
+          );
+        }
+        if (fresh.length > toAdd.length) {
+          toast.warning(t("maxCandidatesReached", { max: MAX_CANDIDATES }));
+        }
         setIsAddingCandidate(false);
       }
     },
@@ -542,17 +574,6 @@ export function ProcessRequestWizard({
       setIsSubmitting(false);
       setShowSubmitDialog(false);
     }
-  };
-
-  const residenceValue: ResidenceValue = {
-    visaReceiptLocation: activeCandidate?.visaReceiptLocation,
-    residenceCountryCode: activeCandidate?.residenceCountryCode,
-    residenceCountryName: activeCandidate?.residenceCountryName,
-    residenceStateCode: activeCandidate?.residenceStateCode,
-    residenceCity: activeCandidate?.residenceCity,
-    residenceSince: activeCandidate?.residenceSince,
-    residenceAddressAbroad: activeCandidate?.residenceAddressAbroad,
-    consularPost: activeCandidate?.consularPost,
   };
 
   return (
@@ -711,19 +732,26 @@ export function ProcessRequestWizard({
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    {candidates.length > 0
-                      ? t("addAnotherCandidate")
-                      : t("addFirstCandidate")}
+                {candidates.length >= MAX_CANDIDATES ? (
+                  <p className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                    {t("maxCandidatesReached", { max: MAX_CANDIDATES })}
                   </p>
-                  {/* Remounts after each add so the uploader resets cleanly. */}
-                  <PassportUploadStep
-                    key={`add-${candidates.length}`}
-                    onComplete={handleAddCandidate}
-                    disabled={busy}
-                  />
-                </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      {candidates.length > 0
+                        ? t("addAnotherCandidate")
+                        : t("addFirstCandidate")}
+                    </p>
+                    {/* Remounts after each add so the uploader resets cleanly. */}
+                    <PassportUploadStep
+                      key={`add-${candidates.length}`}
+                      onAdd={handleAddCandidates}
+                      maxToAdd={MAX_CANDIDATES - candidates.length}
+                      disabled={busy}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -736,56 +764,6 @@ export function ProcessRequestWizard({
                 }
                 disabled={busy}
               />
-            )}
-
-            {currentStepId === "stepVisa" && activeCandidate && (
-              <ResidenceSelect
-                key={activeCandidate.personId}
-                value={residenceValue}
-                onChange={(next) =>
-                  patchCandidate(activeCandidate.personId, next)
-                }
-                disabled={busy}
-              />
-            )}
-
-            {currentStepId === "stepContact" && activeCandidate && (
-              <div className="max-w-2xl space-y-4" key={activeCandidate.personId}>
-                <div className="space-y-2">
-                  <Label htmlFor="candidate-email">
-                    {t("candidateEmail")} ({t("optional")})
-                  </Label>
-                  <Input
-                    id="candidate-email"
-                    type="email"
-                    value={activeCandidate.candidateEmail ?? ""}
-                    onChange={(e) =>
-                      patchCandidate(activeCandidate.personId, {
-                        candidateEmail: e.target.value,
-                      })
-                    }
-                    disabled={busy}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">
-                    {t("notes")} ({t("optional")})
-                  </Label>
-                  <Textarea
-                    id="notes"
-                    value={activeCandidate.notes ?? ""}
-                    onChange={(e) =>
-                      patchCandidate(activeCandidate.personId, {
-                        notes: e.target.value,
-                      })
-                    }
-                    placeholder={t("notesPlaceholder")}
-                    rows={4}
-                    className="resize-none"
-                    disabled={busy}
-                  />
-                </div>
-              </div>
             )}
 
             {currentStepId === "stepReview" && (
@@ -1080,6 +1058,62 @@ function PersonalDataStep({
             className="resize-none"
             disabled={disabled}
           />
+        </div>
+      </section>
+
+      {/* Visto / Residência */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("stepVisa")}
+        </h3>
+        <ResidenceSelect
+          value={{
+            visaReceiptLocation: candidate.visaReceiptLocation,
+            residenceCountryCode: candidate.residenceCountryCode,
+            residenceCountryName: candidate.residenceCountryName,
+            residenceStateCode: candidate.residenceStateCode,
+            residenceCity: candidate.residenceCity,
+            residenceSince: candidate.residenceSince,
+            residenceAddressAbroad: candidate.residenceAddressAbroad,
+            consularPost: candidate.consularPost,
+          }}
+          onChange={(next) => onPatch(next)}
+          disabled={disabled}
+        />
+      </section>
+
+      {/* Contato */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("stepContact")}
+        </h3>
+        <div className="max-w-2xl space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="candidate-email">
+              {t("candidateEmail")} ({t("optional")})
+            </Label>
+            <Input
+              id="candidate-email"
+              type="email"
+              value={candidate.candidateEmail ?? ""}
+              onChange={(e) => onPatch({ candidateEmail: e.target.value })}
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">
+              {t("notes")} ({t("optional")})
+            </Label>
+            <Textarea
+              id="notes"
+              value={candidate.notes ?? ""}
+              onChange={(e) => onPatch({ notes: e.target.value })}
+              placeholder={t("notesPlaceholder")}
+              rows={4}
+              className="resize-none"
+              disabled={disabled}
+            />
+          </div>
         </div>
       </section>
     </div>
