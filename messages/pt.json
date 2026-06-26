@@ -280,6 +280,7 @@
     "selectLegalFrameworkHint": "Selecione o amparo legal para iniciar a sua solicitação",
     "noRequestFrameworks": "Nenhum amparo legal disponível para solicitação. Entre em contato com o administrador.",
     "stepPassport": "Passaporte",
+    "stepPersonalData": "Dados Pessoais",
     "stepCivil": "Estado Civil",
     "stepFamily": "Filiação",
     "stepSalary": "Salário",

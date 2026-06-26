@@ -90,12 +90,9 @@ interface WizardFields {
 const STEP_KEYS = [
   "stepLegalFramework",
   "stepPassport",
-  "stepCivil",
-  "stepFamily",
-  "stepSalary",
+  "stepPersonalData",
   "stepVisa",
   "stepContact",
-  "stepExperience",
   "stepReview",
 ] as const;
 
@@ -534,53 +531,96 @@ export function ProcessRequestWizard({
               />
             )}
 
-            {currentStepId === "stepCivil" && (
-              <div className="max-w-md space-y-2">
-                <Label>{t("maritalStatus")}</Label>
-                <Select
-                  value={fields.maritalStatus ?? ""}
-                  onValueChange={(value) => patch({ maritalStatus: value })}
-                  disabled={busy}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("maritalStatus")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MARITAL_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {t(option)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {currentStepId === "stepPersonalData" && (
+              <div className="space-y-8">
+                {/* Estado Civil */}
+                <section className="space-y-3">
+                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+                    {t("maritalStatus")}
+                  </h3>
+                  <div className="max-w-md space-y-2">
+                    <Label htmlFor="marital-status" className="sr-only">
+                      {t("maritalStatus")}
+                    </Label>
+                    <Select
+                      value={fields.maritalStatus ?? ""}
+                      onValueChange={(value) => patch({ maritalStatus: value })}
+                      disabled={busy}
+                    >
+                      <SelectTrigger id="marital-status" className="w-full">
+                        <SelectValue placeholder={t("maritalStatus")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MARITAL_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {t(option)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </section>
 
-            {currentStepId === "stepFamily" && (
-              <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="father-name">{t("fatherName")}</Label>
-                  <Input
-                    id="father-name"
-                    value={fields.fatherName ?? ""}
-                    onChange={(e) => patch({ fatherName: e.target.value })}
-                    disabled={busy}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mother-name">{t("motherName")}</Label>
-                  <Input
-                    id="mother-name"
-                    value={fields.motherName ?? ""}
-                    onChange={(e) => patch({ motherName: e.target.value })}
-                    disabled={busy}
-                  />
-                </div>
-              </div>
-            )}
+                {/* Filiação */}
+                <section className="space-y-3">
+                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+                    {t("stepFamily")}
+                  </h3>
+                  <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="father-name">{t("fatherName")}</Label>
+                      <Input
+                        id="father-name"
+                        value={fields.fatherName ?? ""}
+                        onChange={(e) => patch({ fatherName: e.target.value })}
+                        disabled={busy}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mother-name">{t("motherName")}</Label>
+                      <Input
+                        id="mother-name"
+                        value={fields.motherName ?? ""}
+                        onChange={(e) => patch({ motherName: e.target.value })}
+                        disabled={busy}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-            {currentStepId === "stepSalary" && (
-              <SalaryStep fields={fields} onPatch={patch} disabled={busy} />
+                {/* Salário */}
+                <section className="space-y-3">
+                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+                    {t("salary")}
+                  </h3>
+                  <SalaryStep fields={fields} onPatch={patch} disabled={busy} />
+                </section>
+
+                {/* Experiência Profissional */}
+                <section className="space-y-3">
+                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+                    {t("professionalExperience")}
+                  </h3>
+                  <div className="max-w-2xl space-y-2">
+                    <Label
+                      htmlFor="professional-experience"
+                      className="text-muted-foreground"
+                    >
+                      {t("optional")}
+                    </Label>
+                    <Textarea
+                      id="professional-experience"
+                      value={fields.professionalExperience ?? ""}
+                      onChange={(e) =>
+                        patch({ professionalExperience: e.target.value })
+                      }
+                      rows={6}
+                      className="resize-none"
+                      disabled={busy}
+                    />
+                  </div>
+                </section>
+              </div>
             )}
 
             {currentStepId === "stepVisa" && (
@@ -619,24 +659,6 @@ export function ProcessRequestWizard({
                     disabled={busy}
                   />
                 </div>
-              </div>
-            )}
-
-            {currentStepId === "stepExperience" && (
-              <div className="max-w-2xl space-y-2">
-                <Label htmlFor="professional-experience">
-                  {t("professionalExperience")} ({t("optional")})
-                </Label>
-                <Textarea
-                  id="professional-experience"
-                  value={fields.professionalExperience ?? ""}
-                  onChange={(e) =>
-                    patch({ professionalExperience: e.target.value })
-                  }
-                  rows={6}
-                  className="resize-none"
-                  disabled={busy}
-                />
               </div>
             )}
 
@@ -1134,6 +1156,11 @@ function RequestLegalFrameworkStep({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {frameworks.map((framework) => {
           const selected = framework._id === value;
+          // The description is what the (non-technical) client is actually
+          // requesting, so it leads as the heading; the framework name is the
+          // technical reference shown underneath as a detail.
+          const heading = framework.description || framework.name;
+          const detail = framework.description ? framework.name : undefined;
           return (
             <button
               key={framework._id}
@@ -1141,23 +1168,23 @@ function RequestLegalFrameworkStep({
               disabled={disabled}
               onClick={() => onSelect(framework._id, framework.name)}
               className={cn(
-                "flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all",
+                "flex flex-col items-start gap-1.5 rounded-lg border p-4 text-left transition-all",
                 selected
                   ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                   : "hover:border-muted-foreground/40 hover:bg-muted/40",
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >
-              <div className="flex w-full items-center justify-between gap-2">
-                <span className="font-medium">{framework.name}</span>
+              <div className="flex w-full items-start justify-between gap-2">
+                <span className="text-sm font-medium leading-snug text-foreground">
+                  {heading}
+                </span>
                 {selected && (
-                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 )}
               </div>
-              {framework.description && (
-                <span className="text-sm text-muted-foreground">
-                  {framework.description}
-                </span>
+              {detail && (
+                <span className="text-xs text-muted-foreground">{detail}</span>
               )}
             </button>
           );

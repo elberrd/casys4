@@ -280,6 +280,7 @@
     "selectLegalFrameworkHint": "Select the legal framework to start your request",
     "noRequestFrameworks": "No legal framework available for requests. Please contact the administrator.",
     "stepPassport": "Passport",
+    "stepPersonalData": "Personal Data",
     "stepCivil": "Civil Status",
     "stepFamily": "Parentage",
     "stepSalary": "Salary",
