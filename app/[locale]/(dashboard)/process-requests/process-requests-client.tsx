@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { ProcessRequestsDataGrid } from "@/components/process-requests/process-requests-data-grid";
-import { RequestDetailsDialog } from "@/components/process-requests/request-details-dialog";
 import {
   ClientRequestsTable,
   type ClientRequestGroup,
@@ -43,9 +42,6 @@ export function ProcessRequestsClient() {
   const removeGroup = useMutation(api.processRequests.removeGroup);
   const removeDraft = useMutation(api.processRequests.removeDraft);
 
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] =
-    useState<ProcessRequestListItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ClientRequestGroup | null>(
     null,
   );
@@ -57,10 +53,9 @@ export function ProcessRequestsClient() {
     { label: tBreadcrumbs("processRequests") },
   ];
 
-  // Admin grid row click (finalized → details; the admin never resumes drafts).
+  // Admin grid row click → open the full detail page.
   const openRequest = (request: ProcessRequestListItem) => {
-    setSelectedRequest(request);
-    setDetailsOpen(true);
+    router.push(`/process-requests/${request._id}`);
   };
 
   // Group the client's rows into one row per multi-candidate request batch
@@ -93,10 +88,9 @@ export function ProcessRequestsClient() {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }, [processRequests]);
 
-  // Row click / "Ver detalhes": open the request and show its status.
+  // Row click / "Ver detalhes": open the full detail page (shows the status).
   const openDetails = (group: ClientRequestGroup) => {
-    setSelectedRequest(group.representative);
-    setDetailsOpen(true);
+    router.push(`/process-requests/${group.representative._id}`);
   };
 
   // "Continuar": resume a draft in the wizard.
@@ -194,14 +188,6 @@ export function ProcessRequestsClient() {
           />
         )}
       </div>
-
-      <RequestDetailsDialog
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-        requestId={selectedRequest?._id ?? null}
-        currentUserRole={currentUser.role}
-        currentUserId={currentUser.userId}
-      />
 
       <AlertDialog
         open={pendingDelete !== null}
