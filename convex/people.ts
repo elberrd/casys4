@@ -416,49 +416,60 @@ export const findByNormalizedName = query({
     if (!target) return [];
 
     const all = await ctx.db.query("people").collect();
-    let matches = all.filter(
+    const matches = all.filter(
       (p) => normalizeString(getFullName(p)) === target
     );
 
-    // Clients may only dedup against people they can legitimately see: members
-    // of their current companies, or candidates they themselves created. This
-    // prevents enumerating / leaking PII of other tenants' people.
-    if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(
-        ctx,
-        userProfile
-      );
-      const visible = await Promise.all(
-        matches.map(async (p) => {
-          if (p.createdBy && p.createdBy === userProfile.userId) return p;
-          const links = await ctx.db
-            .query("peopleCompanies")
-            .withIndex("by_person", (q) => q.eq("personId", p._id))
-            .collect();
-          const inCompany = links.some(
-            (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
-          );
-          return inCompany ? p : null;
-        })
-      );
-      matches = visible.filter((p): p is (typeof matches)[number] => p !== null);
-    }
+    // A client may dedup-link against ANY exact-name match, but the FULL PII
+    // record (CPF, e-mail, filiação, birth date) is disclosed only for people
+    // they own (own candidate / own company). For cross-tenant matches we return
+    // the minimum needed to recognize and link the person: name + birth year.
+    const isPrivileged = userProfile.role !== "client";
+    const currentCompanyIds: Set<Id<"companies">> = isPrivileged
+      ? new Set()
+      : await getClientCurrentCompanyIds(ctx, userProfile);
 
-    return matches.map((p) => ({
-      _id: p._id,
-      fullName: getFullName(p),
-      givenNames: p.givenNames,
-      middleName: p.middleName ?? null,
-      surname: p.surname ?? null,
-      cpf: p.cpf ?? null,
-      birthDate: p.birthDate ?? null,
-      email: p.email ?? null,
-      sex: p.sex ?? null,
-      maritalStatus: p.maritalStatus ?? null,
-      fatherName: p.fatherName ?? null,
-      motherName: p.motherName ?? null,
-      nationalityId: p.nationalityId ?? null,
-    }));
+    return Promise.all(
+      matches.map(async (p) => {
+        let owned = isPrivileged;
+        if (!owned) {
+          if (p.createdBy && p.createdBy === userProfile.userId) {
+            owned = true;
+          } else {
+            const links = await ctx.db
+              .query("peopleCompanies")
+              .withIndex("by_person", (q) => q.eq("personId", p._id))
+              .collect();
+            owned = links.some(
+              (l) =>
+                l.isCurrent &&
+                l.companyId &&
+                currentCompanyIds.has(l.companyId)
+            );
+          }
+        }
+        const birthYear = p.birthDate ? p.birthDate.slice(0, 4) : null;
+
+        return {
+          _id: p._id,
+          fullName: getFullName(p),
+          owned,
+          givenNames: p.givenNames,
+          middleName: p.middleName ?? null,
+          surname: p.surname ?? null,
+          birthYear,
+          // Sensitive fields only for people the caller owns.
+          cpf: owned ? (p.cpf ?? null) : null,
+          birthDate: owned ? (p.birthDate ?? null) : null,
+          email: owned ? (p.email ?? null) : null,
+          sex: owned ? (p.sex ?? null) : null,
+          maritalStatus: owned ? (p.maritalStatus ?? null) : null,
+          fatherName: owned ? (p.fatherName ?? null) : null,
+          motherName: owned ? (p.motherName ?? null) : null,
+          nationalityId: owned ? (p.nationalityId ?? null) : null,
+        };
+      })
+    );
   },
 });
 

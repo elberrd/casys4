@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { useLocale, useTranslations } from "next-intl";
@@ -46,6 +46,49 @@ export function ProcessRequestsClient() {
       return;
     }
     setSelectedRequest(request);
+    setDetailsOpen(true);
+  };
+
+  // Group the client's rows into one card per multi-candidate request batch
+  // (fallback to the row id for legacy rows without a group).
+  const requestGroups = useMemo(() => {
+    if (!processRequests) return [];
+    const byKey = new Map<string, ProcessRequestListItem[]>();
+    for (const request of processRequests) {
+      const key = request.requestGroupId ?? request._id;
+      const list = byKey.get(key) ?? [];
+      list.push(request);
+      byKey.set(key, list);
+    }
+    return Array.from(byKey.entries())
+      .map(([key, rows]) => {
+        const candidates = [...rows].sort((a, b) => a.createdAt - b.createdAt);
+        const representative = candidates[0];
+        const anyDraft = candidates.some((r) => r.requestStatus === "draft");
+        return {
+          key,
+          requestGroupId: representative.requestGroupId,
+          representative,
+          candidates,
+          requestStatus: anyDraft ? "draft" : representative.requestStatus,
+          legalFrameworkName: representative.legalFramework?.name,
+          urgent: candidates.some((r) => r.urgent),
+          updatedAt: Math.max(...candidates.map((r) => r.updatedAt)),
+        };
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [processRequests]);
+
+  const openGroup = (group: (typeof requestGroups)[number]) => {
+    if (group.requestStatus === "draft" && currentUser?.role === "client") {
+      if (group.requestGroupId) {
+        router.push(`/process-requests/new?group=${group.requestGroupId}`);
+      } else {
+        router.push(`/process-requests/new?id=${group.representative._id}`);
+      }
+      return;
+    }
+    setSelectedRequest(group.representative);
     setDetailsOpen(true);
   };
 
@@ -103,47 +146,60 @@ export function ProcessRequestsClient() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {processRequests.map((request) => (
-              <Card
-                key={request._id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openRequest(request)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openRequest(request);
-                  }
-                }}
-                className="flex cursor-pointer items-center justify-between gap-4 p-4 transition-colors hover:bg-muted/50"
-              >
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-medium">
-                      {request.person?.fullName ||
-                        request.legalFramework?.name ||
-                        t("newRequest")}
-                    </span>
-                    {request.urgent && (
-                      <Badge variant="destructive" className="text-xs">
-                        {t("urgent")}
-                      </Badge>
-                    )}
+            {requestGroups.map((group) => {
+              const count = group.candidates.length;
+              const names = group.candidates
+                .map((c) => c.person?.fullName)
+                .filter(Boolean)
+                .join(", ");
+              const title =
+                count === 1
+                  ? group.candidates[0].person?.fullName ||
+                    group.legalFrameworkName ||
+                    t("newRequest")
+                  : t("candidatesCount", { count });
+              return (
+                <Card
+                  key={group.key}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openGroup(group)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openGroup(group);
+                    }
+                  }}
+                  className="flex cursor-pointer items-center justify-between gap-4 p-4 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium">{title}</span>
+                      {group.urgent && (
+                        <Badge variant="destructive" className="text-xs">
+                          {t("urgent")}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {group.legalFrameworkName
+                        ? `${group.legalFrameworkName} · `
+                        : ""}
+                      {count > 1 && names ? `${names} · ` : ""}
+                      {t("updatedAt")}:{" "}
+                      {formatDate(
+                        new Date(group.updatedAt).toISOString().slice(0, 10),
+                        locale,
+                      )}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {request.legalFramework?.name ? `${request.legalFramework.name} · ` : ""}
-                    {t("updatedAt")}: {formatDate(
-                      new Date(request.updatedAt).toISOString().slice(0, 10),
-                      locale
-                    )}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <RequestStatusBadge status={request.requestStatus} />
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Card>
-            ))}
+                  <div className="flex shrink-0 items-center gap-3">
+                    <RequestStatusBadge status={group.requestStatus} />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

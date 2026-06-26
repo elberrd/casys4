@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 export interface ProcessRequestListItem {
   _id: Id<"individualProcesses">;
   requestStatus?: "draft" | "solicitado";
+  requestGroupId?: string;
   requestedBy?: Id<"users">;
   requestedAt?: number;
   requestNotes?: string;

@@ -484,6 +484,11 @@ export default defineSchema({
     requestedBy: v.optional(v.id("users")), // client user who created the request
     requestedAt: v.optional(v.number()), // when the request was finalized (solicitado)
     requestNotes: v.optional(v.string()), // free-text note the client left on the request
+    // Groups the N individual processes that make up ONE multi-candidate request
+    // ("solicitação"). All candidates in a batch share this id + the same legal
+    // framework + requestedBy/company. Undefined on legacy/admin rows, which are
+    // treated as a singleton group keyed by their own _id.
+    requestGroupId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -503,7 +508,8 @@ export default defineSchema({
     .index("by_qualification", ["qualification"])
     .index("by_urgent", ["urgent"])
     .index("by_requestStatus", ["requestStatus"]) // Client request workflow filtering
-    .index("by_requestedBy", ["requestedBy"]), // A client's own requests
+    .index("by_requestedBy", ["requestedBy"]) // A client's own requests
+    .index("by_requestGroup", ["requestGroupId"]), // Multi-candidate request batch
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

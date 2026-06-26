@@ -89,23 +89,42 @@ function buildProcessPatch(args: ProcessArgs): Record<string, unknown> {
 
 /**
  * Apply the person-level wizard fields to the candidate's `people` record
- * immediately (Q3: write straight to the person as the client edits).
+ * immediately (write straight to the person as the client edits).
+ *
+ * `overwrite` gates whether existing values may be replaced: it is true for a
+ * person the client owns (own candidate / own company) or for admins, and false
+ * for a cross-tenant dedup link, where we only fill gaps so another tenant's PII
+ * is never clobbered.
  */
 async function applyPersonFields(
   ctx: MutationCtx,
   personId: Id<"people">,
   args: PersonArgs,
-  now: number
+  now: number,
+  overwrite: boolean
 ): Promise<void> {
+  const person = await ctx.db.get(personId);
+  if (!person) return;
+
   const patch: Record<string, unknown> = {};
-  if (args.candidateEmail !== undefined) patch.email = args.candidateEmail;
-  if (args.maritalStatus !== undefined) patch.maritalStatus = args.maritalStatus;
-  if (args.fatherName !== undefined) patch.fatherName = args.fatherName;
-  if (args.motherName !== undefined) patch.motherName = args.motherName;
+  if (args.candidateEmail !== undefined && (overwrite || !person.email))
+    patch.email = args.candidateEmail;
+  if (args.maritalStatus !== undefined && (overwrite || !person.maritalStatus))
+    patch.maritalStatus = args.maritalStatus;
+  if (args.fatherName !== undefined && (overwrite || !person.fatherName))
+    patch.fatherName = args.fatherName;
+  if (args.motherName !== undefined && (overwrite || !person.motherName))
+    patch.motherName = args.motherName;
   if (Object.keys(patch).length > 0) {
     patch.updatedAt = now;
     await ctx.db.patch(personId, patch);
   }
+}
+
+/** Random, collision-resistant grouping key for a multi-candidate request. */
+function generateRequestGroupId(): string {
+  const rand = () => Math.random().toString(36).slice(2, 11);
+  return `rg_${Date.now().toString(36)}_${rand()}${rand()}`;
 }
 
 /**
@@ -127,40 +146,41 @@ async function deriveProcessTypeId(
 }
 
 /**
- * Guard who a client may attach a request to. Allowed when the person is a
- * current member of one of the client's companies, OR is an unlinked candidate
- * the client created (people.createdBy). Blocks attaching to / editing the PII
- * of a person owned by another company or created by someone else.
+ * Whether a CLIENT "owns" a person — a current member of one of their companies
+ * or an unlinked candidate they created. Drives whether the client may OVERWRITE
+ * that person's PII (vs. only fill gaps on a cross-tenant dedup link).
  */
-async function assertClientMayUsePerson(
+async function clientOwnsPerson(
   ctx: MutationCtx,
   profile: Doc<"userProfiles">,
   personId: Id<"people">
-): Promise<void> {
+): Promise<boolean> {
   const person = await ctx.db.get(personId);
-  if (!person) throw new Error("Person not found");
+  if (!person) return false;
+  if (person.createdBy && person.createdBy === profile.userId) return true;
 
   const currentCompanyIds = await getClientCurrentCompanyIds(ctx, profile);
   const links = await ctx.db
     .query("peopleCompanies")
     .withIndex("by_person", (q) => q.eq("personId", personId))
     .collect();
-  const currentLinks = links.filter((l) => l.isCurrent && l.companyId);
-
-  if (currentLinks.length === 0) {
-    // Unlinked candidate: only the client who created it may use it.
-    if (person.createdBy && person.createdBy === profile.userId) return;
-    throw new Error(
-      "Access denied: you cannot attach a request to this person"
-    );
-  }
-
-  const belongsToClient = currentLinks.some(
-    (l) => l.companyId && currentCompanyIds.has(l.companyId)
+  return links.some(
+    (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
   );
-  if (!belongsToClient) {
-    throw new Error("Access denied: this person belongs to another company");
-  }
+}
+
+/**
+ * Ensure the candidate person exists. Per product decision, a client may attach
+ * a request to ANY existing person (e.g. a cross-tenant dedup match by exact
+ * name from a passport they hold); PII overwrites stay gated by clientOwnsPerson
+ * at the field-write level.
+ */
+async function assertPersonExists(
+  ctx: MutationCtx,
+  personId: Id<"people">
+): Promise<void> {
+  const person = await ctx.db.get(personId);
+  if (!person) throw new Error("Person not found");
 }
 
 /**
@@ -245,7 +265,24 @@ async function enrichRequest(ctx: QueryCtx, process: Doc<"individualProcesses">)
   return {
     ...process,
     company,
-    person: person ? { ...person, fullName: getFullName(person) } : null,
+    // Project the person down to the fields request consumers actually use —
+    // never spread the whole doc (keeps CPF / phone / address off the wire,
+    // which matters now that clients can dedup-link to cross-tenant people).
+    person: person
+      ? {
+          _id: person._id,
+          fullName: getFullName(person),
+          givenNames: person.givenNames,
+          middleName: person.middleName,
+          surname: person.surname,
+          sex: person.sex,
+          birthDate: person.birthDate,
+          email: person.email,
+          maritalStatus: person.maritalStatus,
+          fatherName: person.fatherName,
+          motherName: person.motherName,
+        }
+      : null,
     passport,
     processType,
     legalFramework,
@@ -381,6 +418,9 @@ export const get = query({
 export const createDraft = mutation({
   args: {
     personId: v.id("people"),
+    // Groups this candidate with the rest of a multi-candidate request. Omitted
+    // for the first candidate (a new id is minted and returned).
+    requestGroupId: v.optional(v.string()),
     ...editableProcessFields,
     ...editablePersonFields,
   },
@@ -390,9 +430,9 @@ export const createDraft = mutation({
       throw new Error("User profile not activated");
     }
 
-    // Guard: the candidate must be the client's own / own-company person; the
-    // passport must belong to that person; the legal framework must be offered.
-    await assertClientMayUsePerson(ctx, profile, args.personId);
+    // The candidate must exist; the passport must belong to that person; the
+    // legal framework must be offered to clients.
+    await assertPersonExists(ctx, args.personId);
     if (args.passportId) {
       await assertPassportBelongsToPerson(ctx, args.passportId, args.personId);
     }
@@ -402,13 +442,30 @@ export const createDraft = mutation({
 
     const now = Date.now();
 
-    // Apply person-level fields to the candidate immediately.
-    await applyPersonFields(ctx, args.personId, args, now);
+    // Apply person-level fields to the candidate immediately (overwrite only the
+    // client's own people; fill-gaps only for cross-tenant dedup links).
+    const overwrite = await clientOwnsPerson(ctx, profile, args.personId);
+    await applyPersonFields(ctx, args.personId, args, now, overwrite);
 
     const processPatch = buildProcessPatch(args);
     const processTypeId = args.legalFrameworkId
       ? await deriveProcessTypeId(ctx, args.legalFrameworkId)
       : undefined;
+
+    // Reuse the supplied group id only if the caller already owns a row in it;
+    // otherwise mint a fresh one (prevents injecting a row into another batch).
+    let requestGroupId = args.requestGroupId;
+    if (requestGroupId) {
+      const gid = requestGroupId;
+      const groupRows = await ctx.db
+        .query("individualProcesses")
+        .withIndex("by_requestGroup", (q) => q.eq("requestGroupId", gid))
+        .collect();
+      if (!groupRows.some((r) => r.requestedBy === profile.userId)) {
+        requestGroupId = undefined;
+      }
+    }
+    if (!requestGroupId) requestGroupId = generateRequestGroupId();
 
     const processId = await ctx.db.insert("individualProcesses", {
       personId: args.personId,
@@ -417,6 +474,7 @@ export const createDraft = mutation({
       processTypeId,
       requestStatus: "draft",
       requestedBy: profile.userId,
+      requestGroupId,
       isActive: true,
       processStatus: "Atual",
       createdAt: now,
@@ -429,10 +487,10 @@ export const createDraft = mutation({
       action: "created",
       entityType: "processRequest",
       entityId: processId,
-      details: { requestStatus: "draft" },
+      details: { requestStatus: "draft", requestGroupId },
     });
 
-    return processId;
+    return { processId, requestGroupId };
   },
 });
 
@@ -477,7 +535,11 @@ export const saveDraft = mutation({
 
     const now = Date.now();
 
-    await applyPersonFields(ctx, process.personId, rest, now);
+    const overwrite =
+      userProfile.role === "admin"
+        ? true
+        : await clientOwnsPerson(ctx, userProfile, process.personId);
+    await applyPersonFields(ctx, process.personId, rest, now, overwrite);
 
     const patch = buildProcessPatch(rest);
     if (rest.legalFrameworkId !== undefined) {
@@ -497,6 +559,32 @@ export const saveDraft = mutation({
  * records when it was requested, and runs every process creation side effect so
  * it becomes a live individual process. No admin approval is required.
  */
+/**
+ * Flip ONE draft row to "solicitado" and run every process-creation side effect
+ * (status record, document checklists, auto-reuse) + activity log. Shared by the
+ * single and batch finalize paths. Does NOT notify admins — callers do that once.
+ */
+async function finalizeOneDraft(
+  ctx: MutationCtx,
+  process: Doc<"individualProcesses">,
+  userId: Id<"users">,
+  now: number
+): Promise<void> {
+  await ctx.db.patch(process._id, {
+    requestStatus: "solicitado",
+    requestedAt: now,
+    updatedAt: now,
+  });
+  await runProcessCreationSideEffects(ctx, process._id, userId);
+  await logActivitySafely(ctx, {
+    userId,
+    action: "submitted",
+    entityType: "processRequest",
+    entityId: process._id,
+    details: { requestStatus: "solicitado" },
+  });
+}
+
 export const finalize = mutation({
   args: { id: v.id("individualProcesses") },
   handler: async (ctx, { id }) => {
@@ -523,24 +611,7 @@ export const finalize = mutation({
     }
 
     const now = Date.now();
-
-    await ctx.db.patch(id, {
-      requestStatus: "solicitado",
-      requestedAt: now,
-      updatedAt: now,
-    });
-
-    // The request now becomes a live process: status record, document
-    // checklists, auto-reuse, activity log.
-    await runProcessCreationSideEffects(ctx, id, userProfile.userId);
-
-    await logActivitySafely(ctx, {
-      userId: userProfile.userId,
-      action: "submitted",
-      entityType: "processRequest",
-      entityId: id,
-      details: { requestStatus: "solicitado" },
-    });
+    await finalizeOneDraft(ctx, process, userProfile.userId, now);
 
     const company = process.companyApplicantId
       ? await ctx.db.get(process.companyApplicantId)
@@ -553,6 +624,61 @@ export const finalize = mutation({
     });
 
     return id;
+  },
+});
+
+/**
+ * Finalize EVERY draft candidate in a multi-candidate request batch at once.
+ * Each candidate becomes its own live process ("solicitado"); admins are
+ * notified a single time for the whole batch.
+ */
+export const finalizeGroup = mutation({
+  args: { requestGroupId: v.string() },
+  handler: async (ctx, { requestGroupId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    if (userProfile.role !== "client") {
+      throw new Error("Only the requester can finalize a request");
+    }
+    if (!userProfile.userId) {
+      throw new Error("User profile not activated");
+    }
+    const userId = userProfile.userId;
+
+    const rows = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_requestGroup", (q) =>
+        q.eq("requestGroupId", requestGroupId)
+      )
+      .collect();
+    const drafts = rows.filter(
+      (r) => r.requestedBy === userId && r.requestStatus === "draft"
+    );
+    if (drafts.length === 0) {
+      throw new Error("No draft candidates to submit in this request");
+    }
+    for (const draft of drafts) {
+      if (!draft.legalFrameworkId) {
+        throw new Error("A legal framework is required before submitting");
+      }
+    }
+
+    const now = Date.now();
+    for (const draft of drafts) {
+      await finalizeOneDraft(ctx, draft, userId, now);
+    }
+
+    const first = drafts[0];
+    const company = first.companyApplicantId
+      ? await ctx.db.get(first.companyApplicantId)
+      : null;
+    await notifyAdmins(ctx, {
+      type: "process_request_submitted",
+      title: "Nova solicitação de processo",
+      message: `${company?.name ?? "Uma empresa"} enviou uma solicitação com ${drafts.length} candidato(s).`,
+      entityId: first._id,
+    });
+
+    return { count: drafts.length, requestGroupId };
   },
 });
 
@@ -603,5 +729,119 @@ export const removeDraft = mutation({
     });
 
     return id;
+  },
+});
+
+/**
+ * Fetch every candidate row of a multi-candidate request batch, enriched and
+ * ordered by creation, to resume the wizard or render the request as one unit.
+ * Clients only see their own rows; admins see all rows in the group.
+ */
+export const getRequestGroup = query({
+  args: { requestGroupId: v.string() },
+  handler: async (ctx, { requestGroupId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    const rows = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_requestGroup", (q) =>
+        q.eq("requestGroupId", requestGroupId)
+      )
+      .collect();
+
+    const visible =
+      userProfile.role === "client"
+        ? rows.filter((r) => r.requestedBy === userProfile.userId)
+        : rows;
+
+    visible.sort((a, b) => a.createdAt - b.createdAt);
+    return Promise.all(visible.map((process) => enrichRequest(ctx, process)));
+  },
+});
+
+/**
+ * Delete an entire draft request batch (client owner or admin) — all draft
+ * candidates in the group plus their conversation threads. Only drafts are
+ * removed; finalized candidates are live processes deleted via the process list.
+ */
+export const removeGroup = mutation({
+  args: { requestGroupId: v.string() },
+  handler: async (ctx, { requestGroupId }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    if (userProfile.role !== "client" && userProfile.role !== "admin") {
+      throw new Error("Access denied");
+    }
+
+    const rows = await ctx.db
+      .query("individualProcesses")
+      .withIndex("by_requestGroup", (q) =>
+        q.eq("requestGroupId", requestGroupId)
+      )
+      .collect();
+
+    let count = 0;
+    for (const row of rows) {
+      if (
+        userProfile.role === "client" &&
+        row.requestedBy !== userProfile.userId
+      ) {
+        continue;
+      }
+      if (row.requestStatus !== "draft") continue;
+
+      const messages = await ctx.db
+        .query("processRequestMessages")
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", row._id)
+        )
+        .collect();
+      for (const m of messages) await ctx.db.delete(m._id);
+
+      await ctx.db.delete(row._id);
+      count++;
+    }
+
+    if (count > 0) {
+      await logActivitySafely(ctx, {
+        userId: userProfile.userId,
+        action: "deleted",
+        entityType: "processRequest",
+        entityId: requestGroupId,
+        details: { requestStatus: "draft", count },
+      });
+    }
+
+    return { count };
+  },
+});
+
+/**
+ * Ensure a draft row belongs to a request group, minting one if absent. Used
+ * when resuming a LEGACY single draft (created before request groups existed) so
+ * that any candidates added afterwards join the SAME group and finalize together
+ * — without this, the original row would be orphaned and never submitted.
+ */
+export const ensureRequestGroup = mutation({
+  args: { id: v.id("individualProcesses") },
+  handler: async (ctx, { id }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const process = await ctx.db.get(id);
+    if (!process) throw new Error("Process request not found");
+
+    if (
+      userProfile.role === "client" &&
+      process.requestedBy !== userProfile.userId
+    ) {
+      throw new Error("Access denied: This is not your request");
+    }
+    if (userProfile.role !== "client" && userProfile.role !== "admin") {
+      throw new Error("Access denied");
+    }
+
+    if (process.requestGroupId) return process.requestGroupId;
+
+    const requestGroupId = generateRequestGroupId();
+    await ctx.db.patch(id, { requestGroupId, updatedAt: Date.now() });
+    return requestGroupId;
   },
 });

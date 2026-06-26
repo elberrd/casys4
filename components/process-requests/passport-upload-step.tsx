@@ -42,6 +42,10 @@ export interface PassportCandidateResult {
   personId: Id<"people">;
   passportId: Id<"passports">;
   storageId: Id<"_storage">;
+  /** Display name of the resolved candidate (for the wizard's candidate tabs/list). */
+  fullName: string;
+  /** Passport number used for this candidate. */
+  passportNumber: string;
 }
 
 export interface PassportUploadStepProps {
@@ -60,16 +64,19 @@ export interface PassportUploadStepProps {
 type ExtractMatch = {
   _id: Id<"people">;
   fullName: string;
+  /** False when the match belongs to another tenant (PII fields are withheld). */
+  owned?: boolean;
   givenNames?: string;
-  middleName?: string;
-  surname?: string;
-  cpf?: string;
-  birthDate?: string;
-  email?: string;
-  sex?: string;
-  maritalStatus?: string;
-  fatherName?: string;
-  motherName?: string;
+  middleName?: string | null;
+  surname?: string | null;
+  cpf?: string | null;
+  birthDate?: string | null;
+  birthYear?: string | null;
+  email?: string | null;
+  sex?: string | null;
+  maritalStatus?: string | null;
+  fatherName?: string | null;
+  motherName?: string | null;
   nationalityId?: Id<"countries"> | null;
 };
 
@@ -274,8 +281,19 @@ export function PassportUploadStep({
         storageId,
       });
 
+      const matched = result?.matches.find((m) => m._id === personId);
+      const fullName =
+        matched?.fullName ||
+        [fields.givenNames, fields.surname].filter(Boolean).join(" ").trim();
+
       toast.success(t("candidateLinked"));
-      onComplete({ personId: resolvedPersonId, passportId, storageId });
+      onComplete({
+        personId: resolvedPersonId,
+        passportId,
+        storageId,
+        fullName,
+        passportNumber: fields.passportNumber.trim(),
+      });
     } catch (error) {
       console.error("Error linking candidate:", error);
       toast.error(t("applyCandidateError"));
@@ -313,7 +331,15 @@ export function PassportUploadStep({
       });
 
       toast.success(t("candidateCreated"));
-      onComplete({ personId, passportId, storageId });
+      onComplete({
+        personId,
+        passportId,
+        storageId,
+        fullName: [fields.givenNames.trim(), fields.surname.trim()]
+          .filter(Boolean)
+          .join(" "),
+        passportNumber: fields.passportNumber.trim(),
+      });
     } catch (error) {
       console.error("Error creating candidate:", error);
       toast.error(t("applyCandidateError"));
@@ -464,6 +490,11 @@ export function PassportUploadStep({
                         {match.birthDate && (
                           <Badge variant="secondary" className="font-normal">
                             {t("birthDateLabel")}: {match.birthDate}
+                          </Badge>
+                        )}
+                        {!match.birthDate && match.birthYear && (
+                          <Badge variant="secondary" className="font-normal">
+                            {t("birthYearLabel")}: {match.birthYear}
                           </Badge>
                         )}
                       </div>

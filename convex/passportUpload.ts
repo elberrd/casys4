@@ -1,10 +1,7 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import {
-  getCurrentUserProfile,
-  getClientCurrentCompanyIds,
-} from "./lib/auth";
+import { getCurrentUserProfile } from "./lib/auth";
 import { logActivitySafely } from "./lib/activityLogger";
 
 /**
@@ -67,25 +64,9 @@ export const applyCandidate = mutation({
       const person = await ctx.db.get(personId);
       if (!person) throw new Error("Person not found");
 
-      // A client may only reuse an existing person who belongs to one of their
-      // current companies or whom they created — never another tenant's person.
-      if (profile.role === "client") {
-        const currentCompanyIds = await getClientCurrentCompanyIds(ctx, profile);
-        const links = await ctx.db
-          .query("peopleCompanies")
-          .withIndex("by_person", (q) => q.eq("personId", personId))
-          .collect();
-        const inCompany = links.some(
-          (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
-        );
-        const isOwnCandidate =
-          person.createdBy != null && person.createdBy === profile.userId;
-        if (!inCompany && !isOwnCandidate) {
-          throw new Error(
-            "Access denied: you cannot use this person as a candidate"
-          );
-        }
-      }
+      // Per product decision, a client may reuse ANY existing person matched by
+      // exact name (cross-tenant dedup). PII is protected by fillGaps below,
+      // which only fills empty fields and never overwrites existing values.
 
       if (args.fillGaps) {
         const patch: Record<string, unknown> = {};

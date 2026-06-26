@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Save,
   Send,
+  Trash2,
+  UserRound,
 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -50,18 +52,23 @@ import {
 import { ResidenceSelect, type ResidenceValue } from "./residence-select";
 
 // ---------------------------------------------------------------------------
-// Wizard state shape (mirrors the editable fields accepted by the backend)
+// Per-candidate state. A multi-candidate request shares ONE legal framework
+// (top-level) and holds N candidates, each persisted as its own draft row in
+// the request group; the per-candidate steps edit the active candidate.
 // ---------------------------------------------------------------------------
 
-interface WizardFields {
-  candidatePersonId?: Id<"people">;
-  candidatePassportId?: Id<"passports">;
-  passportStorageId?: Id<"_storage">;
+interface CandidateFields {
+  processId?: Id<"individualProcesses">; // draft row id (set once created)
+  personId: Id<"people">;
+  passportId?: Id<"passports">;
+  name: string;
+  passportNumber?: string;
+  // Person-level
   candidateEmail?: string;
   maritalStatus?: string;
   fatherName?: string;
   motherName?: string;
-  legalFrameworkId?: Id<"legalFrameworks">;
+  // Process-level
   consulateId?: Id<"consulates">;
   isUrgent?: boolean;
   requestDate?: string;
@@ -80,21 +87,61 @@ interface WizardFields {
   residenceAddressAbroad?: string;
   consularPost?: string;
   professionalExperience?: string;
-  // Display-only metadata (not sent to the backend)
-  candidateName?: string;
-  legalFrameworkName?: string;
 }
 
-// The legal framework is now the FIRST step (gated by showInRequest), followed
-// by the passport step, then the candidate detail steps.
+/** Structural shape of an enriched request row (from getRequestGroup / get). */
+interface EnrichedRequestRow {
+  _id: Id<"individualProcesses">;
+  personId: Id<"people">;
+  passportId?: Id<"passports"> | null;
+  requestGroupId?: string | null;
+  legalFrameworkId?: Id<"legalFrameworks"> | null;
+  consulateId?: Id<"consulates"> | null;
+  urgent?: boolean | null;
+  dateProcess?: string | null;
+  requestNotes?: string | null;
+  lastSalaryCurrency?: string | null;
+  lastSalaryAmount?: number | null;
+  exchangeRateToBRL?: number | null;
+  salaryInBRL?: number | null;
+  monthlyAmountToReceive?: number | null;
+  visaReceiptLocation?: "brazil" | "abroad" | null;
+  residenceCountryCode?: string | null;
+  residenceCountryName?: string | null;
+  residenceStateCode?: string | null;
+  residenceCity?: string | null;
+  residenceSince?: string | null;
+  residenceAddressAbroad?: string | null;
+  consularPost?: string | null;
+  professionalExperience?: string | null;
+  person:
+    | {
+        fullName: string;
+        email?: string | null;
+        maritalStatus?: string | null;
+        fatherName?: string | null;
+        motherName?: string | null;
+      }
+    | null;
+  passport: { passportNumber: string } | null;
+  legalFramework: { name: string } | null;
+}
+
 const STEP_KEYS = [
   "stepLegalFramework",
-  "stepPassport",
+  "stepPassports",
   "stepPersonalData",
   "stepVisa",
   "stepContact",
   "stepReview",
 ] as const;
+
+// Steps edited individually per candidate (rendered with a candidate tab bar).
+const PER_CANDIDATE_STEP_KEYS = new Set<string>([
+  "stepPersonalData",
+  "stepVisa",
+  "stepContact",
+]);
 
 const MARITAL_OPTIONS = ["single", "married", "divorced", "widowed"] as const;
 const CURRENCY_OPTIONS = ["USD", "EUR", "BRL", "GBP"] as const;
@@ -105,47 +152,81 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   GBP: "£",
 };
 
-/**
- * Maps the wizard state into the editable args accepted by the backend
- * (individualProcesses-shaped: urgent/dateProcess/requestNotes + person-level
- * fields applied to the candidate on save). Display-only metadata is dropped.
- */
-function toProcessArgs(fields: WizardFields) {
+/** Maps a candidate's editable fields into createDraft/saveDraft args. */
+function toSaveArgs(
+  c: CandidateFields,
+  legalFrameworkId: Id<"legalFrameworks"> | undefined,
+) {
   return {
-    passportId: fields.candidatePassportId,
-    legalFrameworkId: fields.legalFrameworkId,
-    consulateId: fields.consulateId,
-    urgent: fields.isUrgent,
-    dateProcess: fields.requestDate,
-    requestNotes: fields.notes,
-    lastSalaryCurrency: fields.lastSalaryCurrency,
-    lastSalaryAmount: fields.lastSalaryAmount,
-    exchangeRateToBRL: fields.exchangeRateToBRL,
-    salaryInBRL: fields.salaryInBRL,
-    monthlyAmountToReceive: fields.monthlyAmountToReceive,
-    visaReceiptLocation: fields.visaReceiptLocation,
-    residenceCountryCode: fields.residenceCountryCode,
-    residenceCountryName: fields.residenceCountryName,
-    residenceStateCode: fields.residenceStateCode,
-    residenceCity: fields.residenceCity,
-    residenceSince: fields.residenceSince,
-    residenceAddressAbroad: fields.residenceAddressAbroad,
-    consularPost: fields.consularPost,
-    professionalExperience: fields.professionalExperience,
-    // Person-level fields (applied to the candidate's people record on save)
-    candidateEmail: fields.candidateEmail,
-    maritalStatus: fields.maritalStatus,
-    fatherName: fields.fatherName,
-    motherName: fields.motherName,
+    legalFrameworkId,
+    passportId: c.passportId,
+    consulateId: c.consulateId,
+    urgent: c.isUrgent,
+    dateProcess: c.requestDate,
+    requestNotes: c.notes,
+    lastSalaryCurrency: c.lastSalaryCurrency,
+    lastSalaryAmount: c.lastSalaryAmount,
+    exchangeRateToBRL: c.exchangeRateToBRL,
+    salaryInBRL: c.salaryInBRL,
+    monthlyAmountToReceive: c.monthlyAmountToReceive,
+    visaReceiptLocation: c.visaReceiptLocation,
+    residenceCountryCode: c.residenceCountryCode,
+    residenceCountryName: c.residenceCountryName,
+    residenceStateCode: c.residenceStateCode,
+    residenceCity: c.residenceCity,
+    residenceSince: c.residenceSince,
+    residenceAddressAbroad: c.residenceAddressAbroad,
+    consularPost: c.consularPost,
+    professionalExperience: c.professionalExperience,
+    candidateEmail: c.candidateEmail,
+    maritalStatus: c.maritalStatus,
+    fatherName: c.fatherName,
+    motherName: c.motherName,
+  };
+}
+
+/** Rebuilds a candidate from an enriched draft row when resuming. */
+function rowToCandidate(row: EnrichedRequestRow): CandidateFields {
+  return {
+    processId: row._id,
+    personId: row.personId,
+    passportId: row.passportId ?? undefined,
+    name: row.person?.fullName ?? "",
+    passportNumber: row.passport?.passportNumber ?? undefined,
+    candidateEmail: row.person?.email ?? undefined,
+    maritalStatus: row.person?.maritalStatus ?? undefined,
+    fatherName: row.person?.fatherName ?? undefined,
+    motherName: row.person?.motherName ?? undefined,
+    consulateId: row.consulateId ?? undefined,
+    isUrgent: row.urgent ?? undefined,
+    requestDate: row.dateProcess ?? undefined,
+    notes: row.requestNotes ?? undefined,
+    lastSalaryCurrency: row.lastSalaryCurrency ?? undefined,
+    lastSalaryAmount: row.lastSalaryAmount ?? undefined,
+    exchangeRateToBRL: row.exchangeRateToBRL ?? undefined,
+    salaryInBRL: row.salaryInBRL ?? undefined,
+    monthlyAmountToReceive: row.monthlyAmountToReceive ?? undefined,
+    visaReceiptLocation: row.visaReceiptLocation ?? undefined,
+    residenceCountryCode: row.residenceCountryCode ?? undefined,
+    residenceCountryName: row.residenceCountryName ?? undefined,
+    residenceStateCode: row.residenceStateCode ?? undefined,
+    residenceCity: row.residenceCity ?? undefined,
+    residenceSince: row.residenceSince ?? undefined,
+    residenceAddressAbroad: row.residenceAddressAbroad ?? undefined,
+    consularPost: row.consularPost ?? undefined,
+    professionalExperience: row.professionalExperience ?? undefined,
   };
 }
 
 export interface ProcessRequestWizardProps {
-  /** When set, resumes an existing draft instead of creating a new one. */
+  /** Resume an existing multi-candidate request batch. */
+  requestGroupId?: string;
+  /** Legacy single-draft resume (rows created before request groups existed). */
   requestId?: Id<"individualProcesses">;
 }
 
 export function ProcessRequestWizard({
+  requestGroupId: initialGroupId,
   requestId: initialRequestId,
 }: ProcessRequestWizardProps) {
   const t = useTranslations("ProcessRequests");
@@ -153,239 +234,305 @@ export function ProcessRequestWizard({
   const router = useRouter();
   const locale = useLocale();
 
-  const saveDraft = useMutation(api.processRequests.saveDraft);
   const createDraft = useMutation(api.processRequests.createDraft);
-  const finalizeRequest = useMutation(api.processRequests.finalize);
+  const saveDraft = useMutation(api.processRequests.saveDraft);
+  const finalizeGroup = useMutation(api.processRequests.finalizeGroup);
+  const finalizeOne = useMutation(api.processRequests.finalize);
   const removeDraft = useMutation(api.processRequests.removeDraft);
+  const ensureRequestGroup = useMutation(api.processRequests.ensureRequestGroup);
 
   // Legal frameworks offered to clients (admin-gated via showInRequest).
   const requestFrameworks = useQuery(api.legalFrameworks.listForRequest, {});
 
-  // Hydrate an existing draft when resuming.
-  const existing = useQuery(
+  // Hydration sources: a whole group, or a single legacy draft row.
+  const groupRows = useQuery(
+    api.processRequests.getRequestGroup,
+    initialGroupId ? { requestGroupId: initialGroupId } : "skip",
+  );
+  const legacyRow = useQuery(
     api.processRequests.get,
-    initialRequestId ? { id: initialRequestId } : "skip",
+    !initialGroupId && initialRequestId ? { id: initialRequestId } : "skip",
   );
 
-  const [requestId, setRequestId] = React.useState<
-    Id<"individualProcesses"> | undefined
-  >(initialRequestId);
-  const [fields, setFields] = React.useState<WizardFields>({});
+  const [requestGroupId, setRequestGroupId] = React.useState<
+    string | undefined
+  >(initialGroupId);
+  const [legalFrameworkId, setLegalFrameworkId] = React.useState<
+    Id<"legalFrameworks"> | undefined
+  >();
+  const [legalFrameworkName, setLegalFrameworkName] = React.useState<
+    string | undefined
+  >();
+  const [candidates, setCandidates] = React.useState<CandidateFields[]>([]);
+  const [activeCandidateId, setActiveCandidateId] = React.useState<
+    Id<"people"> | undefined
+  >();
   const [stepIndex, setStepIndex] = React.useState(0);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isAddingCandidate, setIsAddingCandidate] = React.useState(false);
   const [showSubmitDialog, setShowSubmitDialog] = React.useState(false);
+  const [pendingRemoval, setPendingRemoval] =
+    React.useState<CandidateFields | null>(null);
   const hydratedRef = React.useRef(false);
 
   // ---------------------------------------------------------------------------
-  // Hydration from an existing draft (runs once when the query resolves)
+  // Hydration from an existing batch / legacy draft (runs once when resolved).
   // ---------------------------------------------------------------------------
   React.useEffect(() => {
-    if (!existing || hydratedRef.current) return;
+    if (hydratedRef.current) return;
+    const rows: EnrichedRequestRow[] | undefined = initialGroupId
+      ? (groupRows as EnrichedRequestRow[] | undefined)
+      : legacyRow
+        ? [legacyRow as unknown as EnrichedRequestRow]
+        : undefined;
+    if (!rows || rows.length === 0) return;
     hydratedRef.current = true;
 
-    setRequestId(existing._id);
-    setFields({
-      candidatePersonId: existing.personId ?? undefined,
-      candidatePassportId: existing.passportId ?? undefined,
-      candidateEmail: existing.person?.email ?? undefined,
-      maritalStatus: existing.person?.maritalStatus ?? undefined,
-      fatherName: existing.person?.fatherName ?? undefined,
-      motherName: existing.person?.motherName ?? undefined,
-      legalFrameworkId: existing.legalFrameworkId ?? undefined,
-      consulateId: existing.consulateId ?? undefined,
-      isUrgent: existing.urgent ?? undefined,
-      requestDate: existing.dateProcess ?? undefined,
-      notes: existing.requestNotes ?? undefined,
-      lastSalaryCurrency: existing.lastSalaryCurrency ?? undefined,
-      lastSalaryAmount: existing.lastSalaryAmount ?? undefined,
-      exchangeRateToBRL: existing.exchangeRateToBRL ?? undefined,
-      salaryInBRL: existing.salaryInBRL ?? undefined,
-      monthlyAmountToReceive: existing.monthlyAmountToReceive ?? undefined,
-      visaReceiptLocation: existing.visaReceiptLocation ?? undefined,
-      residenceCountryCode: existing.residenceCountryCode ?? undefined,
-      residenceCountryName: existing.residenceCountryName ?? undefined,
-      residenceStateCode: existing.residenceStateCode ?? undefined,
-      residenceCity: existing.residenceCity ?? undefined,
-      residenceSince: existing.residenceSince ?? undefined,
-      residenceAddressAbroad: existing.residenceAddressAbroad ?? undefined,
-      consularPost: existing.consularPost ?? undefined,
-      professionalExperience: existing.professionalExperience ?? undefined,
-      candidateName: existing.person?.fullName ?? undefined,
-      legalFrameworkName: existing.legalFramework?.name ?? undefined,
-    });
-  }, [existing]);
-
-  // Step gates: the legal framework must be chosen before the passport, and the
-  // passport (candidate) must exist before any of the detail steps.
-  const legalFrameworkComplete = Boolean(fields.legalFrameworkId);
-  const passportComplete = Boolean(fields.candidatePersonId);
+    const mapped = rows.map(rowToCandidate);
+    setCandidates(mapped);
+    setActiveCandidateId(mapped[0]?.personId);
+    const first = rows[0];
+    setRequestGroupId(first.requestGroupId ?? initialGroupId);
+    setLegalFrameworkId(first.legalFrameworkId ?? undefined);
+    setLegalFrameworkName(first.legalFramework?.name ?? undefined);
+  }, [groupRows, legacyRow, initialGroupId]);
 
   const steps = STEP_KEYS.map((key, index) => ({
     id: key,
     title: t(key),
     stepNumber: index + 1,
   }));
-
+  const currentStepId = steps[stepIndex].id;
   const isLastStep = stepIndex === steps.length - 1;
   const isFirstStep = stepIndex === 0;
 
-  const patch = React.useCallback((next: Partial<WizardFields>) => {
-    setFields((prev) => ({ ...prev, ...next }));
-  }, []);
+  const frameworkComplete = Boolean(legalFrameworkId);
+  const hasCandidates = candidates.length > 0;
+  const busy = isSaving || isSubmitting || isAddingCandidate;
+
+  const activeCandidate =
+    candidates.find((c) => c.personId === activeCandidateId) ?? candidates[0];
+
+  const patchCandidate = React.useCallback(
+    (personId: Id<"people">, next: Partial<CandidateFields>) => {
+      setCandidates((prev) =>
+        prev.map((c) => (c.personId === personId ? { ...c, ...next } : c)),
+      );
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------------
-  // Persistence helpers
+  // Persistence
   // ---------------------------------------------------------------------------
-
-  /** Ensures a draft exists, creating one on first use. Returns its id. */
-  const ensureDraft = React.useCallback(
-    async (current: WizardFields): Promise<Id<"individualProcesses">> => {
-      if (requestId) {
-        await saveDraft({ id: requestId, ...toProcessArgs(current) });
-        return requestId;
-      }
-      if (!current.candidatePersonId) {
-        // The draft row requires a candidate (created at the passport step).
-        throw new Error("Candidate passport is required before saving");
-      }
-      const newId = await createDraft({
-        personId: current.candidatePersonId,
-        ...toProcessArgs(current),
+  const persistCandidate = React.useCallback(
+    async (candidate: CandidateFields) => {
+      if (!candidate.processId) return;
+      await saveDraft({
+        id: candidate.processId,
+        ...toSaveArgs(candidate, legalFrameworkId),
       });
-      setRequestId(newId);
-      return newId;
     },
-    [createDraft, saveDraft, requestId],
+    [saveDraft, legalFrameworkId],
   );
 
-  const persist = React.useCallback(
-    async (current: WizardFields): Promise<boolean> => {
-      // Only persist once a candidate exists; before that there is nothing
-      // meaningful (and the draft is created at the passport step).
-      if (!current.candidatePersonId) return false;
+  const persistAll = React.useCallback(async (): Promise<boolean> => {
+    try {
+      setIsSaving(true);
+      for (const candidate of candidates) await persistCandidate(candidate);
+      return true;
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      toast.error(t("createError"));
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [candidates, persistCandidate, t]);
+
+  /** Persist the candidate currently being edited (used when navigating away). */
+  const persistActive = React.useCallback(async () => {
+    if (!activeCandidate?.processId) return;
+    try {
+      setIsSaving(true);
+      await persistCandidate(activeCandidate);
+    } catch (error) {
+      console.error("Error saving candidate:", error);
+      toast.error(t("createError"));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeCandidate, persistCandidate, t]);
+
+  // ---------------------------------------------------------------------------
+  // Legal framework (shared) — propagate a change to every candidate's draft.
+  // ---------------------------------------------------------------------------
+  const handleSelectFramework = React.useCallback(
+    async (id: Id<"legalFrameworks">, name: string) => {
+      setLegalFrameworkId(id);
+      setLegalFrameworkName(name);
+      const existing = candidates.filter((c) => c.processId);
+      if (existing.length === 0) return;
       try {
         setIsSaving(true);
-        await ensureDraft(current);
-        return true;
+        for (const candidate of existing) {
+          await saveDraft({ id: candidate.processId!, legalFrameworkId: id });
+        }
       } catch (error) {
-        console.error("Error saving draft:", error);
-        toast.error(t("createError"));
-        return false;
+        console.error("Error updating framework:", error);
       } finally {
         setIsSaving(false);
       }
     },
-    [ensureDraft, t],
+    [candidates, saveDraft],
   );
 
   // ---------------------------------------------------------------------------
-  // Step 1 completion: create/link the candidate, then create the draft.
+  // Candidate add / remove
   // ---------------------------------------------------------------------------
-  const handlePassportComplete = React.useCallback(
+  const handleAddCandidate = React.useCallback(
     async (result: PassportCandidateResult) => {
-      const next: WizardFields = {
-        ...fields,
-        candidatePersonId: result.personId,
-        candidatePassportId: result.passportId,
-        passportStorageId: result.storageId,
-      };
-      setFields(next);
-
-      try {
-        setIsSaving(true);
-        const id = await ensureDraft(next);
-        setRequestId(id);
-      } catch (error) {
-        console.error("Error creating draft:", error);
-        toast.error(t("createError"));
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [ensureDraft, fields, t],
-  );
-
-  // Reset the linked candidate so a different passport can be uploaded. The
-  // draft row's personId is immutable, so we drop the draft and let a fresh one
-  // be created when the new candidate is linked.
-  const handleResetCandidate = React.useCallback(async () => {
-    if (requestId) {
-      try {
-        await removeDraft({ id: requestId });
-      } catch (error) {
-        // Keep the draft + state intact if the delete failed, to avoid leaving
-        // an orphaned draft row behind.
-        console.error("Error discarding draft on candidate reset:", error);
-        toast.error(t("createError"));
+      if (candidates.some((c) => c.personId === result.personId)) {
+        toast.error(t("candidateAlreadyAdded"));
         return;
       }
-      setRequestId(undefined);
-      hydratedRef.current = true; // don't re-hydrate from the (now-deleted) draft
+      try {
+        setIsAddingCandidate(true);
+        // Backfill: a legacy draft resumed via ?id= has no group yet — assign one
+        // to the existing row first so the whole batch finalizes together.
+        let groupId = requestGroupId;
+        if (!groupId) {
+          for (const existing of candidates) {
+            if (existing.processId) {
+              groupId = await ensureRequestGroup({ id: existing.processId });
+            }
+          }
+          if (groupId) setRequestGroupId(groupId);
+        }
+        const { processId, requestGroupId: gid } = await createDraft({
+          personId: result.personId,
+          requestGroupId: groupId,
+          passportId: result.passportId,
+          legalFrameworkId,
+        });
+        setRequestGroupId(gid);
+        const candidate: CandidateFields = {
+          processId,
+          personId: result.personId,
+          passportId: result.passportId,
+          name: result.fullName,
+          passportNumber: result.passportNumber,
+        };
+        setCandidates((prev) => [...prev, candidate]);
+        setActiveCandidateId(result.personId);
+        toast.success(t("candidateAdded"));
+      } catch (error) {
+        console.error("Error adding candidate:", error);
+        toast.error(t("createError"));
+      } finally {
+        setIsAddingCandidate(false);
+      }
+    },
+    [
+      candidates,
+      createDraft,
+      ensureRequestGroup,
+      requestGroupId,
+      legalFrameworkId,
+      t,
+    ],
+  );
+
+  const confirmRemoveCandidate = React.useCallback(async () => {
+    const candidate = pendingRemoval;
+    if (!candidate) return;
+    try {
+      setIsSaving(true);
+      if (candidate.processId) await removeDraft({ id: candidate.processId });
+      const next = candidates.filter((c) => c.personId !== candidate.personId);
+      setCandidates(next);
+      setActiveCandidateId((current) =>
+        current === candidate.personId ? next[0]?.personId : current,
+      );
+    } catch (error) {
+      console.error("Error removing candidate:", error);
+      toast.error(t("createError"));
+    } finally {
+      setIsSaving(false);
+      setPendingRemoval(null);
     }
-    setFields((prev) => ({
-      ...prev,
-      candidatePersonId: undefined,
-      candidatePassportId: undefined,
-      passportStorageId: undefined,
-      candidateName: undefined,
-      candidateEmail: undefined,
-      maritalStatus: undefined,
-      fatherName: undefined,
-      motherName: undefined,
-    }));
-  }, [removeDraft, requestId, t]);
+  }, [candidates, pendingRemoval, removeDraft, t]);
 
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
-  // Locked steps: passport needs the legal framework; detail steps need both.
   const isStepLocked = (index: number) =>
-    (index >= 1 && !legalFrameworkComplete) ||
-    (index >= 2 && !passportComplete);
+    (index >= 1 && !frameworkComplete) || (index >= 2 && !hasCandidates);
 
   const goNext = async () => {
-    if (stepIndex === 0 && !legalFrameworkComplete) {
+    if (stepIndex === 0 && !frameworkComplete) {
       toast.error(t("mustSelectLegalFramework"));
       return;
     }
-    if (stepIndex === 1 && !passportComplete) {
-      toast.error(t("mustUploadPassport"));
+    if (stepIndex === 1 && !hasCandidates) {
+      toast.error(t("mustAddCandidate"));
       return;
     }
-    await persist(fields);
+    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
+      await persistActive();
+    }
     setStepIndex((i) => Math.min(i + 1, steps.length - 1));
   };
 
-  const goPrevious = () => {
+  const goPrevious = async () => {
+    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
+      await persistActive();
+    }
     setStepIndex((i) => Math.max(i - 1, 0));
   };
 
-  const goToStep = (index: number) => {
-    if (isStepLocked(index)) return;
+  const goToStep = async (index: number) => {
+    if (isStepLocked(index) || index === stepIndex) return;
+    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
+      await persistActive();
+    }
     setStepIndex(index);
   };
 
-  const handleFinishDraft = async () => {
-    // Nothing to save until a candidate exists (passport step). Tell the user
-    // instead of silently navigating away and losing the legal-framework pick.
-    if (!fields.candidatePersonId) {
-      toast.error(t("mustUploadPassport"));
+  const handleSelectCandidate = async (personId: Id<"people">) => {
+    if (personId === activeCandidateId) return;
+    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
+      await persistActive();
+    }
+    setActiveCandidateId(personId);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!hasCandidates) {
+      toast.error(t("mustAddCandidate"));
       return;
     }
-    const ok = await persist(fields);
-    if (!ok) return; // persist already surfaced the error
+    const ok = await persistAll();
+    if (!ok) return;
     toast.success(t("saved"));
     router.push(`/${locale}/process-requests`);
   };
 
   const handleConfirmSubmit = async () => {
-    if (!requestId) return;
+    if (!hasCandidates) return;
     try {
       setIsSubmitting(true);
       // Persist the latest edits before finalizing.
-      await saveDraft({ id: requestId, ...toProcessArgs(fields) });
-      await finalizeRequest({ id: requestId });
+      for (const candidate of candidates) await persistCandidate(candidate);
+      if (requestGroupId) {
+        await finalizeGroup({ requestGroupId });
+      } else {
+        // Legacy single drafts without a group: finalize each row directly.
+        for (const candidate of candidates) {
+          if (candidate.processId) await finalizeOne({ id: candidate.processId });
+        }
+      }
       toast.success(t("createSuccess"));
       router.push(`/${locale}/process-requests`);
     } catch (error) {
@@ -398,18 +545,15 @@ export function ProcessRequestWizard({
   };
 
   const residenceValue: ResidenceValue = {
-    visaReceiptLocation: fields.visaReceiptLocation,
-    residenceCountryCode: fields.residenceCountryCode,
-    residenceCountryName: fields.residenceCountryName,
-    residenceStateCode: fields.residenceStateCode,
-    residenceCity: fields.residenceCity,
-    residenceSince: fields.residenceSince,
-    residenceAddressAbroad: fields.residenceAddressAbroad,
-    consularPost: fields.consularPost,
+    visaReceiptLocation: activeCandidate?.visaReceiptLocation,
+    residenceCountryCode: activeCandidate?.residenceCountryCode,
+    residenceCountryName: activeCandidate?.residenceCountryName,
+    residenceStateCode: activeCandidate?.residenceStateCode,
+    residenceCity: activeCandidate?.residenceCity,
+    residenceSince: activeCandidate?.residenceSince,
+    residenceAddressAbroad: activeCandidate?.residenceAddressAbroad,
+    consularPost: activeCandidate?.consularPost,
   };
-
-  const busy = isSaving || isSubmitting;
-  const currentStepId = steps[stepIndex].id;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -427,7 +571,7 @@ export function ProcessRequestWizard({
                   <button
                     type="button"
                     onClick={isClickable ? () => goToStep(index) : undefined}
-                    disabled={isLocked || isActive}
+                    disabled={isLocked || isActive || busy}
                     className={cn(
                       "group flex items-center gap-3 transition-all",
                       isClickable && "cursor-pointer hover:opacity-80",
@@ -463,9 +607,7 @@ export function ProcessRequestWizard({
                           "whitespace-nowrap text-sm font-medium transition-colors",
                           isActive && "text-foreground",
                           isCompleted && !isActive && "text-foreground",
-                          !isActive &&
-                            !isCompleted &&
-                            "text-muted-foreground",
+                          !isActive && !isCompleted && "text-muted-foreground",
                         )}
                       >
                         {step.title}
@@ -505,134 +647,110 @@ export function ProcessRequestWizard({
             </div>
           </div>
 
+          {/* Candidate tab bar on the per-candidate steps */}
+          {PER_CANDIDATE_STEP_KEYS.has(currentStepId) && hasCandidates && (
+            <CandidateTabBar
+              candidates={candidates}
+              activeId={activeCandidate?.personId}
+              onSelect={handleSelectCandidate}
+              disabled={busy}
+            />
+          )}
+
           <div className="min-h-[350px]">
             {currentStepId === "stepLegalFramework" && (
               <RequestLegalFrameworkStep
                 frameworks={requestFrameworks}
-                value={fields.legalFrameworkId}
-                onSelect={(id, name) =>
-                  patch({ legalFrameworkId: id, legalFrameworkName: name })
+                value={legalFrameworkId}
+                onSelect={handleSelectFramework}
+                disabled={busy}
+              />
+            )}
+
+            {currentStepId === "stepPassports" && (
+              <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  {t("addPassportsHint")}
+                </p>
+
+                {candidates.length > 0 && (
+                  <div className="space-y-2">
+                    {candidates.map((candidate, index) => (
+                      <div
+                        key={candidate.personId}
+                        className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">
+                              {candidate.name || t("candidate")}
+                            </p>
+                            {candidate.passportNumber && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {t("passportNumber")}:{" "}
+                                {candidate.passportNumber}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPendingRemoval(candidate)}
+                          disabled={busy}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">
+                    {candidates.length > 0
+                      ? t("addAnotherCandidate")
+                      : t("addFirstCandidate")}
+                  </p>
+                  {/* Remounts after each add so the uploader resets cleanly. */}
+                  <PassportUploadStep
+                    key={`add-${candidates.length}`}
+                    onComplete={handleAddCandidate}
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+            )}
+
+            {currentStepId === "stepPersonalData" && activeCandidate && (
+              <PersonalDataStep
+                key={activeCandidate.personId}
+                candidate={activeCandidate}
+                onPatch={(next) =>
+                  patchCandidate(activeCandidate.personId, next)
                 }
                 disabled={busy}
               />
             )}
 
-            {currentStepId === "stepPassport" && (
-              <PassportUploadStep
-                value={{
-                  personId: fields.candidatePersonId,
-                  passportId: fields.candidatePassportId,
-                  storageId: fields.passportStorageId,
-                  summary: fields.candidateName,
-                }}
-                onComplete={handlePassportComplete}
-                onReset={handleResetCandidate}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentStepId === "stepPersonalData" && (
-              <div className="space-y-8">
-                {/* Estado Civil */}
-                <section className="space-y-3">
-                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
-                    {t("maritalStatus")}
-                  </h3>
-                  <div className="max-w-md space-y-2">
-                    <Label htmlFor="marital-status" className="sr-only">
-                      {t("maritalStatus")}
-                    </Label>
-                    <Select
-                      value={fields.maritalStatus ?? ""}
-                      onValueChange={(value) => patch({ maritalStatus: value })}
-                      disabled={busy}
-                    >
-                      <SelectTrigger id="marital-status" className="w-full">
-                        <SelectValue placeholder={t("maritalStatus")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MARITAL_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {t(option)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </section>
-
-                {/* Filiação */}
-                <section className="space-y-3">
-                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
-                    {t("stepFamily")}
-                  </h3>
-                  <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="father-name">{t("fatherName")}</Label>
-                      <Input
-                        id="father-name"
-                        value={fields.fatherName ?? ""}
-                        onChange={(e) => patch({ fatherName: e.target.value })}
-                        disabled={busy}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="mother-name">{t("motherName")}</Label>
-                      <Input
-                        id="mother-name"
-                        value={fields.motherName ?? ""}
-                        onChange={(e) => patch({ motherName: e.target.value })}
-                        disabled={busy}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                {/* Salário */}
-                <section className="space-y-3">
-                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
-                    {t("salary")}
-                  </h3>
-                  <SalaryStep fields={fields} onPatch={patch} disabled={busy} />
-                </section>
-
-                {/* Experiência Profissional */}
-                <section className="space-y-3">
-                  <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
-                    {t("professionalExperience")}
-                  </h3>
-                  <div className="max-w-2xl space-y-2">
-                    <Label
-                      htmlFor="professional-experience"
-                      className="text-muted-foreground"
-                    >
-                      {t("optional")}
-                    </Label>
-                    <Textarea
-                      id="professional-experience"
-                      value={fields.professionalExperience ?? ""}
-                      onChange={(e) =>
-                        patch({ professionalExperience: e.target.value })
-                      }
-                      rows={6}
-                      className="resize-none"
-                      disabled={busy}
-                    />
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {currentStepId === "stepVisa" && (
+            {currentStepId === "stepVisa" && activeCandidate && (
               <ResidenceSelect
+                key={activeCandidate.personId}
                 value={residenceValue}
-                onChange={(next) => patch(next)}
+                onChange={(next) =>
+                  patchCandidate(activeCandidate.personId, next)
+                }
                 disabled={busy}
               />
             )}
 
-            {currentStepId === "stepContact" && (
-              <div className="max-w-2xl space-y-4">
+            {currentStepId === "stepContact" && activeCandidate && (
+              <div className="max-w-2xl space-y-4" key={activeCandidate.personId}>
                 <div className="space-y-2">
                   <Label htmlFor="candidate-email">
                     {t("candidateEmail")} ({t("optional")})
@@ -640,8 +758,12 @@ export function ProcessRequestWizard({
                   <Input
                     id="candidate-email"
                     type="email"
-                    value={fields.candidateEmail ?? ""}
-                    onChange={(e) => patch({ candidateEmail: e.target.value })}
+                    value={activeCandidate.candidateEmail ?? ""}
+                    onChange={(e) =>
+                      patchCandidate(activeCandidate.personId, {
+                        candidateEmail: e.target.value,
+                      })
+                    }
                     disabled={busy}
                   />
                 </div>
@@ -651,8 +773,12 @@ export function ProcessRequestWizard({
                   </Label>
                   <Textarea
                     id="notes"
-                    value={fields.notes ?? ""}
-                    onChange={(e) => patch({ notes: e.target.value })}
+                    value={activeCandidate.notes ?? ""}
+                    onChange={(e) =>
+                      patchCandidate(activeCandidate.personId, {
+                        notes: e.target.value,
+                      })
+                    }
                     placeholder={t("notesPlaceholder")}
                     rows={4}
                     className="resize-none"
@@ -664,8 +790,8 @@ export function ProcessRequestWizard({
 
             {currentStepId === "stepReview" && (
               <ReviewStep
-                fields={fields}
-                legalFrameworkName={fields.legalFrameworkName}
+                candidates={candidates}
+                legalFrameworkName={legalFrameworkName}
               />
             )}
           </div>
@@ -679,8 +805,8 @@ export function ProcessRequestWizard({
             <Button
               type="button"
               variant="ghost"
-              onClick={handleFinishDraft}
-              disabled={busy}
+              onClick={handleSaveDraft}
+              disabled={busy || !hasCandidates}
               className="text-muted-foreground hover:text-foreground"
             >
               {isSaving ? (
@@ -688,7 +814,7 @@ export function ProcessRequestWizard({
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              {t("finishDraft")}
+              {t("saveDraft")}
             </Button>
 
             <div className="flex gap-3">
@@ -709,7 +835,7 @@ export function ProcessRequestWizard({
                 <Button
                   type="button"
                   onClick={() => setShowSubmitDialog(true)}
-                  disabled={busy || !passportComplete}
+                  disabled={busy || !hasCandidates}
                   className="min-w-[160px] bg-green-600 hover:bg-green-700"
                 >
                   {isSubmitting ? (
@@ -725,8 +851,8 @@ export function ProcessRequestWizard({
                   onClick={goNext}
                   disabled={
                     busy ||
-                    (stepIndex === 0 && !legalFrameworkComplete) ||
-                    (stepIndex === 1 && !passportComplete)
+                    (stepIndex === 0 && !frameworkComplete) ||
+                    (stepIndex === 1 && !hasCandidates)
                   }
                   className="min-w-[120px]"
                 >
@@ -748,7 +874,7 @@ export function ProcessRequestWizard({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("submitConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("submitConfirmBody")}
+              {t("submitConfirmBodyBatch", { count: candidates.length })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -771,21 +897,206 @@ export function ProcessRequestWizard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Remove-candidate confirmation */}
+      <AlertDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(open) => !open && setPendingRemoval(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("removeCandidateTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("removeCandidateBody", {
+                name: pendingRemoval?.name || t("candidate"),
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>
+              {tCommon("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmRemoveCandidate();
+              }}
+              disabled={isSaving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("removeCandidate")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Salary
+// Candidate tab bar (per-candidate steps)
 // ---------------------------------------------------------------------------
 
-function SalaryStep({
-  fields,
+function CandidateTabBar({
+  candidates,
+  activeId,
+  onSelect,
+  disabled,
+}: {
+  candidates: CandidateFields[];
+  activeId?: Id<"people">;
+  onSelect: (personId: Id<"people">) => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("ProcessRequests");
+  return (
+    <div className="mb-6 flex flex-wrap gap-2 border-b pb-4">
+      {candidates.map((candidate, index) => {
+        const isActive = candidate.personId === activeId;
+        return (
+          <button
+            key={candidate.personId}
+            type="button"
+            onClick={() => onSelect(candidate.personId)}
+            disabled={disabled}
+            className={cn(
+              "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+              isActive
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-muted-foreground/30 hover:bg-muted",
+              disabled && "cursor-not-allowed opacity-60",
+            )}
+          >
+            <UserRound className="h-3.5 w-3.5 shrink-0" />
+            <span className="max-w-[180px] truncate">
+              {candidate.name || `${t("candidate")} ${index + 1}`}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Personal data (per candidate) — marital status + parentage + salary + experience
+// ---------------------------------------------------------------------------
+
+function PersonalDataStep({
+  candidate,
   onPatch,
   disabled,
 }: {
-  fields: WizardFields;
-  onPatch: (next: Partial<WizardFields>) => void;
+  candidate: CandidateFields;
+  onPatch: (next: Partial<CandidateFields>) => void;
+  disabled: boolean;
+}) {
+  const t = useTranslations("ProcessRequests");
+  return (
+    <div className="space-y-8">
+      {/* Estado Civil */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("maritalStatus")}
+        </h3>
+        <div className="max-w-md space-y-2">
+          <Label htmlFor="marital-status" className="sr-only">
+            {t("maritalStatus")}
+          </Label>
+          <Select
+            value={candidate.maritalStatus ?? ""}
+            onValueChange={(value) => onPatch({ maritalStatus: value })}
+            disabled={disabled}
+          >
+            <SelectTrigger id="marital-status" className="w-full">
+              <SelectValue placeholder={t("maritalStatus")} />
+            </SelectTrigger>
+            <SelectContent>
+              {MARITAL_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {t(option)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
+      {/* Filiação */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("stepFamily")}
+        </h3>
+        <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="father-name">{t("fatherName")}</Label>
+            <Input
+              id="father-name"
+              value={candidate.fatherName ?? ""}
+              onChange={(e) => onPatch({ fatherName: e.target.value })}
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mother-name">{t("motherName")}</Label>
+            <Input
+              id="mother-name"
+              value={candidate.motherName ?? ""}
+              onChange={(e) => onPatch({ motherName: e.target.value })}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Salário */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("salary")}
+        </h3>
+        <SalaryStep candidate={candidate} onPatch={onPatch} disabled={disabled} />
+      </section>
+
+      {/* Experiência Profissional */}
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {t("professionalExperience")}
+        </h3>
+        <div className="max-w-2xl space-y-2">
+          <Label
+            htmlFor="professional-experience"
+            className="text-muted-foreground"
+          >
+            {t("optional")}
+          </Label>
+          <Textarea
+            id="professional-experience"
+            value={candidate.professionalExperience ?? ""}
+            onChange={(e) =>
+              onPatch({ professionalExperience: e.target.value })
+            }
+            rows={6}
+            className="resize-none"
+            disabled={disabled}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Salary (per candidate)
+// ---------------------------------------------------------------------------
+
+function SalaryStep({
+  candidate,
+  onPatch,
+  disabled,
+}: {
+  candidate: CandidateFields;
+  onPatch: (next: Partial<CandidateFields>) => void;
   disabled: boolean;
 }) {
   const t = useTranslations("ProcessRequests");
@@ -794,11 +1105,10 @@ function SalaryStep({
   const [fetchingRate, setFetchingRate] = React.useState(false);
   const [autoFetched, setAutoFetched] = React.useState(false);
 
-  const currency = fields.lastSalaryCurrency ?? "USD";
+  const currency = candidate.lastSalaryCurrency ?? "USD";
   const isBRL = currency === "BRL";
   const symbol = CURRENCY_SYMBOLS[currency] ?? "";
 
-  // salaryInBRL = amount (when already BRL) or amount * rate (foreign currency).
   const computeBRL = (
     amount?: number,
     rate?: number,
@@ -817,6 +1127,7 @@ function SalaryStep({
         const res = await getRate({ currency: cur });
         if (res.rate != null) {
           onPatch({
+            lastSalaryCurrency: cur,
             exchangeRateToBRL: res.rate,
             salaryInBRL: computeBRL(amount, res.rate, cur),
           });
@@ -830,15 +1141,13 @@ function SalaryStep({
         setFetchingRate(false);
       }
     },
-    // computeBRL/onPatch/t/getRate are stable enough for this callback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [getRate, onPatch, t],
   );
 
-  // On mount, auto-fetch a rate for a non-BRL currency that has none yet.
   React.useEffect(() => {
-    if (!isBRL && fields.exchangeRateToBRL === undefined) {
-      void fetchRate(currency, fields.lastSalaryAmount);
+    if (!isBRL && candidate.exchangeRateToBRL === undefined) {
+      void fetchRate(currency, candidate.lastSalaryAmount);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -846,16 +1155,15 @@ function SalaryStep({
   const handleCurrencyChange = (value: string) => {
     setAutoFetched(false);
     if (value === "BRL") {
-      // BRL: no exchange rate needed; the amount IS the BRL value.
       onPatch({
         lastSalaryCurrency: "BRL",
         exchangeRateToBRL: 0,
-        salaryInBRL: computeBRL(fields.lastSalaryAmount, 0, "BRL"),
+        salaryInBRL: computeBRL(candidate.lastSalaryAmount, 0, "BRL"),
       });
       return;
     }
     onPatch({ lastSalaryCurrency: value });
-    void fetchRate(value, fields.lastSalaryAmount);
+    void fetchRate(value, candidate.lastSalaryAmount);
   };
 
   return (
@@ -885,11 +1193,11 @@ function SalaryStep({
         <NumericFormat
           id="salary-amount"
           customInput={Input}
-          value={fields.lastSalaryAmount ?? ""}
+          value={candidate.lastSalaryAmount ?? ""}
           onValueChange={(v) =>
             onPatch({
               lastSalaryAmount: v.floatValue,
-              salaryInBRL: computeBRL(v.floatValue, fields.exchangeRateToBRL),
+              salaryInBRL: computeBRL(v.floatValue, candidate.exchangeRateToBRL),
             })
           }
           thousandSeparator="."
@@ -911,7 +1219,7 @@ function SalaryStep({
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-xs"
-              onClick={() => fetchRate(currency, fields.lastSalaryAmount)}
+              onClick={() => fetchRate(currency, candidate.lastSalaryAmount)}
               disabled={disabled || fetchingRate}
             >
               <RefreshCw
@@ -923,12 +1231,15 @@ function SalaryStep({
           <NumericFormat
             id="exchange-rate"
             customInput={Input}
-            value={fields.exchangeRateToBRL ?? ""}
+            value={candidate.exchangeRateToBRL ?? ""}
             onValueChange={(v) => {
               setAutoFetched(false);
               onPatch({
                 exchangeRateToBRL: v.floatValue,
-                salaryInBRL: computeBRL(fields.lastSalaryAmount, v.floatValue),
+                salaryInBRL: computeBRL(
+                  candidate.lastSalaryAmount,
+                  v.floatValue,
+                ),
               });
             }}
             thousandSeparator="."
@@ -953,7 +1264,7 @@ function SalaryStep({
         <NumericFormat
           id="salary-brl"
           customInput={Input}
-          value={fields.salaryInBRL ?? ""}
+          value={candidate.salaryInBRL ?? ""}
           thousandSeparator="."
           decimalSeparator=","
           decimalScale={2}
@@ -970,7 +1281,7 @@ function SalaryStep({
         <NumericFormat
           id="monthly-amount"
           customInput={Input}
-          value={fields.monthlyAmountToReceive ?? ""}
+          value={candidate.monthlyAmountToReceive ?? ""}
           onValueChange={(v) =>
             onPatch({ monthlyAmountToReceive: v.floatValue })
           }
@@ -987,7 +1298,7 @@ function SalaryStep({
 }
 
 // ---------------------------------------------------------------------------
-// Step 9 — Review (read-only summary)
+// Review (per candidate, read-only summary)
 // ---------------------------------------------------------------------------
 
 function ReviewRow({ label, value }: { label: string; value?: string }) {
@@ -1000,114 +1311,113 @@ function ReviewRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
-function ReviewGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border p-4">
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <div className="divide-y">{children}</div>
-    </div>
-  );
-}
-
 function ReviewStep({
-  fields,
+  candidates,
   legalFrameworkName,
 }: {
-  fields: WizardFields;
+  candidates: CandidateFields[];
   legalFrameworkName?: string;
 }) {
   const t = useTranslations("ProcessRequests");
-
-  const maritalLabel = fields.maritalStatus
-    ? t(fields.maritalStatus as (typeof MARITAL_OPTIONS)[number])
-    : undefined;
-
-  const visaLabel = fields.visaReceiptLocation
-    ? t(fields.visaReceiptLocation)
-    : undefined;
 
   const numberToString = (value?: number) =>
     value !== undefined ? String(value) : undefined;
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <ReviewGroup title={t("candidate")}>
-        <ReviewRow label={t("candidate")} value={fields.candidateName} />
-        <ReviewRow label={t("candidateEmail")} value={fields.candidateEmail} />
-      </ReviewGroup>
+    <div className="space-y-6">
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          {t("legalFramework")}
+        </p>
+        <p className="font-medium">{legalFrameworkName ?? "—"}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("candidatesCount", { count: candidates.length })}
+        </p>
+      </div>
 
-      <ReviewGroup title={t("maritalStatus")}>
-        <ReviewRow label={t("maritalStatus")} value={maritalLabel} />
-        <ReviewRow label={t("fatherName")} value={fields.fatherName} />
-        <ReviewRow label={t("motherName")} value={fields.motherName} />
-      </ReviewGroup>
-
-      <ReviewGroup title={t("salary")}>
-        <ReviewRow label={t("currency")} value={fields.lastSalaryCurrency} />
-        <ReviewRow
-          label={t("amount")}
-          value={numberToString(fields.lastSalaryAmount)}
-        />
-        <ReviewRow
-          label={t("exchangeRate")}
-          value={numberToString(fields.exchangeRateToBRL)}
-        />
-        <ReviewRow
-          label={t("salaryInBRL")}
-          value={numberToString(fields.salaryInBRL)}
-        />
-        <ReviewRow
-          label={t("monthlyAmount")}
-          value={numberToString(fields.monthlyAmountToReceive)}
-        />
-      </ReviewGroup>
-
-      <ReviewGroup title={t("residenceDuration")}>
-        <ReviewRow label={t("whereWillReceiveVisa")} value={visaLabel} />
-        <ReviewRow
-          label={t("residenceCountry")}
-          value={fields.residenceCountryName}
-        />
-        <ReviewRow label={t("residenceCity")} value={fields.residenceCity} />
-        <ReviewRow label={t("consularPost")} value={fields.consularPost} />
-        <ReviewRow
-          label={t("residenceSince")}
-          value={fields.residenceSince}
-        />
-        <ReviewRow
-          label={t("residenceAddressAbroad")}
-          value={fields.residenceAddressAbroad}
-        />
-      </ReviewGroup>
-
-      <ReviewGroup title={t("professionalExperience")}>
-        <ReviewRow
-          label={t("professionalExperience")}
-          value={fields.professionalExperience}
-        />
-      </ReviewGroup>
-
-      <ReviewGroup title={t("legalFramework")}>
-        <ReviewRow label={t("legalFramework")} value={legalFrameworkName} />
-      </ReviewGroup>
-
-      {fields.notes && (
-        <ReviewGroup title={t("notes")}>
-          <ReviewRow label={t("notes")} value={fields.notes} />
-        </ReviewGroup>
-      )}
+      <div className="space-y-4">
+        {candidates.map((candidate, index) => {
+          const maritalLabel = candidate.maritalStatus
+            ? t(candidate.maritalStatus as (typeof MARITAL_OPTIONS)[number])
+            : undefined;
+          const visaLabel = candidate.visaReceiptLocation
+            ? t(candidate.visaReceiptLocation)
+            : undefined;
+          return (
+            <div key={candidate.personId} className="rounded-lg border p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  {index + 1}
+                </span>
+                <h3 className="font-semibold">
+                  {candidate.name || `${t("candidate")} ${index + 1}`}
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+                <ReviewRow
+                  label={t("passportNumber")}
+                  value={candidate.passportNumber}
+                />
+                <ReviewRow
+                  label={t("candidateEmail")}
+                  value={candidate.candidateEmail}
+                />
+                <ReviewRow label={t("maritalStatus")} value={maritalLabel} />
+                <ReviewRow
+                  label={t("fatherName")}
+                  value={candidate.fatherName}
+                />
+                <ReviewRow
+                  label={t("motherName")}
+                  value={candidate.motherName}
+                />
+                <ReviewRow
+                  label={t("salaryInBRL")}
+                  value={numberToString(candidate.salaryInBRL)}
+                />
+                <ReviewRow
+                  label={t("monthlyAmount")}
+                  value={numberToString(candidate.monthlyAmountToReceive)}
+                />
+                <ReviewRow label={t("whereWillReceiveVisa")} value={visaLabel} />
+                <ReviewRow
+                  label={t("residenceCountry")}
+                  value={candidate.residenceCountryName}
+                />
+                <ReviewRow
+                  label={t("residenceCity")}
+                  value={candidate.residenceCity}
+                />
+                <ReviewRow
+                  label={t("consularPost")}
+                  value={candidate.consularPost}
+                />
+              </div>
+              {candidate.professionalExperience && (
+                <div className="mt-2 border-t pt-2">
+                  <ReviewRow
+                    label={t("professionalExperience")}
+                    value={candidate.professionalExperience}
+                  />
+                </div>
+              )}
+              {candidate.notes && (
+                <div className="mt-2 border-t pt-2">
+                  <ReviewRow label={t("notes")} value={candidate.notes} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Legal framework (amparo legal), gated by showInRequest
+// Legal framework (amparo legal) — shared across all candidates, gated by
+// showInRequest. The description leads (what the client is requesting); the
+// framework name is the technical detail underneath.
 // ---------------------------------------------------------------------------
 
 interface RequestFrameworkOption {
@@ -1156,9 +1466,6 @@ function RequestLegalFrameworkStep({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {frameworks.map((framework) => {
           const selected = framework._id === value;
-          // The description is what the (non-technical) client is actually
-          // requesting, so it leads as the heading; the framework name is the
-          // technical reference shown underneath as a detail.
           const heading = framework.description || framework.name;
           const detail = framework.description ? framework.name : undefined;
           return (
