@@ -367,6 +367,11 @@ export const checkPassportNumberDuplicate = query({
       existingPassport: {
         _id: existing._id,
         passportNumber: existing.passportNumber,
+        // The person who already holds this passport number. The request wizard
+        // uses this to link a candidate to the passport's owner (cross-tenant
+        // dedup) instead of creating a conflicting new person. Null for an
+        // orphan passport row (no person), which can be safely re-linked.
+        personId: existing.personId ?? null,
         personName: person ? getFullName(person) : "Unknown",
       },
     };

@@ -20,10 +20,12 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
   FileText,
   Loader2,
   ScanLine,
+  Trash2,
   Upload,
   UserCheck,
   UserPlus,
@@ -100,6 +102,7 @@ type ExtractResult = {
     existingPassport: {
       _id: Id<"passports">;
       passportNumber: string;
+      personId: Id<"people"> | null;
       personName: string;
     } | null;
   } | null;
@@ -117,13 +120,42 @@ type EditableFields = {
   issuingCountry: string;
 };
 
-type BatchStatus = "pending" | "reading" | "resolving" | "done" | "error";
+// --- Batch (multi-passport) review model -----------------------------------
+// Each uploaded passport is read first (OCR only, NO writes), then the user
+// resolves it on a review screen — link to an existing person or create a new
+// candidate — and only on confirm do we create the people/passports. This
+// mirrors the single-passport dedup choice for every passport in the batch.
+
+type BatchStatus = "reading" | "ready" | "error";
+
+/** A passport whose number already belongs to a specific existing person. */
+type LockedOwner = { personId: Id<"people">; personName: string };
+
+/** The user's choice for one reviewed passport. */
+type BatchResolution =
+  | { kind: "link"; personId: Id<"people">; fullName: string }
+  | { kind: "new" };
+
 type BatchItem = {
   id: string;
   fileName: string;
   status: BatchStatus;
-  name?: string;
   error?: string;
+  // Populated once the passport has been read (status "ready"):
+  storageId?: Id<"_storage">;
+  givenNames?: string;
+  surname?: string;
+  passportNumber?: string;
+  sex?: string;
+  birthDate?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  nationalityId?: Id<"countries"> | null;
+  issuingCountryId?: Id<"countries"> | null;
+  matches?: ExtractMatch[];
+  /** Set when the passport number is already taken by another person. */
+  lockedOwner?: LockedOwner | null;
+  resolution?: BatchResolution;
 };
 
 export function PassportUploadStep({
@@ -148,9 +180,11 @@ export function PassportUploadStep({
 
   // Batch (multi-passport) processing state.
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
-  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [isReadingBatch, setIsReadingBatch] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
 
-  const busy = isReading || isApplying || isBatchProcessing || disabled;
+  const busy =
+    isReading || isApplying || isReadingBatch || isCommitting || disabled;
 
   // Prevent the browser from navigating to a file dropped outside the dropzone.
   useEffect(() => {
@@ -167,6 +201,7 @@ export function PassportUploadStep({
     setStorageId(null);
     setResult(null);
     setFields(null);
+    setBatchItems([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -218,7 +253,7 @@ export function PassportUploadStep({
     if (accepted.length === 1) {
       void processSingle(accepted[0]);
     } else {
-      void processBatch(accepted);
+      void readBatch(accepted);
     }
   };
 
@@ -347,118 +382,208 @@ export function PassportUploadStep({
     }
   };
 
-  // --- Batch flow (multiple files → one candidate per passport) ------------
+  // --- Batch flow (multiple files → review + resolve → commit) -------------
 
-  const processBatch = async (files: File[]) => {
-    setIsBatchProcessing(true);
+  const patchItem = (id: string, patch: Partial<BatchItem>) =>
+    setBatchItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
+
+  const setResolution = (id: string, resolution: BatchResolution) =>
+    patchItem(id, { resolution });
+
+  // Read every passport (upload + OCR) WITHOUT writing any person/passport, and
+  // compute a default resolution for each. The user reviews and confirms before
+  // anything is created.
+  const readBatch = async (files: File[]) => {
+    setResult(null);
+    setFields(null);
+    setIsReadingBatch(true);
     const items: BatchItem[] = files.map((f, i) => ({
       id: `${i}-${f.name}`,
       fileName: f.name,
-      status: "pending",
+      status: "reading",
     }));
     setBatchItems(items);
 
-    const patchItem = (id: string, patch: Partial<BatchItem>) =>
-      setBatchItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
-      );
+    await Promise.all(
+      files.map(async (file, i) => {
+        const id = items[i].id;
+        try {
+          const uploaded = await uploadFile(file);
+          const ocr = (await extractPassport({
+            storageId: uploaded,
+          })) as ExtractResult;
 
-    const results: PassportCandidateResult[] = [];
+          const givenNames = (ocr.extracted.givenNames ?? "").trim();
+          const surname = (ocr.extracted.surname ?? "").trim();
+          const passportNumber = (ocr.extracted.passportNumber ?? "").trim();
+          if (!givenNames || !passportNumber) {
+            patchItem(id, { status: "error", error: t("ocrIncomplete") });
+            return;
+          }
 
-    // Sequential: each resolved candidate is committed before the next OCR, so a
-    // repeated person inside the batch surfaces as an OWNED match and is linked
-    // (not duplicated).
-    for (let i = 0; i < files.length; i++) {
-      const item = items[i];
-      try {
-        patchItem(item.id, { status: "reading" });
-        const uploaded = await uploadFile(files[i]);
-        const ocr = (await extractPassport({
-          storageId: uploaded,
-        })) as ExtractResult;
+          // A taken passport number with a known owner forces a link to that
+          // person (a passport number maps to exactly one person).
+          const taken =
+            ocr.passportExists &&
+            ocr.passportExists.isAvailable === false &&
+            ocr.passportExists.existingPassport?.personId
+              ? ocr.passportExists.existingPassport
+              : null;
+          const lockedOwner: LockedOwner | null = taken
+            ? { personId: taken.personId!, personName: taken.personName }
+            : null;
 
-        const givenNames = (ocr.extracted.givenNames ?? "").trim();
-        const surname = (ocr.extracted.surname ?? "").trim();
-        const passportNumber = (ocr.extracted.passportNumber ?? "").trim();
-        if (!givenNames || !passportNumber) {
-          patchItem(item.id, {
-            status: "error",
-            error: t("ocrIncomplete"),
+          let resolution: BatchResolution;
+          if (lockedOwner) {
+            resolution = {
+              kind: "link",
+              personId: lockedOwner.personId,
+              fullName: lockedOwner.personName,
+            };
+          } else {
+            // Pre-select only when there is exactly ONE owned match; never guess
+            // between homonyms — leave ambiguous cases on "create new".
+            const ownedMatches = ocr.matches.filter((m) => m.owned);
+            resolution =
+              ownedMatches.length === 1
+                ? {
+                    kind: "link",
+                    personId: ownedMatches[0]._id,
+                    fullName: ownedMatches[0].fullName,
+                  }
+                : { kind: "new" };
+          }
+
+          patchItem(id, {
+            status: "ready",
+            storageId: uploaded,
+            givenNames,
+            surname,
+            passportNumber,
+            sex: ocr.extracted.sex,
+            birthDate: ocr.extracted.birthDate,
+            issueDate: ocr.extracted.issueDate,
+            expiryDate: ocr.extracted.expiryDate,
+            nationalityId: ocr.nationalityId,
+            issuingCountryId: ocr.issuingCountryId,
+            matches: ocr.matches,
+            lockedOwner,
+            resolution,
           });
+        } catch (error) {
+          console.error("Error reading passport:", error);
+          patchItem(id, { status: "error", error: t("ocrError") });
+        }
+      }),
+    );
+
+    setIsReadingBatch(false);
+  };
+
+  const removeBatchItem = (id: string) =>
+    setBatchItems((prev) => prev.filter((it) => it.id !== id));
+
+  // Create the people/passports for the reviewed passports per the user's
+  // choices, then hand the resolved candidates to the wizard.
+  const commitBatch = async () => {
+    const ready = batchItems.filter(
+      (it) => it.status === "ready" && it.resolution && it.passportNumber,
+    );
+    if (ready.length === 0) return;
+
+    setIsCommitting(true);
+    const results: PassportCandidateResult[] = [];
+    // Collapse within-batch duplicates: one candidate per person and one per
+    // passport number. Without this, two passports sharing a number that both
+    // resolve to "new" would insert a second (orphan) person and then trip the
+    // backend's foreign-passport guard.
+    const committedPersonIds = new Set<Id<"people">>();
+    const committedPassportNumbers = new Set<string>();
+    let duplicateCount = 0;
+    try {
+      for (const item of ready) {
+        const resolution = item.resolution!;
+        const passportNumber = item.passportNumber!;
+        if (
+          (resolution.kind === "link" &&
+            committedPersonIds.has(resolution.personId)) ||
+          committedPassportNumbers.has(passportNumber)
+        ) {
+          duplicateCount++;
           continue;
         }
-
-        patchItem(item.id, { status: "resolving" });
-        // Auto-link only when there is EXACTLY ONE owned match — never guess
-        // between homonyms in a batch; ambiguous cases create a new person.
-        const ownedMatches = ocr.matches.filter((m) => m.owned);
-        const ownedMatch =
-          ownedMatches.length === 1 ? ownedMatches[0] : undefined;
-        let personId: Id<"people">;
-        let passportId: Id<"passports">;
-        let fullName: string;
-
-        if (ownedMatch) {
-          const applied = await applyCandidate({
-            mode: "existing",
-            personId: ownedMatch._id,
-            fillGaps: true,
+        try {
+          let applied: {
+            personId: Id<"people">;
+            passportId: Id<"passports">;
+          };
+          let fullName: string;
+          if (resolution.kind === "link") {
+            applied = await applyCandidate({
+              mode: "existing",
+              personId: resolution.personId,
+              fillGaps: true,
+              passportNumber,
+              issuingCountryId: item.issuingCountryId ?? undefined,
+              issueDate: item.issueDate || undefined,
+              expiryDate: item.expiryDate || undefined,
+              storageId: item.storageId,
+            });
+            fullName = resolution.fullName;
+          } else {
+            applied = await applyCandidate({
+              mode: "new",
+              givenNames: item.givenNames,
+              surname: item.surname || undefined,
+              sex: item.sex || undefined,
+              birthDate: item.birthDate || undefined,
+              nationalityId: item.nationalityId ?? undefined,
+              passportNumber,
+              issuingCountryId: item.issuingCountryId ?? undefined,
+              issueDate: item.issueDate || undefined,
+              expiryDate: item.expiryDate || undefined,
+              storageId: item.storageId,
+            });
+            fullName = [item.givenNames, item.surname]
+              .filter(Boolean)
+              .join(" ");
+          }
+          committedPersonIds.add(applied.personId);
+          committedPassportNumbers.add(passportNumber);
+          results.push({
+            personId: applied.personId,
+            passportId: applied.passportId,
+            storageId: item.storageId!,
+            fullName,
             passportNumber,
-            issuingCountryId: ocr.issuingCountryId ?? undefined,
-            issueDate: ocr.extracted.issueDate || undefined,
-            expiryDate: ocr.extracted.expiryDate || undefined,
-            storageId: uploaded,
           });
-          personId = applied.personId;
-          passportId = applied.passportId;
-          fullName = ownedMatch.fullName;
-        } else {
-          const applied = await applyCandidate({
-            mode: "new",
-            givenNames,
-            surname: surname || undefined,
-            sex: ocr.extracted.sex || undefined,
-            birthDate: ocr.extracted.birthDate || undefined,
-            nationalityId: ocr.nationalityId ?? undefined,
-            passportNumber,
-            issuingCountryId: ocr.issuingCountryId ?? undefined,
-            issueDate: ocr.extracted.issueDate || undefined,
-            expiryDate: ocr.extracted.expiryDate || undefined,
-            storageId: uploaded,
+        } catch (error) {
+          console.error("Error resolving candidate:", error);
+          patchItem(item.id, {
+            status: "error",
+            error: t("applyCandidateError"),
           });
-          personId = applied.personId;
-          passportId = applied.passportId;
-          fullName = [givenNames, surname].filter(Boolean).join(" ");
         }
-
-        results.push({
-          personId,
-          passportId,
-          storageId: uploaded,
-          fullName,
-          passportNumber,
-        });
-        patchItem(item.id, { status: "done", name: fullName });
-      } catch (error) {
-        console.error("Error processing passport:", error);
-        patchItem(item.id, { status: "error", error: t("ocrError") });
       }
-    }
 
-    const failedCount = files.length - results.length;
-    try {
+      const failedCount = ready.length - results.length - duplicateCount;
       if (results.length > 0) {
-        await onAdd(results);
+        // The parent remounts this component after candidates are added, so the
+        // uploader resets on its own; just surface partial outcomes here.
         if (failedCount > 0) {
           toast.warning(t("somePassportsFailed", { count: failedCount }));
         }
+        if (duplicateCount > 0) {
+          toast.info(t("duplicateCandidatesSkipped", { count: duplicateCount }));
+        }
+        await onAdd(results);
       } else {
-        toast.error(t("ocrError"));
+        toast.error(t("applyCandidateError"));
       }
     } finally {
-      setIsBatchProcessing(false);
-      setBatchItems([]);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setIsCommitting(false);
     }
   };
 
@@ -479,48 +604,68 @@ export function PassportUploadStep({
     handleFiles(event.dataTransfer.files);
   };
 
-  // --- Batch progress view --------------------------------------------------
+  // --- Batch review + resolve view -----------------------------------------
 
-  if (isBatchProcessing || batchItems.length > 0) {
+  if (batchItems.length > 0) {
+    const readyCount = batchItems.filter(
+      (it) => it.status === "ready" && it.resolution,
+    ).length;
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <CardTitle>{t("processingPassports")}</CardTitle>
+            {isReadingBatch ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <ScanLine className="h-5 w-5" />
+            )}
+            <CardTitle>
+              {isReadingBatch
+                ? t("processingPassports")
+                : t("reviewPassportsTitle")}
+            </CardTitle>
           </div>
-          <CardDescription>{t("processingPassportsHint")}</CardDescription>
+          <CardDescription>
+            {isReadingBatch
+              ? t("processingPassportsHint")
+              : t("reviewPassportsHint")}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {batchItems.map((item) => (
-            <div
+        <CardContent className="space-y-3">
+          {batchItems.map((item, index) => (
+            <BatchItemCard
               key={item.id}
-              className="flex items-center justify-between gap-3 rounded-lg border bg-background p-3"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {item.name || item.fileName}
-                  </p>
-                  {item.error && (
-                    <p className="truncate text-xs text-destructive">
-                      {item.error}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="shrink-0">
-                {item.status === "done" ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                ) : item.status === "error" ? (
-                  <XCircle className="h-5 w-5 text-destructive" />
-                ) : (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                )}
-              </div>
-            </div>
+              item={item}
+              index={index}
+              disabled={isCommitting}
+              onSelect={(resolution) => setResolution(item.id, resolution)}
+              onRemove={() => removeBatchItem(item.id)}
+            />
           ))}
+
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetState}
+              disabled={busy}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {t("reupload")}
+            </Button>
+            <Button
+              type="button"
+              onClick={commitBatch}
+              disabled={busy || readyCount === 0}
+            >
+              {isCommitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
+              {t("addCandidatesButton", { count: readyCount })}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -772,5 +917,199 @@ export function PassportUploadStep({
         </label>
       </CardContent>
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One reviewed passport: shows the detected name + the resolution choice
+// (link to an existing person or create a new candidate).
+// ---------------------------------------------------------------------------
+
+function BatchItemCard({
+  item,
+  index,
+  disabled,
+  onSelect,
+  onRemove,
+}: {
+  item: BatchItem;
+  index: number;
+  disabled: boolean;
+  onSelect: (resolution: BatchResolution) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations("ProcessRequests");
+
+  const detectedName =
+    [item.givenNames, item.surname].filter(Boolean).join(" ") ||
+    `${t("candidate")} ${index + 1}`;
+
+  const isLink = item.resolution?.kind === "link";
+  const selectedPersonId =
+    item.resolution?.kind === "link" ? item.resolution.personId : undefined;
+
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <FileText className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {item.status === "ready" ? detectedName : item.fileName}
+            </p>
+            {item.status === "ready" && item.passportNumber && (
+              <p className="truncate text-xs text-muted-foreground">
+                {t("passportNumber")}: {item.passportNumber}
+              </p>
+            )}
+            {item.status === "error" && item.error && (
+              <p className="truncate text-xs text-destructive">{item.error}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {item.status === "reading" && (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          )}
+          {item.status === "ready" && (
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          )}
+          {item.status === "error" && (
+            <XCircle className="h-5 w-5 text-destructive" />
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            disabled={disabled}
+            className="text-muted-foreground hover:text-destructive"
+            aria-label={t("removePassport")}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {item.status === "ready" && (
+        <div className="mt-3 space-y-2">
+          {item.lockedOwner ? (
+            // Passport number already belongs to a person → forced link.
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p>
+                {t("passportLinkedToPerson", {
+                  name: item.lockedOwner.personName,
+                })}
+              </p>
+            </div>
+          ) : (
+            <>
+              {item.matches && item.matches.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t("foundExistingCandidateHint")}
+                </p>
+              )}
+              <div className="space-y-1.5">
+                {item.matches?.map((match) => (
+                  <ResolutionOption
+                    key={match._id}
+                    selected={isLink && selectedPersonId === match._id}
+                    disabled={disabled}
+                    onClick={() =>
+                      onSelect({
+                        kind: "link",
+                        personId: match._id,
+                        fullName: match.fullName,
+                      })
+                    }
+                    title={match.fullName}
+                    badges={
+                      <>
+                        {match.cpf && (
+                          <Badge variant="secondary" className="font-normal">
+                            {t("cpfLabel")}: {match.cpf}
+                          </Badge>
+                        )}
+                        {match.birthDate && (
+                          <Badge variant="secondary" className="font-normal">
+                            {t("birthDateLabel")}: {match.birthDate}
+                          </Badge>
+                        )}
+                        {!match.birthDate && match.birthYear && (
+                          <Badge variant="secondary" className="font-normal">
+                            {t("birthYearLabel")}: {match.birthYear}
+                          </Badge>
+                        )}
+                      </>
+                    }
+                  />
+                ))}
+                <ResolutionOption
+                  selected={item.resolution?.kind === "new"}
+                  disabled={disabled}
+                  onClick={() => onSelect({ kind: "new" })}
+                  title={t("createNewCandidate")}
+                  icon={<UserPlus className="h-4 w-4 text-muted-foreground" />}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResolutionOption({
+  selected,
+  disabled,
+  onClick,
+  title,
+  badges,
+  icon,
+}: {
+  selected: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  title: string;
+  badges?: React.ReactNode;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center justify-between gap-3 rounded-md border p-2.5 text-left transition-colors",
+        selected
+          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+          : "hover:border-muted-foreground/40 hover:bg-muted/40",
+        disabled && "cursor-not-allowed opacity-60",
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        {icon}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{title}</p>
+          {badges && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {badges}
+            </div>
+          )}
+        </div>
+      </div>
+      <span
+        className={cn(
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+          selected
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted-foreground/30",
+        )}
+      >
+        {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+      </span>
+    </button>
   );
 }

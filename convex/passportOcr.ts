@@ -33,6 +33,7 @@ type ExtractPassportResult = {
     existingPassport: {
       _id: Id<"passports">;
       passportNumber: string;
+      personId: Id<"people"> | null;
       personName: string;
     } | null;
   } | null;

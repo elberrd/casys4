@@ -406,6 +406,9 @@ export function ProcessRequestWizard({
         seen.add(r.personId);
         fresh.push(r);
       }
+      // Resolved candidates already present in this request (a passport that
+      // links to an already-added candidate) are dropped — tell the user.
+      const duplicateDropped = results.length - fresh.length;
       const toAdd = fresh.slice(0, capacity);
       if (toAdd.length === 0) {
         toast.error(t("candidateAlreadyAdded"));
@@ -462,6 +465,9 @@ export function ProcessRequestWizard({
         }
         if (fresh.length > toAdd.length) {
           toast.warning(t("maxCandidatesReached", { max: MAX_CANDIDATES }));
+        }
+        if (duplicateDropped > 0) {
+          toast.info(t("duplicateCandidatesSkipped", { count: duplicateDropped }));
         }
         setIsAddingCandidate(false);
       }

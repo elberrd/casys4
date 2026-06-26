@@ -120,6 +120,18 @@ export const applyCandidate = mutation({
       .first();
 
     if (existingPassport) {
+      // A passport number maps to exactly one person. If this number already
+      // belongs to a DIFFERENT person than the one we resolved, refuse instead
+      // of returning a mismatched { personId, passportId } pair — that pair
+      // would otherwise be rejected later by createDraft's
+      // assertPassportBelongsToPerson as an opaque "Server Error". The request
+      // wizard prevents this by linking the candidate to the passport's owner;
+      // this is the backstop for any other caller.
+      if (existingPassport.personId && existingPassport.personId !== personId) {
+        throw new Error(
+          "This passport number is already registered to another person"
+        );
+      }
       passportId = existingPassport._id;
       const patch: Record<string, unknown> = { updatedAt: now };
       if (!existingPassport.personId) patch.personId = personId;
