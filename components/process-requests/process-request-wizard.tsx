@@ -1090,6 +1090,15 @@ function PersonalDataStep({
   const fatherLocked = isExisting && hasValue(candidate.fatherName);
   const motherLocked = isExisting && hasValue(candidate.motherName);
 
+  // A stored marital status may be a known enum key (translate it) or a
+  // legacy/free-form value (show as-is). Either way it must be visible when locked
+  // — a Select can only render values that match one of its options.
+  const maritalDisplay = candidate.maritalStatus
+    ? (MARITAL_OPTIONS as readonly string[]).includes(candidate.maritalStatus)
+      ? t(candidate.maritalStatus as (typeof MARITAL_OPTIONS)[number])
+      : candidate.maritalStatus
+    : "";
+
   const fieldHint = (locked: boolean) =>
     isExisting ? (
       <p className="text-xs text-muted-foreground">
@@ -1122,22 +1131,27 @@ function PersonalDataStep({
           <Label htmlFor="marital-status" className="sr-only">
             {t("maritalStatus")}
           </Label>
-          <Select
-            value={candidate.maritalStatus ?? ""}
-            onValueChange={(value) => patchPerson("maritalStatus", value)}
-            disabled={disabled || maritalLocked}
-          >
-            <SelectTrigger id="marital-status" className="w-full">
-              <SelectValue placeholder={t("maritalStatus")} />
-            </SelectTrigger>
-            <SelectContent>
-              {MARITAL_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {t(option)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {maritalLocked ? (
+            // Read-only display: shows the stored value regardless of format.
+            <Input id="marital-status" value={maritalDisplay} disabled readOnly />
+          ) : (
+            <Select
+              value={candidate.maritalStatus ?? ""}
+              onValueChange={(value) => patchPerson("maritalStatus", value)}
+              disabled={disabled}
+            >
+              <SelectTrigger id="marital-status" className="w-full">
+                <SelectValue placeholder={t("maritalStatus")} />
+              </SelectTrigger>
+              <SelectContent>
+                {MARITAL_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {t(option)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {fieldHint(maritalLocked)}
         </div>
       </section>
@@ -1516,7 +1530,11 @@ function ReviewStep({
       <div className="space-y-4">
         {candidates.map((candidate, index) => {
           const maritalLabel = candidate.maritalStatus
-            ? t(candidate.maritalStatus as (typeof MARITAL_OPTIONS)[number])
+            ? (MARITAL_OPTIONS as readonly string[]).includes(
+                candidate.maritalStatus,
+              )
+              ? t(candidate.maritalStatus as (typeof MARITAL_OPTIONS)[number])
+              : candidate.maritalStatus
             : undefined;
           const visaLabel = candidate.visaReceiptLocation
             ? t(candidate.visaReceiptLocation)
