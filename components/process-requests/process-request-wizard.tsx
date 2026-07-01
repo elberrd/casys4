@@ -50,6 +50,7 @@ import {
 import {
   PassportUploadStep,
   type PassportCandidateResult,
+  type PassportUploadStepHandle,
 } from "./passport-upload-step";
 import { ResidenceSelect } from "./residence-select";
 import { ExistingPersonBadge } from "./existing-person-badge";
@@ -310,6 +311,11 @@ export function ProcessRequestWizard({
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isAddingCandidate, setIsAddingCandidate] = React.useState(false);
+  const [isCommittingBatch, setIsCommittingBatch] = React.useState(false);
+  // Reviewed-but-not-yet-added passports living inside the uploader. Lets the
+  // footer enable + auto-commit them on "Próximo" / "Salvar rascunho".
+  const [pendingReady, setPendingReady] = React.useState(0);
+  const uploadRef = React.useRef<PassportUploadStepHandle>(null);
   const [showSubmitDialog, setShowSubmitDialog] = React.useState(false);
   const [pendingRemoval, setPendingRemoval] =
     React.useState<CandidateFields | null>(null);
@@ -348,7 +354,22 @@ export function ProcessRequestWizard({
 
   const frameworkComplete = Boolean(legalFrameworkId);
   const hasCandidates = candidates.length > 0;
-  const busy = isSaving || isSubmitting || isAddingCandidate;
+  const busy =
+    isSaving || isSubmitting || isAddingCandidate || isCommittingBatch;
+  // Something is committable when there are candidates OR a reviewed batch.
+  const canProceed = hasCandidates || pendingReady > 0;
+
+  // Commit a pending review batch (if any) via the uploader's imperative handle;
+  // resolves with the number of candidates added.
+  const commitPendingBatch = React.useCallback(async (): Promise<number> => {
+    if (pendingReady <= 0 || !uploadRef.current) return 0;
+    setIsCommittingBatch(true);
+    try {
+      return await uploadRef.current.commitReady();
+    } finally {
+      setIsCommittingBatch(false);
+    }
+  }, [pendingReady]);
 
   const activeCandidate =
     candidates.find((c) => c.personId === activeCandidateId) ?? candidates[0];
@@ -438,7 +459,7 @@ export function ProcessRequestWizard({
       const capacity = MAX_CANDIDATES - candidates.length;
       if (capacity <= 0) {
         toast.error(t("maxCandidatesReached", { max: MAX_CANDIDATES }));
-        return;
+        return 0;
       }
       const seen = new Set(candidates.map((c) => c.personId));
       const fresh: PassportCandidateResult[] = [];
@@ -453,7 +474,7 @@ export function ProcessRequestWizard({
       const toAdd = fresh.slice(0, capacity);
       if (toAdd.length === 0) {
         toast.error(t("candidateAlreadyAdded"));
-        return;
+        return 0;
       }
 
       setIsAddingCandidate(true);
@@ -523,6 +544,7 @@ export function ProcessRequestWizard({
         }
         setIsAddingCandidate(false);
       }
+      return newCandidates.length;
     },
     [
       candidates,
@@ -565,9 +587,14 @@ export function ProcessRequestWizard({
       toast.error(t("mustSelectLegalFramework"));
       return;
     }
-    if (stepIndex === 1 && !hasCandidates) {
-      toast.error(t("mustAddCandidate"));
-      return;
+    if (stepIndex === 1) {
+      // Auto-commit any reviewed-but-not-yet-added passports so the user isn't
+      // blocked by the separate "Adicionar candidatos" click.
+      const added = await commitPendingBatch();
+      if (!hasCandidates && !added) {
+        toast.error(t("mustAddCandidate"));
+        return;
+      }
     }
     if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
       await persistActive();
@@ -599,7 +626,10 @@ export function ProcessRequestWizard({
   };
 
   const handleSaveDraft = async () => {
-    if (!hasCandidates) {
+    // Commit any reviewed-but-not-yet-added passports first (createDraft persists
+    // them), then save edits to already-committed candidates.
+    const added = await commitPendingBatch();
+    if (!hasCandidates && !added) {
       toast.error(t("mustAddCandidate"));
       return;
     }
@@ -804,7 +834,9 @@ export function ProcessRequestWizard({
                     {/* Remounts after each add so the uploader resets cleanly. */}
                     <PassportUploadStep
                       key={`add-${candidates.length}`}
+                      ref={uploadRef}
                       onAdd={handleAddCandidates}
+                      onPendingReadyChange={setPendingReady}
                       maxToAdd={MAX_CANDIDATES - candidates.length}
                       disabled={busy}
                     />
@@ -842,7 +874,7 @@ export function ProcessRequestWizard({
               type="button"
               variant="ghost"
               onClick={handleSaveDraft}
-              disabled={busy || !hasCandidates}
+              disabled={busy || !canProceed}
               className="text-muted-foreground hover:text-foreground"
             >
               {isSaving ? (
@@ -888,7 +920,7 @@ export function ProcessRequestWizard({
                   disabled={
                     busy ||
                     (stepIndex === 0 && !frameworkComplete) ||
-                    (stepIndex === 1 && !hasCandidates)
+                    (stepIndex === 1 && !canProceed)
                   }
                   className="min-w-[120px]"
                 >

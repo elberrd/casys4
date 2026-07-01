@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { useAction, useMutation } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
@@ -116,11 +122,23 @@ function toCandidateResult(
 }
 
 export interface PassportUploadStepProps {
-  /** Add one or many resolved candidates (multi-passport selection). */
-  onAdd: (results: PassportCandidateResult[]) => void | Promise<void>;
+  /** Add one or many resolved candidates (multi-passport selection). May return
+   *  the number actually added so the caller can gate navigation. */
+  onAdd: (
+    results: PassportCandidateResult[],
+  ) => void | number | Promise<void | number>;
   /** Remaining capacity — at most this many passports are processed at once. */
   maxToAdd: number;
   disabled?: boolean;
+  /** Reports how many reviewed passports are ready to commit (0 when none), so
+   *  the wizard footer can enable "Próximo" / "Salvar rascunho". */
+  onPendingReadyChange?: (count: number) => void;
+}
+
+/** Imperative handle: lets the wizard footer commit a pending review batch. */
+export interface PassportUploadStepHandle {
+  /** Commit every reviewed-and-ready passport; resolves with the number added. */
+  commitReady: () => Promise<number>;
 }
 
 type ExtractMatch = {
@@ -222,11 +240,13 @@ type BatchItem = {
   resolution?: BatchResolution;
 };
 
-export function PassportUploadStep({
-  onAdd,
-  maxToAdd,
-  disabled = false,
-}: PassportUploadStepProps) {
+export const PassportUploadStep = forwardRef<
+  PassportUploadStepHandle,
+  PassportUploadStepProps
+>(function PassportUploadStep(
+  { onAdd, maxToAdd, disabled = false, onPendingReadyChange },
+  ref,
+) {
   const t = useTranslations("ProcessRequests");
 
   const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl);
@@ -249,6 +269,26 @@ export function PassportUploadStep({
 
   const busy =
     isReading || isApplying || isReadingBatch || isCommitting || disabled;
+
+  // How many reviewed passports are ready to commit. Reported up so the wizard
+  // footer can enable "Próximo" / "Salvar rascunho" before the explicit
+  // "Adicionar candidatos" click, and reset to 0 when the uploader unmounts.
+  const pendingReadyCount = batchItems.filter(
+    (it) => it.status === "ready" && it.resolution,
+  ).length;
+  useEffect(() => {
+    onPendingReadyChange?.(pendingReadyCount);
+  }, [pendingReadyCount, onPendingReadyChange]);
+  useEffect(
+    () => () => onPendingReadyChange?.(0),
+    [onPendingReadyChange],
+  );
+
+  // Let the wizard footer commit the reviewed batch (same path as the explicit
+  // "Adicionar candidatos" button) so navigating/saving isn't blocked by it.
+  useImperativeHandle(ref, () => ({
+    commitReady: () => commitBatch(),
+  }));
 
   // Prevent the browser from navigating to a file dropped outside the dropzone.
   useEffect(() => {
@@ -549,13 +589,14 @@ export function PassportUploadStep({
 
   // Create the people/passports for the reviewed passports per the user's
   // choices, then hand the resolved candidates to the wizard.
-  const commitBatch = async () => {
+  const commitBatch = async (): Promise<number> => {
     const ready = batchItems.filter(
       (it) => it.status === "ready" && it.resolution && it.passportNumber,
     );
-    if (ready.length === 0) return;
+    if (ready.length === 0) return 0;
 
     setIsCommitting(true);
+    let committed = 0;
     const results: PassportCandidateResult[] = [];
     // Collapse within-batch duplicates: one candidate per person and one per
     // passport number. Without this, two passports sharing a number that both
@@ -633,13 +674,16 @@ export function PassportUploadStep({
         if (duplicateCount > 0) {
           toast.info(t("duplicateCandidatesSkipped", { count: duplicateCount }));
         }
-        await onAdd(results);
+        const addedCount = await onAdd(results);
+        committed =
+          typeof addedCount === "number" ? addedCount : results.length;
       } else {
         toast.error(t("applyCandidateError"));
       }
     } finally {
       setIsCommitting(false);
     }
+    return committed;
   };
 
   // --- Drag and drop --------------------------------------------------------
@@ -1031,7 +1075,7 @@ export function PassportUploadStep({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // One reviewed passport: shows the detected name + the resolution choice
