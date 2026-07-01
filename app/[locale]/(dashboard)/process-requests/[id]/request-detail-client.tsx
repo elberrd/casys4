@@ -168,7 +168,16 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
               {/* Candidate + passport */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">{t("candidate")}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-base">
+                      {t("candidate")}
+                    </CardTitle>
+                    {request.linkedExistingPerson && (
+                      <Badge variant="secondary" className="font-normal">
+                        {t("linkedExistingPersonBadge")}
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   <Field

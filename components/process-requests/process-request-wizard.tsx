@@ -15,7 +15,9 @@ import {
   RefreshCw,
   Save,
   Send,
+  ShieldAlert,
   Trash2,
+  UserCheck,
   UserRound,
 } from "lucide-react";
 
@@ -50,6 +52,7 @@ import {
   type PassportCandidateResult,
 } from "./passport-upload-step";
 import { ResidenceSelect } from "./residence-select";
+import { ExistingPersonBadge } from "./existing-person-badge";
 
 // ---------------------------------------------------------------------------
 // Per-candidate state. A multi-candidate request shares ONE legal framework
@@ -57,12 +60,32 @@ import { ResidenceSelect } from "./residence-select";
 // the request group; the per-candidate steps edit the active candidate.
 // ---------------------------------------------------------------------------
 
+/** Person-level fields whose writes are gated by dirty-tracking (see toSaveArgs). */
+type PersonFieldKey =
+  | "candidateEmail"
+  | "maritalStatus"
+  | "fatherName"
+  | "motherName";
+
 interface CandidateFields {
   processId?: Id<"individualProcesses">; // draft row id (set once created)
   personId: Id<"people">;
   passportId?: Id<"passports">;
   name: string;
   passportNumber?: string;
+  // Existing-person link metadata (drives prefill, signaling, and edit rules).
+  existingPerson?: boolean;
+  personOwned?: boolean;
+  presence?: {
+    hasEmail: boolean;
+    hasMaritalStatus: boolean;
+    hasFatherName: boolean;
+    hasMotherName: boolean;
+  };
+  // Which person fields the user actually edited this session. Only touched
+  // fields are sent to saveDraft, so a prefilled-but-untouched form can never
+  // wipe an owned person's stored PII (blank never overwrites).
+  touched?: Partial<Record<PersonFieldKey, boolean>>;
   // Person-level
   candidateEmail?: string;
   maritalStatus?: string;
@@ -95,6 +118,7 @@ interface EnrichedRequestRow {
   personId: Id<"people">;
   passportId?: Id<"passports"> | null;
   requestGroupId?: string | null;
+  linkedExistingPerson?: boolean | null;
   legalFrameworkId?: Id<"legalFrameworks"> | null;
   consulateId?: Id<"consulates"> | null;
   urgent?: boolean | null;
@@ -117,10 +141,15 @@ interface EnrichedRequestRow {
   person:
     | {
         fullName: string;
+        owned?: boolean | null;
         email?: string | null;
         maritalStatus?: string | null;
         fatherName?: string | null;
         motherName?: string | null;
+        hasEmail?: boolean | null;
+        hasMaritalStatus?: boolean | null;
+        hasFatherName?: boolean | null;
+        hasMotherName?: boolean | null;
       }
     | null;
   passport: { passportNumber: string } | null;
@@ -176,10 +205,13 @@ function toSaveArgs(
     residenceAddressAbroad: c.residenceAddressAbroad,
     consularPost: c.consularPost,
     professionalExperience: c.professionalExperience,
-    candidateEmail: c.candidateEmail,
-    maritalStatus: c.maritalStatus,
-    fatherName: c.fatherName,
-    motherName: c.motherName,
+    // Person-level PII: send ONLY fields the user actually edited this session.
+    // An untouched (incl. prefilled) field is sent as undefined → the backend
+    // performs no write → a blank/untouched form never wipes stored PII.
+    candidateEmail: c.touched?.candidateEmail ? c.candidateEmail : undefined,
+    maritalStatus: c.touched?.maritalStatus ? c.maritalStatus : undefined,
+    fatherName: c.touched?.fatherName ? c.fatherName : undefined,
+    motherName: c.touched?.motherName ? c.motherName : undefined,
   };
 }
 
@@ -191,6 +223,15 @@ function rowToCandidate(row: EnrichedRequestRow): CandidateFields {
     passportId: row.passportId ?? undefined,
     name: row.person?.fullName ?? "",
     passportNumber: row.passport?.passportNumber ?? undefined,
+    existingPerson: row.linkedExistingPerson ?? false,
+    personOwned: row.person?.owned ?? false,
+    presence: {
+      hasEmail: row.person?.hasEmail ?? false,
+      hasMaritalStatus: row.person?.hasMaritalStatus ?? false,
+      hasFatherName: row.person?.hasFatherName ?? false,
+      hasMotherName: row.person?.hasMotherName ?? false,
+    },
+    touched: {},
     candidateEmail: row.person?.email ?? undefined,
     maritalStatus: row.person?.maritalStatus ?? undefined,
     fatherName: row.person?.fatherName ?? undefined,
@@ -437,6 +478,7 @@ export function ProcessRequestWizard({
             requestGroupId: groupId,
             passportId: r.passportId,
             legalFrameworkId,
+            linkedExistingPerson: r.existingPerson,
           });
           groupId = gid;
           setRequestGroupId(gid); // persist the group as soon as it's known
@@ -446,6 +488,16 @@ export function ProcessRequestWizard({
             passportId: r.passportId,
             name: r.fullName,
             passportNumber: r.passportNumber,
+            existingPerson: r.existingPerson,
+            personOwned: r.personOwned,
+            presence: r.presence,
+            touched: {},
+            // Prefill Dados Pessoais from the owned-gated snapshot (null when the
+            // person is protected / cross-tenant → fields stay empty).
+            candidateEmail: r.person.email ?? undefined,
+            maritalStatus: r.person.maritalStatus ?? undefined,
+            fatherName: r.person.fatherName ?? undefined,
+            motherName: r.person.motherName ?? undefined,
           });
         }
       } catch (error) {
@@ -860,6 +912,13 @@ export function ProcessRequestWizard({
             <AlertDialogDescription>
               {t("submitConfirmBodyBatch", { count: candidates.length })}
             </AlertDialogDescription>
+            {candidates.some((c) => c.existingPerson) && (
+              <p className="text-sm text-muted-foreground">
+                {t("submitLinkedSummary", {
+                  count: candidates.filter((c) => c.existingPerson).length,
+                })}
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>
@@ -956,6 +1015,11 @@ function CandidateTabBar({
             <span className="max-w-[180px] truncate">
               {candidate.name || `${t("candidate")} ${index + 1}`}
             </span>
+            <ExistingPersonBadge
+              existingPerson={candidate.existingPerson}
+              owned={candidate.personOwned}
+              iconOnly
+            />
           </button>
         );
       })}
@@ -977,8 +1041,60 @@ function PersonalDataStep({
   disabled: boolean;
 }) {
   const t = useTranslations("ProcessRequests");
+
+  const isExisting = Boolean(candidate.existingPerson);
+  const isProtected = isExisting && !candidate.personOwned;
+  const presence = candidate.presence;
+
+  // Mark a person field as edited so only touched fields are persisted.
+  const patchPerson = (field: PersonFieldKey, value: string) =>
+    onPatch({
+      [field]: value,
+      touched: { ...candidate.touched, [field]: true },
+    });
+
+  // For a protected (cross-tenant) person, a field the other org already filled
+  // is locked (identity withheld); a truly-empty field stays editable (gap-fill).
+  const lockField = (filled?: boolean) => isProtected && Boolean(filled);
+  const emailLocked = lockField(presence?.hasEmail);
+  const maritalLocked = lockField(presence?.hasMaritalStatus);
+  const fatherLocked = lockField(presence?.hasFatherName);
+  const motherLocked = lockField(presence?.hasMotherName);
+
+  const fieldHint = (locked: boolean) =>
+    isProtected ? (
+      <p className="text-xs text-muted-foreground">
+        {locked ? t("fieldLockedProtected") : t("fieldCanComplete")}
+      </p>
+    ) : null;
+
   return (
     <div className="space-y-8">
+      {isExisting &&
+        (isProtected ? (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-0.5">
+              <p className="font-medium">{t("personalDataProtectedTitle")}</p>
+              <p className="text-muted-foreground">
+                {t("personalDataProtectedBody")}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4 text-sm dark:border-blue-900 dark:bg-blue-950/30">
+            <UserCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+            <div className="space-y-0.5">
+              <p className="font-medium">{t("personalDataUpdatingTitle")}</p>
+              <p className="text-muted-foreground">
+                {t("personalDataUpdatingBody", {
+                  name: candidate.name || t("candidate"),
+                })}
+              </p>
+            </div>
+          </div>
+        ))}
+
       {/* Estado Civil */}
       <section className="space-y-3">
         <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
@@ -990,8 +1106,8 @@ function PersonalDataStep({
           </Label>
           <Select
             value={candidate.maritalStatus ?? ""}
-            onValueChange={(value) => onPatch({ maritalStatus: value })}
-            disabled={disabled}
+            onValueChange={(value) => patchPerson("maritalStatus", value)}
+            disabled={disabled || maritalLocked}
           >
             <SelectTrigger id="marital-status" className="w-full">
               <SelectValue placeholder={t("maritalStatus")} />
@@ -1004,6 +1120,7 @@ function PersonalDataStep({
               ))}
             </SelectContent>
           </Select>
+          {fieldHint(maritalLocked)}
         </div>
       </section>
 
@@ -1018,18 +1135,20 @@ function PersonalDataStep({
             <Input
               id="father-name"
               value={candidate.fatherName ?? ""}
-              onChange={(e) => onPatch({ fatherName: e.target.value })}
-              disabled={disabled}
+              onChange={(e) => patchPerson("fatherName", e.target.value)}
+              disabled={disabled || fatherLocked}
             />
+            {fieldHint(fatherLocked)}
           </div>
           <div className="space-y-2">
             <Label htmlFor="mother-name">{t("motherName")}</Label>
             <Input
               id="mother-name"
               value={candidate.motherName ?? ""}
-              onChange={(e) => onPatch({ motherName: e.target.value })}
-              disabled={disabled}
+              onChange={(e) => patchPerson("motherName", e.target.value)}
+              disabled={disabled || motherLocked}
             />
+            {fieldHint(motherLocked)}
           </div>
         </div>
       </section>
@@ -1102,9 +1221,10 @@ function PersonalDataStep({
               id="candidate-email"
               type="email"
               value={candidate.candidateEmail ?? ""}
-              onChange={(e) => onPatch({ candidateEmail: e.target.value })}
-              disabled={disabled}
+              onChange={(e) => patchPerson("candidateEmail", e.target.value)}
+              disabled={disabled || emailLocked}
             />
+            {fieldHint(emailLocked)}
           </div>
           <div className="space-y-2">
             <Label htmlFor="notes">
@@ -1385,14 +1505,23 @@ function ReviewStep({
             : undefined;
           return (
             <div key={candidate.personId} className="rounded-lg border p-4">
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {index + 1}
                 </span>
                 <h3 className="font-semibold">
                   {candidate.name || `${t("candidate")} ${index + 1}`}
                 </h3>
+                <ExistingPersonBadge
+                  existingPerson={candidate.existingPerson}
+                  owned={candidate.personOwned}
+                />
               </div>
+              {candidate.existingPerson && !candidate.personOwned && (
+                <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+                  {t("reviewProtectedNote")}
+                </p>
+              )}
               <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
                 <ReviewRow
                   label={t("passportNumber")}

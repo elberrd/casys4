@@ -9,6 +9,7 @@ export interface ProcessRequestListItem {
   _id: Id<"individualProcesses">;
   requestStatus?: "draft" | "solicitado";
   requestGroupId?: string;
+  linkedExistingPerson?: boolean;
   requestedBy?: Id<"users">;
   requestedAt?: number;
   requestNotes?: string;
@@ -47,10 +48,15 @@ export interface ProcessRequestListItem {
         surname?: string;
         sex?: string;
         birthDate?: string;
-        email?: string;
-        maritalStatus?: string;
-        fatherName?: string;
-        motherName?: string;
+        owned?: boolean;
+        email?: string | null;
+        maritalStatus?: string | null;
+        fatherName?: string | null;
+        motherName?: string | null;
+        hasEmail?: boolean;
+        hasMaritalStatus?: boolean;
+        hasFatherName?: boolean;
+        hasMotherName?: boolean;
       }
     | null;
   passport:

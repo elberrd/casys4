@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile } from "./lib/auth";
+import { personOwnedByClient, gatePersonPII } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 
 /**
@@ -24,7 +25,10 @@ export const generateUploadUrl = mutation({
  * - mode "existing": uses the given personId; optionally fills missing person
  *   fields; links/creates the passport.
  *
- * Returns the resolved { personId, passportId }.
+ * Returns the resolved person + passport, plus whether the caller OWNS the
+ * person (may see/overwrite PII) and an owned-gated PII snapshot with presence
+ * flags. The wizard uses these to prefill the "Dados Pessoais" step and to lock
+ * already-filled fields of a cross-tenant person.
  */
 export const applyCandidate = mutation({
   args: {
@@ -45,6 +49,29 @@ export const applyCandidate = mutation({
     expiryDate: v.optional(v.string()),
     storageId: v.optional(v.id("_storage")),
   },
+  returns: v.object({
+    personId: v.id("people"),
+    passportId: v.id("passports"),
+    // Whether the caller owns this person (admin / own candidate / own company).
+    owned: v.boolean(),
+    // True when linking to a pre-existing person (mode "existing").
+    isExisting: v.boolean(),
+    // Owned-gated PII snapshot (null values when not owned).
+    person: v.object({
+      fullName: v.string(),
+      email: v.union(v.string(), v.null()),
+      maritalStatus: v.union(v.string(), v.null()),
+      fatherName: v.union(v.string(), v.null()),
+      motherName: v.union(v.string(), v.null()),
+    }),
+    // Which PII fields are already filled (no values disclosed).
+    presence: v.object({
+      hasEmail: v.boolean(),
+      hasMaritalStatus: v.boolean(),
+      hasFatherName: v.boolean(),
+      hasMotherName: v.boolean(),
+    }),
+  }),
   handler: async (ctx, args) => {
     const profile = await getCurrentUserProfile(ctx);
     const now = Date.now();
@@ -177,6 +204,34 @@ export const applyCandidate = mutation({
       });
     }
 
-    return { personId, passportId };
+    // --- Owned-gated PII snapshot for the wizard's Dados Pessoais prefill ---
+    // Re-read the person to reflect any fill-gaps patch applied above.
+    const resolvedPerson = await ctx.db.get(personId);
+    const owned = await personOwnedByClient(ctx, profile, personId);
+    const gated = gatePersonPII(resolvedPerson ?? {}, owned);
+    const fullName = resolvedPerson
+      ? [
+          resolvedPerson.givenNames,
+          resolvedPerson.middleName,
+          resolvedPerson.surname,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : "";
+
+    return {
+      personId,
+      passportId,
+      owned,
+      isExisting: args.mode === "existing",
+      person: {
+        fullName,
+        email: gated.email,
+        maritalStatus: gated.maritalStatus,
+        fatherName: gated.fatherName,
+        motherName: gated.motherName,
+      },
+      presence: gated.presence,
+    };
   },
 });

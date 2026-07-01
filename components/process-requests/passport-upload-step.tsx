@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Check,
   CheckCircle2,
+  Clock,
   FileText,
   Loader2,
   ScanLine,
@@ -41,6 +42,20 @@ const ACCEPTED_TYPES = [
 ];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
+/** Owned-gated person snapshot + presence flags returned by applyCandidate. */
+export interface PersonSnapshot {
+  email: string | null;
+  maritalStatus: string | null;
+  fatherName: string | null;
+  motherName: string | null;
+}
+export interface PersonPresence {
+  hasEmail: boolean;
+  hasMaritalStatus: boolean;
+  hasFatherName: boolean;
+  hasMotherName: boolean;
+}
+
 export interface PassportCandidateResult {
   personId: Id<"people">;
   passportId: Id<"passports">;
@@ -49,6 +64,55 @@ export interface PassportCandidateResult {
   fullName: string;
   /** Passport number used for this candidate. */
   passportNumber: string;
+  /** True when this candidate links to a person that already existed (dedup). */
+  existingPerson: boolean;
+  /** True when the caller owns the person (may see + overwrite their PII). */
+  personOwned: boolean;
+  /** Owned-gated PII snapshot to prefill Dados Pessoais (null values if not owned). */
+  person: PersonSnapshot;
+  /** Which PII fields are already filled (used to lock a protected person's fields). */
+  presence: PersonPresence;
+}
+
+/** Shape returned by the applyCandidate mutation. */
+type ApplyCandidateResult = {
+  personId: Id<"people">;
+  passportId: Id<"passports">;
+  owned: boolean;
+  isExisting: boolean;
+  person: {
+    fullName: string;
+    email: string | null;
+    maritalStatus: string | null;
+    fatherName: string | null;
+    motherName: string | null;
+  };
+  presence: PersonPresence;
+};
+
+/** Maps an applyCandidate result into the wizard-facing candidate result. */
+function toCandidateResult(
+  applied: ApplyCandidateResult,
+  storageId: Id<"_storage">,
+  passportNumber: string,
+  fallbackName: string,
+): PassportCandidateResult {
+  return {
+    personId: applied.personId,
+    passportId: applied.passportId,
+    storageId,
+    fullName: applied.person.fullName || fallbackName,
+    passportNumber,
+    existingPerson: applied.isExisting,
+    personOwned: applied.owned,
+    person: {
+      email: applied.person.email,
+      maritalStatus: applied.person.maritalStatus,
+      fatherName: applied.person.fatherName,
+      motherName: applied.person.motherName,
+    },
+    presence: applied.presence,
+  };
 }
 
 export interface PassportUploadStepProps {
@@ -305,7 +369,7 @@ export function PassportUploadStep({
     }
     try {
       setIsApplying(true);
-      const { personId: resolvedPersonId, passportId } = await applyCandidate({
+      const applied = (await applyCandidate({
         mode: "existing",
         personId,
         fillGaps: true,
@@ -314,19 +378,18 @@ export function PassportUploadStep({
         issueDate: fields.issueDate || undefined,
         expiryDate: fields.expiryDate || undefined,
         storageId,
-      });
+      })) as ApplyCandidateResult;
       const matched = result?.matches.find((m) => m._id === personId);
       const fullName =
         matched?.fullName ||
         [fields.givenNames, fields.surname].filter(Boolean).join(" ").trim();
       await onAdd([
-        {
-          personId: resolvedPersonId,
-          passportId,
+        toCandidateResult(
+          applied,
           storageId,
+          fields.passportNumber.trim(),
           fullName,
-          passportNumber: fields.passportNumber.trim(),
-        },
+        ),
       ]);
       resetState();
     } catch (error) {
@@ -349,7 +412,7 @@ export function PassportUploadStep({
     }
     try {
       setIsApplying(true);
-      const { personId, passportId } = await applyCandidate({
+      const applied = (await applyCandidate({
         mode: "new",
         givenNames: fields.givenNames.trim(),
         surname: fields.surname.trim() || undefined,
@@ -361,17 +424,16 @@ export function PassportUploadStep({
         issueDate: fields.issueDate || undefined,
         expiryDate: fields.expiryDate || undefined,
         storageId,
-      });
+      })) as ApplyCandidateResult;
       await onAdd([
-        {
-          personId,
-          passportId,
+        toCandidateResult(
+          applied,
           storageId,
-          fullName: [fields.givenNames.trim(), fields.surname.trim()]
+          fields.passportNumber.trim(),
+          [fields.givenNames.trim(), fields.surname.trim()]
             .filter(Boolean)
             .join(" "),
-          passportNumber: fields.passportNumber.trim(),
-        },
+        ),
       ]);
       resetState();
     } catch (error) {
@@ -515,13 +577,10 @@ export function PassportUploadStep({
           continue;
         }
         try {
-          let applied: {
-            personId: Id<"people">;
-            passportId: Id<"passports">;
-          };
+          let applied: ApplyCandidateResult;
           let fullName: string;
           if (resolution.kind === "link") {
-            applied = await applyCandidate({
+            applied = (await applyCandidate({
               mode: "existing",
               personId: resolution.personId,
               fillGaps: true,
@@ -530,10 +589,10 @@ export function PassportUploadStep({
               issueDate: item.issueDate || undefined,
               expiryDate: item.expiryDate || undefined,
               storageId: item.storageId,
-            });
+            })) as ApplyCandidateResult;
             fullName = resolution.fullName;
           } else {
-            applied = await applyCandidate({
+            applied = (await applyCandidate({
               mode: "new",
               givenNames: item.givenNames,
               surname: item.surname || undefined,
@@ -545,20 +604,16 @@ export function PassportUploadStep({
               issueDate: item.issueDate || undefined,
               expiryDate: item.expiryDate || undefined,
               storageId: item.storageId,
-            });
+            })) as ApplyCandidateResult;
             fullName = [item.givenNames, item.surname]
               .filter(Boolean)
               .join(" ");
           }
           committedPersonIds.add(applied.personId);
           committedPassportNumbers.add(passportNumber);
-          results.push({
-            personId: applied.personId,
-            passportId: applied.passportId,
-            storageId: item.storageId!,
-            fullName,
-            passportNumber,
-          });
+          results.push(
+            toCandidateResult(applied, item.storageId!, passportNumber, fullName),
+          );
         } catch (error) {
           console.error("Error resolving candidate:", error);
           patchItem(item.id, {
@@ -632,6 +687,12 @@ export function PassportUploadStep({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {isReadingBatch && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{t("processingPassportsTime")}</span>
+            </div>
+          )}
           {batchItems.map((item, index) => (
             <BatchItemCard
               key={item.id}
@@ -674,24 +735,62 @@ export function PassportUploadStep({
   // --- Single-file OCR review + dedup ---------------------------------------
 
   if (result && fields) {
+    // A passport number already owned by a person forces a link to that person:
+    // creating a new candidate would hit the backend's foreign-passport guard.
+    const lockedPersonId =
+      result.passportExists?.isAvailable === false
+        ? (result.passportExists.existingPassport?.personId ?? null)
+        : null;
     return (
       <div className="space-y-4">
         {result.passportExists?.isAvailable === false &&
           result.passportExists.existingPassport && (
             <Card className="border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30">
-              <CardContent className="flex items-start gap-3 py-4">
-                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div className="space-y-0.5 text-sm">
-                  <p className="font-medium">{t("passportAlreadyExists")}</p>
-                  <p className="text-muted-foreground">
-                    {result.passportExists.existingPassport.personName}
-                  </p>
+              <CardContent className="space-y-3 py-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="space-y-0.5 text-sm">
+                    <p className="font-medium">{t("passportAlreadyExists")}</p>
+                    <p className="text-muted-foreground">
+                      {result.passportExists.existingPassport.personName}
+                    </p>
+                    {lockedPersonId && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("lockedConfirmHint")}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                {lockedPersonId && (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={resetState}
+                      disabled={busy}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {t("uploadDifferentPassport")}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => handleUseExisting(lockedPersonId)}
+                      disabled={busy}
+                    >
+                      {isApplying ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserCheck className="mr-2 h-4 w-4" />
+                      )}
+                      {t("useThisPerson")}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
-        {result.matches.length > 0 && (
+        {!lockedPersonId && result.matches.length > 0 && (
           <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -713,6 +812,18 @@ export function PassportUploadStep({
                       {match.fullName}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge
+                        variant={match.owned ? "secondary" : "outline"}
+                        className={cn(
+                          "font-normal",
+                          !match.owned &&
+                            "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400",
+                        )}
+                      >
+                        {match.owned
+                          ? t("existingPersonMatchBadge")
+                          : t("crossTenantMatchBadge")}
+                      </Badge>
                       {match.cpf && (
                         <Badge variant="secondary" className="font-normal">
                           {t("cpfLabel")}: {match.cpf}
@@ -851,14 +962,16 @@ export function PassportUploadStep({
                 <Upload className="mr-2 h-4 w-4" />
                 {t("reupload")}
               </Button>
-              <Button type="button" onClick={handleCreateNew} disabled={busy}>
-                {isApplying ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
-                )}
-                {t("createNewCandidate")}
-              </Button>
+              {!lockedPersonId && (
+                <Button type="button" onClick={handleCreateNew} disabled={busy}>
+                  {isApplying ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" />
+                  )}
+                  {t("createNewCandidate")}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -947,6 +1060,7 @@ function BatchItemCard({
   const isLink = item.resolution?.kind === "link";
   const selectedPersonId =
     item.resolution?.kind === "link" ? item.resolution.personId : undefined;
+  const selectedMatch = item.matches?.find((m) => m._id === selectedPersonId);
 
   return (
     <div className="rounded-lg border bg-background p-3">
@@ -994,15 +1108,41 @@ function BatchItemCard({
       {item.status === "ready" && (
         <div className="mt-3 space-y-2">
           {item.lockedOwner ? (
-            // Passport number already belongs to a person → forced link.
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <p>
-                {t("passportLinkedToPerson", {
-                  name: item.lockedOwner.personName,
-                })}
-              </p>
-            </div>
+            // Passport number already belongs to a person → forced link. Present
+            // it as an explicit, pre-selected confirmation with an escape hatch.
+            <>
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-0.5">
+                  <p>
+                    {t("passportLinkedToPerson", {
+                      name: item.lockedOwner.personName,
+                    })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("lockedConfirmHint")}
+                  </p>
+                </div>
+              </div>
+              <ResolutionOption
+                selected
+                disabled={disabled}
+                onClick={() => {}}
+                title={t("useThisPerson")}
+                icon={<UserCheck className="h-4 w-4 text-muted-foreground" />}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onRemove}
+                disabled={disabled}
+                className="text-muted-foreground"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {t("uploadDifferentPassport")}
+              </Button>
+            </>
           ) : (
             <>
               {item.matches && item.matches.length > 0 && (
@@ -1026,6 +1166,18 @@ function BatchItemCard({
                     title={match.fullName}
                     badges={
                       <>
+                        <Badge
+                          variant={match.owned ? "secondary" : "outline"}
+                          className={cn(
+                            "font-normal",
+                            !match.owned &&
+                              "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400",
+                          )}
+                        >
+                          {match.owned
+                            ? t("existingPersonMatchBadge")
+                            : t("crossTenantMatchBadge")}
+                        </Badge>
                         {match.cpf && (
                           <Badge variant="secondary" className="font-normal">
                             {t("cpfLabel")}: {match.cpf}
@@ -1051,8 +1203,23 @@ function BatchItemCard({
                   onClick={() => onSelect({ kind: "new" })}
                   title={t("createNewCandidate")}
                   icon={<UserPlus className="h-4 w-4 text-muted-foreground" />}
+                  badges={<span>{t("createNewPersonSubtitle")}</span>}
                 />
               </div>
+              {isLink && selectedMatch && (
+                <p
+                  className={cn(
+                    "px-1 text-xs",
+                    selectedMatch.owned
+                      ? "text-muted-foreground"
+                      : "text-amber-700 dark:text-amber-400",
+                  )}
+                >
+                  {selectedMatch.owned
+                    ? t("linkWillUpdateHint")
+                    : t("linkProtectedHint")}
+                </p>
+              )}
             </>
           )}
         </div>

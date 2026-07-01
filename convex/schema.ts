@@ -489,6 +489,11 @@ export default defineSchema({
     // framework + requestedBy/company. Undefined on legacy/admin rows, which are
     // treated as a singleton group keyed by their own _id.
     requestGroupId: v.optional(v.string()),
+    // True when this request candidate was linked to a person that ALREADY
+    // existed (dedup match) rather than newly created — drives the "Atualizando
+    // cadastro" signal durably across wizard resume. Undefined for brand-new
+    // people and legacy/admin rows.
+    linkedExistingPerson: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

@@ -7,6 +7,7 @@ import {
   requireClient,
   getClientCurrentCompanyIds,
 } from "./lib/auth";
+import { personOwnedByClient, gatePersonPII } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import { runProcessCreationSideEffects } from "./lib/createIndividualProcess";
 
@@ -146,30 +147,6 @@ async function deriveProcessTypeId(
 }
 
 /**
- * Whether a CLIENT "owns" a person — a current member of one of their companies
- * or an unlinked candidate they created. Drives whether the client may OVERWRITE
- * that person's PII (vs. only fill gaps on a cross-tenant dedup link).
- */
-async function clientOwnsPerson(
-  ctx: MutationCtx,
-  profile: Doc<"userProfiles">,
-  personId: Id<"people">
-): Promise<boolean> {
-  const person = await ctx.db.get(personId);
-  if (!person) return false;
-  if (person.createdBy && person.createdBy === profile.userId) return true;
-
-  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, profile);
-  const links = await ctx.db
-    .query("peopleCompanies")
-    .withIndex("by_person", (q) => q.eq("personId", personId))
-    .collect();
-  return links.some(
-    (l) => l.isCurrent && l.companyId && currentCompanyIds.has(l.companyId)
-  );
-}
-
-/**
  * Ensure the candidate person exists. Per product decision, a client may attach
  * a request to ANY existing person (e.g. a cross-tenant dedup match by exact
  * name from a passport they hold); PII overwrites stay gated by clientOwnsPerson
@@ -219,7 +196,12 @@ async function assertFrameworkAvailable(
 // Enrichment
 // ---------------------------------------------------------------------------
 
-async function enrichRequest(ctx: QueryCtx, process: Doc<"individualProcesses">) {
+async function enrichRequest(
+  ctx: QueryCtx,
+  process: Doc<"individualProcesses">,
+  profile: Doc<"userProfiles">,
+  currentCompanyIds: Set<Id<"companies">>
+) {
   const [
     companyApplicant,
     userApplicantCompany,
@@ -262,27 +244,48 @@ async function enrichRequest(ctx: QueryCtx, process: Doc<"individualProcesses">)
       .first();
   }
 
+  // Owned-gate the person's PII: a client that dedup-linked to a cross-tenant
+  // person may see NAME (to recognize the candidate) but NOT another tenant's
+  // e-mail / estado civil / filiação. Admins are privileged (owned=true).
+  const owned = person
+    ? await personOwnedByClient(ctx, profile, person._id, {
+        currentCompanyIds,
+        person,
+      })
+    : false;
+  const gated = person ? gatePersonPII(person, owned) : null;
+
   return {
     ...process,
     company,
     // Project the person down to the fields request consumers actually use —
     // never spread the whole doc (keeps CPF / phone / address off the wire,
     // which matters now that clients can dedup-link to cross-tenant people).
-    person: person
-      ? {
-          _id: person._id,
-          fullName: getFullName(person),
-          givenNames: person.givenNames,
-          middleName: person.middleName,
-          surname: person.surname,
-          sex: person.sex,
-          birthDate: person.birthDate,
-          email: person.email,
-          maritalStatus: person.maritalStatus,
-          fatherName: person.fatherName,
-          motherName: person.motherName,
-        }
-      : null,
+    person:
+      person && gated
+        ? {
+            _id: person._id,
+            fullName: getFullName(person),
+            givenNames: person.givenNames,
+            middleName: person.middleName,
+            surname: person.surname,
+            sex: person.sex,
+            birthDate: person.birthDate,
+            // Whether the caller owns this person (may see/overwrite PII).
+            owned,
+            // PII: real values only when owned, else null (protected).
+            email: gated.email,
+            maritalStatus: gated.maritalStatus,
+            fatherName: gated.fatherName,
+            motherName: gated.motherName,
+            // Presence flags (no values disclosed) so the wizard can lock the
+            // already-filled fields of a protected cross-tenant person.
+            hasEmail: gated.presence.hasEmail,
+            hasMaritalStatus: gated.presence.hasMaritalStatus,
+            hasFatherName: gated.presence.hasFatherName,
+            hasMotherName: gated.presence.hasMotherName,
+          }
+        : null,
     passport,
     processType,
     legalFramework,
@@ -373,8 +376,17 @@ export const list = query({
       );
     }
 
+    // Resolve the client's current companies ONCE (ownership gating in
+    // enrichRequest reuses it per row; avoids amplifying this list's N+1).
+    const currentCompanyIds =
+      userProfile.role === "client"
+        ? await getClientCurrentCompanyIds(ctx, userProfile)
+        : new Set<Id<"companies">>();
+
     const enriched = await Promise.all(
-      results.map((process) => enrichRequest(ctx, process))
+      results.map((process) =>
+        enrichRequest(ctx, process, userProfile, currentCompanyIds)
+      )
     );
 
     return enriched.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -401,7 +413,12 @@ export const get = query({
       );
     }
 
-    return enrichRequest(ctx, process);
+    const currentCompanyIds =
+      userProfile.role === "client"
+        ? await getClientCurrentCompanyIds(ctx, userProfile)
+        : new Set<Id<"companies">>();
+
+    return enrichRequest(ctx, process, userProfile, currentCompanyIds);
   },
 });
 
@@ -421,6 +438,9 @@ export const createDraft = mutation({
     // Groups this candidate with the rest of a multi-candidate request. Omitted
     // for the first candidate (a new id is minted and returned).
     requestGroupId: v.optional(v.string()),
+    // True when this candidate links to a person that already existed (dedup
+    // match) — persisted so wizard resume durably shows "Atualizando cadastro".
+    linkedExistingPerson: v.optional(v.boolean()),
     ...editableProcessFields,
     ...editablePersonFields,
   },
@@ -444,7 +464,7 @@ export const createDraft = mutation({
 
     // Apply person-level fields to the candidate immediately (overwrite only the
     // client's own people; fill-gaps only for cross-tenant dedup links).
-    const overwrite = await clientOwnsPerson(ctx, profile, args.personId);
+    const overwrite = await personOwnedByClient(ctx, profile, args.personId);
     await applyPersonFields(ctx, args.personId, args, now, overwrite);
 
     const processPatch = buildProcessPatch(args);
@@ -475,6 +495,7 @@ export const createDraft = mutation({
       requestStatus: "draft",
       requestedBy: profile.userId,
       requestGroupId,
+      linkedExistingPerson: args.linkedExistingPerson,
       isActive: true,
       processStatus: "Atual",
       createdAt: now,
@@ -535,10 +556,11 @@ export const saveDraft = mutation({
 
     const now = Date.now();
 
-    const overwrite =
-      userProfile.role === "admin"
-        ? true
-        : await clientOwnsPerson(ctx, userProfile, process.personId);
+    const overwrite = await personOwnedByClient(
+      ctx,
+      userProfile,
+      process.personId
+    );
     await applyPersonFields(ctx, process.personId, rest, now, overwrite);
 
     const patch = buildProcessPatch(rest);
@@ -755,7 +777,15 @@ export const getRequestGroup = query({
         : rows;
 
     visible.sort((a, b) => a.createdAt - b.createdAt);
-    return Promise.all(visible.map((process) => enrichRequest(ctx, process)));
+    const currentCompanyIds =
+      userProfile.role === "client"
+        ? await getClientCurrentCompanyIds(ctx, userProfile)
+        : new Set<Id<"companies">>();
+    return Promise.all(
+      visible.map((process) =>
+        enrichRequest(ctx, process, userProfile, currentCompanyIds)
+      )
+    );
   },
 });
 
