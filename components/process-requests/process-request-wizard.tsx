@@ -410,19 +410,9 @@ export function ProcessRequestWizard({
     }
   }, [candidates, persistCandidate, t]);
 
-  /** Persist the candidate currently being edited (used when navigating away). */
-  const persistActive = React.useCallback(async () => {
-    if (!activeCandidate?.processId) return;
-    try {
-      setIsSaving(true);
-      await persistCandidate(activeCandidate);
-    } catch (error) {
-      console.error("Error saving candidate:", error);
-      toast.error(t("createError"));
-    } finally {
-      setIsSaving(false);
-    }
-  }, [activeCandidate, persistCandidate, t]);
+  // Person/process edits are kept in local wizard state while editing and are
+  // ONLY written to the database on "Salvar rascunho" or on final submit — so
+  // navigating between steps / candidate tabs never alters the person record.
 
   // ---------------------------------------------------------------------------
   // Legal framework (shared) — propagate a change to every candidate's draft.
@@ -595,32 +585,20 @@ export function ProcessRequestWizard({
         return;
       }
     }
-    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
-      await persistActive();
-    }
     setStepIndex((i) => Math.min(i + 1, steps.length - 1));
   };
 
-  const goPrevious = async () => {
-    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
-      await persistActive();
-    }
+  const goPrevious = () => {
     setStepIndex((i) => Math.max(i - 1, 0));
   };
 
-  const goToStep = async (index: number) => {
+  const goToStep = (index: number) => {
     if (isStepLocked(index) || index === stepIndex) return;
-    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
-      await persistActive();
-    }
     setStepIndex(index);
   };
 
-  const handleSelectCandidate = async (personId: Id<"people">) => {
+  const handleSelectCandidate = (personId: Id<"people">) => {
     if (personId === activeCandidateId) return;
-    if (PER_CANDIDATE_STEP_KEYS.has(currentStepId)) {
-      await persistActive();
-    }
     setActiveCandidateId(personId);
   };
 
