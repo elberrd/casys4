@@ -204,11 +204,13 @@ export const applyCandidate = mutation({
       });
     }
 
-    // --- Owned-gated PII snapshot for the wizard's Dados Pessoais prefill ---
-    // Re-read the person to reflect any fill-gaps patch applied above.
+    // --- Person snapshot for the wizard's Dados Pessoais display ---
+    // Re-read the person to reflect any fill-gaps patch applied above. Per
+    // product decision, existing values are DISPLAYED (read-only) even for a
+    // cross-tenant person; write protection stays enforced by applyPersonFields.
     const resolvedPerson = await ctx.db.get(personId);
     const owned = await personOwnedByClient(ctx, profile, personId);
-    const gated = gatePersonPII(resolvedPerson ?? {}, owned);
+    const gated = gatePersonPII(resolvedPerson ?? {}, true);
     const fullName = resolvedPerson
       ? [
           resolvedPerson.givenNames,

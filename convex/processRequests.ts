@@ -244,16 +244,16 @@ async function enrichRequest(
       .first();
   }
 
-  // Owned-gate the person's PII: a client that dedup-linked to a cross-tenant
-  // person may see NAME (to recognize the candidate) but NOT another tenant's
-  // e-mail / estado civil / filiação. Admins are privileged (owned=true).
+  // Per product decision, a linked person's existing PII is DISPLAYED (read-only
+  // in the wizard) even for a cross-tenant person, so values are disclosed here.
+  // `owned` still drives WRITE gating in create/saveDraft (never disclosed).
   const owned = person
     ? await personOwnedByClient(ctx, profile, person._id, {
         currentCompanyIds,
         person,
       })
     : false;
-  const gated = person ? gatePersonPII(person, owned) : null;
+  const gated = person ? gatePersonPII(person, true) : null;
 
   return {
     ...process,

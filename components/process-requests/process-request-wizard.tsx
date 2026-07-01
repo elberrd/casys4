@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Save,
   Send,
-  ShieldAlert,
   Trash2,
   UserCheck,
   UserRound,
@@ -1049,7 +1048,6 @@ function CandidateTabBar({
             </span>
             <ExistingPersonBadge
               existingPerson={candidate.existingPerson}
-              owned={candidate.personOwned}
               iconOnly
             />
           </button>
@@ -1075,8 +1073,6 @@ function PersonalDataStep({
   const t = useTranslations("ProcessRequests");
 
   const isExisting = Boolean(candidate.existingPerson);
-  const isProtected = isExisting && !candidate.personOwned;
-  const presence = candidate.presence;
 
   // Mark a person field as edited so only touched fields are persisted.
   const patchPerson = (field: PersonFieldKey, value: string) =>
@@ -1085,47 +1081,37 @@ function PersonalDataStep({
       touched: { ...candidate.touched, [field]: true },
     });
 
-  // For a protected (cross-tenant) person, a field the other org already filled
-  // is locked (identity withheld); a truly-empty field stays editable (gap-fill).
-  const lockField = (filled?: boolean) => isProtected && Boolean(filled);
-  const emailLocked = lockField(presence?.hasEmail);
-  const maritalLocked = lockField(presence?.hasMaritalStatus);
-  const fatherLocked = lockField(presence?.hasFatherName);
-  const motherLocked = lockField(presence?.hasMotherName);
+  // For an EXISTING person, a field that already has a value is shown but
+  // read-only (can't be modified here); truly-empty fields stay editable so the
+  // user can complete what's missing. New people have everything editable.
+  const hasValue = (v?: string) => Boolean(v && v.trim());
+  const emailLocked = isExisting && hasValue(candidate.candidateEmail);
+  const maritalLocked = isExisting && hasValue(candidate.maritalStatus);
+  const fatherLocked = isExisting && hasValue(candidate.fatherName);
+  const motherLocked = isExisting && hasValue(candidate.motherName);
 
   const fieldHint = (locked: boolean) =>
-    isProtected ? (
+    isExisting ? (
       <p className="text-xs text-muted-foreground">
-        {locked ? t("fieldLockedProtected") : t("fieldCanComplete")}
+        {locked ? t("fieldLockedExisting") : t("fieldCanComplete")}
       </p>
     ) : null;
 
   return (
     <div className="space-y-8">
-      {isExisting &&
-        (isProtected ? (
-          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div className="space-y-0.5">
-              <p className="font-medium">{t("personalDataProtectedTitle")}</p>
-              <p className="text-muted-foreground">
-                {t("personalDataProtectedBody")}
-              </p>
-            </div>
+      {isExisting && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4 text-sm dark:border-blue-900 dark:bg-blue-950/30">
+          <UserCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <div className="space-y-0.5">
+            <p className="font-medium">{t("personalDataExistingTitle")}</p>
+            <p className="text-muted-foreground">
+              {t("personalDataExistingBody", {
+                name: candidate.name || t("candidate"),
+              })}
+            </p>
           </div>
-        ) : (
-          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4 text-sm dark:border-blue-900 dark:bg-blue-950/30">
-            <UserCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
-            <div className="space-y-0.5">
-              <p className="font-medium">{t("personalDataUpdatingTitle")}</p>
-              <p className="text-muted-foreground">
-                {t("personalDataUpdatingBody", {
-                  name: candidate.name || t("candidate"),
-                })}
-              </p>
-            </div>
-          </div>
-        ))}
+        </div>
+      )}
 
       {/* Estado Civil */}
       <section className="space-y-3">
@@ -1544,16 +1530,8 @@ function ReviewStep({
                 <h3 className="font-semibold">
                   {candidate.name || `${t("candidate")} ${index + 1}`}
                 </h3>
-                <ExistingPersonBadge
-                  existingPerson={candidate.existingPerson}
-                  owned={candidate.personOwned}
-                />
+                <ExistingPersonBadge existingPerson={candidate.existingPerson} />
               </div>
-              {candidate.existingPerson && !candidate.personOwned && (
-                <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
-                  {t("reviewProtectedNote")}
-                </p>
-              )}
               <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
                 <ReviewRow
                   label={t("passportNumber")}
