@@ -221,6 +221,14 @@ interface IndividualProcessesTableProps {
   legalFrameworkOptions?: Array<{ value: string; label: string }>;
   selectedLegalFrameworks?: string[];
   onLegalFrameworkFilterChange?: (frameworks: string[]) => void;
+  // Nationality filter props
+  nationalityOptions?: Array<{ value: string; label: string }>;
+  selectedNationalities?: string[];
+  onNationalityFilterChange?: (nationalities: string[]) => void;
+  // CBO filter props
+  cboOptions?: Array<{ value: string; label: string }>;
+  selectedCbos?: string[];
+  onCboFilterChange?: (cbos: string[]) => void;
   // Process Status filter props (Atual / Anterior)
   processStatusOptions?: Array<{ value: string; label: string }>;
   selectedProcessStatuses?: string[];
@@ -282,6 +290,12 @@ export function IndividualProcessesTable({
   legalFrameworkOptions = [],
   selectedLegalFrameworks = [],
   onLegalFrameworkFilterChange,
+  nationalityOptions = [],
+  selectedNationalities = [],
+  onNationalityFilterChange,
+  cboOptions = [],
+  selectedCbos = [],
+  onCboFilterChange,
   processStatusOptions = [],
   selectedProcessStatuses = [],
   onProcessStatusFilterChange,
@@ -2216,7 +2230,7 @@ export function IndividualProcessesTable({
           />}
         </div>
         {/* Second row: Select filters */}
-        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange || onProcessStatusFilterChange) && (
+        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange || onNationalityFilterChange || onCboFilterChange || onProcessStatusFilterChange) && (
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             {onApplicantFilterChange && applicantOptions.length > 0 && (
               <Combobox
@@ -2308,6 +2322,34 @@ export function IndividualProcessesTable({
                 triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
+              />
+            )}
+            {onNationalityFilterChange && nationalityOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={nationalityOptions as ComboboxOption<string>[]}
+                value={selectedNationalities}
+                onValueChange={onNationalityFilterChange}
+                placeholder={t("filters.selectNationalities")}
+                searchPlaceholder={t("filters.searchNationalities")}
+                emptyText={t("filters.noNationalitiesFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearNationalities")}
+              />
+            )}
+            {onCboFilterChange && cboOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={cboOptions as ComboboxOption<string>[]}
+                value={selectedCbos}
+                onValueChange={onCboFilterChange}
+                placeholder={t("filters.selectCbos")}
+                searchPlaceholder={t("filters.searchCbos")}
+                emptyText={t("filters.noCbosFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearCbos")}
               />
             )}
             {onProcessStatusFilterChange && processStatusOptions.length > 0 && (

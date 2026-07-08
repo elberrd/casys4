@@ -59,6 +59,8 @@ export function IndividualProcessesClient() {
   const [progressDate, setProgressDate] = useState<string | undefined>(() => persisted?.progressDate)
   const [selectedAuthorizationTypes, setSelectedAuthorizationTypes] = useState<string[]>(() => persisted?.selectedAuthorizationTypes ?? [])
   const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>(() => persisted?.selectedLegalFrameworks ?? [])
+  const [selectedNationalities, setSelectedNationalities] = useState<string[]>(() => persisted?.selectedNationalities ?? [])
+  const [selectedCbos, setSelectedCbos] = useState<string[]>(() => persisted?.selectedCbos ?? [])
   const [selectedProcessStatuses, setSelectedProcessStatuses] = useState<string[]>(() => persisted?.selectedProcessStatuses ?? ["Atual"])
   const [isRnmModeActive, setIsRnmModeActive] = useState<boolean>(() => persisted?.isRnmModeActive ?? false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState<boolean>(() => persisted?.isUrgentModeActive ?? false)
@@ -191,6 +193,34 @@ export function IndividualProcessesClient() {
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [legalFrameworks])
 
+  // Get unique nationalities from the individual processes data (person's nationality country)
+  const nationalityOptions = useMemo(() => {
+    const uniqueNationalities = new Map<string, string>()
+    individualProcesses.forEach((process) => {
+      const nationality = process.person?.nationality
+      if (nationality) {
+        uniqueNationalities.set(nationality._id, nationality.name)
+      }
+    })
+    return Array.from(uniqueNationalities.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [individualProcesses])
+
+  // Get unique CBO codes from the individual processes data
+  const cboOptions = useMemo(() => {
+    const uniqueCbos = new Map<string, string>()
+    individualProcesses.forEach((process) => {
+      const cbo = process.cbo
+      if (cbo) {
+        uniqueCbos.set(cbo._id, cbo.code ? `${cbo.code} - ${cbo.title}` : cbo.title)
+      }
+    })
+    return Array.from(uniqueCbos.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [individualProcesses])
+
   // Process status options (Atual / Anterior)
   const processStatusOptions = useMemo(() => [
     { value: "Atual", label: t("processStatusCurrent") },
@@ -280,6 +310,8 @@ export function IndividualProcessesClient() {
       selectedProgressStatuses.length > 0 ||
       selectedAuthorizationTypes.length > 0 ||
       selectedLegalFrameworks.length > 0 ||
+      selectedNationalities.length > 0 ||
+      selectedCbos.length > 0 ||
       (selectedProcessStatuses.length > 0 && !isDefaultProcessStatus) ||
       !!progressDate ||
       isRnmModeActive ||
@@ -288,7 +320,7 @@ export function IndividualProcessesClient() {
       isExigenciaModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -305,6 +337,8 @@ export function IndividualProcessesClient() {
     if (selectedProgressStatuses.length > 0) criteria.selectedProgressStatuses = selectedProgressStatuses
     if (selectedAuthorizationTypes.length > 0) criteria.selectedAuthorizationTypes = selectedAuthorizationTypes
     if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
+    if (selectedNationalities.length > 0) criteria.selectedNationalities = selectedNationalities
+    if (selectedCbos.length > 0) criteria.selectedCbos = selectedCbos
     if (selectedProcessStatuses.length > 0) criteria.selectedProcessStatuses = selectedProcessStatuses
     if (progressDate) criteria.progressDate = progressDate
     if (isRnmModeActive) criteria.isRnmModeActive = true
@@ -316,7 +350,7 @@ export function IndividualProcessesClient() {
     criteria.columnVisibility = columnVisibility
     if (sorting.length > 0) criteria.sorting = sorting
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
 
   // Persist filter state to sessionStorage on every change
   useEffect(() => {
@@ -335,6 +369,8 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setSelectedNationalities([])
+    setSelectedCbos([])
     setSelectedProcessStatuses([])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
@@ -361,6 +397,12 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedLegalFrameworks) {
       setSelectedLegalFrameworks(filterCriteria.selectedLegalFrameworks)
+    }
+    if (filterCriteria.selectedNationalities) {
+      setSelectedNationalities(filterCriteria.selectedNationalities)
+    }
+    if (filterCriteria.selectedCbos) {
+      setSelectedCbos(filterCriteria.selectedCbos)
     }
     if (filterCriteria.selectedProcessStatuses) {
       setSelectedProcessStatuses(filterCriteria.selectedProcessStatuses)
@@ -408,6 +450,8 @@ export function IndividualProcessesClient() {
     setSelectedProgressStatuses([])
     setSelectedAuthorizationTypes([])
     setSelectedLegalFrameworks([])
+    setSelectedNationalities([])
+    setSelectedCbos([])
     setSelectedProcessStatuses(["Atual"])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
@@ -516,6 +560,22 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const legalFrameworkId = process.legalFramework?._id
         return legalFrameworkId && selectedLegalFrameworks.includes(legalFrameworkId)
+      })
+    }
+
+    // Apply nationality multi-select filter
+    if (selectedNationalities.length > 0) {
+      result = result.filter((process) => {
+        const nationalityId = process.person?.nationality?._id
+        return nationalityId && selectedNationalities.includes(nationalityId)
+      })
+    }
+
+    // Apply CBO multi-select filter
+    if (selectedCbos.length > 0) {
+      result = result.filter((process) => {
+        const cboId = process.cbo?._id
+        return cboId && selectedCbos.includes(cboId)
       })
     }
 
@@ -715,7 +775,7 @@ export function IndividualProcessesClient() {
     })
 
     return filtered
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive, onlyPendingMode, isClient])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive, onlyPendingMode, isClient])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -1035,6 +1095,12 @@ export function IndividualProcessesClient() {
             legalFrameworkOptions,
             selectedLegalFrameworks,
             onLegalFrameworkFilterChange: setSelectedLegalFrameworks,
+            nationalityOptions,
+            selectedNationalities,
+            onNationalityFilterChange: setSelectedNationalities,
+            cboOptions,
+            selectedCbos,
+            onCboFilterChange: setSelectedCbos,
             processStatusOptions,
             selectedProcessStatuses,
             onProcessStatusFilterChange: setSelectedProcessStatuses,

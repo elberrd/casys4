@@ -1152,7 +1152,15 @@
       "selectProcessStatus": "Status do processo...",
       "searchProcessStatus": "Pesquisar status do processo...",
       "noProcessStatusFound": "Nenhum status de processo encontrado.",
-      "clearProcessStatus": "Limpar filtro de status do processo"
+      "clearProcessStatus": "Limpar filtro de status do processo",
+      "selectNationalities": "Nacionalidades...",
+      "searchNationalities": "Pesquisar nacionalidades...",
+      "noNationalitiesFound": "Nenhuma nacionalidade encontrada.",
+      "clearNationalities": "Limpar seleção de nacionalidades",
+      "selectCbos": "CBOs...",
+      "searchCbos": "Pesquisar CBOs...",
+      "noCbosFound": "Nenhum CBO encontrado.",
+      "clearCbos": "Limpar seleção de CBOs"
     },
     "createFromExisting": "Novo Processo a partir deste",
     "createFromExistingTitle": "Criar Novo Processo?",
