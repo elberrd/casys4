@@ -6,6 +6,7 @@ import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -78,6 +79,8 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Fetch documents from both tables (only latest versions for standalone docs)
     let documents = await ctx.db.query("documents").collect();
@@ -153,18 +156,18 @@ export const list = query({
     // Fetch related data for standalone documents
     const standaloneDocsWithRelations = await Promise.all(
       documents.map(async (doc) => {
-        const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
-        const person = doc.personId ? await ctx.db.get(doc.personId) : null;
-        const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
-        const userApplicant = doc.userApplicantId ? await ctx.db.get(doc.userApplicantId) : null;
+        const documentType = doc.documentTypeId ? await cachedGet(doc.documentTypeId) : null;
+        const person = doc.personId ? await cachedGet(doc.personId) : null;
+        const company = doc.companyId ? await cachedGet(doc.companyId) : null;
+        const userApplicant = doc.userApplicantId ? await cachedGet(doc.userApplicantId) : null;
 
         let individualProcess = null;
         if (doc.individualProcessId) {
-          const process = await ctx.db.get(doc.individualProcessId);
+          const process = await cachedGet(doc.individualProcessId);
           if (process) {
-            const processPerson = await ctx.db.get(process.personId);
+            const processPerson = await cachedGet(process.personId);
             const collectiveProcess = process.collectiveProcessId
-              ? await ctx.db.get(process.collectiveProcessId)
+              ? await cachedGet(process.collectiveProcessId)
               : null;
             individualProcess = {
               _id: process._id,
@@ -198,22 +201,22 @@ export const list = query({
     const latestDeliveredDocs = deliveredDocuments.filter((d) => d.isLatest);
     const deliveredDocsWithRelations = await Promise.all(
       latestDeliveredDocs.map(async (doc) => {
-        const documentType = doc.documentTypeId ? await ctx.db.get(doc.documentTypeId) : null;
-        const person = doc.personId ? await ctx.db.get(doc.personId) : null;
+        const documentType = doc.documentTypeId ? await cachedGet(doc.documentTypeId) : null;
+        const person = doc.personId ? await cachedGet(doc.personId) : null;
 
         let individualProcess = null;
         let company = null;
         if (doc.individualProcessId) {
-          const process = await ctx.db.get(doc.individualProcessId);
+          const process = await cachedGet(doc.individualProcessId);
           if (process) {
-            const processPerson = await ctx.db.get(process.personId);
+            const processPerson = await cachedGet(process.personId);
             const collectiveProcess = process.collectiveProcessId
-              ? await ctx.db.get(process.collectiveProcessId)
+              ? await cachedGet(process.collectiveProcessId)
               : null;
 
             // Get company from collective process
             if (collectiveProcess?.companyId) {
-              const companyData = await ctx.db.get(collectiveProcess.companyId);
+              const companyData = await cachedGet(collectiveProcess.companyId);
               company = companyData ? { _id: companyData._id, name: companyData.name } : null;
             }
 
@@ -696,7 +699,9 @@ export const getVersionHistory = query({
     documentId: v.id("documents"),
   },
   handler: async (ctx, { documentId }) => {
-    const document = await ctx.db.get(documentId);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+    const document = await cachedGet(documentId);
     if (!document) {
       throw new Error("Document not found");
     }
@@ -711,7 +716,7 @@ export const getVersionHistory = query({
       .collect();
 
     // Include the original document if it's not in the versions list
-    const originalDoc = await ctx.db.get(originalDocumentId);
+    const originalDoc = await cachedGet(originalDocumentId);
     if (originalDoc && !versions.some((v) => v._id === originalDocumentId)) {
       versions.push(originalDoc);
     }
@@ -720,10 +725,10 @@ export const getVersionHistory = query({
     const enrichedVersions = await Promise.all(
       versions.map(async (doc) => {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
-        const person = doc.personId ? await ctx.db.get(doc.personId) : null;
-        const company = doc.companyId ? await ctx.db.get(doc.companyId) : null;
+        const person = doc.personId ? await cachedGet(doc.personId) : null;
+        const company = doc.companyId ? await cachedGet(doc.companyId) : null;
 
         let fileUrl = doc.fileUrl;
         if (doc.storageId) {

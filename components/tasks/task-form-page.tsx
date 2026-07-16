@@ -54,7 +54,8 @@ export function TaskFormPage({
   )
 
   const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
-  const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
+  // Lightweight selector query — the full enriched list is far too heavy for a dropdown
+  const individualProcesses = useQuery(api.individualProcesses.listForSelector, {}) ?? []
   const users = useQuery(api.userProfiles.list, { isActive: true }) ?? []
 
   const createTask = useMutation(api.tasks.create)
@@ -146,7 +147,7 @@ export function TaskFormPage({
 
   const individualProcessOptions = individualProcesses.map((process) => ({
     value: process._id,
-    label: `${process.person?.fullName || 'Unknown'}${process.collectiveProcess ? ` (${process.collectiveProcess.referenceNumber})` : ''}`,
+    label: process.label,
   }))
 
   const userOptions = users.map((user) => ({

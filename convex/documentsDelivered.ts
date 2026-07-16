@@ -5,6 +5,7 @@ import { requireAdmin, getCurrentUserProfile, requireClientCanAccessProcess } fr
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 import { getProcessStatusAtUpload } from "./lib/documentProgressSnapshot";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -83,6 +84,8 @@ export const list = query({
     // collectiveProcess.companyId via peopleCompanies.isCurrent).
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Query documents by individual process
     let documentsQuery = ctx.db
@@ -108,22 +111,22 @@ export const list = query({
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
         const documentRequirement = doc.documentRequirementId
-          ? await ctx.db.get(doc.documentRequirementId)
+          ? await cachedGet(doc.documentRequirementId)
           : null;
-        const uploadedByUser = await ctx.db.get(doc.uploadedBy);
+        const uploadedByUser = await cachedGet(doc.uploadedBy);
         const reviewedByUser = doc.reviewedBy
-          ? await ctx.db.get(doc.reviewedBy)
+          ? await cachedGet(doc.reviewedBy)
           : null;
 
         // Enrich linked status
         let linkedStatus = undefined;
         if (doc.individualProcessStatusId) {
-          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          const statusEntry = await cachedGet(doc.individualProcessStatusId);
           if (statusEntry) {
-            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            const caseStatus = await cachedGet(statusEntry.caseStatusId);
             if (caseStatus) {
               linkedStatus = {
                 caseStatusName: caseStatus.name,
@@ -169,6 +172,8 @@ export const listVersionsByProgress = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const processDocuments = await ctx.db
       .query("documentsDelivered")
@@ -192,7 +197,7 @@ export const listVersionsByProgress = query({
     return await Promise.all(
       visibleVersions.map(async (document) => {
         const documentType = document.documentTypeId
-          ? await ctx.db.get(document.documentTypeId)
+          ? await cachedGet(document.documentTypeId)
           : null;
 
         return {
@@ -244,6 +249,8 @@ export const listByStatus = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Query documents linked to this status entry
     const documents = await ctx.db
@@ -260,10 +267,10 @@ export const listByStatus = query({
     const enrichedDocuments = await Promise.all(
       latestDocs.map(async (doc) => {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
         const uploadedByUser = doc.uploadedBy
-          ? await ctx.db.get(doc.uploadedBy)
+          ? await cachedGet(doc.uploadedBy)
           : null;
 
         // Find previous version's rejection reason
@@ -888,6 +895,8 @@ export const getVersionHistory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get all versions
     let documents = await ctx.db
@@ -908,7 +917,7 @@ export const getVersionHistory = query({
     // Enrich with related data including user profile names
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
-        const uploadedByUser = await ctx.db.get(doc.uploadedBy);
+        const uploadedByUser = await cachedGet(doc.uploadedBy);
         let uploadedByProfile = null;
         if (uploadedByUser) {
           uploadedByProfile = await ctx.db
@@ -917,7 +926,7 @@ export const getVersionHistory = query({
             .first();
         }
         const reviewedByUser = doc.reviewedBy
-          ? await ctx.db.get(doc.reviewedBy)
+          ? await cachedGet(doc.reviewedBy)
           : null;
         let reviewedByProfile = null;
         if (reviewedByUser) {
@@ -1341,6 +1350,8 @@ export const getDocumentsForBulkDownload = query({
   handler: async (ctx, args) => {
     // Require admin access
     const adminProfile = await requireAdmin(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const allDocuments: Array<{
       _id: Id<"documentsDelivered">;
@@ -1356,12 +1367,12 @@ export const getDocumentsForBulkDownload = query({
 
     // Collect documents from all individual processes
     for (const processId of args.individualProcessIds) {
-      const individualProcess = await ctx.db.get(processId);
+      const individualProcess = await cachedGet(processId);
       if (!individualProcess) {
         continue;
       }
 
-      const person = await ctx.db.get(individualProcess.personId);
+      const person = await cachedGet(individualProcess.personId);
       const personName = person ? getFullName(person) : "Unknown";
 
       // Get documents for this individual process
@@ -1385,7 +1396,7 @@ export const getDocumentsForBulkDownload = query({
       // Enrich and add to results
       for (const doc of documents) {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
         allDocuments.push({
           _id: doc._id,
@@ -2509,9 +2520,11 @@ export const listGroupedByCategory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const collectiveProcess = individualProcess.collectiveProcessId
-      ? await ctx.db.get(individualProcess.collectiveProcessId)
+      ? await cachedGet(individualProcess.collectiveProcessId)
       : null;
 
     // Get all latest documents for this process
@@ -2526,23 +2539,23 @@ export const listGroupedByCategory = query({
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
         const documentRequirement = doc.documentRequirementId
-          ? await ctx.db.get(doc.documentRequirementId)
+          ? await cachedGet(doc.documentRequirementId)
           : null;
         const uploadedByUser = doc.uploadedBy
-          ? await ctx.db.get(doc.uploadedBy)
+          ? await cachedGet(doc.uploadedBy)
           : null;
         const reviewedByUser = doc.reviewedBy
-          ? await ctx.db.get(doc.reviewedBy)
+          ? await cachedGet(doc.reviewedBy)
           : null;
 
         // Compute validity check if association exists
         let validityCheck = undefined;
         let validityRule = undefined;
         if (doc.documentTypeLegalFrameworkId) {
-          const association = await ctx.db.get(doc.documentTypeLegalFrameworkId);
+          const association = await cachedGet(doc.documentTypeLegalFrameworkId);
           if (association) {
             if (association.validityType && association.validityDays) {
               validityRule = {
@@ -2572,7 +2585,7 @@ export const listGroupedByCategory = query({
           if (docConditions.length > 0) {
             const conditions = await Promise.all(
               docConditions.map(async (dc) => {
-                const condition = await ctx.db.get(dc.documentTypeConditionId);
+                const condition = await cachedGet(dc.documentTypeConditionId);
                 return {
                   name: condition?.name ?? "",
                   isFulfilled: dc.isFulfilled,
@@ -2597,7 +2610,7 @@ export const listGroupedByCategory = query({
           if (conditionLinks.length > 0) {
             const conditions: Array<{ name: string; isFulfilled: boolean }> = [];
             for (const link of conditionLinks) {
-              const condition = await ctx.db.get(link.documentTypeConditionId);
+              const condition = await cachedGet(link.documentTypeConditionId);
               if (condition && condition.isActive) {
                 conditions.push({ name: condition.name, isFulfilled: false });
               }
@@ -2625,15 +2638,15 @@ export const listGroupedByCategory = query({
         // For info-only documents, fetch field values summary
         let infoFieldValues: string[] | undefined = undefined;
         if (documentType?.isInformationOnly && doc.status !== "not_started") {
-          const person = await ctx.db.get(individualProcess.personId);
+          const person = await cachedGet(individualProcess.personId);
           const passport = individualProcess.passportId
-            ? await ctx.db.get(individualProcess.passportId)
+            ? await cachedGet(individualProcess.passportId)
             : null;
           let company: any = null;
           if (individualProcess.companyApplicantId) {
-            company = await ctx.db.get(individualProcess.companyApplicantId);
+            company = await cachedGet(individualProcess.companyApplicantId);
           } else if (collectiveProcess?.companyId) {
-            company = await ctx.db.get(collectiveProcess.companyId);
+            company = await cachedGet(collectiveProcess.companyId);
           }
 
           const fieldMappings = await ctx.db
@@ -2681,9 +2694,9 @@ export const listGroupedByCategory = query({
         // Enrich linked status
         let linkedStatus = undefined;
         if (doc.individualProcessStatusId) {
-          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          const statusEntry = await cachedGet(doc.individualProcessStatusId);
           if (statusEntry) {
-            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            const caseStatus = await cachedGet(statusEntry.caseStatusId);
             if (caseStatus) {
               linkedStatus = {
                 caseStatusName: caseStatus.name,
@@ -2771,6 +2784,8 @@ export const getStatusHistory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get all status history entries
     const history = await ctx.db
@@ -2782,7 +2797,7 @@ export const getStatusHistory = query({
     // Enrich with user information
     const enrichedHistory = await Promise.all(
       history.map(async (entry) => {
-        const changedByUser = await ctx.db.get(entry.changedBy);
+        const changedByUser = await cachedGet(entry.changedBy);
         let changedByProfile = null;
         if (changedByUser) {
           changedByProfile = await ctx.db
@@ -2939,6 +2954,8 @@ export const listCompanyDocumentsForReuse = query({
     excludeProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, { companyApplicantId, documentTypeId, excludeProcessId }) => {
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
     // Find all individual processes for this company
     const processes = await ctx.db
       .query("individualProcesses")
@@ -2983,7 +3000,7 @@ export const listCompanyDocumentsForReuse = query({
       );
 
       if (matchingDocs.length > 0) {
-        const person = await ctx.db.get(process.personId);
+        const person = await cachedGet(process.personId);
         const personName = person ? getFullName(person) : undefined;
 
         for (const doc of matchingDocs) {
@@ -3753,6 +3770,8 @@ export const listAvailableForLinking = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get all latest documents for this process
     const documents = await ctx.db
@@ -3773,15 +3792,15 @@ export const listAvailableForLinking = query({
     const enriched = await Promise.all(
       available.map(async (doc) => {
         const documentType = doc.documentTypeId
-          ? await ctx.db.get(doc.documentTypeId)
+          ? await cachedGet(doc.documentTypeId)
           : null;
 
         // Get linked status info if any
         let linkedStatus = undefined;
         if (doc.individualProcessStatusId) {
-          const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+          const statusEntry = await cachedGet(doc.individualProcessStatusId);
           if (statusEntry) {
-            const caseStatus = await ctx.db.get(statusEntry.caseStatusId);
+            const caseStatus = await cachedGet(statusEntry.caseStatusId);
             if (caseStatus) {
               linkedStatus = {
                 caseStatusName: caseStatus.name,
@@ -3808,7 +3827,7 @@ export const listAvailableForLinking = query({
           if (docConditions.length > 0) {
             const conditions = await Promise.all(
               docConditions.map(async (dc) => {
-                const condition = await ctx.db.get(dc.documentTypeConditionId);
+                const condition = await cachedGet(dc.documentTypeConditionId);
                 return {
                   name: condition?.name ?? "",
                   isFulfilled: dc.isFulfilled,
@@ -3833,7 +3852,7 @@ export const listAvailableForLinking = query({
           if (conditionLinks.length > 0) {
             const conditions: Array<{ name: string; isFulfilled: boolean }> = [];
             for (const link of conditionLinks) {
-              const condition = await ctx.db.get(link.documentTypeConditionId);
+              const condition = await cachedGet(link.documentTypeConditionId);
               if (condition && condition.isActive) {
                 conditions.push({ name: condition.name, isFulfilled: false });
               }

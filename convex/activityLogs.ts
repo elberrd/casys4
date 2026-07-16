@@ -188,35 +188,52 @@ function getEntityTypeCandidates(entityType: string): string[] {
   return ENTITY_TYPE_GROUPS[canonicalKey] ?? [canonical];
 }
 
-async function enrichLogUser<T extends { userId: Id<"users"> }>(
-  ctx: QueryCtx,
-  log: T
-): Promise<
-  T & {
-    user: {
-      _id: Id<"userProfiles">;
-      fullName: string;
-      email: string;
-    } | null;
-  }
-> {
-  const user = await ctx.db.get(log.userId);
-  const userProfile = user
-    ? await ctx.db
-        .query("userProfiles")
-        .withIndex("by_userId", (q) => q.eq("userId", user._id))
-        .first()
-    : null;
+type LogUserInfo = {
+  _id: Id<"userProfiles">;
+  fullName: string;
+  email: string;
+} | null;
 
-  return {
-    ...log,
-    user: userProfile
-      ? {
-          _id: userProfile._id,
-          fullName: userProfile.fullName,
-          email: userProfile.email,
-        }
-      : null,
+/**
+ * Per-execution memoized user enrichment: activity logs repeat the same few
+ * users across hundreds of rows, so each userId is resolved (users get +
+ * userProfiles lookup) at most once per query execution.
+ */
+function createLogUserEnricher(ctx: QueryCtx) {
+  const cache = new Map<string, Promise<LogUserInfo>>();
+
+  const resolveUser = (userId: Id<"users">): Promise<LogUserInfo> => {
+    let hit = cache.get(userId);
+    if (!hit) {
+      hit = (async () => {
+        const user = await ctx.db.get(userId);
+        const userProfile = user
+          ? await ctx.db
+              .query("userProfiles")
+              .withIndex("by_userId", (q) => q.eq("userId", user._id))
+              .first()
+          : null;
+
+        return userProfile
+          ? {
+              _id: userProfile._id,
+              fullName: userProfile.fullName,
+              email: userProfile.email,
+            }
+          : null;
+      })();
+      cache.set(userId, hit);
+    }
+    return hit;
+  };
+
+  return async function enrichLogUser<T extends { userId: Id<"users"> }>(
+    log: T
+  ): Promise<T & { user: LogUserInfo }> {
+    return {
+      ...log,
+      user: await resolveUser(log.userId),
+    };
   };
 }
 
@@ -270,7 +287,7 @@ export const get = query({
       return null;
     }
 
-    return await enrichLogUser(ctx, activityLog);
+    return await createLogUserEnricher(ctx)(activityLog);
   },
 });
 
@@ -331,7 +348,8 @@ export const getActivityLogs = query({
     // Apply pagination
     const paginatedResults = results.slice(offset, offset + limit);
 
-    const enrichedResults = await Promise.all(paginatedResults.map((log) => enrichLogUser(ctx, log)));
+    const enrichLogUser = createLogUserEnricher(ctx);
+    const enrichedResults = await Promise.all(paginatedResults.map((log) => enrichLogUser(log)));
 
     return {
       logs: enrichedResults,
@@ -367,9 +385,10 @@ export const getEntityHistory = query({
     );
 
     const logs = logsByType.flat().sort((a, b) => b.createdAt - a.createdAt);
+    const enrichLogUser = createLogUserEnricher(ctx);
     const enrichedLogs = await Promise.all(
       logs.map(async (log) => {
-        const enriched = await enrichLogUser(ctx, log);
+        const enriched = await enrichLogUser(log);
         // Resolve ID fields in changes to display names
         if (enriched.details) {
           enriched.details = await resolveChangesIds(ctx, enriched.details);
@@ -740,9 +759,10 @@ export const getIndividualProcessFullHistory = query({
     };
 
     // 6. Enrich with user data, sub-entity info, and resolve IDs
+    const enrichLogUser = createLogUserEnricher(ctx);
     const enrichedLogs = await Promise.all(
       allLogs.map(async (log) => {
-        const enriched = await enrichLogUser(ctx, log);
+        const enriched = await enrichLogUser(log);
         if (enriched.details) {
           enriched.details = await resolveChangesIds(ctx, enriched.details);
         }

@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -56,26 +57,27 @@ export const exportCollectiveProcesses = query({
       processes = processes.filter((p) => p.status === args.statusFilter);
     }
 
-    // Enrich with related data
+    // Enrich with related data (deduped reads across rows)
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedProcesses = await Promise.all(
       processes.map(async (process) => {
         const [company, contactPerson, processType, workplaceCity, consulate] =
           await Promise.all([
-            process.companyId ? ctx.db.get(process.companyId) : null,
-            process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
-            process.processTypeId ? ctx.db.get(process.processTypeId) : null,
-            process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
-            process.consulateId ? ctx.db.get(process.consulateId) : null,
+            process.companyId ? cachedGet(process.companyId) : null,
+            process.contactPersonId ? cachedGet(process.contactPersonId) : null,
+            process.processTypeId ? cachedGet(process.processTypeId) : null,
+            process.workplaceCityId ? cachedGet(process.workplaceCityId) : null,
+            process.consulateId ? cachedGet(process.consulateId) : null,
           ]);
 
         // Get workplace state
         const workplaceState = workplaceCity?.stateId
-          ? await ctx.db.get(workplaceCity.stateId)
+          ? await cachedGet(workplaceCity.stateId)
           : null;
 
         // Get consulate city
         const consulateCity = consulate?.cityId
-          ? await ctx.db.get(consulate.cityId)
+          ? await cachedGet(consulate.cityId)
           : null;
 
         // Count individual processes
@@ -126,6 +128,9 @@ export const exportIndividualProcesses = query({
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get all individual processes (excluding client-request drafts, which are
     // not live processes and must never appear in exports).
     let processes = (await ctx.db.query("individualProcesses").collect()).filter(
@@ -142,7 +147,7 @@ export const exportIndividualProcesses = query({
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
           if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          const collectiveProcess = await cachedGet(process.collectiveProcessId);
           if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return process;
           }
@@ -155,7 +160,7 @@ export const exportIndividualProcesses = query({
       const filteredProcesses = await Promise.all(
         processes.map(async (process) => {
           if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+          const collectiveProcess = await cachedGet(process.collectiveProcessId);
           if (collectiveProcess && collectiveProcess.companyId === args.companyId) {
             return process;
           }
@@ -186,24 +191,24 @@ export const exportIndividualProcesses = query({
     const enrichedProcesses = await Promise.all(
       processes.map(async (process) => {
         const [person, collectiveProcess, legalFramework, cbo] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
-          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
-          process.cboId ? ctx.db.get(process.cboId) : null,
+          cachedGet(process.personId),
+          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : Promise.resolve(null),
+          process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
+          process.cboId ? cachedGet(process.cboId) : null,
         ]);
 
         // Get person nationality and city
         const [nationality, currentCity, birthCity] = person
           ? await Promise.all([
-              person.nationalityId ? ctx.db.get(person.nationalityId) : null,
-              person.currentCityId ? ctx.db.get(person.currentCityId) : null,
-              person.birthCityId ? ctx.db.get(person.birthCityId) : null,
+              person.nationalityId ? cachedGet(person.nationalityId) : null,
+              person.currentCityId ? cachedGet(person.currentCityId) : null,
+              person.birthCityId ? cachedGet(person.birthCityId) : null,
             ])
           : [null, null, null];
 
         // Get company
         const company = collectiveProcess && collectiveProcess.companyId
-          ? await ctx.db.get(collectiveProcess.companyId)
+          ? await cachedGet(collectiveProcess.companyId)
           : null;
 
         return {
@@ -292,19 +297,20 @@ export const exportPeople = query({
       people = people.filter((p) => p.nationalityId === args.nationalityId);
     }
 
-    // Enrich with related data
+    // Enrich with related data (deduped reads across rows)
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedPeople = await Promise.all(
       people.map(async (person) => {
         const [birthCity, currentCity, nationality] = await Promise.all([
-          person.birthCityId ? ctx.db.get(person.birthCityId) : null,
-          person.currentCityId ? ctx.db.get(person.currentCityId) : null,
-          person.nationalityId ? ctx.db.get(person.nationalityId) : null,
+          person.birthCityId ? cachedGet(person.birthCityId) : null,
+          person.currentCityId ? cachedGet(person.currentCityId) : null,
+          person.nationalityId ? cachedGet(person.nationalityId) : null,
         ]);
 
         // Get states
         const [birthState, currentState] = await Promise.all([
-          birthCity?.stateId ? ctx.db.get(birthCity.stateId) : null,
-          currentCity?.stateId ? ctx.db.get(currentCity.stateId) : null,
+          birthCity?.stateId ? cachedGet(birthCity.stateId) : null,
+          currentCity?.stateId ? cachedGet(currentCity.stateId) : null,
         ]);
 
         return {
@@ -387,22 +393,23 @@ export const exportDocuments = query({
       documents = documents.filter((d) => d.uploadedAt <= toTimestamp);
     }
 
-    // Enrich with related data
+    // Enrich with related data (deduped reads across rows)
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
         const [individualProcess, documentType, person, company, uploadedByUser, reviewedByUser] =
           await Promise.all([
-            ctx.db.get(doc.individualProcessId),
-            doc.documentTypeId ? ctx.db.get(doc.documentTypeId) : null,
-            doc.personId ? ctx.db.get(doc.personId) : null,
-            doc.companyId ? ctx.db.get(doc.companyId) : null,
-            ctx.db.get(doc.uploadedBy),
-            doc.reviewedBy ? ctx.db.get(doc.reviewedBy) : null,
+            cachedGet(doc.individualProcessId),
+            doc.documentTypeId ? cachedGet(doc.documentTypeId) : null,
+            doc.personId ? cachedGet(doc.personId) : null,
+            doc.companyId ? cachedGet(doc.companyId) : null,
+            cachedGet(doc.uploadedBy),
+            doc.reviewedBy ? cachedGet(doc.reviewedBy) : null,
           ]);
 
         // Get collective process
         const collectiveProcess = individualProcess && individualProcess.collectiveProcessId
-          ? await ctx.db.get(individualProcess.collectiveProcessId)
+          ? await cachedGet(individualProcess.collectiveProcessId)
           : null;
 
         // Get uploader and reviewer profiles
@@ -465,6 +472,9 @@ export const exportTasks = query({
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get all tasks
     let tasks = await ctx.db.query("tasks").collect();
 
@@ -478,7 +488,7 @@ export const exportTasks = query({
       const filteredTasks = await Promise.all(
         tasks.map(async (task) => {
           if (task.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            const collectiveProcess = await cachedGet(task.collectiveProcessId);
             if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
               return task;
             }
@@ -492,7 +502,7 @@ export const exportTasks = query({
       const filteredTasks = await Promise.all(
         tasks.map(async (task) => {
           if (task.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            const collectiveProcess = await cachedGet(task.collectiveProcessId);
             if (collectiveProcess && collectiveProcess.companyId === args.companyId) {
               return task;
             }
@@ -528,14 +538,14 @@ export const exportTasks = query({
     const enrichedTasks = await Promise.all(
       tasks.map(async (task) => {
         const [individualProcess, collectiveProcess] = await Promise.all([
-          task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
+          task.individualProcessId ? cachedGet(task.individualProcessId) : null,
+          task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
         ]);
 
         // Get person and company
         const [person, company] = await Promise.all([
-          individualProcess ? ctx.db.get(individualProcess.personId) : null,
-          collectiveProcess && collectiveProcess.companyId ? ctx.db.get(collectiveProcess.companyId) : null,
+          individualProcess ? cachedGet(individualProcess.personId) : null,
+          collectiveProcess && collectiveProcess.companyId ? cachedGet(collectiveProcess.companyId) : null,
         ]);
 
         // Get assignee and creator profiles

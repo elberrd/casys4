@@ -7,6 +7,7 @@ import {
   getIndividualProcessCompanyIds,
   requireAdmin,
 } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -80,6 +81,8 @@ export const getProcessStats = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get all individual processes
     let processes = await ctx.db.query("individualProcesses").collect();
@@ -92,7 +95,7 @@ export const getProcessStats = query({
     await Promise.all(
       processes.map(async (process) => {
         if (process.caseStatusId) {
-          const caseStatus = await ctx.db.get(process.caseStatusId);
+          const caseStatus = await cachedGet(process.caseStatusId);
           if (caseStatus) {
             const key = caseStatus._id;
             if (!statusCounts[key]) {
@@ -132,6 +135,8 @@ export const getDocumentReviewQueue = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Client uploads are stored as "uploaded"; include explicit "under_review"
     // records too so staff sees every document waiting for action.
@@ -156,14 +161,14 @@ export const getDocumentReviewQueue = query({
     const enrichedDocuments = await Promise.all(
       documents.map(async (doc) => {
         const [individualProcess, documentType, person] = await Promise.all([
-          ctx.db.get(doc.individualProcessId),
-          doc.documentTypeId ? ctx.db.get(doc.documentTypeId) : null,
-          doc.personId ? ctx.db.get(doc.personId) : null,
+          cachedGet(doc.individualProcessId),
+          doc.documentTypeId ? cachedGet(doc.documentTypeId) : null,
+          doc.personId ? cachedGet(doc.personId) : null,
         ]);
 
         let collectiveProcess = null;
         if (individualProcess && individualProcess.collectiveProcessId) {
-          collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+          collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
         }
 
         return {
@@ -192,6 +197,8 @@ export const getOverdueTasks = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
     const today = new Date().toISOString().split("T")[0];
 
     let tasks = await ctx.db.query("tasks").collect();
@@ -213,9 +220,9 @@ export const getOverdueTasks = query({
     const enrichedTasks = await Promise.all(
       tasks.map(async (task) => {
         const [assignedToUser, collectiveProcess, individualProcess] = await Promise.all([
-          task.assignedTo ? ctx.db.get(task.assignedTo) : null,
-          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
-          task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
+          task.assignedTo ? cachedGet(task.assignedTo) : null,
+          task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
+          task.individualProcessId ? cachedGet(task.individualProcessId) : null,
         ]);
 
         const assignedToProfile = assignedToUser
@@ -227,7 +234,7 @@ export const getOverdueTasks = query({
 
         let person = null;
         if (individualProcess) {
-          person = await ctx.db.get(individualProcess.personId);
+          person = await cachedGet(individualProcess.personId);
         }
 
         return {
@@ -266,6 +273,8 @@ export const getUpcomingDeadlines = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const today = new Date();
     const thirtyDaysFromNow = new Date(today);
@@ -290,7 +299,7 @@ export const getUpcomingDeadlines = query({
     const filteredByStatus = await Promise.all(
       processesWithDeadlines.map(async (process) => {
         if (process.caseStatusId) {
-          const caseStatus = await ctx.db.get(process.caseStatusId);
+          const caseStatus = await cachedGet(process.caseStatusId);
           // Exclude if status code indicates completion (concluido, cancelado, etc.)
           if (caseStatus && (
             caseStatus.code === "concluido" ||
@@ -312,13 +321,13 @@ export const getUpcomingDeadlines = query({
     const enrichedProcesses = await Promise.all(
       processes.map(async (process) => {
         const [person, collectiveProcess, processType] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
-          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
+          cachedGet(process.personId),
+          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : Promise.resolve(null),
+          process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
         ]);
 
         const processTypeData = collectiveProcess && collectiveProcess.processTypeId
-          ? await ctx.db.get(collectiveProcess.processTypeId)
+          ? await cachedGet(collectiveProcess.processTypeId)
           : null;
 
         // Calculate days remaining
@@ -413,6 +422,8 @@ export const getRecentActivity = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get recent process history entries
     const historyEntries = await ctx.db
@@ -426,7 +437,7 @@ export const getRecentActivity = query({
       const currentCompanyIds = await getClientCompanyIdsOrThrow(ctx, userProfile);
       const filtered = await Promise.all(
         historyEntries.map(async (entry) => {
-          const individualProcess = await ctx.db.get(entry.individualProcessId);
+          const individualProcess = await cachedGet(entry.individualProcessId);
           if (!individualProcess) return null;
           return (await processBelongsToCompanies(ctx, individualProcess, currentCompanyIds))
             ? entry
@@ -441,8 +452,8 @@ export const getRecentActivity = query({
     const enrichedHistory = await Promise.all(
       filteredHistory.map(async (entry) => {
         const [changedByUser, individualProcess] = await Promise.all([
-          ctx.db.get(entry.changedBy),
-          ctx.db.get(entry.individualProcessId),
+          cachedGet(entry.changedBy),
+          cachedGet(entry.individualProcessId),
         ]);
 
         const changedByProfile = changedByUser
@@ -455,9 +466,9 @@ export const getRecentActivity = query({
         let person = null;
         let collectiveProcess = null;
         if (individualProcess) {
-          person = await ctx.db.get(individualProcess.personId);
+          person = await cachedGet(individualProcess.personId);
           if (individualProcess.collectiveProcessId) {
-            collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+            collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
           }
         }
 
@@ -492,6 +503,8 @@ export const getCompanyDocumentStatus = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const flatIndividualProcesses = await filterProcessesForUser(
       ctx,
@@ -506,7 +519,7 @@ export const getCompanyDocumentStatus = query({
         .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", ip._id))
         .collect();
 
-      const person = await ctx.db.get(ip.personId);
+      const person = await cachedGet(ip.personId);
 
       return {
         personId: ip.personId,
@@ -574,6 +587,8 @@ export const getClientMissingDocumentsSummary = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
     const processes = await filterProcessesForUser(
       ctx,
       userProfile,
@@ -603,14 +618,14 @@ export const getClientMissingDocumentsSummary = query({
         }
 
         const [person, collectiveProcess, processType, companyApplicant] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
-          process.processTypeId ? ctx.db.get(process.processTypeId) : null,
-          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+          cachedGet(process.personId),
+          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
+          process.processTypeId ? cachedGet(process.processTypeId) : null,
+          process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
         ]);
 
         const collectiveCompany = collectiveProcess?.companyId
-          ? await ctx.db.get(collectiveProcess.companyId)
+          ? await cachedGet(collectiveProcess.companyId)
           : null;
         const company = companyApplicant ?? collectiveCompany;
         const personName = person ? getFullName(person) : "Unknown";
@@ -620,7 +635,7 @@ export const getClientMissingDocumentsSummary = query({
         const enrichedActionableDocuments = await Promise.all(
           actionableDocuments.map(async (doc) => {
             const documentType = doc.documentTypeId
-              ? await ctx.db.get(doc.documentTypeId)
+              ? await cachedGet(doc.documentTypeId)
               : null;
 
             let linkedStatus:
@@ -633,9 +648,9 @@ export const getClientMissingDocumentsSummary = query({
               | undefined;
 
             if (doc.individualProcessStatusId) {
-              const statusEntry = await ctx.db.get(doc.individualProcessStatusId);
+              const statusEntry = await cachedGet(doc.individualProcessStatusId);
               const caseStatus = statusEntry
-                ? await ctx.db.get(statusEntry.caseStatusId)
+                ? await cachedGet(statusEntry.caseStatusId)
                 : null;
               if (statusEntry && caseStatus) {
                 linkedStatus = {

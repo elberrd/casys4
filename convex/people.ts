@@ -5,6 +5,7 @@ import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from 
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
+import { createCachedGet } from "./lib/cachedGet";
 
 /** Constructs full display name from person name parts */
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -22,6 +23,9 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     let people = await ctx.db.query("people").collect();
 
@@ -62,19 +66,19 @@ export const list = query({
     const peopleWithRelations = await Promise.all(
       people.map(async (person) => {
         const birthCity = person.birthCityId
-          ? await ctx.db.get(person.birthCityId)
+          ? await cachedGet(person.birthCityId)
           : null;
         const birthState = birthCity?.stateId
-          ? await ctx.db.get(birthCity.stateId)
+          ? await cachedGet(birthCity.stateId)
           : null;
         const currentCity = person.currentCityId
-          ? await ctx.db.get(person.currentCityId)
+          ? await cachedGet(person.currentCityId)
           : null;
         const currentState = currentCity?.stateId
-          ? await ctx.db.get(currentCity.stateId)
+          ? await cachedGet(currentCity.stateId)
           : null;
         const nationality = person.nationalityId
-          ? await ctx.db.get(person.nationalityId)
+          ? await cachedGet(person.nationalityId)
           : null;
 
         // Get current company for the person
@@ -85,7 +89,7 @@ export const list = query({
           .first();
 
         const company = personCompany?.companyId
-          ? await ctx.db.get(personCompany.companyId)
+          ? await cachedGet(personCompany.companyId)
           : null;
 
         return {
@@ -168,6 +172,9 @@ export const listPeopleByCompany = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // For clients, verify they can only access their own company
     if (userProfile.role === "client") {
       const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
@@ -187,7 +194,7 @@ export const listPeopleByCompany = query({
     const people = await Promise.all(
       companyPeople.map(async (pc) => {
         if (!pc.personId) return null;
-        const person = await ctx.db.get(pc.personId);
+        const person = await cachedGet(pc.personId);
         return person;
       })
     );
@@ -676,6 +683,9 @@ export const listEligibleForClientUser = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get all current people-company relationships
     const peopleCompanies = await ctx.db
       .query("peopleCompanies")
@@ -693,8 +703,8 @@ export const listEligibleForClientUser = query({
       peopleCompanies.map(async (pc) => {
         if (!pc.personId || !pc.companyId) return null;
 
-        const person = await ctx.db.get(pc.personId);
-        const company = await ctx.db.get(pc.companyId);
+        const person = await cachedGet(pc.personId);
+        const company = await cachedGet(pc.companyId);
 
         if (!person || !company) return null;
 
@@ -735,6 +745,9 @@ export const listPeopleWithCompanies = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get all people-company relationships where isCurrent=true
     let peopleCompanies = await ctx.db
       .query("peopleCompanies")
@@ -758,8 +771,8 @@ export const listPeopleWithCompanies = query({
       peopleCompanies.map(async (pc) => {
         if (!pc.personId || !pc.companyId) return null;
 
-        const person = await ctx.db.get(pc.personId);
-        const company = await ctx.db.get(pc.companyId);
+        const person = await cachedGet(pc.personId);
+        const company = await cachedGet(pc.companyId);
 
         if (!person || !company) return null;
 

@@ -4,6 +4,7 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { syncPassportDocumentForPassport } from "./lib/passportDocumentSync";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: {
   givenNames: string;
@@ -47,6 +48,9 @@ export const list = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     let passports = await ctx.db.query("passports").collect();
 
     if (args.personId !== undefined) {
@@ -81,10 +85,10 @@ export const list = query({
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
         const person = passport.personId
-          ? await ctx.db.get(passport.personId)
+          ? await cachedGet(passport.personId)
           : null;
         const country = passport.issuingCountryId
-          ? await ctx.db.get(passport.issuingCountryId)
+          ? await cachedGet(passport.issuingCountryId)
           : null;
 
         return {
@@ -163,6 +167,9 @@ export const listByPerson = query({
       }
     }
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     const passports = await ctx.db
       .query("passports")
       .withIndex("by_person", (q) => q.eq("personId", args.personId))
@@ -171,7 +178,7 @@ export const listByPerson = query({
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
         const country = passport.issuingCountryId
-          ? await ctx.db.get(passport.issuingCountryId)
+          ? await cachedGet(passport.issuingCountryId)
           : null;
 
         return {

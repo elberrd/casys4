@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 
@@ -26,6 +27,8 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     let results;
 
@@ -109,7 +112,7 @@ export const list = query({
         filteredResults.map(async (task) => {
           // Check collectiveProcess directly
           if (task.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+            const collectiveProcess = await cachedGet(task.collectiveProcessId);
             if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
               return task;
             }
@@ -117,9 +120,9 @@ export const list = query({
 
           // Check individualProcess's collectiveProcess
           if (task.individualProcessId) {
-            const individualProcess = await ctx.db.get(task.individualProcessId);
+            const individualProcess = await cachedGet(task.individualProcessId);
             if (individualProcess && individualProcess.collectiveProcessId) {
-              const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+              const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
               if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
                 return task;
               }
@@ -138,11 +141,11 @@ export const list = query({
       filteredResults.map(async (task) => {
         const [individualProcess, collectiveProcess, assignedToUser, createdByUser, completedByUser] =
           await Promise.all([
-            task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-            task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
-            task.assignedTo ? ctx.db.get(task.assignedTo) : null,
-            ctx.db.get(task.createdBy),
-            task.completedBy ? ctx.db.get(task.completedBy) : null,
+            task.individualProcessId ? cachedGet(task.individualProcessId) : null,
+            task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
+            task.assignedTo ? cachedGet(task.assignedTo) : null,
+            cachedGet(task.createdBy),
+            task.completedBy ? cachedGet(task.completedBy) : null,
           ]);
 
         // Get assignedTo user profile
@@ -172,7 +175,7 @@ export const list = query({
         // Get person from individualProcess
         let person = null;
         if (individualProcess) {
-          person = await ctx.db.get(individualProcess.personId);
+          person = await cachedGet(individualProcess.personId);
         }
 
         return {
@@ -249,7 +252,9 @@ export const get = query({
   args: { id: v.id("tasks") },
   handler: async (ctx, { id }) => {
     const userProfile = await getCurrentUserProfile(ctx);
-    const task = await ctx.db.get(id);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+    const task = await cachedGet(id);
 
     if (!task) {
       return null;
@@ -263,7 +268,7 @@ export const get = query({
 
       // Check collectiveProcess directly
       if (task.collectiveProcessId) {
-        const collectiveProcess = await ctx.db.get(task.collectiveProcessId);
+        const collectiveProcess = await cachedGet(task.collectiveProcessId);
         if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
           throw new Error("Access denied: Task does not belong to your company");
         }
@@ -271,9 +276,9 @@ export const get = query({
 
       // Check individualProcess's collectiveProcess
       if (task.individualProcessId) {
-        const individualProcess = await ctx.db.get(task.individualProcessId);
+        const individualProcess = await cachedGet(task.individualProcessId);
         if (individualProcess && individualProcess.collectiveProcessId) {
-          const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+          const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
           if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
             throw new Error("Access denied: Task does not belong to your company");
           }
@@ -284,11 +289,11 @@ export const get = query({
     // Enrich with related data
     const [individualProcess, collectiveProcess, assignedToUser, createdByUser, completedByUser] =
       await Promise.all([
-        task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-        task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
-        task.assignedTo ? ctx.db.get(task.assignedTo) : null,
-        ctx.db.get(task.createdBy),
-        task.completedBy ? ctx.db.get(task.completedBy) : null,
+        task.individualProcessId ? cachedGet(task.individualProcessId) : null,
+        task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
+        task.assignedTo ? cachedGet(task.assignedTo) : null,
+        cachedGet(task.createdBy),
+        task.completedBy ? cachedGet(task.completedBy) : null,
       ]);
 
     // Get user profiles
@@ -316,7 +321,7 @@ export const get = query({
     // Get person from individualProcess
     let person = null;
     if (individualProcess) {
-      person = await ctx.db.get(individualProcess.personId);
+      person = await cachedGet(individualProcess.personId);
     }
 
     return {
@@ -378,6 +383,8 @@ export const getMyTasks = query({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Query tasks assigned to current user
     let results = await ctx.db
@@ -405,9 +412,9 @@ export const getMyTasks = query({
     const enrichedResults = await Promise.all(
       results.map(async (task) => {
         const [individualProcess, collectiveProcess, createdByUser] = await Promise.all([
-          task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
-          ctx.db.get(task.createdBy),
+          task.individualProcessId ? cachedGet(task.individualProcessId) : null,
+          task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
+          cachedGet(task.createdBy),
         ]);
 
         const createdByProfile = createdByUser
@@ -420,7 +427,7 @@ export const getMyTasks = query({
         // Get person from individualProcess
         let person = null;
         if (individualProcess) {
-          person = await ctx.db.get(individualProcess.personId);
+          person = await cachedGet(individualProcess.personId);
         }
 
         return {
@@ -468,6 +475,8 @@ export const getOverdueTasks = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -485,9 +494,9 @@ export const getOverdueTasks = query({
     const enrichedResults = await Promise.all(
       overdueTasks.map(async (task) => {
         const [individualProcess, collectiveProcess, assignedToUser] = await Promise.all([
-          task.individualProcessId ? ctx.db.get(task.individualProcessId) : null,
-          task.collectiveProcessId ? ctx.db.get(task.collectiveProcessId) : null,
-          task.assignedTo ? ctx.db.get(task.assignedTo) : null,
+          task.individualProcessId ? cachedGet(task.individualProcessId) : null,
+          task.collectiveProcessId ? cachedGet(task.collectiveProcessId) : null,
+          task.assignedTo ? cachedGet(task.assignedTo) : null,
         ]);
 
         const assignedToProfile = assignedToUser
@@ -500,7 +509,7 @@ export const getOverdueTasks = query({
         // Get person from individualProcess
         let person = null;
         if (individualProcess) {
-          person = await ctx.db.get(individualProcess.personId);
+          person = await cachedGet(individualProcess.personId);
         }
 
         return {

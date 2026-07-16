@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireClientCanAccessProcess } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { normalizeStatusDateTime } from "./lib/statusDateTime";
@@ -17,9 +18,11 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get the individual process to check access
-    const individualProcess = await ctx.db.get(args.individualProcessId);
+    const individualProcess = await cachedGet(args.individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
     }
@@ -37,7 +40,7 @@ export const list = query({
     // Enrich with user information
     const enrichedStatuses = await Promise.all(
       statuses.map(async (status) => {
-        const changedByUser = await ctx.db.get(status.changedBy);
+        const changedByUser = await cachedGet(status.changedBy);
         const changedByProfile = changedByUser
           ? await ctx.db
               .query("userProfiles")
@@ -123,9 +126,11 @@ export const getStatusHistory = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get the individual process to check access
-    const individualProcess = await ctx.db.get(args.individualProcessId);
+    const individualProcess = await cachedGet(args.individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
     }
@@ -152,8 +157,8 @@ export const getStatusHistory = query({
     const enrichedStatuses = await Promise.all(
       sortedStatuses.map(async (status) => {
         const [changedByUser, caseStatus] = await Promise.all([
-          ctx.db.get(status.changedBy),
-          status.caseStatusId ? ctx.db.get(status.caseStatusId) : null,
+          cachedGet(status.changedBy),
+          status.caseStatusId ? cachedGet(status.caseStatusId) : null,
         ]);
 
         const changedByProfile = changedByUser
@@ -192,9 +197,11 @@ export const listWithDocumentsAllowed = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get the individual process to check access
-    const individualProcess = await ctx.db.get(args.individualProcessId);
+    const individualProcess = await cachedGet(args.individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
     }
@@ -218,7 +225,7 @@ export const listWithDocumentsAllowed = query({
     }[] = [];
 
     for (const status of statuses) {
-      const caseStatus = await ctx.db.get(status.caseStatusId);
+      const caseStatus = await cachedGet(status.caseStatusId);
       if (caseStatus && caseStatus.allowDocuments === true) {
         results.push({
           _id: status._id,

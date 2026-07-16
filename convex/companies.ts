@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireActiveUserProfile } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -22,6 +23,9 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     let companies = await ctx.db.query("companies").collect();
 
@@ -57,13 +61,13 @@ export const list = query({
     // Fetch related data for each company
     const companiesWithRelations = await Promise.all(
       companies.map(async (company) => {
-        const city = company.cityId ? await ctx.db.get(company.cityId) : null;
-        const state = city?.stateId ? await ctx.db.get(city.stateId) : null;
+        const city = company.cityId ? await cachedGet(company.cityId) : null;
+        const state = city?.stateId ? await cachedGet(city.stateId) : null;
         const country = state?.countryId
-          ? await ctx.db.get(state.countryId)
+          ? await cachedGet(state.countryId)
           : null;
         const contactPerson = company.contactPersonId
-          ? await ctx.db.get(company.contactPersonId)
+          ? await cachedGet(company.contactPersonId)
           : null;
 
         return {
@@ -387,6 +391,9 @@ export const remove = mutation({
 export const getEconomicActivities = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get all junction table entries for this company
     const links = await ctx.db
       .query("companiesEconomicActivities")
@@ -396,7 +403,7 @@ export const getEconomicActivities = query({
     // Fetch the actual economic activity data
     const activities = await Promise.all(
       links.map(async (link) => {
-        const activity = await ctx.db.get(link.economicActivityId);
+        const activity = await cachedGet(link.economicActivityId);
         return activity;
       })
     );
@@ -749,6 +756,9 @@ export const getCompanyStatusDistribution = query({
 
     const allIndividualProcesses = individualProcesses.flat();
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Count by caseStatusId
     const statusCounts = new Map<string, number>();
     let emPreparacaoCount = 0;
@@ -759,7 +769,7 @@ export const getCompanyStatusDistribution = query({
         statusCounts.set(key, (statusCounts.get(key) || 0) + 1);
 
         // Check if this is "em_preparacao" status
-        const caseStatus = await ctx.db.get(ip.caseStatusId);
+        const caseStatus = await cachedGet(ip.caseStatusId);
         if (caseStatus?.code === "em_preparacao") {
           emPreparacaoCount++;
         }
@@ -770,7 +780,7 @@ export const getCompanyStatusDistribution = query({
     const total = allIndividualProcesses.length;
     const distribution = await Promise.all(
       Array.from(statusCounts.entries()).map(async ([caseStatusId, count]) => {
-        const caseStatus = await ctx.db.get(caseStatusId as Id<"caseStatuses">);
+        const caseStatus = await cachedGet(caseStatusId as Id<"caseStatuses">);
         return {
           caseStatusId,
           statusName: caseStatus?.name || "Unknown",
@@ -900,18 +910,21 @@ export const getProcessesWithMissingData = query({
       return missingQualification || missingProfExperience;
     });
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     // Get detailed information for each process
     const detailedProcesses = await Promise.all(
       processesWithMissingData.map(async (ip) => {
-        const person = await ctx.db.get(ip.personId);
+        const person = await cachedGet(ip.personId);
         const processType = ip.processTypeId
-          ? await ctx.db.get(ip.processTypeId)
+          ? await cachedGet(ip.processTypeId)
           : null;
         const legalFramework = ip.legalFrameworkId
-          ? await ctx.db.get(ip.legalFrameworkId)
+          ? await cachedGet(ip.legalFrameworkId)
           : null;
         const caseStatus = ip.caseStatusId
-          ? await ctx.db.get(ip.caseStatusId)
+          ? await cachedGet(ip.caseStatusId)
           : null;
 
         return {

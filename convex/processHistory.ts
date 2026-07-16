@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 
 /**
  * Query to list all process history records with optional filters
@@ -15,6 +16,8 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     let results;
 
@@ -52,12 +55,12 @@ export const list = query({
       // Filter by company - fetch individualProcess and collectiveProcess for each result
       const filteredByCompany = await Promise.all(
         results.map(async (historyRecord) => {
-          const individualProcess = await ctx.db.get(
+          const individualProcess = await cachedGet(
             historyRecord.individualProcessId,
           );
           if (!individualProcess || !individualProcess.collectiveProcessId) return null;
 
-          const collectiveProcess = await ctx.db.get(individualProcess.collectiveProcessId);
+          const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
           if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
             return historyRecord;
           }
@@ -77,8 +80,8 @@ export const list = query({
     const enrichedResults = await Promise.all(
       results.map(async (historyRecord) => {
         const [individualProcess, changedByUser] = await Promise.all([
-          ctx.db.get(historyRecord.individualProcessId),
-          ctx.db.get(historyRecord.changedBy),
+          cachedGet(historyRecord.individualProcessId),
+          cachedGet(historyRecord.changedBy),
         ]);
 
         // Get user profile for full name
@@ -114,9 +117,11 @@ export const getByIndividualProcess = query({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Check access to this individual process
-    const individualProcess = await ctx.db.get(args.individualProcessId);
+    const individualProcess = await cachedGet(args.individualProcessId);
     if (!individualProcess) {
       throw new Error("Individual process not found");
     }
@@ -128,7 +133,7 @@ export const getByIndividualProcess = query({
       }
 
       const collectiveProcess = individualProcess.collectiveProcessId
-        ? await ctx.db.get(individualProcess.collectiveProcessId)
+        ? await cachedGet(individualProcess.collectiveProcessId)
         : null;
       if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
         throw new Error("Access denied to this process");
@@ -147,7 +152,7 @@ export const getByIndividualProcess = query({
     // Enrich with user information
     const enrichedRecords = await Promise.all(
       historyRecords.map(async (record) => {
-        const changedByUser = await ctx.db.get(record.changedBy);
+        const changedByUser = await cachedGet(record.changedBy);
 
         // Get user profile for full name
         let changedByProfile = null;

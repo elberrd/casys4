@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
 import { syncPassportDocumentForProcess } from "./lib/passportDocumentSync";
 import { logStatusChange } from "./lib/processHistory";
@@ -32,6 +33,11 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // Deduped document reads: related docs (companies, legal frameworks, case
+    // statuses, countries, ...) repeat across rows, so each unique id is
+    // fetched from the db at most once per execution.
+    const cachedGet = createCachedGet(ctx.db);
 
     let results;
 
@@ -101,7 +107,7 @@ export const list = query({
             return process;
           }
           if (process.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+            const collectiveProcess = await cachedGet(process.collectiveProcessId);
             if (
               collectiveProcess &&
               collectiveProcess.companyId &&
@@ -121,10 +127,10 @@ export const list = query({
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
         const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, consulate, notesCount, pendingDocsCount] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
-          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
-          process.cboId ? ctx.db.get(process.cboId) : null,
+          cachedGet(process.personId),
+          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
+          process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
+          process.cboId ? cachedGet(process.cboId) : null,
           // Get most recent status by date (regardless of isActive flag).
           // Uses the by_individualProcess_date index to read a single row
           // (ordered by date desc) instead of scanning + sorting every status
@@ -137,15 +143,15 @@ export const list = query({
             .order("desc")
             .first(),
           // Get passport details if passportId exists
-          process.passportId ? ctx.db.get(process.passportId) : null,
+          process.passportId ? cachedGet(process.passportId) : null,
           // Get process type details if processTypeId exists
-          process.processTypeId ? ctx.db.get(process.processTypeId) : null,
+          process.processTypeId ? cachedGet(process.processTypeId) : null,
           // Get company applicant details if companyApplicantId exists
-          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+          process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
           // Get user applicant details if userApplicantId exists
-          process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
+          process.userApplicantId ? cachedGet(process.userApplicantId) : null,
           // Get consulate details if consulateId exists
-          process.consulateId ? ctx.db.get(process.consulateId) : null,
+          process.consulateId ? cachedGet(process.consulateId) : null,
           // Get notes count for this individual process
           ctx.db
             .query("notes")
@@ -170,8 +176,8 @@ export const list = query({
 
         // Get caseStatus from the most recent activeStatus (not from process.caseStatusId which may be stale)
         const caseStatus = activeStatusRaw?.caseStatusId
-          ? await ctx.db.get(activeStatusRaw.caseStatusId)
-          : (process.caseStatusId ? await ctx.db.get(process.caseStatusId) : null);
+          ? await cachedGet(activeStatusRaw.caseStatusId)
+          : (process.caseStatusId ? await cachedGet(process.caseStatusId) : null);
 
         // Create activeStatus with enriched caseStatus
         const activeStatus = activeStatusRaw ? {
@@ -198,7 +204,7 @@ export const list = query({
           const latestDocs = docs.filter((d) => d.isLatest);
           exigenciaDocs = await Promise.all(
             latestDocs.map(async (d) => {
-              const docType = d.documentTypeId ? await ctx.db.get(d.documentTypeId) : null;
+              const docType = d.documentTypeId ? await cachedGet(d.documentTypeId) : null;
               return {
                 _id: d._id,
                 fileName: d.fileName,
@@ -214,7 +220,7 @@ export const list = query({
         let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
         if (rawPerson) {
           const nationality = rawPerson.nationalityId
-            ? await ctx.db.get(rawPerson.nationalityId)
+            ? await cachedGet(rawPerson.nationalityId)
             : null;
           person = {
             ...rawPerson,
@@ -227,7 +233,7 @@ export const list = query({
         let enrichedPassport = null;
         if (passport) {
           const issuingCountry = passport.issuingCountryId
-            ? await ctx.db.get(passport.issuingCountryId)
+            ? await cachedGet(passport.issuingCountryId)
             : null;
           enrichedPassport = {
             ...passport,
@@ -238,12 +244,12 @@ export const list = query({
         // If consulate exists, enrich it with city, state, and country
         let enrichedConsulate = null;
         if (consulate) {
-          const city = consulate.cityId ? await ctx.db.get(consulate.cityId) : null;
+          const city = consulate.cityId ? await cachedGet(consulate.cityId) : null;
           let state = null;
           let country = null;
           if (city) {
-            state = city.stateId ? await ctx.db.get(city.stateId) : null;
-            country = city.countryId ? await ctx.db.get(city.countryId) : null;
+            state = city.stateId ? await cachedGet(city.stateId) : null;
+            country = city.countryId ? await cachedGet(city.countryId) : null;
           }
           enrichedConsulate = {
             ...consulate,
@@ -268,22 +274,22 @@ export const list = query({
 
             // Handle reference fields
             if (fieldName === "passportId" && typeof fieldValue === "string") {
-              const passportDoc = await ctx.db.get(fieldValue as Id<"passports">);
+              const passportDoc = await cachedGet(fieldValue as Id<"passports">);
               enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
             } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
-              const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+              const personDoc = await cachedGet(fieldValue as Id<"people">);
               enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
             } else if (fieldName === "personId" && typeof fieldValue === "string") {
-              const personDoc = await ctx.db.get(fieldValue as Id<"people">);
+              const personDoc = await cachedGet(fieldValue as Id<"people">);
               enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
             } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
-              const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
+              const processTypeDoc = await cachedGet(fieldValue as Id<"processTypes">);
               enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
             } else if (fieldName === "legalFrameworkId" && typeof fieldValue === "string") {
-              const legalFrameworkDoc = await ctx.db.get(fieldValue as Id<"legalFrameworks">);
+              const legalFrameworkDoc = await cachedGet(fieldValue as Id<"legalFrameworks">);
               enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
             } else if (fieldName === "cboId" && typeof fieldValue === "string") {
-              const cboDoc = await ctx.db.get(fieldValue as Id<"cboCodes">);
+              const cboDoc = await cachedGet(fieldValue as Id<"cboCodes">);
               enrichedData[fieldName] = cboDoc ? `${cboDoc.code} - ${cboDoc.title}` : fieldValue;
             } else {
               // Keep non-reference fields as-is
@@ -311,7 +317,7 @@ export const list = query({
           userApplicant: userApplicant ? {
             ...userApplicant,
             fullName: getFullName(userApplicant),
-            company: process.userApplicantCompanyId ? await ctx.db.get(process.userApplicantCompanyId) : null,
+            company: process.userApplicantCompanyId ? await cachedGet(process.userApplicantCompanyId) : null,
           } : null, // Include user applicant details with stored company
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
@@ -1505,13 +1511,14 @@ export const listByCollectiveProcess = query({
     // to a collective process).
     const results = allResults.filter((r) => r.requestStatus !== "draft");
 
-    // Enrich with person data
+    // Enrich with person data (deduped reads across rows)
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedResults = await Promise.all(
       results.map(async (process) => {
         const [person, legalFramework, cbo] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
-          process.cboId ? ctx.db.get(process.cboId) : null,
+          cachedGet(process.personId),
+          process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
+          process.cboId ? cachedGet(process.cboId) : null,
         ]);
 
         return {
@@ -1812,12 +1819,13 @@ export const listRNMAppointments = query({
       }
     }
 
-    // Enrich with person and company data
+    // Enrich with person and company data (deduped reads across rows)
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedResults = await Promise.all(
       filteredProcesses.map(async (process) => {
         const [person, companyApplicant] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+          cachedGet(process.personId),
+          process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
         ]);
 
         return {
@@ -1847,6 +1855,9 @@ export const listForSelector = query({
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     const allProcesses = await ctx.db.query("individualProcesses").collect();
     // Exclude client-request drafts from selectors/comboboxes.
     let processes = allProcesses.filter((p) => p.requestStatus !== "draft");
@@ -1867,7 +1878,7 @@ export const listForSelector = query({
             return process;
           }
           if (process.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(process.collectiveProcessId);
+            const collectiveProcess = await cachedGet(process.collectiveProcessId);
             if (
               collectiveProcess &&
               collectiveProcess.companyId &&
@@ -1887,8 +1898,8 @@ export const listForSelector = query({
     const enrichedResults = await Promise.all(
       processes.map(async (process) => {
         const [person, collectiveProcess] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
+          cachedGet(process.personId),
+          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
         ]);
 
         const personDisplayName = person ? getFullName(person) : "Unknown";

@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
+import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -23,6 +24,9 @@ export const list = query({
   handler: async (ctx, args) => {
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
+
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     let relationships = await ctx.db.query("peopleCompanies").collect();
 
@@ -52,8 +56,8 @@ export const list = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const person = relationship.personId ? await ctx.db.get(relationship.personId) : null;
-        const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
+        const person = relationship.personId ? await cachedGet(relationship.personId) : null;
+        const company = relationship.companyId ? await cachedGet(relationship.companyId) : null;
 
         return {
           ...relationship,
@@ -153,6 +157,9 @@ export const listByPerson = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     const relationships = await ctx.db
       .query("peopleCompanies")
       .withIndex("by_person", (q) => q.eq("personId", args.personId))
@@ -181,7 +188,7 @@ export const listByPerson = query({
 
       const relationshipsWithData = await Promise.all(
         filteredRelationships.map(async (relationship) => {
-          const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
+          const company = relationship.companyId ? await cachedGet(relationship.companyId) : null;
 
           return {
             ...relationship,
@@ -200,7 +207,7 @@ export const listByPerson = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const company = relationship.companyId ? await ctx.db.get(relationship.companyId) : null;
+        const company = relationship.companyId ? await cachedGet(relationship.companyId) : null;
 
         return {
           ...relationship,
@@ -242,6 +249,9 @@ export const listByCompany = query({
       }
     }
 
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
+
     const relationships = await ctx.db
       .query("peopleCompanies")
       .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
@@ -249,7 +259,7 @@ export const listByCompany = query({
 
     const relationshipsWithData = await Promise.all(
       relationships.map(async (relationship) => {
-        const person = relationship.personId ? await ctx.db.get(relationship.personId) : null;
+        const person = relationship.personId ? await cachedGet(relationship.personId) : null;
 
         return {
           ...relationship,

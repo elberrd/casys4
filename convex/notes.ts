@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -17,6 +18,8 @@ export const listAll = query({
   args: {},
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Get all active notes
     let notes = await ctx.db
@@ -35,9 +38,9 @@ export const listAll = query({
       for (const note of notes) {
         // Check individualProcess's collectiveProcess company
         if (note.individualProcessId) {
-          const individualProcess = await ctx.db.get(note.individualProcessId);
+          const individualProcess = await cachedGet(note.individualProcessId);
           if (individualProcess && individualProcess.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(
+            const collectiveProcess = await cachedGet(
               individualProcess.collectiveProcessId
             );
             if (
@@ -52,7 +55,7 @@ export const listAll = query({
 
         // Check collectiveProcess directly
         if (note.collectiveProcessId) {
-          const collectiveProcess = await ctx.db.get(note.collectiveProcessId);
+          const collectiveProcess = await cachedGet(note.collectiveProcessId);
           if (
             collectiveProcess &&
             collectiveProcess.companyId === userProfile.companyId
@@ -81,11 +84,11 @@ export const listAll = query({
 
         // Get individual process and candidate info
         if (note.individualProcessId) {
-          individualProcess = await ctx.db.get(note.individualProcessId);
+          individualProcess = await cachedGet(note.individualProcessId);
           if (individualProcess) {
             // Get person (candidate) information
             if (individualProcess.personId) {
-              const person = await ctx.db.get(individualProcess.personId);
+              const person = await cachedGet(individualProcess.personId);
               if (person) {
                 candidateName = getFullName(person);
               }
@@ -93,7 +96,7 @@ export const listAll = query({
 
             // Get collective process for reference
             if (individualProcess.collectiveProcessId) {
-              collectiveProcess = await ctx.db.get(
+              collectiveProcess = await cachedGet(
                 individualProcess.collectiveProcessId
               );
               if (collectiveProcess) {
@@ -105,7 +108,7 @@ export const listAll = query({
 
         // Get collective process info if not already fetched
         if (note.collectiveProcessId && !collectiveProcess) {
-          collectiveProcess = await ctx.db.get(note.collectiveProcessId);
+          collectiveProcess = await cachedGet(note.collectiveProcessId);
           if (collectiveProcess) {
             processReference = collectiveProcess.referenceNumber;
           }
@@ -159,6 +162,8 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
 
     // Validate that at least one process ID is provided
     if (!args.individualProcessId && !args.collectiveProcessId) {
@@ -197,9 +202,9 @@ export const list = query({
       for (const note of results) {
         // Check individualProcess's collectiveProcess company
         if (note.individualProcessId) {
-          const individualProcess = await ctx.db.get(note.individualProcessId);
+          const individualProcess = await cachedGet(note.individualProcessId);
           if (individualProcess && individualProcess.collectiveProcessId) {
-            const collectiveProcess = await ctx.db.get(
+            const collectiveProcess = await cachedGet(
               individualProcess.collectiveProcessId
             );
             if (
@@ -214,7 +219,7 @@ export const list = query({
 
         // Check collectiveProcess directly
         if (note.collectiveProcessId) {
-          const collectiveProcess = await ctx.db.get(note.collectiveProcessId);
+          const collectiveProcess = await cachedGet(note.collectiveProcessId);
           if (
             collectiveProcess &&
             collectiveProcess.companyId === userProfile.companyId

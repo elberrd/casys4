@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { calculateCollectiveProcessStatus } from "./lib/statusCalculation";
@@ -74,15 +75,17 @@ export const list = query({
     }
 
     // Enrich with related data first, then apply search filter
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
     const enrichedBeforeSearch = await Promise.all(
       filteredResults.map(async (process) => {
         const [company, contactPerson, processType, workplaceCity, consulate] =
           await Promise.all([
-            process.companyId ? ctx.db.get(process.companyId) : null,
-            process.contactPersonId ? ctx.db.get(process.contactPersonId) : null,
-            process.processTypeId ? ctx.db.get(process.processTypeId) : null,
-            process.workplaceCityId ? ctx.db.get(process.workplaceCityId) : null,
-            process.consulateId ? ctx.db.get(process.consulateId) : null,
+            process.companyId ? cachedGet(process.companyId) : null,
+            process.contactPersonId ? cachedGet(process.contactPersonId) : null,
+            process.processTypeId ? cachedGet(process.processTypeId) : null,
+            process.workplaceCityId ? cachedGet(process.workplaceCityId) : null,
+            process.consulateId ? cachedGet(process.consulateId) : null,
           ]);
 
         // Get individual processes with case statuses
@@ -97,28 +100,24 @@ export const list = query({
         const individualProcesses = await Promise.all(
           individualProcessesRaw.map(async (ip) => {
             const [person, activeStatusRaw] = await Promise.all([
-              ip.personId ? ctx.db.get(ip.personId) : null,
-              // Get most recent status by date (regardless of isActive flag)
+              ip.personId ? cachedGet(ip.personId) : null,
+              // Get most recent status by date (regardless of isActive flag).
+              // Uses the by_individualProcess_date index to read a single row
+              // (ordered by date desc) instead of scanning + sorting every
+              // status row for this process.
               ctx.db
                 .query("individualProcessStatuses")
-                .withIndex("by_individualProcess", (q) =>
+                .withIndex("by_individualProcess_date", (q) =>
                   q.eq("individualProcessId", ip._id)
                 )
-                .collect()
-                .then((statuses) => {
-                  if (statuses.length === 0) return null;
-                  return statuses.sort((a, b) => {
-                    const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
-                    const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
-                    return dateB.localeCompare(dateA);
-                  })[0];
-                }),
+                .order("desc")
+                .first(),
             ]);
 
             // Get caseStatus from the most recent activeStatus (not from ip.caseStatusId which may be stale)
             const caseStatus = activeStatusRaw?.caseStatusId
-              ? await ctx.db.get(activeStatusRaw.caseStatusId)
-              : (ip.caseStatusId ? await ctx.db.get(ip.caseStatusId) : null);
+              ? await cachedGet(activeStatusRaw.caseStatusId)
+              : (ip.caseStatusId ? await cachedGet(ip.caseStatusId) : null);
 
             // Enrich activeStatus with its caseStatus object
             const activeStatus = activeStatusRaw ? {
@@ -224,35 +223,33 @@ export const get = query({
       .collect();
 
     // Enrich individual processes with all related data for table display
+    // Deduped document reads across enriched rows
+    const cachedGet = createCachedGet(ctx.db);
     const individualProcesses = await Promise.all(
       individualProcessesRaw.map(async (ip) => {
         const [person, ipProcessType, legalFramework, companyApplicant, userApplicant, activeStatusRaw] = await Promise.all([
-          ip.personId ? ctx.db.get(ip.personId) : null,
-          ip.processTypeId ? ctx.db.get(ip.processTypeId) : null,
-          ip.legalFrameworkId ? ctx.db.get(ip.legalFrameworkId) : null,
-          ip.companyApplicantId ? ctx.db.get(ip.companyApplicantId) : null,
-          ip.userApplicantId ? ctx.db.get(ip.userApplicantId) : null,
-          // Get most recent status by date (regardless of isActive flag)
+          ip.personId ? cachedGet(ip.personId) : null,
+          ip.processTypeId ? cachedGet(ip.processTypeId) : null,
+          ip.legalFrameworkId ? cachedGet(ip.legalFrameworkId) : null,
+          ip.companyApplicantId ? cachedGet(ip.companyApplicantId) : null,
+          ip.userApplicantId ? cachedGet(ip.userApplicantId) : null,
+          // Get most recent status by date (regardless of isActive flag).
+          // Uses the by_individualProcess_date index to read a single row
+          // (ordered by date desc) instead of scanning + sorting every
+          // status row for this process.
           ctx.db
             .query("individualProcessStatuses")
-            .withIndex("by_individualProcess", (q) =>
+            .withIndex("by_individualProcess_date", (q) =>
               q.eq("individualProcessId", ip._id)
             )
-            .collect()
-            .then((statuses) => {
-              if (statuses.length === 0) return null;
-              return statuses.sort((a, b) => {
-                const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
-                const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
-                return dateB.localeCompare(dateA);
-              })[0];
-            }),
+            .order("desc")
+            .first(),
         ]);
 
         // Get caseStatus from the most recent activeStatus (not from ip.caseStatusId which may be stale)
         const caseStatus = activeStatusRaw?.caseStatusId
-          ? await ctx.db.get(activeStatusRaw.caseStatusId)
-          : (ip.caseStatusId ? await ctx.db.get(ip.caseStatusId) : null);
+          ? await cachedGet(activeStatusRaw.caseStatusId)
+          : (ip.caseStatusId ? await cachedGet(ip.caseStatusId) : null);
 
         // Enrich activeStatus with its caseStatus object
         const activeStatus = activeStatusRaw ? {
