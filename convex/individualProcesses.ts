@@ -1,10 +1,9 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
-import { syncPassportDocumentForProcess } from "./lib/passportDocumentSync";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
@@ -13,6 +12,7 @@ import { normalizeString } from "./lib/stringUtils";
 import { ensureSingleActiveStatus, getEmPreparacaoStatus } from "./lib/statusManagement";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { formatNowDateTime, normalizeStatusDateTime } from "./lib/statusDateTime";
+import { hasDocumentContent } from "./lib/documentReceiptTiming";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -622,9 +622,17 @@ export const create = mutation({
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
     urgent: v.optional(v.boolean()),
   },
+  returns: v.id("individualProcesses"),
   handler: async (ctx, args) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
+
+    if (args.passportId) {
+      const passport = await ctx.db.get(args.passportId);
+      if (!passport || passport.personId !== args.personId) {
+        throw new ConvexError({ code: "INVALID_PROCESS_PASSPORT" });
+      }
+    }
 
     const now = Date.now();
 
@@ -917,6 +925,8 @@ export const createFromExisting = mutation({
           status: doc.status,
           uploadedBy: doc.uploadedBy,
           uploadedAt: doc.uploadedAt,
+          createdAt: now,
+          receivedAt: hasDocumentContent(doc) ? now : undefined,
           reviewedBy: doc.reviewedBy,
           reviewedAt: doc.reviewedAt,
           rejectionReason: doc.rejectionReason,
@@ -1177,12 +1187,6 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updates);
-
-    // When a passport is linked/changed, mark its "Passaporte" document as sent
-    // if the passport is already complete (data + photo).
-    if (args.passportId !== undefined) {
-      await syncPassportDocumentForProcess(ctx, id);
-    }
 
     // Sync dateProcess changes to "em preparação" status
     if (args.dateProcess !== undefined) {

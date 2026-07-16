@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useRouter } from "next/navigation"
@@ -10,10 +10,33 @@ import { Id } from "@/convex/_generated/dataModel"
 
 import { useWizardState } from "./use-wizard-state"
 import { WizardLayout } from "./wizard-layout"
+import type { WizardFinalizationPhase } from "./wizard-layout"
 import { Step1ProcessType } from "./step1-process-type"
 import { Step2ProcessDataIndividual } from "./step2-process-data-individual"
 import { Step2CollectiveMerged } from "./step2-collective-merged"
 import { Step3_3CandidatesCollective } from "./step3-3-candidates-collective"
+import {
+  PassportAttachmentQueue,
+  type PassportAttachmentQueueEntry,
+  type PassportAttachmentQueueSummary,
+} from "./passport-attachment-queue"
+
+type WizardCreationResult =
+  | {
+      kind: "individual"
+      processIds: Id<"individualProcesses">[]
+    }
+  | {
+      kind: "collective"
+      collectiveProcessId: Id<"collectiveProcesses">
+    }
+
+interface CreationAttempt {
+  processType: "individual" | "collective"
+  referenceNumber?: string
+  collectiveProcessId?: Id<"collectiveProcesses">
+  processIds: Array<Id<"individualProcesses"> | undefined>
+}
 
 export function ProcessWizardPage() {
   const t = useTranslations("ProcessWizard")
@@ -25,6 +48,15 @@ export function ProcessWizardPage() {
   const { currentStep, wizardData, reset } = wizard
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [finalizationPhase, setFinalizationPhase] =
+    useState<WizardFinalizationPhase>("idle")
+  const [passportQueue, setPassportQueue] = useState<
+    PassportAttachmentQueueEntry[]
+  >([])
+  const [creationResult, setCreationResult] =
+    useState<WizardCreationResult | null>(null)
+  const creationAttemptRef = useRef<CreationAttempt | null>(null)
+  const submitGuardRef = useRef(false)
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
   const createCollectiveProcess = useMutation(api.collectiveProcesses.create)
@@ -34,19 +66,74 @@ export function ProcessWizardPage() {
     api.companies.get,
     wizardData.companyApplicantId ? { id: wizardData.companyApplicantId as Id<"companies"> } : "skip"
   )
+  const people = useQuery(api.people.list, {}) ?? []
+
+  const completeCreation = useCallback(
+    (result: WizardCreationResult) => {
+      setFinalizationPhase("complete")
+      setPassportQueue([])
+      setCreationResult(null)
+      creationAttemptRef.current = null
+      submitGuardRef.current = false
+      reset()
+
+      if (result.kind === "collective") {
+        router.push(`/${locale}/collective-processes/${result.collectiveProcessId}`)
+      } else if (result.processIds.length === 1) {
+        router.push(`/${locale}/individual-processes/${result.processIds[0]}`)
+      } else {
+        router.push(`/${locale}/individual-processes`)
+      }
+    },
+    [locale, reset, router]
+  )
+
+  const handlePassportQueueComplete = useCallback(
+    (summary: PassportAttachmentQueueSummary) => {
+      if (!creationResult) return
+
+      toast({
+        title: t("passportFinalizationComplete"),
+        description: t("passportFinalizationSummary", {
+          attached: summary.attached,
+          skipped: summary.skipped,
+          noCandidate: summary.noCandidate,
+        }),
+      })
+      completeCreation(creationResult)
+    },
+    [completeCreation, creationResult, t, toast]
+  )
 
   const handleSubmit = async () => {
+    if (submitGuardRef.current || !wizardData.processType) return
+
+    submitGuardRef.current = true
     setIsSubmitting(true)
+    setFinalizationPhase("creating")
+    let awaitingPassportResolution = false
 
     try {
-      if (wizardData.processType === "individual") {
-        // Create individual processes for each candidate (no collective process)
-        const createdProcessIds: Id<"individualProcesses">[] = []
+      const attempt =
+        creationAttemptRef.current ??
+        {
+          processType: wizardData.processType,
+          referenceNumber:
+            wizardData.processType === "collective"
+              ? `CP-${Date.now().toString(36).toUpperCase()}`
+              : undefined,
+          processIds: [],
+        }
+      creationAttemptRef.current = attempt
 
-        for (const candidate of wizardData.candidates) {
+      if (wizardData.processType === "individual") {
+        for (const [index, candidate] of wizardData.candidates.entries()) {
+          if (attempt.processIds[index]) continue
+
           const processId = await createIndividualProcess({
             dateProcess: candidate.requestDate,
             personId: candidate.personId as Id<"people">,
+            passportId: candidate.passportId,
             userApplicantId: wizardData.userApplicantId ? (wizardData.userApplicantId as Id<"people">) : undefined,
             userApplicantCompanyId: wizardData.userApplicantCompanyId ? (wizardData.userApplicantCompanyId as Id<"companies">) : undefined,
             consulateId: candidate.consulateId ? (candidate.consulateId as Id<"consulates">) : undefined,
@@ -57,7 +144,16 @@ export function ProcessWizardPage() {
             deadlineQuantity: wizardData.deadlineQuantity,
             deadlineSpecificDate: wizardData.deadlineSpecificDate || undefined,
           })
-          createdProcessIds.push(processId)
+          attempt.processIds[index] = processId
+        }
+
+        const createdProcessIds = attempt.processIds.filter(
+          (processId): processId is Id<"individualProcesses"> =>
+            processId !== undefined
+        )
+        const result: WizardCreationResult = {
+          kind: "individual",
+          processIds: createdProcessIds,
         }
 
         toast({
@@ -65,18 +161,28 @@ export function ProcessWizardPage() {
           description: t("individualProcessesCreatedDescription", { count: createdProcessIds.length }),
         })
 
-        // Reset wizard and redirect
-        reset()
-        // Redirect to list if multiple, or to detail if single
-        if (createdProcessIds.length === 1) {
-          router.push(`/${locale}/individual-processes/${createdProcessIds[0]}`)
+        const queue = wizardData.candidates.flatMap((candidate, index) => {
+          const individualProcessId = attempt.processIds[index]
+          if (!candidate.passportId || !individualProcessId) return []
+
+          const person = people.find((item) => item._id === candidate.personId)
+          return [{
+            individualProcessId,
+            passportId: candidate.passportId,
+            candidateName:
+              person?.fullName ?? t("candidateNumber", { number: index + 1 }),
+          }]
+        })
+
+        if (queue.length > 0) {
+          awaitingPassportResolution = true
+          setCreationResult(result)
+          setPassportQueue(queue)
+          setFinalizationPhase("resolving_passports")
         } else {
-          router.push(`/${locale}/individual-processes`)
+          completeCreation(result)
         }
       } else if (wizardData.processType === "collective") {
-        // Generate reference number for collective process
-        const referenceNumber = `CP-${Date.now().toString(36).toUpperCase()}`
-
         // Use the first candidate's requestDate as the process date, or current date as fallback
         const processRequestDate = wizardData.candidates.length > 0
           ? wizardData.candidates[0].requestDate
@@ -86,22 +192,27 @@ export function ProcessWizardPage() {
         // workplaceCityId is optional - use company's cityId if available
         // Note: consulateId is now per-candidate, not at collective level
         // Note: requestDate is now per-candidate, using first candidate's date for the process
-        const collectiveProcessId = await createCollectiveProcess({
-          referenceNumber,
-          companyId: wizardData.companyApplicantId as Id<"companies">,
-          contactPersonId: wizardData.userApplicantId as Id<"people">,
-          processTypeId: wizardData.processTypeId as Id<"processTypes">,
-          workplaceCityId: companyApplicant?.cityId ? (companyApplicant.cityId as Id<"cities">) : undefined,
-          requestDate: processRequestDate,
-        })
+        if (!attempt.collectiveProcessId) {
+          attempt.collectiveProcessId = await createCollectiveProcess({
+            referenceNumber: attempt.referenceNumber!,
+            companyId: wizardData.companyApplicantId as Id<"companies">,
+            contactPersonId: wizardData.userApplicantId as Id<"people">,
+            processTypeId: wizardData.processTypeId as Id<"processTypes">,
+            workplaceCityId: companyApplicant?.cityId ? (companyApplicant.cityId as Id<"cities">) : undefined,
+            requestDate: processRequestDate,
+          })
+        }
 
         // Now create all individual processes with the collectiveProcessId
         // Each candidate can have their own consulate
-        for (const candidate of wizardData.candidates) {
-          await createIndividualProcess({
-            collectiveProcessId: collectiveProcessId,
+        for (const [index, candidate] of wizardData.candidates.entries()) {
+          if (attempt.processIds[index]) continue
+
+          attempt.processIds[index] = await createIndividualProcess({
+            collectiveProcessId: attempt.collectiveProcessId,
             dateProcess: candidate.requestDate,
             personId: candidate.personId as Id<"people">,
+            passportId: candidate.passportId,
             userApplicantId: wizardData.userApplicantId ? (wizardData.userApplicantId as Id<"people">) : undefined,
             userApplicantCompanyId: wizardData.userApplicantCompanyId ? (wizardData.userApplicantCompanyId as Id<"companies">) : undefined,
             consulateId: candidate.consulateId ? (candidate.consulateId as Id<"consulates">) : undefined,
@@ -114,24 +225,58 @@ export function ProcessWizardPage() {
           })
         }
 
+        const result: WizardCreationResult = {
+          kind: "collective",
+          collectiveProcessId: attempt.collectiveProcessId,
+        }
+
         toast({
           title: t("collectiveProcessCreated"),
           description: t("collectiveProcessCreatedDescription", { count: wizardData.candidates.length }),
         })
 
-        // Reset wizard and redirect
-        reset()
-        router.push(`/${locale}/collective-processes/${collectiveProcessId}`)
+        const queue = wizardData.candidates.flatMap((candidate, index) => {
+          const individualProcessId = attempt.processIds[index]
+          if (!candidate.passportId || !individualProcessId) return []
+
+          const person = people.find((item) => item._id === candidate.personId)
+          return [{
+            individualProcessId,
+            passportId: candidate.passportId,
+            candidateName:
+              person?.fullName ?? t("candidateNumber", { number: index + 1 }),
+          }]
+        })
+
+        if (queue.length > 0) {
+          awaitingPassportResolution = true
+          setCreationResult(result)
+          setPassportQueue(queue)
+          setFinalizationPhase("resolving_passports")
+        } else {
+          completeCreation(result)
+        }
       }
     } catch (error) {
       console.error("Error creating process:", error)
+      setFinalizationPhase("creation_error")
+      const attempt = creationAttemptRef.current
+      const createdCount =
+        attempt?.processIds.filter((processId) => processId !== undefined).length ?? 0
+      const hasPartialCreation =
+        createdCount > 0 || attempt?.collectiveProcessId !== undefined
       toast({
         title: t("errorCreatingProcess"),
-        description: error instanceof Error ? error.message : String(error),
+        description: hasPartialCreation
+          ? t("processCreationPartialError", { count: createdCount })
+          : t("processCreationErrorDescription"),
         variant: "destructive",
       })
     } finally {
       setIsSubmitting(false)
+      if (!awaitingPassportResolution) {
+        submitGuardRef.current = false
+      }
     }
   }
 
@@ -153,12 +298,21 @@ export function ProcessWizardPage() {
   }
 
   return (
-    <WizardLayout
-      wizard={wizard}
-      onSubmit={handleSubmit}
-      isSubmitting={isSubmitting}
-    >
-      {renderStep()}
-    </WizardLayout>
+    <>
+      <WizardLayout
+        wizard={wizard}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        finalizationPhase={finalizationPhase}
+      >
+        {renderStep()}
+      </WizardLayout>
+
+      <PassportAttachmentQueue
+        open={finalizationPhase === "resolving_passports"}
+        entries={passportQueue}
+        onComplete={handlePassportQueueComplete}
+      />
+    </>
   )
 }

@@ -208,6 +208,7 @@ export function CreateClientUserDialog({
                     placeholder={t("selectPerson")}
                     searchPlaceholder={t("searchPerson")}
                     emptyText={t("noPeopleFound")}
+                    popoverModal
                   />
                 </div>
 

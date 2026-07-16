@@ -37,6 +37,11 @@ import {
 } from "@/lib/validations/documents-delivered";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
+import {
+  DocumentReceivedDateField,
+  getDefaultReceivedDate,
+  getReceivedDateOverride,
+} from "./document-received-date-field";
 
 interface TypedDocumentUploadDialogProps {
   open: boolean;
@@ -44,6 +49,7 @@ interface TypedDocumentUploadDialogProps {
   individualProcessId: Id<"individualProcesses">;
   onSuccess?: () => void;
   defaultStatusId?: Id<"individualProcessStatuses">;
+  canEditReceivedDate?: boolean;
 }
 
 export function TypedDocumentUploadDialog({
@@ -52,6 +58,7 @@ export function TypedDocumentUploadDialog({
   individualProcessId,
   onSuccess,
   defaultStatusId,
+  canEditReceivedDate = false,
 }: TypedDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -63,6 +70,7 @@ export function TypedDocumentUploadDialog({
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [issueDate, setIssueDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
@@ -221,6 +229,9 @@ export function TypedDocumentUploadDialog({
           : undefined,
         autoApprove: autoApprove || undefined,
         bypassConditions: bypassConditions || undefined,
+        receivedDate: canEditReceivedDate
+          ? getReceivedDateOverride(receivedDate)
+          : undefined,
       });
 
       setUploadProgress(100);
@@ -238,6 +249,7 @@ export function TypedDocumentUploadDialog({
       setExpiryDate("");
       setIssueDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -258,6 +270,7 @@ export function TypedDocumentUploadDialog({
       setExpiryDate("");
       setIssueDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -399,6 +412,17 @@ export function TypedDocumentUploadDialog({
                 {t("autoApprove")}
               </label>
             </div>
+          )}
+
+          {/* Version notes (optional) */}
+          {selectedFile && (
+            <DocumentReceivedDateField
+              canEdit={canEditReceivedDate}
+              value={receivedDate}
+              onChange={setReceivedDate}
+              disabled={isUploading}
+              id="typed-document-received-date"
+            />
           )}
 
           {/* Version notes (optional) */}

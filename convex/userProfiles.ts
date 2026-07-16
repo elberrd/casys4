@@ -69,6 +69,28 @@ export const getCurrentUser = query({
 });
 
 /**
+ * Persist the authenticated user's preferred columns for the individual
+ * processes table. Keeping this preference on the profile makes it durable
+ * across browser sessions and devices.
+ */
+export const updateIndividualProcessesColumnVisibility = mutation({
+  args: {
+    columnVisibility: v.record(v.string(), v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+
+    await ctx.db.patch(userProfile._id, {
+      individualProcessesColumnVisibility: args.columnVisibility,
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+/**
  * Query to list user profiles with role-based filtering
  * - Admin users can see all users
  * - Client users can only see users from their company

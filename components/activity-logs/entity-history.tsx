@@ -25,14 +25,21 @@ import {
   ListTodo,
   CircleDot,
   ToggleRight,
+  ChevronDown,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 interface EntityHistoryProps {
   entityType: string
   entityId: string
   title?: string
   fullProcessHistory?: boolean
+  defaultCollapsed?: boolean
 }
 
 // Fields to skip when rendering changed fields
@@ -122,6 +129,7 @@ export function EntityHistory({
   entityId,
   title,
   fullProcessHistory,
+  defaultCollapsed = false,
 }: EntityHistoryProps) {
   const t = useTranslations('ActivityLogs')
   const tCommon = useTranslations('Common')
@@ -408,65 +416,71 @@ export function EntityHistory({
     return items
   }
 
-  if (history === undefined) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
+  const renderHistoryCard = (content: React.ReactNode) => (
+    <Card>
+      <Collapsible defaultOpen={!defaultCollapsed}>
+        <CardHeader className="p-0">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="group flex w-full items-center justify-between gap-4 rounded-t-xl px-6 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                aria-hidden="true"
+              />
+              <span className="sr-only">{t('toggleHistory')}</span>
+            </button>
+          </CollapsibleTrigger>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex gap-3">
-                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
-              </div>
-            ))}
+        <CollapsibleContent>
+          <CardContent>{content}</CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  )
+
+  if (history === undefined) {
+    return renderHistoryCard(
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex gap-3">
+            <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
     )
   }
 
   if (!history || history.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-8">
-            {t('noHistoryFound')}
-          </p>
-        </CardContent>
-      </Card>
+    return renderHistoryCard(
+      <p className="text-sm text-muted-foreground text-center py-8">
+        {t('noHistoryFound')}
+      </p>
     )
   }
 
   const dateLocale = locale === "pt" ? ptBR : enUS
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title || t('entityHistory')}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[500px] pr-4">
-          <div className="space-y-0">
-            {history.map((log, index) => {
-              const style = getActionStyle(log.action)
-              const isLast = index === history.length - 1
-              const user = log.user?.fullName || tCommon('unknown')
-              const actionLabel = t(`actions.${log.action}`, { defaultValue: log.action })
-              const detailItems = getDetailItems(log)
-              const subEntityType = (log as any).subEntityType as string | null
-              const subEntityLabel = (log as any).subEntityLabel as string | null
+  return renderHistoryCard(
+    <ScrollArea className="h-[500px] pr-4">
+      <div className="space-y-0">
+        {history.map((log, index) => {
+          const style = getActionStyle(log.action)
+          const isLast = index === history.length - 1
+          const user = log.user?.fullName || tCommon('unknown')
+          const actionLabel = t(`actions.${log.action}`, { defaultValue: log.action })
+          const detailItems = getDetailItems(log)
+          const subEntityType = (log as any).subEntityType as string | null
+          const subEntityLabel = (log as any).subEntityLabel as string | null
 
-              return (
-                <div key={log._id} className="relative flex gap-3 group">
+          return (
+            <div key={log._id} className="relative flex gap-3 group">
                   {/* Timeline connector */}
                   <div className="flex flex-col items-center">
                     <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${style.bg} ${style.text}`}>
@@ -519,12 +533,10 @@ export function EntityHistory({
                       </div>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+            </div>
+          )
+        })}
+      </div>
+    </ScrollArea>
   )
 }

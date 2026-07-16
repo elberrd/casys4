@@ -29,6 +29,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import {
+  DocumentReceivedDateField,
+  getDefaultReceivedDate,
+  getReceivedDateOverride,
+} from "./document-received-date-field"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -38,6 +43,8 @@ interface DocumentUploadDialogProps {
   documentRequirementId?: Id<"documentRequirements">
   existingDocumentId?: Id<"documentsDelivered">
   existingVersionNotes?: string
+  documentCreatedAt?: number
+  canEditReceivedDate?: boolean
   documentInfo?: {
     name: string
     description?: string
@@ -65,6 +72,8 @@ export function DocumentUploadDialog({
   documentRequirementId,
   existingDocumentId,
   existingVersionNotes,
+  documentCreatedAt,
+  canEditReceivedDate = false,
   documentInfo,
   validityRule,
   companyReuse,
@@ -81,6 +90,7 @@ export function DocumentUploadDialog({
   const [expiryDate, setExpiryDate] = useState<string>("")
   const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate)
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
@@ -199,6 +209,7 @@ export function DocumentUploadDialog({
 
       // Reset form
       setVersionNotes("")
+      setReceivedDate(getDefaultReceivedDate())
       setExpiryDate("")
       setIssueDate("")
       setFulfilledConditionIds(new Set())
@@ -262,6 +273,9 @@ export function DocumentUploadDialog({
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
         bypassConditions: bypassConditions || undefined,
+        receivedDate: canEditReceivedDate
+          ? getReceivedDateOverride(receivedDate)
+          : undefined,
       })
 
       setUploadProgress(100)
@@ -278,6 +292,7 @@ export function DocumentUploadDialog({
       setExpiryDate("")
       setIssueDate("")
       setVersionNotes("")
+      setReceivedDate(getDefaultReceivedDate())
       setFulfilledConditionIds(new Set())
       setIsIllegible(false)
       setIllegibleNotes("")
@@ -401,6 +416,18 @@ export function DocumentUploadDialog({
                 {t("autoApprove")}
               </label>
             </div>
+          )}
+
+          {/* Version notes (optional) */}
+          {selectedFile && (
+            <DocumentReceivedDateField
+              canEdit={canEditReceivedDate}
+              value={receivedDate}
+              onChange={setReceivedDate}
+              createdAt={documentCreatedAt}
+              disabled={isUploading}
+              id="document-upload-received-date"
+            />
           )}
 
           {/* Version notes (optional) */}

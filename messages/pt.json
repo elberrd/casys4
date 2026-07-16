@@ -72,6 +72,7 @@
       "dateOutOfRange": "A data deve estar entre 1900 e 2100",
       "enterManually": "Digite a data manualmente",
       "selectFromCalendar": "Selecione do calendário",
+      "clearDate": "Limpar data",
       "invalidDay": "Dia inválido para este mês",
       "invalidMonth": "Mês deve estar entre 1 e 12"
     },
@@ -80,7 +81,9 @@
     "updated": "Atualizado",
     "showAll": "Mostrar todas",
     "hideAll": "Ocultar todas",
-    "reset": "Restaurar"
+    "reset": "Restaurar",
+    "searchColumns": "Pesquisar colunas...",
+    "noColumnsFound": "Nenhuma coluna encontrada"
   },
   "Navigation": {
     "dashboard": "Painel",
@@ -2247,7 +2250,29 @@
     "passportNumberAvailable": "Número disponível",
     "passportNumberInUseBy": "Número já em uso por {name}",
     "passportNumberDuplicateError": "Este número de passaporte já está cadastrado",
-    "passportNumberValidationInProgress": "Validação em andamento"
+    "passportNumberValidationInProgress": "Validação em andamento",
+    "documentAttachmentTitle": "Anexar ao documento do processo?",
+    "documentAttachmentDescription": "Encontramos um documento chamado Passaporte válido ou Passaporte em um processo desta pessoa. Ao confirmar, o mesmo arquivo será reutilizado e o documento ficará aprovado automaticamente.",
+    "documentAttachmentScopedDescription": "O processo foi criado e possui um documento chamado Passaporte válido ou Passaporte. Ao confirmar, o mesmo arquivo será reutilizado e o documento ficará aprovado automaticamente.",
+    "documentAttachmentSearching": "Procurando o documento de passaporte no processo criado…",
+    "documentAttachmentProgress": "Passaporte {current} de {total}",
+    "documentAttachmentCandidate": "Candidato: {candidate}",
+    "documentAttachmentSelectDestination": "Selecione o documento de destino",
+    "documentAttachmentExistingFileQuestion": "Este documento já possui um arquivo. Como deseja continuar?",
+    "documentAttachmentNewVersion": "Adicionar nova versão",
+    "documentAttachmentNewVersionDescription": "Preserva o arquivo atual e cria a versão {version}.",
+    "documentAttachmentReplace": "Substituir arquivo atual",
+    "documentAttachmentReplaceDescription": "Troca o arquivo da versão {version} sem criar outra versão.",
+    "documentAttachmentNotNow": "Agora não",
+    "documentAttachmentConfirm": "Anexar ao documento",
+    "documentAttachmentSaving": "Anexando passaporte…",
+    "documentAttachmentSuccess": "Passaporte anexado ao documento do processo",
+    "documentAttachmentConflict": "O documento foi atualizado por outra pessoa. Salve novamente para escolher a versão mais recente.",
+    "documentAttachmentError": "Não foi possível anexar o passaporte ao documento. Tente novamente.",
+    "documentAttachmentProcessFallback": "Processo …{id}",
+    "documentAttachmentHasFile": "Já possui arquivo",
+    "documentAttachmentPending": "Aguardando arquivo",
+    "documentAttachmentVersion": "Versão {version}"
   },
   "PeopleCompanies": {
     "title": "Histórico de Emprego",
@@ -2512,6 +2537,10 @@
     "addDocument": "Adicionar Documento",
     "latestExigenciaPromptTitle": "Adicionar documento à exigência?",
     "latestExigenciaPromptDescription": "O andamento mais recente é {status}, de {date}. Deseja inserir o documento nessa exigência?",
+    "pendingExigenciaPromptTitle": "Adicionar este documento à exigência?",
+    "pendingExigenciaPromptDescription": "O documento “{document}” ainda não possui anexo. O andamento mais recente é {status}, de {date}. Deseja vinculá-lo a essa exigência e continuar o envio?",
+    "pendingExigenciaLinkSuccess": "Documento vinculado à exigência. Continue o envio.",
+    "pendingExigenciaLinkError": "Não foi possível vincular o documento à exigência mais recente.",
     "uploadLoose": "Novo Avulso",
     "uploadWithType": "Novo com Tipo",
     "selectExisting": "Selecionar Existente",
@@ -2703,6 +2732,23 @@
     "bypassConditions": "Dispensar condições (admin)",
     "bypassConditionsHint": "Quando ativado, todas as condições são tratadas como cumpridas independente do status real"
   },
+  "DocumentTiming": {
+    "pending": "{count, plural, =0 {Aguardando hoje} one {Aguardando há # dia} other {Aguardando há # dias}}",
+    "received": "{count, plural, =0 {Recebido no mesmo dia} one {Recebido em # dia} other {Recebido em # dias}}",
+    "superseded": "{count, plural, =0 {Versão encerrada no mesmo dia} one {Aguardou # dia sem anexo} other {Aguardou # dias sem anexo}}",
+    "pendingDetails": "Criado em {createdDate}. Aguardando recebimento.",
+    "receivedDetails": "Criado em {createdDate}. Recebido em {receivedDate}.",
+    "supersededDetails": "Criado em {createdDate}. Versão encerrada sem anexo.",
+    "createdDate": "Data de criação",
+    "receivedDate": "Data de recebimento",
+    "notReceived": "Ainda não recebido",
+    "noAttachment": "Versão sem anexo",
+    "editReceivedDate": "Editar data de recebimento",
+    "receivedDateHint": "Apenas administradores podem ajustar a data real de recebimento.",
+    "receivedDateInvalid": "Informe uma data válida entre a criação desta versão e hoje.",
+    "receivedDateSaved": "Data de recebimento atualizada com sucesso",
+    "receivedDateError": "Erro ao atualizar a data de recebimento"
+  },
   "DocumentReview": {
     "title": "Revisar Documento",
     "description": "Revise e aprove ou rejeite este documento",
@@ -2849,7 +2895,9 @@
     "status": {
       "approved": "Aprovado",
       "rejected": "Rejeitado",
-      "uploaded": "Enviado"
+      "uploaded": "Enviado",
+      "underReview": "Em análise",
+      "notStarted": "Não iniciado"
     }
   },
   "ProcessStatuses": {
@@ -3241,6 +3289,7 @@
     "after": "Depois",
     "entityHistory": "Histórico da Entidade",
     "noHistoryFound": "Nenhum histórico encontrado para esta entidade",
+    "toggleHistory": "Expandir ou recolher histórico de atividades",
     "statusChangedMessage": "{user} alterou o status de {from} para {to}",
     "documentType": "Tipo de Documento",
     "taskTitle": "Título da Tarefa",
@@ -3801,6 +3850,15 @@
     "collectiveProcessCreated": "Processo Coletivo Criado",
     "collectiveProcessCreatedDescription": "{count} processos individuais foram criados e vinculados ao processo coletivo.",
     "errorCreatingProcess": "Erro ao Criar Processo",
+    "processCreationErrorDescription": "Não foi possível concluir a criação. Revise os dados e tente novamente.",
+    "processCreationPartialError": "A criação foi interrompida após {count} processo(s) individual(is). Tente novamente para continuar sem duplicar os processos já confirmados.",
+    "creatingProcesses": "Criando processos…",
+    "finalizingPassports": "Finalizando passaportes…",
+    "retryCreation": "Tentar novamente",
+    "passportReadyForDocument": "Passaporte pronto para vincular",
+    "candidateNumber": "Candidato {number}",
+    "passportFinalizationComplete": "Documentação de passaporte finalizada",
+    "passportFinalizationSummary": "{attached} anexado(s) e aprovado(s), {skipped} ignorado(s) e {noCandidate} sem documento correspondente.",
     "createNewProcess": "Criar Novo Processo",
     "addProcess": "Adicionar Processo",
     "candidatesIndividualDescription": "Adicione os candidatos. Cada candidato criará um processo individual separado.",

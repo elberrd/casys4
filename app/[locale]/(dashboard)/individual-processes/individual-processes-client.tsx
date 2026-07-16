@@ -34,6 +34,7 @@ import { loadPersistedFilters, persistFilters, clearPersistedFilters } from "@/h
 
 export function IndividualProcessesClient() {
   const userProfile = useQuery(api.userProfiles.getCurrentUser)
+  const userProfileId = userProfile?._id
   const isClient = userProfile?.role === "client"
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
@@ -97,6 +98,7 @@ export function IndividualProcessesClient() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     () => persisted?.columnVisibility ?? initialColumnVisibility
   )
+  const hasLoadedColumnPreferencesRef = useRef(false)
   const [sorting, setSorting] = useState<SortingState>(
     () => persisted?.sorting ?? []
   )
@@ -114,6 +116,39 @@ export function IndividualProcessesClient() {
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
   const createFromExisting = useMutation(api.individualProcesses.createFromExisting)
   const updateSavedFilter = useMutation(api.savedFilters.update)
+  const updateColumnVisibilityPreference = useMutation(
+    api.userProfiles.updateIndividualProcessesColumnVisibility
+  )
+
+  // Load the durable per-user preference once. Existing session data is kept
+  // as a migration fallback for users who do not have a saved preference yet.
+  useEffect(() => {
+    if (!userProfile || hasLoadedColumnPreferencesRef.current) return
+
+    const savedVisibility = userProfile.individualProcessesColumnVisibility
+    if (savedVisibility) {
+      setColumnVisibility({
+        ...initialColumnVisibilityRef.current,
+        ...savedVisibility,
+      })
+    }
+
+    hasLoadedColumnPreferencesRef.current = true
+  }, [userProfile])
+
+  // Debounce writes so bulk show/hide and mode changes are persisted as one
+  // preference update rather than one request per affected column.
+  useEffect(() => {
+    if (!userProfileId || !hasLoadedColumnPreferencesRef.current) return
+
+    const timeoutId = window.setTimeout(() => {
+      void updateColumnVisibilityPreference({ columnVisibility }).catch((error) => {
+        console.error("Failed to persist column visibility:", error)
+      })
+    }, 250)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [columnVisibility, updateColumnVisibilityPreference, userProfileId])
 
   // Fetch filter options
   const processTypes = useQuery(api.processTypes.listActive, {}) ?? []

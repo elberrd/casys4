@@ -85,6 +85,11 @@ export const candidateSchema = z.object({
   personId: z.custom<Id<"people">>((val) => typeof val === "string" && val.length > 0, {
     message: "Candidato é obrigatório",
   }),
+  passportId: z
+    .custom<Id<"passports">>((val) => typeof val === "string" && val.length > 0, {
+      message: "ID do passaporte inválido",
+    })
+    .optional(),
   requestDate: z.string().min(1, "Data da solicitação é obrigatória"),
   consulateId: z
     .custom<Id<"consulates">>((val) => typeof val === "string", {

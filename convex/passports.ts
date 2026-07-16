@@ -3,7 +3,6 @@ import { mutation, query } from "./_generated/server";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
-import { syncPassportDocumentForPassport } from "./lib/passportDocumentSync";
 import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: {
@@ -512,11 +511,6 @@ export const create = mutation({
       },
     });
 
-    // If this passport is already complete and linked to a process, mark its
-    // "Passaporte" document as sent. (Usually a no-op at create time, since the
-    // process links the passport afterwards — kept for completeness.)
-    await syncPassportDocumentForPassport(ctx, passportId);
-
     return passportId;
   },
 });
@@ -606,10 +600,6 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, patchData);
-
-    // The passport may have just become complete (missing data filled or photo
-    // attached) — sync the "Passaporte" document of every process using it.
-    await syncPassportDocumentForPassport(ctx, id);
 
     const [previousPerson, nextPerson, previousCountry, nextCountry] =
       await Promise.all([

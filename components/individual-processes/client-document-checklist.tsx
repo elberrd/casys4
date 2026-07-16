@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils"
 import { format, parseISO } from "date-fns"
 import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
+import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
 
 interface ClientDocumentChecklistProps {
   individualProcessId: Id<"individualProcesses">
@@ -161,6 +162,7 @@ export function ClientDocumentChecklist({
               <p className="text-sm font-semibold leading-snug [overflow-wrap:anywhere]">
                 {docName}
               </p>
+              <DocumentWaitTimeBadge document={doc} />
               {doc.isRequired && (
                 <Badge variant="default" className="text-xs">
                   {t("requiredBadge")}
@@ -247,9 +249,12 @@ export function ClientDocumentChecklist({
         <div className="flex flex-1 items-start gap-3">
           {icon}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
-              {docName}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
+                {docName}
+              </p>
+              <DocumentWaitTimeBadge document={doc} />
+            </div>
             {doc.fileName && doc.fileName !== "information_only" && doc.fileName !== docName && (
               <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
                 {doc.fileName}
@@ -403,6 +408,7 @@ export function ClientDocumentChecklist({
           documentName={uploadDialog.documentName}
           existingVersionNotes={uploadDialog.existingVersionNotes}
           hideAutoApprove
+          canEditReceivedDate={false}
           onSuccess={closeDialog}
         />
       )}

@@ -53,6 +53,13 @@ export interface ComboboxProps<T = string> {
   triggerClassName?: string;
   contentClassName?: string;
   /**
+   * Keeps the popover inside the active modal interaction layer. Enable this
+   * when the combobox is rendered inside a Dialog so its list remains
+   * scrollable while the dialog's scroll lock is active.
+   * @default false
+   */
+  popoverModal?: boolean;
+  /**
    * Enable multiple selection mode
    */
   multiple?: false;
@@ -121,6 +128,7 @@ function ComboboxSingle<T extends string = string>({
   className,
   triggerClassName,
   contentClassName,
+  popoverModal = false,
   showClearButton = true,
   clearButtonAriaLabel = "Clear selection",
   onCreateNew,
@@ -212,7 +220,7 @@ function ComboboxSingle<T extends string = string>({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={popoverModal}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -397,6 +405,7 @@ function ComboboxMultiple<T extends string = string>({
   className,
   triggerClassName,
   contentClassName,
+  popoverModal = false,
   maxSelected,
   showClearButton = true,
   clearButtonAriaLabel = "Clear all selections",
@@ -560,7 +569,7 @@ function ComboboxMultiple<T extends string = string>({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={popoverModal}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"

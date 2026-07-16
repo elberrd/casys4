@@ -4,7 +4,7 @@ import { ReactNode, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight, Check, AlertCircle, X, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, AlertCircle, X, Loader2, RotateCcw } from "lucide-react"
 import { UseWizardStateReturn, StepInfo } from "./use-wizard-state"
 import { useTranslations } from "next-intl"
 import {
@@ -26,7 +26,15 @@ interface WizardLayoutProps {
   children: ReactNode
   onSubmit?: () => Promise<void>
   isSubmitting?: boolean
+  finalizationPhase?: WizardFinalizationPhase
 }
+
+export type WizardFinalizationPhase =
+  | "idle"
+  | "creating"
+  | "creation_error"
+  | "resolving_passports"
+  | "complete"
 
 function StepIndicator({
   step,
@@ -34,7 +42,8 @@ function StepIndicator({
   isCompleted,
   isVisited,
   isLast,
-  onClick
+  onClick,
+  navigationDisabled,
 }: {
   step: StepInfo
   isActive: boolean
@@ -42,17 +51,18 @@ function StepIndicator({
   isVisited: boolean
   isLast: boolean
   onClick?: () => void
+  navigationDisabled: boolean
 }) {
   return (
     <div className="flex items-center flex-1">
       <button
         type="button"
-        onClick={isVisited && !isActive ? onClick : undefined}
-        disabled={!isVisited || isActive}
+        onClick={isVisited && !isActive && !navigationDisabled ? onClick : undefined}
+        disabled={!isVisited || isActive || navigationDisabled}
         className={cn(
           "group flex items-center gap-3 transition-all",
-          isVisited && !isActive && "cursor-pointer hover:opacity-80",
-          (!isVisited || isActive) && "cursor-default"
+          isVisited && !isActive && !navigationDisabled && "cursor-pointer hover:opacity-80",
+          (!isVisited || isActive || navigationDisabled) && "cursor-default"
         )}
       >
         {/* Step Circle */}
@@ -109,6 +119,7 @@ export function WizardLayout({
   children,
   onSubmit,
   isSubmitting = false,
+  finalizationPhase = "idle",
 }: WizardLayoutProps) {
   const t = useTranslations("ProcessWizard")
   const tCommon = useTranslations("Common")
@@ -139,7 +150,11 @@ export function WizardLayout({
 
   useBlockNavigation(hasUnsavedChanges, handleConfirmLeave)
 
+  const isNavigationLocked = finalizationPhase !== "idle"
+
   const handleNext = () => {
+    if (isNavigationLocked && finalizationPhase !== "creation_error") return
+
     if (isLastStep && onSubmit) {
       onSubmit()
     } else {
@@ -163,6 +178,8 @@ export function WizardLayout({
   }, [hasUnsavedChanges])
 
   const handleCancel = () => {
+    if (isNavigationLocked) return
+
     if (hasUnsavedChanges) {
       setShowExitDialog(true)
     } else {
@@ -196,6 +213,7 @@ export function WizardLayout({
                 isVisited={visitedSteps.has(step.id)}
                 isLast={index === steps.length - 1}
                 onClick={() => goToStep(step.id)}
+                navigationDisabled={isNavigationLocked}
               />
             ))}
           </div>
@@ -221,7 +239,15 @@ export function WizardLayout({
           </div>
 
           {/* Step Content */}
-          <div className="min-h-[350px]">
+          <div
+            className={cn(
+              "min-h-[350px]",
+              isNavigationLocked && "pointer-events-none select-none opacity-70"
+            )}
+            inert={isNavigationLocked}
+            aria-disabled={isNavigationLocked}
+            aria-busy={finalizationPhase === "creating"}
+          >
             {children}
           </div>
         </CardContent>
@@ -236,6 +262,7 @@ export function WizardLayout({
               type="button"
               variant="ghost"
               onClick={handleCancel}
+              disabled={isNavigationLocked}
               className="text-muted-foreground hover:text-foreground"
             >
               <X className="mr-2 h-4 w-4" />
@@ -249,7 +276,7 @@ export function WizardLayout({
                   type="button"
                   variant="outline"
                   onClick={goToPreviousStep}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isNavigationLocked}
                   className="min-w-[100px]"
                 >
                   <ChevronLeft className="mr-2 h-4 w-4" />
@@ -260,16 +287,30 @@ export function WizardLayout({
               <Button
                 type="button"
                 onClick={handleNext}
-                disabled={!canGoNext || isSubmitting}
+                disabled={
+                  !canGoNext ||
+                  isSubmitting ||
+                  (isNavigationLocked && finalizationPhase !== "creation_error")
+                }
                 className={cn(
                   "min-w-[120px]",
                   isLastStep && "bg-green-600 hover:bg-green-700"
                 )}
               >
-                {isSubmitting ? (
+                {isSubmitting || finalizationPhase === "creating" ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {tCommon("loading")}
+                    {t("creatingProcesses")}
+                  </>
+                ) : finalizationPhase === "resolving_passports" || finalizationPhase === "complete" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("finalizingPassports")}
+                  </>
+                ) : finalizationPhase === "creation_error" ? (
+                  <>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {t("retryCreation")}
                   </>
                 ) : isLastStep ? (
                   <>

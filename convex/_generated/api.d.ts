@@ -46,6 +46,7 @@ import type * as lib_cachedGet from "../lib/cachedGet.js";
 import type * as lib_createIndividualProcess from "../lib/createIndividualProcess.js";
 import type * as lib_documentChecklist from "../lib/documentChecklist.js";
 import type * as lib_documentProgressSnapshot from "../lib/documentProgressSnapshot.js";
+import type * as lib_documentReceiptTiming from "../lib/documentReceiptTiming.js";
 import type * as lib_documentValidity from "../lib/documentValidity.js";
 import type * as lib_passportDocumentSync from "../lib/passportDocumentSync.js";
 import type * as lib_personOwnership from "../lib/personOwnership.js";
@@ -63,6 +64,7 @@ import type * as migrations_addDateToIndividualProcessStatuses from "../migratio
 import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/addOrderNumberToCaseStatuses.js";
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
 import type * as migrations_addRnmProtocolToFillableFields from "../migrations/addRnmProtocolToFillableFields.js";
+import type * as migrations_backfillDocumentReceiptTiming from "../migrations/backfillDocumentReceiptTiming.js";
 import type * as migrations_backfillExigenciaDates from "../migrations/backfillExigenciaDates.js";
 import type * as migrations_backfillPlaceholderVersionZero from "../migrations/backfillPlaceholderVersionZero.js";
 import type * as migrations_backfillUserApplicantCompanyId from "../migrations/backfillUserApplicantCompanyId.js";
@@ -91,6 +93,7 @@ import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as notes from "../notes.js";
 import type * as notifications from "../notifications.js";
+import type * as passportDocumentAttachments from "../passportDocumentAttachments.js";
 import type * as passportOcr from "../passportOcr.js";
 import type * as passportUpload from "../passportUpload.js";
 import type * as passports from "../passports.js";
@@ -164,6 +167,7 @@ declare const fullApi: ApiFromModules<{
   "lib/createIndividualProcess": typeof lib_createIndividualProcess;
   "lib/documentChecklist": typeof lib_documentChecklist;
   "lib/documentProgressSnapshot": typeof lib_documentProgressSnapshot;
+  "lib/documentReceiptTiming": typeof lib_documentReceiptTiming;
   "lib/documentValidity": typeof lib_documentValidity;
   "lib/passportDocumentSync": typeof lib_passportDocumentSync;
   "lib/personOwnership": typeof lib_personOwnership;
@@ -181,6 +185,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/addOrderNumberToCaseStatuses": typeof migrations_addOrderNumberToCaseStatuses;
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
   "migrations/addRnmProtocolToFillableFields": typeof migrations_addRnmProtocolToFillableFields;
+  "migrations/backfillDocumentReceiptTiming": typeof migrations_backfillDocumentReceiptTiming;
   "migrations/backfillExigenciaDates": typeof migrations_backfillExigenciaDates;
   "migrations/backfillPlaceholderVersionZero": typeof migrations_backfillPlaceholderVersionZero;
   "migrations/backfillUserApplicantCompanyId": typeof migrations_backfillUserApplicantCompanyId;
@@ -209,6 +214,7 @@ declare const fullApi: ApiFromModules<{
   myFunctions: typeof myFunctions;
   notes: typeof notes;
   notifications: typeof notifications;
+  passportDocumentAttachments: typeof passportDocumentAttachments;
   passportOcr: typeof passportOcr;
   passportUpload: typeof passportUpload;
   passports: typeof passports;

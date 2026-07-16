@@ -18,6 +18,9 @@ export default defineSchema({
     companyId: v.optional(v.id("companies")),
     phoneNumber: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
+    individualProcessesColumnVisibility: v.optional(
+      v.record(v.string(), v.boolean()),
+    ),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -731,6 +734,10 @@ export default defineSchema({
     status: v.string(), // "not_started", "pending_upload", "uploaded", "under_review", "approved", "rejected", "expired"
     uploadedBy: v.id("users"),
     uploadedAt: v.number(),
+    // Lifecycle timestamps for this exact version. Optional during rollout so
+    // legacy rows can be backfilled without blocking schema deployment.
+    createdAt: v.optional(v.number()),
+    receivedAt: v.optional(v.number()),
     reviewedBy: v.optional(v.id("users")),
     reviewedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),

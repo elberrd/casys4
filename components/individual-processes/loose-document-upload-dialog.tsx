@@ -25,6 +25,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, File, X, CheckCircle, FileQuestion } from "lucide-react";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
 import { format, parseISO } from "date-fns";
+import {
+  DocumentReceivedDateField,
+  getDefaultReceivedDate,
+  getReceivedDateOverride,
+} from "./document-received-date-field";
 
 interface LooseDocumentUploadDialogProps {
   open: boolean;
@@ -32,6 +37,7 @@ interface LooseDocumentUploadDialogProps {
   individualProcessId: Id<"individualProcesses">;
   onSuccess?: () => void;
   defaultStatusId?: Id<"individualProcessStatuses">;
+  canEditReceivedDate?: boolean;
 }
 
 export function LooseDocumentUploadDialog({
@@ -40,6 +46,7 @@ export function LooseDocumentUploadDialog({
   individualProcessId,
   onSuccess,
   defaultStatusId,
+  canEditReceivedDate = false,
 }: LooseDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -49,6 +56,7 @@ export function LooseDocumentUploadDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
   const [documentName, setDocumentName] = useState<string>("");
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
@@ -107,6 +115,7 @@ export function LooseDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setDocumentName("");
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -164,6 +173,9 @@ export function LooseDocumentUploadDialog({
           : undefined,
         documentName: documentName.trim() || undefined,
         autoApprove: autoApprove || undefined,
+        receivedDate: canEditReceivedDate
+          ? getReceivedDateOverride(receivedDate)
+          : undefined,
       });
 
       setUploadProgress(100);
@@ -179,6 +191,7 @@ export function LooseDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setDocumentName("");
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -292,6 +305,17 @@ export function LooseDocumentUploadDialog({
                 {t("autoApprove")}
               </label>
             </div>
+          )}
+
+          {/* Version notes (optional) */}
+          {selectedFile && (
+            <DocumentReceivedDateField
+              canEdit={canEditReceivedDate}
+              value={receivedDate}
+              onChange={setReceivedDate}
+              disabled={isUploading}
+              id="loose-document-received-date"
+            />
           )}
 
           {/* Version notes (optional) */}

@@ -105,6 +105,7 @@ export function StatusDocumentsDialog({
     documentId: Id<"documentsDelivered">;
     documentName: string;
     existingVersionNotes?: string;
+    documentCreatedAt?: number;
   } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
@@ -177,6 +178,7 @@ export function StatusDocumentsDialog({
       documentId: doc._id,
       documentName: doc.documentType?.name || doc.documentName || doc.fileName || tDoc("looseDocument"),
       existingVersionNotes: doc.versionNotes,
+      documentCreatedAt: doc.createdAt ?? doc._creationTime,
     });
     openSubDialog("pendingUpload");
   };
@@ -545,6 +547,7 @@ export function StatusDocumentsDialog({
           onOpenChange={(val) => { if (!val) closeSubDialog(); }}
           individualProcessId={individualProcessId}
           defaultStatusId={individualProcessStatusId}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={closeSubDialog}
         />
       )}
@@ -556,6 +559,7 @@ export function StatusDocumentsDialog({
           onOpenChange={(val) => { if (!val) closeSubDialog(); }}
           individualProcessId={individualProcessId}
           defaultStatusId={individualProcessStatusId}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={closeSubDialog}
         />
       )}
@@ -577,6 +581,7 @@ export function StatusDocumentsDialog({
           open
           onOpenChange={(val) => { if (!val) closeSubDialog(); }}
           documentId={reviewDocumentId}
+          userRole={userRole}
           onSuccess={closeSubDialog}
         />
       )}
@@ -591,6 +596,8 @@ export function StatusDocumentsDialog({
           documentRequirementId={uploadDocument.documentRequirementId}
           existingDocumentId={uploadDocument._id}
           existingVersionNotes={uploadDocument.versionNotes}
+          documentCreatedAt={uploadDocument.createdAt ?? uploadDocument._creationTime}
+          canEditReceivedDate={userRole === "admin"}
           documentInfo={{
             name: uploadDocument.documentType?.name || "",
             description: uploadDocument.documentType?.description,
@@ -643,6 +650,8 @@ export function StatusDocumentsDialog({
           documentId={pendingUploadDoc.documentId}
           documentName={pendingUploadDoc.documentName}
           existingVersionNotes={pendingUploadDoc.existingVersionNotes}
+          documentCreatedAt={pendingUploadDoc.documentCreatedAt}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={closeSubDialog}
         />
       )}

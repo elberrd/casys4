@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -34,7 +35,7 @@ import { QuickCompanyApplicantFormDialog } from "@/components/individual-process
 import { QuickConsulateFormDialog } from "@/components/individual-processes/quick-consulate-form-dialog"
 import { UseWizardStateReturn } from "./use-wizard-state"
 import { useTranslations, useLocale } from "next-intl"
-import { Plus, Trash2, AlertCircle, Users } from "lucide-react"
+import { Plus, Trash2, AlertCircle, FileCheck2, Users } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { CandidateData } from "@/lib/validations/process-wizard"
 
@@ -60,6 +61,7 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
 
   // New candidate form state
   const [newCandidatePersonId, setNewCandidatePersonId] = useState<string>("")
+  const [newCandidatePassportId, setNewCandidatePassportId] = useState<Id<"passports"> | undefined>()
   const [newCandidateConsulateId, setNewCandidateConsulateId] = useState<string>("")
   const [newCandidateRequestDate, setNewCandidateRequestDate] = useState<string>(
     wizardData.requestDate || new Date().toISOString().split('T')[0]
@@ -149,25 +151,33 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
     // Check for duplicates
     const isDuplicate = wizardData.candidates.some((c) => c.personId === newCandidatePersonId)
     if (isDuplicate) {
+      setNewCandidatePersonId("")
+      setNewCandidatePassportId(undefined)
       return // Could show a toast here
     }
 
     const newCandidate: CandidateData = {
       personId: newCandidatePersonId as Id<"people">,
+      passportId: newCandidatePassportId,
       requestDate: newCandidateRequestDate,
       consulateId: newCandidateConsulateId ? (newCandidateConsulateId as Id<"consulates">) : undefined,
     }
 
     addCandidate(newCandidate)
     setNewCandidatePersonId("")
+    setNewCandidatePassportId(undefined)
   }
 
   const handleRemoveCandidate = (index: number) => {
     removeCandidate(index)
   }
 
-  const handleQuickPersonSuccess = (personId: Id<"people">) => {
+  const handleQuickPersonSuccess = (
+    personId: Id<"people">,
+    passportId?: Id<"passports">
+  ) => {
     setNewCandidatePersonId(personId as string)
+    setNewCandidatePassportId(passportId)
     setQuickPersonDialogOpen(false)
   }
 
@@ -375,13 +385,18 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                       size="icon"
                       onClick={() => setQuickPersonDialogOpen(true)}
                       className="h-7 w-7"
+                      aria-label={tIndividual("quickAddPerson")}
+                      title={tIndividual("quickAddPerson")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   <PersonSelectorWithDetail
                     value={newCandidatePersonId}
-                    onChange={(value) => setNewCandidatePersonId(value)}
+                    onChange={(value) => {
+                      setNewCandidatePassportId(undefined)
+                      setNewCandidatePersonId(value)
+                    }}
                   />
                 </div>
 
@@ -395,6 +410,8 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                       size="icon"
                       onClick={() => setQuickConsulateDialogOpen(true)}
                       className="h-7 w-7"
+                      aria-label={tIndividual("quickAddConsulate")}
+                      title={tIndividual("quickAddConsulate")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -442,7 +459,17 @@ export function Step2ProcessDataIndividual({ wizard }: Step2ProcessDataIndividua
                   <TableRow key={index}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>{formatDate(candidate.requestDate)}</TableCell>
-                    <TableCell>{getPersonName(candidate.personId as string)}</TableCell>
+                    <TableCell>
+                      <div className="flex min-w-44 flex-col items-start gap-1.5">
+                        <span>{getPersonName(candidate.personId as string)}</span>
+                        {candidate.passportId && (
+                          <Badge variant="secondary" className="gap-1 font-normal">
+                            <FileCheck2 className="size-3" />
+                            {t("passportReadyForDocument")}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{getConsulateName(candidate.consulateId as string || "")}</TableCell>
                     <TableCell>
                       <Button

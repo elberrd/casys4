@@ -30,6 +30,11 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, ClipboardCheck } from "lucide-react"
 import { formatFileSize } from "@/lib/validations/documents-delivered"
+import {
+  DocumentReceivedDateField,
+  getDefaultReceivedDate,
+  getReceivedDateOverride,
+} from "./document-received-date-field"
 
 interface UploadNewVersionDialogProps {
   open: boolean
@@ -41,6 +46,7 @@ interface UploadNewVersionDialogProps {
   currentFileName: string
   currentFileSize: number
   currentStatus: string
+  canEditReceivedDate?: boolean
   onSuccess?: () => void
 }
 
@@ -54,6 +60,7 @@ export function UploadNewVersionDialog({
   currentFileName,
   currentFileSize,
   currentStatus,
+  canEditReceivedDate = false,
   onSuccess,
 }: UploadNewVersionDialogProps) {
   const t = useTranslations("DocumentUpload")
@@ -65,6 +72,7 @@ export function UploadNewVersionDialog({
   const [expiryDate, setExpiryDate] = useState<string>("")
   const [issueDate, setIssueDate] = useState<string>("")
   const [versionNotes, setVersionNotes] = useState<string>("")
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate)
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set())
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
@@ -149,6 +157,9 @@ export function UploadNewVersionDialog({
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
         bypassConditions: bypassConditions || undefined,
+        receivedDate: canEditReceivedDate
+          ? getReceivedDateOverride(receivedDate)
+          : undefined,
       })
 
       setUploadProgress(100)
@@ -160,6 +171,7 @@ export function UploadNewVersionDialog({
       setExpiryDate("")
       setIssueDate("")
       setVersionNotes("")
+      setReceivedDate(getDefaultReceivedDate())
       setFulfilledConditionIds(new Set())
       setIsIllegible(false)
       setIllegibleNotes("")
@@ -251,6 +263,17 @@ export function UploadNewVersionDialog({
                 {t("autoApprove")}
               </label>
             </div>
+          )}
+
+          {/* Version notes (optional) */}
+          {selectedFile && (
+            <DocumentReceivedDateField
+              canEdit={canEditReceivedDate}
+              value={receivedDate}
+              onChange={setReceivedDate}
+              disabled={isUploading}
+              id="new-version-received-date"
+            />
           )}
 
           {/* Version notes (optional) */}

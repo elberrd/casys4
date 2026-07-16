@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -22,7 +23,7 @@ import { QuickPersonFormDialog } from "@/components/individual-processes/quick-p
 import { QuickConsulateFormDialog } from "@/components/individual-processes/quick-consulate-form-dialog"
 import { UseWizardStateReturn } from "./use-wizard-state"
 import { useTranslations, useLocale } from "next-intl"
-import { Plus, Trash2, AlertCircle } from "lucide-react"
+import { Plus, Trash2, AlertCircle, FileCheck2 } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 import { CandidateData } from "@/lib/validations/process-wizard"
 
@@ -35,15 +36,15 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
   const tIndividual = useTranslations("IndividualProcesses")
   const locale = useLocale()
 
-  const { wizardData, addCandidate, removeCandidate, updateCandidate } = wizard
+  const { wizardData, addCandidate, removeCandidate } = wizard
 
   const [quickPersonDialogOpen, setQuickPersonDialogOpen] = useState(false)
   const [quickConsulateDialogOpen, setQuickConsulateDialogOpen] = useState(false)
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [newCandidateRequestDate, setNewCandidateRequestDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   )
   const [newCandidatePersonId, setNewCandidatePersonId] = useState<string>("")
+  const [newCandidatePassportId, setNewCandidatePassportId] = useState<Id<"passports"> | undefined>()
   const [newCandidateConsulateId, setNewCandidateConsulateId] = useState<string>("")
 
   // Fetch related data for summary
@@ -111,11 +112,14 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
     // Check for duplicates
     const isDuplicate = wizardData.candidates.some((c) => c.personId === newCandidatePersonId)
     if (isDuplicate) {
+      setNewCandidatePersonId("")
+      setNewCandidatePassportId(undefined)
       return // Could show a toast here
     }
 
     const newCandidate: CandidateData = {
       personId: newCandidatePersonId as Id<"people">,
+      passportId: newCandidatePassportId,
       requestDate: newCandidateRequestDate,
       consulateId: newCandidateConsulateId ? (newCandidateConsulateId as Id<"consulates">) : undefined,
     }
@@ -124,6 +128,7 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
 
     // Only clear candidate; keep request date and consulate as selected
     setNewCandidatePersonId("")
+    setNewCandidatePassportId(undefined)
   }
 
   const handleQuickConsulateSuccess = (consulateId: Id<"consulates">) => {
@@ -131,8 +136,12 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
     setQuickConsulateDialogOpen(false)
   }
 
-  const handleQuickPersonSuccess = (personId: Id<"people">) => {
+  const handleQuickPersonSuccess = (
+    personId: Id<"people">,
+    passportId?: Id<"passports">
+  ) => {
     setNewCandidatePersonId(personId as string)
+    setNewCandidatePassportId(passportId)
     setQuickPersonDialogOpen(false)
   }
 
@@ -209,13 +218,18 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                       size="icon"
                       onClick={() => setQuickPersonDialogOpen(true)}
                       className="h-7 w-7"
+                      aria-label={tIndividual("quickAddPerson")}
+                      title={tIndividual("quickAddPerson")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   <PersonSelectorWithDetail
                     value={newCandidatePersonId}
-                    onChange={(value) => setNewCandidatePersonId(value)}
+                    onChange={(value) => {
+                      setNewCandidatePassportId(undefined)
+                      setNewCandidatePersonId(value)
+                    }}
                   />
                 </div>
 
@@ -229,6 +243,8 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                       size="icon"
                       onClick={() => setQuickConsulateDialogOpen(true)}
                       className="h-7 w-7"
+                      aria-label={tIndividual("quickAddConsulate")}
+                      title={tIndividual("quickAddConsulate")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -276,7 +292,17 @@ export function Step3_3CandidatesCollective({ wizard }: Step3_3CandidatesCollect
                   <TableRow key={index}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>{formatDate(candidate.requestDate)}</TableCell>
-                    <TableCell>{getPersonName(candidate.personId as string)}</TableCell>
+                    <TableCell>
+                      <div className="flex min-w-44 flex-col items-start gap-1.5">
+                        <span>{getPersonName(candidate.personId as string)}</span>
+                        {candidate.passportId && (
+                          <Badge variant="secondary" className="gap-1 font-normal">
+                            <FileCheck2 className="size-3" />
+                            {t("passportReadyForDocument")}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{getConsulateName(candidate.consulateId as string || "")}</TableCell>
                     <TableCell>
                       <Button

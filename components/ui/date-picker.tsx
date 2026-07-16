@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/popover";
 
 export interface DatePickerProps {
+  id?: string;
   value?: string;
   onChange?: (value: string | undefined) => void;
   disabled?: boolean;
@@ -34,9 +35,12 @@ export interface DatePickerProps {
   showYearMonthDropdowns?: boolean;
   fromYear?: number;
   toYear?: number;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
 }
 
 export function DatePicker({
+  id,
   value,
   onChange,
   disabled = false,
@@ -45,6 +49,8 @@ export function DatePicker({
   showYearMonthDropdowns = false,
   fromYear = 1900,
   toYear = new Date().getFullYear() + 10,
+  ariaLabel,
+  ariaDescribedBy,
 }: DatePickerProps) {
   const locale = useLocale();
   const t = useTranslations("Common.datePicker");
@@ -194,6 +200,7 @@ export function DatePicker({
         {/* Manual input field */}
         <div className="relative flex-1">
           <Input
+            id={id}
             ref={inputRef}
             type="text"
             value={inputValue}
@@ -202,9 +209,9 @@ export function DatePicker({
             onKeyDown={handleInputKeyDown}
             placeholder={placeholderText}
             disabled={disabled}
-            aria-label={t("enterManually")}
+            aria-label={ariaLabel ?? t("enterManually")}
             aria-invalid={!!validationError}
-            aria-describedby={validationError ? "date-error" : undefined}
+            aria-describedby={validationError ? "date-error" : ariaDescribedBy}
             className={cn(
               "h-10",
               validationError && "border-destructive focus-visible:ring-destructive/20"
@@ -218,7 +225,7 @@ export function DatePicker({
               className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
               onClick={handleClear}
               tabIndex={-1}
-              aria-label="Clear date"
+              aria-label={t("clearDate")}
             >
               <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </Button>

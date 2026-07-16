@@ -2277,6 +2277,9 @@ export function IndividualProcessesTable({
             showAllLabel={tCommon("showAll")}
             hideAllLabel={tCommon("hideAll")}
             resetLabel={tCommon("reset")}
+            searchable
+            searchPlaceholder={tCommon("searchColumns")}
+            noResultsLabel={tCommon("noColumnsFound")}
             defaultColumnVisibility={initialColumnVisibilityRef.current}
             onReset={() => setColumnVisibility(getResetColumnVisibility())}
             columnLabels={{
@@ -2294,6 +2297,7 @@ export function IndividualProcessesTable({
               "filledFields": t("filledFields"),
               "processStatus": t("processStatus"),
               "rnmDeadline": t("fields.rnmDeadline"),
+              "pendingDocs": t("pendingDocs"),
               "cbo": t("cboColumn"),
               "notes": t("notes"),
             }}

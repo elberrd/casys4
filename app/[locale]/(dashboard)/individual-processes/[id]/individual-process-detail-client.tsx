@@ -705,6 +705,7 @@ export function IndividualProcessDetailClient({
             entityId={processId}
             title={t('activityHistory')}
             fullProcessHistory
+            defaultCollapsed
           />
         )}
       </div>
@@ -754,6 +755,7 @@ export function IndividualProcessDetailClient({
             if (!open) setReviewDocumentId(null)
           }}
           documentId={reviewDocumentId}
+          userRole={currentUser?.role}
           onSuccess={() => setReviewDocumentId(null)}
         />
       )}

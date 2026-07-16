@@ -81,6 +81,7 @@ import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
 import { SelectExistingDocumentDialog } from "./select-existing-document-dialog"
 import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
 import { StatusDocumentsDialog } from "./status-documents-dialog"
+import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
 import type {
   PdfReportMode,
   ProcessInfoForReport,
@@ -148,6 +149,7 @@ type DialogState = {
     documentId: Id<"documentsDelivered"> | null
     documentName: string
     existingVersionNotes?: string
+    documentCreatedAt?: number
   }
   selectExisting: { open: boolean }
 }
@@ -161,11 +163,18 @@ export function DocumentChecklistCard({
   const tCommon = useTranslations("Common")
   const locale = useLocale()
   const removeDocument = useMutation(api.documentsDelivered.remove)
+  const linkPendingToLatestExigencia = useMutation(
+    api.documentsDelivered.linkPendingToLatestExigencia,
+  )
 
   // Use the new grouped query
   const groupedDocuments = useQuery(api.documentsDelivered.listGroupedByCategory, {
     individualProcessId,
   })
+
+  type ChecklistDocument = NonNullable<
+    typeof groupedDocuments
+  >["required"][number]
 
   // Also get the regular list for bulk operations (fallback if grouped not available)
   const documents = useQuery(api.documentsDelivered.list, {
@@ -300,9 +309,18 @@ export function DocumentChecklistCard({
     }
   }, [locale, statusHistory])
 
+  type LatestExigencia = NonNullable<typeof latestExigencia>
+  type PendingDocumentIntent = "row" | "upload"
+
   const [addDocumentMenuOpen, setAddDocumentMenuOpen] = useState(false)
   const [latestExigenciaPromptOpen, setLatestExigenciaPromptOpen] = useState(false)
   const [latestExigenciaDocumentsOpen, setLatestExigenciaDocumentsOpen] = useState(false)
+  const [pendingExigenciaInteraction, setPendingExigenciaInteraction] = useState<{
+    document: ChecklistDocument
+    intent: PendingDocumentIntent
+    exigencia: LatestExigencia
+  } | null>(null)
+  const [isLinkingPendingToExigencia, setIsLinkingPendingToExigencia] = useState(false)
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -462,8 +480,89 @@ export function DocumentChecklistCard({
         documentId: doc._id,
         documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
         existingVersionNotes: doc.versionNotes,
+        documentCreatedAt: doc.createdAt ?? doc._creationTime,
       },
     }))
+  }
+
+  const continueDocumentInteraction = (
+    doc: ChecklistDocument,
+    intent: PendingDocumentIntent,
+  ) => {
+    if (doc.documentType?.isInformationOnly) {
+      openInformationFieldsDialog(doc)
+      return
+    }
+
+    if (intent === "upload" || (doc.status === "not_started" && (doc.version ?? 0) <= 1)) {
+      if (doc.documentTypeId) {
+        openUploadDialog(doc)
+      } else {
+        openPendingUploadDialog(doc)
+      }
+      return
+    }
+
+    openReviewDialog(doc._id)
+  }
+
+  const handleDocumentInteraction = (
+    doc: ChecklistDocument,
+    intent: PendingDocumentIntent,
+  ) => {
+    const isPendingWithoutAttachment =
+      doc.status === "not_started" &&
+      doc.isLatest === true &&
+      doc.storageId === undefined &&
+      doc.fileUrl.trim() === "" &&
+      doc.documentType?.isInformationOnly !== true
+
+    if (isPendingWithoutAttachment) {
+      if (statusHistory === undefined) return
+
+      if (
+        latestExigencia &&
+        doc.individualProcessStatusId !== latestExigencia.statusId
+      ) {
+        setPendingExigenciaInteraction({
+          document: doc,
+          intent,
+          exigencia: latestExigencia,
+        })
+        return
+      }
+    }
+
+    continueDocumentInteraction(doc, intent)
+  }
+
+  const handleContinueOutsideLatestExigencia = () => {
+    if (!pendingExigenciaInteraction) return
+
+    const { document, intent } = pendingExigenciaInteraction
+    setPendingExigenciaInteraction(null)
+    continueDocumentInteraction(document, intent)
+  }
+
+  const handleLinkPendingToLatestExigencia = async () => {
+    if (!pendingExigenciaInteraction) return
+
+    const { document, exigencia } = pendingExigenciaInteraction
+    setIsLinkingPendingToExigencia(true)
+
+    try {
+      await linkPendingToLatestExigencia({
+        documentId: document._id,
+        individualProcessStatusId: exigencia.statusId,
+      })
+      toast.success(t("pendingExigenciaLinkSuccess"))
+      setPendingExigenciaInteraction(null)
+      continueDocumentInteraction(document, "upload")
+    } catch {
+      toast.error(t("pendingExigenciaLinkError"))
+    } finally {
+      setIsLinkingPendingToExigencia(false)
+    }
   }
 
   const toggleDocumentSelection = (docId: Id<"documentsDelivered">) => {
@@ -698,17 +797,7 @@ export function DocumentChecklistCard({
           }
           return
         }
-        if (doc.documentType?.isInformationOnly) {
-          openInformationFieldsDialog(doc)
-        } else if (doc.status === "not_started" && (doc.version ?? 0) <= 1) {
-          if (doc.documentTypeId) {
-            openUploadDialog(doc)
-          } else {
-            openPendingUploadDialog(doc)
-          }
-        } else {
-          openReviewDialog(doc._id)
-        }
+        handleDocumentInteraction(doc, "row")
       }}
     >
       <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
@@ -730,6 +819,7 @@ export function DocumentChecklistCard({
             <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
               {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
             </p>
+            <DocumentWaitTimeBadge document={doc} />
             {showCritical && doc.isRequired && (
               <Badge variant="default" className="text-xs">
                 {t("required")}
@@ -908,7 +998,7 @@ export function DocumentChecklistCard({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => doc.documentType?.isInformationOnly ? openInformationFieldsDialog(doc) : openUploadDialog(doc)}
+                onClick={() => handleDocumentInteraction(doc, "upload")}
                 title={doc.documentType?.isInformationOnly ? t("fillInformation") : t("upload")}
                 className="cursor-pointer"
               >
@@ -918,7 +1008,7 @@ export function DocumentChecklistCard({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => openPendingUploadDialog(doc)}
+                onClick={() => handleDocumentInteraction(doc, "upload")}
                 title={t("upload")}
                 className="cursor-pointer"
               >
@@ -1433,6 +1523,53 @@ export function DocumentChecklistCard({
         </AlertDialog>
       )}
 
+      {pendingExigenciaInteraction && (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !isLinkingPendingToExigencia) {
+              setPendingExigenciaInteraction(null)
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("pendingExigenciaPromptTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("pendingExigenciaPromptDescription", {
+                  document:
+                    pendingExigenciaInteraction.document.documentType?.name ||
+                    pendingExigenciaInteraction.document.documentName ||
+                    pendingExigenciaInteraction.document.fileName ||
+                    t("looseDocument"),
+                  status: pendingExigenciaInteraction.exigencia.caseStatusName,
+                  date: pendingExigenciaInteraction.exigencia.displayDate,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                onClick={handleContinueOutsideLatestExigencia}
+                disabled={isLinkingPendingToExigencia}
+              >
+                {tCommon("no")}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isLinkingPendingToExigencia}
+                onClick={(event) => {
+                  event.preventDefault()
+                  void handleLinkPendingToLatestExigencia()
+                }}
+              >
+                {isLinkingPendingToExigencia
+                  ? tCommon("loading")
+                  : tCommon("yes")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       {latestExigencia && latestExigenciaDocumentsOpen && (
         <StatusDocumentsDialog
           open={latestExigenciaDocumentsOpen}
@@ -1459,6 +1596,8 @@ export function DocumentChecklistCard({
           documentRequirementId={dialogs.upload.document.documentRequirementId}
           existingDocumentId={dialogs.upload.document._id}
           existingVersionNotes={dialogs.upload.document.versionNotes}
+          documentCreatedAt={dialogs.upload.document.createdAt ?? dialogs.upload.document._creationTime}
+          canEditReceivedDate={userRole === "admin"}
           documentInfo={{
             name: dialogs.upload.document.documentType?.name || "",
             description: dialogs.upload.document.documentType?.description,
@@ -1493,6 +1632,7 @@ export function DocumentChecklistCard({
             if (!open) closeAllDialogs()
           }}
           documentId={dialogs.review.documentId}
+          userRole={userRole}
           onSuccess={closeAllDialogs}
         />
       )}
@@ -1523,6 +1663,7 @@ export function DocumentChecklistCard({
           currentFileName={dialogs.uploadNewVersion.document.currentFileName}
           currentFileSize={dialogs.uploadNewVersion.document.currentFileSize}
           currentStatus={dialogs.uploadNewVersion.document.currentStatus}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={closeAllDialogs}
         />
       )}
@@ -1533,6 +1674,7 @@ export function DocumentChecklistCard({
           if (!open) closeAllDialogs()
         }}
         individualProcessId={individualProcessId}
+        canEditReceivedDate={userRole === "admin"}
         onSuccess={closeAllDialogs}
       />
 
@@ -1542,6 +1684,7 @@ export function DocumentChecklistCard({
           if (!open) closeAllDialogs()
         }}
         individualProcessId={individualProcessId}
+        canEditReceivedDate={userRole === "admin"}
         onSuccess={closeAllDialogs}
       />
 
@@ -1595,6 +1738,8 @@ export function DocumentChecklistCard({
           documentId={dialogs.pendingUpload.documentId}
           documentName={dialogs.pendingUpload.documentName}
           existingVersionNotes={dialogs.pendingUpload.existingVersionNotes}
+          documentCreatedAt={dialogs.pendingUpload.documentCreatedAt}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={closeAllDialogs}
         />
       )}

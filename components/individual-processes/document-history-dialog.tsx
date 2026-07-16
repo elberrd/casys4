@@ -36,12 +36,21 @@ import {
   RotateCcw,
   MessageSquare,
   Lock,
+  Loader2,
+  Pencil,
+  Save,
 } from "lucide-react"
-import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { UploadNewVersionDialog } from "./upload-new-version-dialog"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
+import { DocumentReceivedDateField } from "./document-received-date-field"
+import {
+  formatDocumentTimingDate,
+  getDocumentWaitTime,
+  timestampToIsoDate,
+} from "@/lib/document-wait-time"
 
 interface DocumentHistoryDialogProps {
   open: boolean
@@ -61,6 +70,7 @@ export function DocumentHistoryDialog({
   userRole = "client",
 }: DocumentHistoryDialogProps) {
   const t = useTranslations("DocumentHistory")
+  const tTiming = useTranslations("DocumentTiming")
   const tCommon = useTranslations("Common")
   const locale = useLocale()
 
@@ -68,6 +78,9 @@ export function DocumentHistoryDialog({
   const [restoreVersion, setRestoreVersion] = useState<number>(0)
   const [isRestoring, setIsRestoring] = useState(false)
   const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
+  const [editingReceivedDocumentId, setEditingReceivedDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
+  const [editingReceivedDate, setEditingReceivedDate] = useState("")
+  const [isSavingReceivedDate, setIsSavingReceivedDate] = useState(false)
 
   const documentHistory = useQuery(
     api.documentsDelivered.getVersionHistory,
@@ -79,6 +92,7 @@ export function DocumentHistoryDialog({
   )
 
   const restoreVersionMutation = useMutation(api.documentsDelivered.restoreVersion)
+  const updateReceivedAt = useMutation(api.documentsDelivered.updateReceivedAt)
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -120,6 +134,10 @@ export function DocumentHistoryDialog({
         return <Badge variant="destructive">{t("status.rejected")}</Badge>
       case "uploaded":
         return <Badge variant="info">{t("status.uploaded")}</Badge>
+      case "under_review":
+        return <Badge variant="warning">{t("status.underReview")}</Badge>
+      case "not_started":
+        return <Badge variant="outline">{t("status.notStarted")}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -137,6 +155,26 @@ export function DocumentHistoryDialog({
       toast.error(t("restoreError"))
     } finally {
       setIsRestoring(false)
+    }
+  }
+
+  const handleSaveReceivedDate = async () => {
+    if (!editingReceivedDocumentId || !editingReceivedDate) return
+
+    try {
+      setIsSavingReceivedDate(true)
+      await updateReceivedAt({
+        documentId: editingReceivedDocumentId,
+        receivedDate: editingReceivedDate,
+      })
+      toast.success(tTiming("receivedDateSaved"))
+      setEditingReceivedDocumentId(null)
+      setEditingReceivedDate("")
+    } catch (error) {
+      console.error("Error updating document received date:", error)
+      toast.error(tTiming("receivedDateError"))
+    } finally {
+      setIsSavingReceivedDate(false)
     }
   }
 
@@ -190,12 +228,12 @@ export function DocumentHistoryDialog({
                     const previousDoc = documentHistory[index + 1]
                     const sizeDiff = getFileSizeDiff(doc.fileSize, previousDoc?.fileSize)
                     const uploaderName = doc.uploadedByProfile?.fullName || doc.uploadedByUser?.email || t("unknown")
-                    const reviewerName = doc.reviewedByProfile?.fullName || doc.reviewedByUser?.email
                     const processStatusName = doc.processStatusAtUpload
                       ? locale === "en" && doc.processStatusAtUpload.nameEn
                         ? doc.processStatusAtUpload.nameEn
                         : doc.processStatusAtUpload.name
                       : null
+                    const timing = getDocumentWaitTime(doc)
 
                     return (
                       <div key={doc._id} className="relative pl-10 pb-6 last:pb-0">
@@ -216,8 +254,8 @@ export function DocumentHistoryDialog({
                           )}
                         >
                           {/* Version header */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {getStatusIcon(doc.status)}
                               <span className="font-semibold text-sm">
                                 {t("version")} {doc.version}
@@ -237,19 +275,26 @@ export function DocumentHistoryDialog({
                                   {sizeDiff.text}
                                 </span>
                               )}
+                              <DocumentWaitTimeBadge document={doc} />
                             </div>
                             {getStatusBadge(doc.status)}
                           </div>
 
                           {/* File info */}
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-muted-foreground truncate flex-1" title={doc.fileName}>
-                              {doc.fileName}
-                            </span>
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {formatFileSize(doc.fileSize)}
-                            </span>
-                          </div>
+                          {doc.hasContent ? (
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className="text-muted-foreground truncate flex-1" title={doc.fileName}>
+                                {doc.fileName}
+                              </span>
+                              <span className="text-muted-foreground whitespace-nowrap">
+                                {formatFileSize(doc.fileSize)}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm italic text-muted-foreground">
+                              {tTiming("noAttachment")}
+                            </p>
+                          )}
 
                           {/* Immutable process-progress snapshot for this version */}
                           <div
@@ -284,16 +329,77 @@ export function DocumentHistoryDialog({
                             </div>
                           )}
 
-                          {/* Upload/review info */}
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {/* Creation/receipt and uploader info */}
+                          <div className="space-y-2 text-xs text-muted-foreground">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {tTiming("createdDate")}: {formatDocumentTimingDate(timing.createdAt, locale)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {tTiming("receivedDate")}: {timing.receivedAt !== undefined
+                                  ? formatDocumentTimingDate(timing.receivedAt, locale)
+                                  : tTiming("notReceived")}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="flex items-center gap-1">
                               <User className="h-3 w-3" />
                               {uploaderName}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {format(new Date(doc.uploadedAt), "PPP p")}
-                            </span>
+                              {userRole === "admin" && timing.receivedAt !== undefined && editingReceivedDocumentId !== doc._id && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => {
+                                    setEditingReceivedDocumentId(doc._id)
+                                    setEditingReceivedDate(timestampToIsoDate(timing.receivedAt!))
+                                  }}
+                                >
+                                  <Pencil className="mr-1 h-3 w-3" />
+                                  {tTiming("editReceivedDate")}
+                                </Button>
+                              )}
+                            </div>
+                            {editingReceivedDocumentId === doc._id && (
+                              <div className="space-y-2 rounded-md border bg-background p-3">
+                                <DocumentReceivedDateField
+                                  canEdit
+                                  value={editingReceivedDate}
+                                  onChange={setEditingReceivedDate}
+                                  createdAt={timing.createdAt}
+                                  disabled={isSavingReceivedDate}
+                                  id={`history-received-date-${doc._id}`}
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEditingReceivedDocumentId(null)}
+                                    disabled={isSavingReceivedDate}
+                                  >
+                                    {tCommon("cancel")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveReceivedDate}
+                                    disabled={isSavingReceivedDate || !editingReceivedDate}
+                                  >
+                                    {isSavingReceivedDate ? (
+                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Save className="mr-1 h-3 w-3" />
+                                    )}
+                                    {tCommon("save")}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Rejection info */}
@@ -308,15 +414,17 @@ export function DocumentHistoryDialog({
 
                           {/* Actions */}
                           <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(doc.fileUrl, "_blank")}
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              {t("downloadVersion")}
-                            </Button>
-                            {!doc.isLatest && userRole === "admin" && (
+                            {doc.hasContent && doc.fileUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(doc.fileUrl, "_blank")}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                {t("downloadVersion")}
+                              </Button>
+                            )}
+                            {doc.hasContent && !doc.isLatest && userRole === "admin" && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -371,6 +479,7 @@ export function DocumentHistoryDialog({
           currentFileName={currentDoc.fileName}
           currentFileSize={currentDoc.fileSize}
           currentStatus={currentDoc.status}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={() => setShowUploadNewVersion(false)}
         />
       )}

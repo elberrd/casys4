@@ -72,6 +72,7 @@
       "dateOutOfRange": "Date must be between 1900 and 2100",
       "enterManually": "Type date manually",
       "selectFromCalendar": "Select from calendar",
+      "clearDate": "Clear date",
       "invalidDay": "Invalid day for this month",
       "invalidMonth": "Month must be between 1 and 12"
     },
@@ -80,7 +81,9 @@
     "updated": "Updated",
     "showAll": "Show all",
     "hideAll": "Hide all",
-    "reset": "Reset"
+    "reset": "Reset",
+    "searchColumns": "Search columns...",
+    "noColumnsFound": "No columns found"
   },
   "Navigation": {
     "dashboard": "Dashboard",
@@ -2222,7 +2225,29 @@
     "passportNumberAvailable": "Number available",
     "passportNumberInUseBy": "Number already in use by {name}",
     "passportNumberDuplicateError": "This passport number is already registered",
-    "passportNumberValidationInProgress": "Validation in progress"
+    "passportNumberValidationInProgress": "Validation in progress",
+    "documentAttachmentTitle": "Attach to the process document?",
+    "documentAttachmentDescription": "We found a document named Valid passport or Passport in one of this person's processes. Once confirmed, the same file will be reused and the document will be approved automatically.",
+    "documentAttachmentScopedDescription": "The process has been created and includes a document named Valid passport or Passport. Once confirmed, the same file will be reused and the document will be approved automatically.",
+    "documentAttachmentSearching": "Looking for the passport document in the newly created process…",
+    "documentAttachmentProgress": "Passport {current} of {total}",
+    "documentAttachmentCandidate": "Candidate: {candidate}",
+    "documentAttachmentSelectDestination": "Select the destination document",
+    "documentAttachmentExistingFileQuestion": "This document already has a file. How would you like to continue?",
+    "documentAttachmentNewVersion": "Add a new version",
+    "documentAttachmentNewVersionDescription": "Keeps the current file and creates version {version}.",
+    "documentAttachmentReplace": "Replace current file",
+    "documentAttachmentReplaceDescription": "Replaces the file in version {version} without creating another version.",
+    "documentAttachmentNotNow": "Not now",
+    "documentAttachmentConfirm": "Attach to document",
+    "documentAttachmentSaving": "Attaching passport…",
+    "documentAttachmentSuccess": "Passport attached to the process document",
+    "documentAttachmentConflict": "Someone else updated this document. Save again to choose the latest version.",
+    "documentAttachmentError": "The passport could not be attached to the document. Please try again.",
+    "documentAttachmentProcessFallback": "Process …{id}",
+    "documentAttachmentHasFile": "File already attached",
+    "documentAttachmentPending": "Waiting for file",
+    "documentAttachmentVersion": "Version {version}"
   },
   "PeopleCompanies": {
     "title": "Employment History",
@@ -2487,6 +2512,10 @@
     "addDocument": "Add Document",
     "latestExigenciaPromptTitle": "Add document to requirement?",
     "latestExigenciaPromptDescription": "The most recent status is {status}, dated {date}. Do you want to add the document to this requirement?",
+    "pendingExigenciaPromptTitle": "Add this document to the requirement?",
+    "pendingExigenciaPromptDescription": "The document “{document}” does not have an attachment yet. The most recent status is {status}, dated {date}. Do you want to link it to this requirement and continue the upload?",
+    "pendingExigenciaLinkSuccess": "Document linked to the requirement. Continue the upload.",
+    "pendingExigenciaLinkError": "The document could not be linked to the most recent requirement.",
     "uploadLoose": "New Unclassified",
     "uploadWithType": "New with Type",
     "selectExisting": "Select Existing",
@@ -2678,6 +2707,23 @@
     "bypassConditions": "Bypass conditions (admin override)",
     "bypassConditionsHint": "When enabled, all conditions are treated as fulfilled regardless of their actual status"
   },
+  "DocumentTiming": {
+    "pending": "{count, plural, =0 {Waiting today} one {Waiting for # day} other {Waiting for # days}}",
+    "received": "{count, plural, =0 {Received the same day} one {Received in # day} other {Received in # days}}",
+    "superseded": "{count, plural, =0 {Version closed the same day} one {Waited # day without an attachment} other {Waited # days without an attachment}}",
+    "pendingDetails": "Created on {createdDate}. Waiting to be received.",
+    "receivedDetails": "Created on {createdDate}. Received on {receivedDate}.",
+    "supersededDetails": "Created on {createdDate}. Version closed without an attachment.",
+    "createdDate": "Creation date",
+    "receivedDate": "Received date",
+    "notReceived": "Not received yet",
+    "noAttachment": "Version without an attachment",
+    "editReceivedDate": "Edit received date",
+    "receivedDateHint": "Only administrators can adjust the actual received date.",
+    "receivedDateInvalid": "Enter a valid date between this version's creation date and today.",
+    "receivedDateSaved": "Received date updated successfully",
+    "receivedDateError": "Error updating the received date"
+  },
   "DocumentReview": {
     "title": "Review Document",
     "description": "Review and approve or reject this document",
@@ -2824,7 +2870,9 @@
     "status": {
       "approved": "Approved",
       "rejected": "Rejected",
-      "uploaded": "Uploaded"
+      "uploaded": "Uploaded",
+      "underReview": "Under review",
+      "notStarted": "Not started"
     }
   },
   "ProcessStatuses": {
@@ -3216,6 +3264,7 @@
     "after": "After",
     "entityHistory": "Entity History",
     "noHistoryFound": "No history found for this entity",
+    "toggleHistory": "Expand or collapse activity history",
     "statusChangedMessage": "{user} changed status from {from} to {to}",
     "documentType": "Document Type",
     "taskTitle": "Task Title",
@@ -3776,6 +3825,15 @@
     "collectiveProcessCreated": "Collective Process Created",
     "collectiveProcessCreatedDescription": "{count} individual processes were created and linked to the collective process.",
     "errorCreatingProcess": "Error Creating Process",
+    "processCreationErrorDescription": "The creation could not be completed. Review the data and try again.",
+    "processCreationPartialError": "Creation stopped after {count} individual process(es). Try again to continue without duplicating the confirmed processes.",
+    "creatingProcesses": "Creating processes…",
+    "finalizingPassports": "Finalizing passports…",
+    "retryCreation": "Try again",
+    "passportReadyForDocument": "Passport ready to link",
+    "candidateNumber": "Candidate {number}",
+    "passportFinalizationComplete": "Passport documentation finalized",
+    "passportFinalizationSummary": "{attached} attached and approved, {skipped} skipped, and {noCandidate} without a matching document.",
     "createNewProcess": "Create New Process",
     "addProcess": "Add Process",
     "candidatesIndividualDescription": "Add candidates. Each candidate will create a separate individual process.",

@@ -23,6 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, File, X, CheckCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
+import {
+  DocumentReceivedDateField,
+  getDefaultReceivedDate,
+  getReceivedDateOverride,
+} from "./document-received-date-field";
 
 interface PendingDocumentUploadDialogProps {
   open: boolean;
@@ -32,6 +37,8 @@ interface PendingDocumentUploadDialogProps {
   existingVersionNotes?: string;
   onSuccess?: () => void;
   hideAutoApprove?: boolean;
+  canEditReceivedDate?: boolean;
+  documentCreatedAt?: number;
 }
 
 export function PendingDocumentUploadDialog({
@@ -42,6 +49,8 @@ export function PendingDocumentUploadDialog({
   existingVersionNotes,
   onSuccess,
   hideAutoApprove,
+  canEditReceivedDate = false,
+  documentCreatedAt,
 }: PendingDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -51,6 +60,7 @@ export function PendingDocumentUploadDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
   const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,6 +103,7 @@ export function PendingDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setAutoApprove(false);
       setUploadProgress(0);
       onOpenChange(false);
@@ -139,6 +150,9 @@ export function PendingDocumentUploadDialog({
           expiryDate: expiryDate || undefined,
           versionNotes: versionNotes || undefined,
           autoApprove: autoApprove || undefined,
+          receivedDate: canEditReceivedDate
+            ? getReceivedDateOverride(receivedDate)
+            : undefined,
         });
 
         setUploadProgress(100);
@@ -159,6 +173,7 @@ export function PendingDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
+      setReceivedDate(getDefaultReceivedDate());
       setAutoApprove(false);
       setUploadProgress(0);
     } catch (error) {
@@ -244,6 +259,18 @@ export function PendingDocumentUploadDialog({
                 {t("autoApprove")}
               </label>
             </div>
+          )}
+
+          {/* Version notes (optional) */}
+          {selectedFile && (
+            <DocumentReceivedDateField
+              canEdit={canEditReceivedDate}
+              value={receivedDate}
+              onChange={setReceivedDate}
+              createdAt={documentCreatedAt}
+              disabled={isUploading}
+              id="pending-document-received-date"
+            />
           )}
 
           {/* Version notes (optional) */}

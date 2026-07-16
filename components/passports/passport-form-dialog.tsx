@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -39,6 +39,7 @@ import {
   PassportAiUploadField,
   type ExtractedAdminPassportFields,
 } from "@/components/passports/passport-ai-upload-field"
+import { PassportDocumentAttachmentDialog } from "@/components/passports/passport-document-attachment-dialog"
 
 interface PassportFormDialogProps {
   open: boolean
@@ -102,6 +103,8 @@ export function PassportFormDialog({
   >()
   const [isUploading, setIsUploading] = useState(false)
   const [isAiProcessing, setIsAiProcessing] = useState(false)
+  const [pendingPassportAttachmentId, setPendingPassportAttachmentId] =
+    useState<Id<"passports"> | undefined>()
 
   const form = useForm<PassportFormData>({
     resolver: zodResolver(passportSchema),
@@ -168,6 +171,7 @@ export function PassportFormDialog({
       setPreparedStorageId(undefined)
       setIsUploading(false)
       setIsAiProcessing(false)
+      setPendingPassportAttachmentId(undefined)
     }
   }, [open])
 
@@ -203,9 +207,30 @@ export function PassportFormDialog({
   }
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isAiProcessing) return
+    if (
+      !nextOpen &&
+      (isAiProcessing || pendingPassportAttachmentId !== undefined)
+    ) {
+      return
+    }
     handleOpenChange(nextOpen)
   }
+
+  const finishPassportSave = useCallback((savedPassportId: Id<"passports">) => {
+    setPendingPassportAttachmentId(undefined)
+    setSelectedFile(null)
+    setPreparedStorageId(undefined)
+    if (onSuccess) {
+      onSuccess(savedPassportId)
+    } else {
+      onOpenChange(false)
+    }
+  }, [onOpenChange, onSuccess])
+
+  const completePassportSave = useCallback(() => {
+    if (!pendingPassportAttachmentId) return
+    finishPassportSave(pendingPassportAttachmentId)
+  }, [finishPassportSave, pendingPassportAttachmentId])
 
   const onSubmit = async (data: PassportFormData) => {
     if (isPassportChecking) {
@@ -250,7 +275,11 @@ export function PassportFormDialog({
           isActive: data.isActive,
         })
         toast.success(t("updatedSuccess"))
-        onSuccess?.(passportId)
+        if (storageId) {
+          setPendingPassportAttachmentId(passportId)
+        } else {
+          finishPassportSave(passportId)
+        }
       } else {
         const newPassportId = await createPassport({
           personId: data.personId as Id<"people">,
@@ -262,7 +291,11 @@ export function PassportFormDialog({
           isActive: data.isActive,
         })
         toast.success(t("createdSuccess"))
-        onSuccess?.(newPassportId)
+        if (storageId) {
+          setPendingPassportAttachmentId(newPassportId)
+        } else {
+          finishPassportSave(newPassportId)
+        }
       }
     } catch {
       setIsUploading(false)
@@ -275,7 +308,9 @@ export function PassportFormDialog({
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        showCloseButton={!isAiProcessing}
+        showCloseButton={
+          !isAiProcessing && pendingPassportAttachmentId === undefined
+        }
       >
         <DialogHeader>
           <DialogTitle>
@@ -298,6 +333,7 @@ export function PassportFormDialog({
                 disabled={
                   !watchedPersonId ||
                   isUploading ||
+                  Boolean(pendingPassportAttachmentId) ||
                   form.formState.isSubmitting
                 }
                 onSelectedFileChange={setSelectedFile}
@@ -457,19 +493,27 @@ export function PassportFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isAiProcessing}
+                onClick={() => handleDialogOpenChange(false)}
+                disabled={
+                  isAiProcessing || pendingPassportAttachmentId !== undefined
+                }
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={!watchedPersonId || form.formState.isSubmitting || isUploading || isAiProcessing || isPassportChecking || isPassportAvailable === false}>
-                {form.formState.isSubmitting || isUploading || isAiProcessing ? tCommon("loading") : tCommon("save")}
+              <Button type="submit" disabled={!watchedPersonId || form.formState.isSubmitting || isUploading || isAiProcessing || Boolean(pendingPassportAttachmentId) || isPassportChecking || isPassportAvailable === false}>
+                {form.formState.isSubmitting || isUploading || isAiProcessing || pendingPassportAttachmentId ? tCommon("loading") : tCommon("save")}
               </Button>
             </div>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
+
+    <PassportDocumentAttachmentDialog
+      open={pendingPassportAttachmentId !== undefined}
+      passportId={pendingPassportAttachmentId}
+      onComplete={completePassportSave}
+    />
 
     {/* Unsaved Changes Confirmation Dialog */}
     <UnsavedChangesDialog

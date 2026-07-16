@@ -1,9 +1,9 @@
-import { MutationCtx, QueryCtx } from "../_generated/server";
+import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { syncPassportDocumentForProcess } from "./passportDocumentSync";
 import { getProcessStatusAtUpload } from "./documentProgressSnapshot";
+import { getDocumentCreatedAt } from "./documentReceiptTiming";
 
 /**
  * Helper function to generate document checklist for an individual process
@@ -66,6 +66,7 @@ export async function generateDocumentChecklist(
 
   // Create documentsDelivered records for each requirement
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
+  const createdAt = Date.now();
 
   // Get current user to set as uploader (will be admin who created the process)
   const userId = actingUserId ?? (await getAuthUserId(ctx));
@@ -106,7 +107,8 @@ export async function generateDocumentChecklist(
       mimeType: "",
       status: "not_started",
       uploadedBy: userId,
-      uploadedAt: Date.now(),
+      uploadedAt: createdAt,
+      createdAt,
       version: 1,
       isLatest: true,
       excludedFromReport: documentType?.excludeFromReportByDefault || undefined,
@@ -114,10 +116,6 @@ export async function generateDocumentChecklist(
 
     createdDocumentIds.push(documentId);
   }
-
-  // If the process already has a complete passport linked, auto-send its
-  // freshly-created "Passaporte" document.
-  await syncPassportDocumentForProcess(ctx, individualProcessId);
 
   return createdDocumentIds;
 }
@@ -176,6 +174,7 @@ export async function generateDocumentChecklistByLegalFramework(
 
   // Create documentsDelivered records for each association
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
+  const createdAt = Date.now();
 
   for (const assoc of associations) {
     // Check if document type is still active
@@ -216,7 +215,8 @@ export async function generateDocumentChecklistByLegalFramework(
       mimeType: "",
       status: "not_started",
       uploadedBy: userId,
-      uploadedAt: Date.now(),
+      uploadedAt: createdAt,
+      createdAt,
       version: 1,
       isLatest: true,
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,
@@ -224,10 +224,6 @@ export async function generateDocumentChecklistByLegalFramework(
 
     createdDocumentIds.push(documentId);
   }
-
-  // If the process already has a complete passport linked, auto-send its
-  // freshly-created "Passaporte" document.
-  await syncPassportDocumentForProcess(ctx, individualProcessId);
 
   return createdDocumentIds;
 }
@@ -357,6 +353,8 @@ export async function autoReuseCompanyDocuments(
       reusedFromDocumentId: sourceDoc._id,
       uploadedBy: userId,
       uploadedAt,
+      createdAt: getDocumentCreatedAt(targetDoc),
+      receivedAt: uploadedAt,
       reviewedBy: userId,
       reviewedAt: uploadedAt,
       processStatusAtUpload: targetDoc.processStatusAtUpload ?? processStatusAtUpload,

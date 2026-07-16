@@ -363,22 +363,36 @@ export const extractPassport = action({
       };
     }
 
-    const nationalityLookup =
-      asString(parsed.nationalityCode) ?? asString(parsed.nationality);
-    const issuingLookup =
-      asString(parsed.issuingCountryCode) ?? asString(parsed.issuingCountry);
+    const resolveCountryId = async (
+      code: string | null,
+      name: string | null,
+    ): Promise<Id<"countries"> | null> => {
+      const codeLookup = asString(code);
+      const nameLookup = asString(name);
 
+      if (codeLookup) {
+        const countryId: Id<"countries"> | null = await ctx.runQuery(
+          api.countries.findByCodeOrName,
+          { value: codeLookup },
+        );
+        if (countryId) return countryId;
+      }
+
+      if (nameLookup && nameLookup !== codeLookup) {
+        return await ctx.runQuery(api.countries.findByCodeOrName, {
+          value: nameLookup,
+        });
+      }
+
+      return null;
+    };
+
+    // MRZ values use ISO alpha-3 codes (for example USA), while older country
+    // rows may only have alpha-2 codes (US) and an empty iso3 field. Try the
+    // OCR-provided country name when the code lookup cannot resolve the row.
     const [nationalityId, issuingCountryId] = await Promise.all([
-      nationalityLookup
-        ? ctx.runQuery(api.countries.findByCodeOrName, {
-            value: nationalityLookup,
-          })
-        : Promise.resolve(null),
-      issuingLookup
-        ? ctx.runQuery(api.countries.findByCodeOrName, {
-            value: issuingLookup,
-          })
-        : Promise.resolve(null),
+      resolveCountryId(parsed.nationalityCode, parsed.nationality),
+      resolveCountryId(parsed.issuingCountryCode, parsed.issuingCountry),
     ]);
 
     const fullName = asString(parsed.fullName);

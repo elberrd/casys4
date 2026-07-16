@@ -1,3 +1,56 @@
+# TODO: Adicionar documento pendente diretamente à exigência mais recente
+
+## Contexto
+
+No detalhe do Processo Individual, quando o andamento mais recente for uma exigência e o administrador clicar em um documento pendente sem anexo, o sistema deve avisar sobre essa exigência e oferecer o vínculo direto do documento selecionado. Ao confirmar, o registro pendente deve ser movido para a exigência mais recente sem ser rejeitado nem gerar outra versão, e o fluxo normal de envio deve continuar. Ao recusar, o upload atual deve continuar fora da exigência.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar o PRD, o fluxo atual do botão global **Adicionar Documento**, o clique nas linhas pendentes e a imagem de referência.
+  - Confirmado: `statusHistory[0]` e `latestExigencia` já representam o andamento mais recente; a imagem mostra documentos `not_started` fora do grupo da exigência.
+- [x] 0.2: Confirmar os arquivos e padrões a reutilizar.
+  - Modificar: `components/individual-processes/document-checklist-card.tsx`, `convex/documentsDelivered.ts`, `messages/pt.json` e `messages/en.json`.
+  - Reutilizar: `components/ui/alert-dialog.tsx`, `DocumentUploadDialog`, `PendingDocumentUploadDialog` e os checks de `requireAdmin`.
+
+### 1. Vincular o pendente com validação de domínio
+
+- [x] 1.1: Criar uma mutation Convex específica e tipada para vincular um documento pendente sem anexo à exigência mais recente.
+  - Validar args/returns, admin, existência, mesmo processo, `status === "not_started"`, ausência de arquivo, versão latest e alvo com código `exigencia`.
+  - Revalidar dentro da transação que o andamento informado continua sendo o mais recente.
+  - Validação: a mutation somente altera `individualProcessStatusId`; não rejeita, não cria versão e é idempotente para o mesmo vínculo.
+
+### 2. Interceptar o clique do administrador
+
+- [x] 2.1: Centralizar a ação atual das linhas/botões pendentes e interceptar linha e ícone de upload quando o último andamento for uma exigência.
+  - Enquanto o histórico carrega, não permitir que o clique contorne a verificação.
+  - Não interceptar cliente, documento já anexado, campo somente informativo ou documento já vinculado à mesma exigência.
+- [x] 2.2: Exibir um `AlertDialog` específico com documento, nome e data da exigência.
+  - **Sim**: executar a mutation e, após sucesso, continuar no dialog de upload do documento clicado.
+  - **Não**: continuar a ação anterior sem criar vínculo.
+  - Em erro: manter o aviso disponível, informar por toast e não abrir o upload.
+
+### 3. Internacionalização e quality gates
+
+- [x] 3.1: Adicionar as mensagens equivalentes em `messages/pt.json` e `messages/en.json`, reutilizando `Common.yes/no`.
+- [x] 3.2: Executar `pnpm exec tsc --noEmit`, lint focado, `pnpm lint` e `pnpm run build`, separando débitos preexistentes.
+  - `pnpm exec tsc --noEmit` e `pnpm run build` passaram; o build gerou as 89 páginas e manteve apenas o warning preexistente do seletor CSS gerado.
+  - O lint focado e `pnpm lint` continuam bloqueados somente pelos débitos já existentes (`no-explicit-any`, variáveis não usadas e `prefer-const`) nos arquivos longos/repositório; nenhuma ocorrência veio das linhas novas.
+- [x] 3.3: Validar no browser autenticado em pt/en: **Sim**, **Não**, linha, ícone de upload, último andamento não-exigência e responsividade/teclado.
+  - PT/EN: o alerta acessível exibiu documento, exigência e data traduzidos; **Não** abriu o envio sem criar vínculo.
+  - **Sim** moveu o mesmo registro de `Documentos Pendentes` (5 -> 4) para a exigência (2 -> 3) e abriu `Enviar Documento`, inclusive para um registro com versões antigas; o dado foi desvinculado ao final (4 -> 5 e 3 -> 2).
+  - Em processo cujo último andamento era `Em Preparação`, o clique abriu o envio diretamente, sem alerta. Linha e ícones de envio usam o mesmo handler; o diálogo usa `AlertDialog`/Radix e foi exposto corretamente como `alertdialog` no teste de acessibilidade do browser.
+
+## Definition of Done
+
+- [x] Documento pendente sem anexo oferece vínculo direto apenas quando a exigência é o andamento mais recente.
+- [x] A confirmação move o mesmo registro para a exigência sem rejeição/versão extra e continua o upload.
+- [x] A recusa preserva o fluxo anterior fora da exigência.
+- [x] Backend, RBAC, i18n pt/en, TypeScript, lint/build e validação manual não apresentam regressão nova.
+
+---
+
 # TODO: Adicionar Pessoa Rápido por leitura de passaporte
 
 ## Contexto
@@ -753,3 +806,334 @@ Na visualização individual de um Processo Individual, o card existente de docu
 - [x] RBAC e visibilidade de cliente permanecem equivalentes aos fluxos atuais.
 - [x] i18n pt/en, TypeScript strict, validators Convex, responsividade, acessibilidade, lint e build passam sem novos erros.
   - TypeScript e build passam; a feature não adiciona erros de lint. O lint global continua falhando apenas por débitos preexistentes registrados em 4.2.
+
+---
+
+# TODO: Reaproveitar upload do passaporte no documento do processo
+
+## Contexto
+
+Quando um administrador criar ou editar um passaporte com um novo arquivo — usando leitura por IA ou preenchimento manual — o sistema deve procurar, nos Processos Individuais da pessoa, documentos atuais chamados **Passaporte válido** ou **Passaporte**. Havendo candidatos, deve perguntar se o mesmo arquivo salvo no passaporte será anexado ao documento do processo. Um único candidato fica pré-selecionado; múltiplos candidatos aparecem em uma lista para escolha. Se o destino já possuir arquivo, o administrador deve escolher entre substituir a versão atual ou adicionar uma nova versão.
+
+## Decisões de implementação
+
+- Disparar a oferta somente quando a submissão atual salvar um arquivo novo (`storageId` novo); editar apenas os campos ou manter o arquivo existente não abre o fluxo.
+- Salvar primeiro o passaporte e só então resolver o anexo. Sem candidato, ao escolher **Agora não** ou após anexar com sucesso, continuar o callback/fechamento/navegação já existente.
+- Considerar apenas registros `documentsDelivered` atuais (`isLatest`) dos processos encontrados pelo índice `individualProcesses.by_person`. Comparar `documentTypes.name` e, como fallback, `documentsDelivered.documentName` após remover acentos, normalizar caixa e espaços; aceitar somente igualdade com `passaporte` ou `passaporte valido`, sem correspondência parcial.
+- Reutilizar o mesmo `storageId`/URL do passaporte; não enviar o arquivo novamente ao Convex Storage. Derivar MIME, tamanho e extensão dos metadados armazenados, sem confiar em metadados enviados pelo cliente.
+- Destino sem arquivo: preencher o documento pendente. Destino com arquivo: **Substituir** atualiza a linha latest sem incrementar `version`; **Adicionar nova versão** mantém o histórico, marca a atual como não latest e cria `max(version) + 1`. Ambos voltam para `uploaded`, limpam revisão/rejeição incompatível, registram snapshot do andamento, histórico e atividade.
+- Remover os disparos automáticos atuais de sincronização ao salvar passaporte, vincular passaporte ou gerar checklist. O anexo deve depender da escolha explícita do administrador e uma recusa não pode ser desfeita silenciosamente depois.
+- Não alterar `convex/schema.ts`, não criar migração nem índice: reutilizar `by_person`, `by_individualProcess` e o modelo de versões existente. Não editar manualmente `convex/_generated/`.
+- Não criar testes automatizados para este MVP; validar com TypeScript, lint, build e browser autenticado.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Confirmar o contrato final nos padrões já mapeados.
+  - Referências: `app/[locale]/(dashboard)/prd.md`, `convex/schema.ts`, `convex/lib/passportDocumentSync.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentProgressSnapshot.ts`, `components/passports/passport-ai-upload-field.tsx`, `components/passports/passport-form-dialog.tsx` e `components/passports/passport-form-page.tsx`.
+  - Validar: o arquivo novo chega como `preparedStorageId`; `documentsDelivered` já representa versões por linha; `PassportFormDialog` cobre processo individual, tabela de passaportes e subtabela da pessoa; `PassportFormPage` cobre `/[locale]/passports/new`.
+- [x] 0.2: Confirmar os caminhos exatos da entrega.
+  - Criar: `convex/passportDocumentAttachments.ts`.
+  - Criar: `components/passports/passport-document-attachment-dialog.tsx`.
+  - Modificar: `convex/lib/passportDocumentSync.ts`, `convex/passports.ts`, `convex/individualProcesses.ts`, `convex/lib/documentChecklist.ts`, `components/passports/passport-form-dialog.tsx`, `components/passports/passport-form-page.tsx`, `messages/pt.json` e `messages/en.json`.
+  - Reutilizar sem modificar: `convex/lib/auth.ts`, `convex/lib/stringUtils.ts`, `convex/lib/documentProgressSnapshot.ts`, `components/ui/dialog.tsx`, `components/ui/alert-dialog.tsx`, `components/ui/button.tsx`, `components/ui/scroll-area.tsx`, `components/ui/badge.tsx` e `lib/validations/passports.ts`.
+
+### 1. Detectar destinos e anexar o arquivo com segurança no Convex
+
+- [x] 1.1: Em `convex/passportDocumentAttachments.ts`, criar uma query pública tipada para listar destinos pelo `passportId`.
+  - Exigir `requireAdmin`, carregar o passaporte, consultar processos com `withIndex("by_person")` e documentos com `withIndex("by_individualProcess")`; fazer a comparação normalizada somente em memória após as leituras indexadas, sem `.filter()` do Convex.
+  - Validar `args` e `returns` explicitamente e retornar somente dados necessários: `documentId`, `individualProcessId`, referência do processo, nome do documento, status, versão, nome do arquivo atual e `hasFile`.
+  - Incluir somente documentos latest com nome normalizado exatamente `passaporte` ou `passaporte valido`; não retornar versões históricas, documentos de outra pessoa nem correspondências por substring.
+- [x] 1.2: No mesmo arquivo, criar uma mutação pública administrativa para anexar o arquivo com modo `fill`, `replace` ou `new_version`.
+  - Validar `passportId`, `documentId`, versão esperada e modo com validators Convex, incluindo validator de retorno; usar `Id<"passports">`/`Id<"documentsDelivered">` e nenhuma tipagem `any` nova.
+  - Recarregar passaporte, processo, documento latest e tipo dentro da transação; revalidar dono, nome aceito, existência do arquivo e versão esperada para impedir seleção adulterada, race condition e versão duplicada.
+  - `fill`: preencher o placeholder existente. `replace`: manter o número da versão e substituir o arquivo atual. `new_version`: tornar a atual não latest e inserir a próxima versão copiando requirement, vínculo com exigência, visibilidade e demais metadados estruturais aplicáveis.
+  - Em todos os modos, reutilizar o arquivo do passaporte, aplicar datas de emissão/validade, capturar `processStatusAtUpload`, ajustar status/revisão, registrar `documentStatusHistory`, atividade e condições com a mesma paridade dos uploads existentes.
+  - Tornar a operação idempotente: duplo clique não cria duas versões; conflito de versão/latest retorna erro controlado para a interface recarregar os candidatos.
+- [x] 1.3: Em `convex/lib/passportDocumentSync.ts`, manter apenas helpers explícitos reutilizáveis pela nova API e eliminar o comportamento automático.
+  - Remover imports/chamadas de sincronização em `convex/passports.ts`, `convex/individualProcesses.ts` e `convex/lib/documentChecklist.ts`.
+  - Validação: criar/atualizar passaporte, vincular `passportId` e gerar/regenerar checklist nunca anexam arquivo sem confirmação; a nova query/mutação continua restrita a `admin`.
+
+### 2. Perguntar, selecionar o destino e preservar os fluxos administrativos
+
+- [x] 2.1: Criar `components/passports/passport-document-attachment-dialog.tsx` como orquestrador compartilhado após o passaporte ser salvo.
+  - Enquanto consulta candidatos, manter a conclusão do formulário em estado controlado; zero candidatos conclui sem mostrar pergunta, um candidato vem pré-selecionado e mais de um renderiza uma lista selecionável com processo, documento, status, arquivo atual e versão.
+  - Perguntar se deseja anexar o passaporte. Para destino vazio, oferecer **Anexar**; para destino com arquivo, exigir escolha explícita entre **Substituir** e **Adicionar nova versão** antes de confirmar.
+  - Oferecer **Agora não** sem alterar documentos. Em sucesso, erro ou conflito, impedir dupla submissão, manter foco/teclado acessíveis, mostrar feedback localizado e permitir tentar novamente ou concluir sem anexo.
+- [x] 2.2: Integrar o diálogo em `components/passports/passport-form-dialog.tsx`.
+  - Abrir o fluxo somente quando o create/update confirmado tiver usado o novo `storageId`, passando o `passportId` criado/atualizado; não chamar `onSuccess`, fechar ou resetar o formulário antes da decisão terminar.
+  - Após anexar, recusar ou não encontrar candidato, preservar exatamente o callback que seleciona o novo passaporte nos consumidores atuais.
+  - Validação: edição sem arquivo novo, cancelamento e erro ao salvar o passaporte não consultam nem alteram documentos do processo.
+- [x] 2.3: Integrar a mesma composição em `components/passports/passport-form-page.tsx`.
+  - Adiar `onSuccess` ou `router.push` somente durante a resolução opcional do anexo e limpar estado temporário ao concluir.
+  - Validação: `/pt/passports/new` e `/en/passports/new` continuam navegando normalmente quando não há destino ou o administrador escolhe **Agora não**; não duplicar lógica de seleção/versão entre página e modal.
+- [x] 2.4: Garantir responsividade e acessibilidade com componentes existentes.
+  - Em mobile, manter lista, nomes e ações sem overflow; em `sm`, `md` e `lg`, destacar destino e estratégia selecionados.
+  - Preservar foco ao abrir/fechar, navegação por teclado, descrições acessíveis, estado `aria-busy`/`aria-live` e bloqueio de fechamento somente durante a mutação.
+
+### 3. Internacionalização e quality gates
+
+- [x] 3.1: Adicionar em `messages/pt.json`, no namespace `Passports`, textos para busca de destinos, pergunta de reaproveitamento, lista múltipla, documento vazio/com arquivo, substituir, nova versão, agora não, sucesso, conflito e erro.
+- [x] 3.2: Adicionar as mesmas chaves e placeholders em `messages/en.json`.
+  - Validação: árvores pt/en equivalentes; título, descrição, botões, badges, toasts, estados vazios e labels acessíveis sem texto hardcoded.
+- [x] 3.3: Executar `pnpm exec tsc --noEmit`, lint focado nos arquivos criados/modificados, `pnpm lint` e `pnpm run build`, separando débitos globais preexistentes.
+  - Confirmar TypeScript strict, nenhum `any` novo, IDs Convex corretos, `args`/`returns` em todas as funções públicas, queries indexadas e ausência de edição em `convex/_generated/`.
+  - Confirmar a fronteira de formulário existente com `passportSchema`/Zod e a resposta de upload com `passportUploadResponseSchema`; a nova escolha de estratégia é validada na fronteira pública por união literal Convex, sem JSON não validado.
+  - Resultado: `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado e `pnpm run build` passaram; as 18 chaves novas mantêm paridade pt/en. `convex/_generated/api.d.ts` foi atualizado exclusivamente pelo codegen. O `pnpm lint` global continua falhando em débitos preexistentes fora da feature, enquanto os arquivos novos/modificados do fluxo estão limpos no lint focado.
+- [ ] 3.4: Validar no browser autenticado como administrador com `http://localhost:3000/`, usando `/pt` e `/en`.
+  - Sem documento correspondente: salvar conclui sem pergunta. Um pendente: pergunta e anexa o mesmo arquivo. Mais de um: lista e anexa somente ao destino selecionado. **Agora não** não altera nenhum documento.
+  - Destino com arquivo: **Substituir** mantém a versão e troca o arquivo; **Adicionar nova versão** incrementa uma única vez, preserva a anterior e deixa somente a nova como latest.
+  - Cobrir `/[locale]/passports/new`, edição na tabela de passaportes, inclusão pelo seletor do Processo Individual e edição pela subtabela de passaportes da pessoa.
+  - Conferir que apenas upload novo dispara a oferta, que OCR e preenchimento manual usam o mesmo fluxo, que não há segundo upload de storage, e que console/network ficam sem erro.
+  - Validação parcial: login administrativo e `/pt/passports/new` carregaram sem erro de console; a query autenticada retornou quatro destinos **Passaporte** para a pessoa de teste, sendo três pendentes e um já enviado na versão 2. O seletor nativo de arquivos do navegador automatizado não aceita preenchimento programático, então os cliques finais de upload/anexo/substituição não foram forçados sobre os dados do ambiente.
+- [ ] 3.5: Revisar segurança/RBAC e interface em mobile/desktop.
+  - Confirmar por chamada autenticada que `client` não lista candidatos nem executa o anexo e que um `documentId` de outra pessoa/processo é rejeitado no backend.
+  - Conferir viewports `sm`, `md`, `lg`, teclado, foco, leitor de tela e fechamento seguro durante loading/mutação.
+  - Validação parcial: chamadas autenticadas com role `client` foram recusadas em `listCandidates` e `attach`; uma tentativa administrativa com documento de outra pessoa retornou `DOCUMENT_ACCESS_DENIED`; passaporte sem arquivo retornou `PASSPORT_FILE_NOT_FOUND` sem mutar o destino. A revisão responsiva/acessível ficou estática e coberta pelo lint/build, sem automação completa dos viewports.
+
+## Definition of Done
+
+- [x] Um novo upload de passaporte no admin procura documentos latest chamados **Passaporte válido** ou **Passaporte** nos processos da pessoa.
+- [x] Um candidato gera confirmação; vários candidatos geram lista com seleção explícita do destino.
+- [x] Documento já preenchido exige escolha entre substituir a versão atual e criar uma nova versão.
+- [x] O mesmo arquivo do passaporte é reutilizado sem novo upload, com histórico, snapshot, condições e auditoria consistentes.
+- [x] Nenhum caminho automático anexa o passaporte após o administrador recusar ou sem sua confirmação.
+- [ ] Auth/RBAC, i18n pt/en, TypeScript strict, Zod/validators, responsividade, acessibilidade, lint, build e validação browser passam sem novos erros.
+  - Auth/RBAC, i18n, TypeScript, validators, lint focado e build passaram. Permanecem pendentes apenas o lint global preexistente e a execução manual dos cenários que dependem do seletor nativo de arquivos.
+  - Ajuste posterior: quando o administrador confirma o anexo, os modos `fill`, `replace` e `new_version` salvam o documento diretamente como `approved`, com `reviewedBy` e `reviewedAt` do próprio administrador e histórico de aprovação.
+
+---
+
+# TODO: Vincular o passaporte do cadastro rápido ao processo recém-criado
+
+## Contexto
+
+No wizard administrativo de criação de processos, tanto no fluxo **Individual** quanto no **Coletivo**, o botão **Adicionar Pessoa Rápido** já permite usar passaporte/OCR. Esse caminho salva imediatamente a pessoa e o passaporte no Convex e devolve `personId` e `passportId`, mas hoje o wizard conserva apenas o `personId`: o passaporte se perde do estado do candidato e o novo Processo Individual é criado sem `passportId`.
+
+O novo fluxo deve manter esse passaporte associado ao candidato durante o preenchimento, criar cada Processo Individual já vinculado ao passaporte correto e aguardar a conclusão da criação do processo e do checklist. Somente depois disso o administrador recebe a oferta de usar o mesmo arquivo como documento oficial **Passaporte** ou **Passaporte válido**. O anexo deve reutilizar o fluxo já implementado, salvar o documento como aprovado e nunca reenviar o arquivo ao storage.
+
+## Decisões de workflow
+
+- O upload/OCR do cadastro rápido continua salvando a pessoa e o passaporte imediatamente. Se o administrador remover o candidato, trocar a pessoa, cancelar ou abandonar o wizard, os cadastros continuam válidos, mas nenhum documento de processo é alterado.
+- `passportId` passa a ser metadado opcional do candidato no estado do wizard. Ele só é preenchido pelo retorno do cadastro rápido via passaporte; selecionar/trocar a pessoa manualmente limpa esse metadado para impedir associação cruzada.
+- Cada chamada de `individualProcesses.create` recebe o `passportId` do respectivo candidato. O backend deve confirmar que o passaporte existe e pertence à mesma `personId` antes de criar o processo.
+- A geração dos documentos já ocorre sincronamente dentro de `individualProcesses.create`; portanto, quando a mutação retorna o `individualProcessId`, o checklist daquele processo já pode ser consultado. A pergunta nunca deve abrir antes desse retorno.
+- Depois que **todos** os processos da submissão forem criados, formar uma fila somente com os pares `{ individualProcessId, passportId }` originados do cadastro rápido. Resolver a fila antes de limpar o wizard ou redirecionar.
+- No fluxo coletivo, cada candidato gera seu próprio Processo Individual e sua própria etapa da fila. Exibir candidato e progresso, por exemplo **Passaporte 2 de 4**, e resolver um passaporte por vez para evitar anexar o arquivo ao processo errado.
+- Restringir a busca do diálogo ao Processo Individual recém-criado. Outros processos antigos da mesma pessoa não podem aparecer nessa confirmação. Se o novo checklist tiver mais de um documento com nome elegível, manter a lista existente para o administrador escolher o destino.
+- **Agora não** ignora somente o item atual da fila: o processo continua vinculado ao passaporte e o documento oficial permanece pendente. Erro no anexo mantém o item aberto para tentar novamente ou pular; não desfazer processos já criados.
+- Quando a fila terminar — inclusive quando nenhum checklist possuir documento elegível — mostrar o sucesso da criação, limpar o wizard e navegar como hoje: detalhe para um processo individual, lista para vários individuais e detalhe do coletivo para processo coletivo.
+- Não alterar `convex/schema.ts`: `individualProcesses.passportId`, `passports.storageId` e os índices existentes já atendem ao fluxo. Não persistir uma segunda cópia do arquivo nem editar `convex/_generated/` manualmente.
+- Reutilizar a idempotência de `passportDocumentAttachments.attach`: bloquear duplo clique no frontend, enviar `expectedVersion`, não duplicar nova versão em conflito e tratar o mesmo arquivo já aprovado como sucesso. Uma submissão ativa do wizard não pode criar novamente um candidato/processo já registrado na própria tentativa.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Confirmar o contrato atual do cadastro rápido e da criação de processos.
+  - Revisar: `components/individual-processes/quick-person-form-dialog.tsx`, `components/process-requests/passport-upload-step.tsx`, `convex/passportUpload.ts`, `components/process-wizard/process-wizard-page.tsx`, `components/process-wizard/use-wizard-state.ts`, `lib/validations/process-wizard.ts` e `convex/individualProcesses.ts`.
+  - Confirmar: `PassportUploadStep` devolve `PassportCandidateResult` com `personId`, `passportId` e `storageId`; `QuickPersonFormDialog.onSuccess` já repassa o `passportId`; os dois componentes de candidatos atualmente ignoram o segundo argumento; `individualProcesses.create` aceita `passportId` e gera os checklists antes de retornar o ID.
+- [x] 0.2: Confirmar os caminhos exatos da mudança.
+  - Criar: `components/process-wizard/passport-attachment-queue.tsx`.
+  - Modificar: `lib/validations/process-wizard.ts`, `components/process-wizard/step2-process-data-individual.tsx`, `components/process-wizard/step3-3-candidates-collective.tsx`, `components/process-wizard/process-wizard-page.tsx`, `components/process-wizard/wizard-layout.tsx`, `components/passports/passport-document-attachment-dialog.tsx`, `convex/passportDocumentAttachments.ts`, `convex/individualProcesses.ts`, `messages/pt.json` e `messages/en.json`.
+  - Reutilizar sem modificar: `components/individual-processes/quick-person-form-dialog.tsx`, `components/process-requests/passport-upload-step.tsx`, `convex/passportUpload.ts`, `convex/lib/passportDocumentSync.ts`, `components/ui/dialog.tsx`, `components/ui/progress.tsx` e `components/ui/badge.tsx`.
+  - Validação: não criar tabela/campo/índice novo e não duplicar a lógica de upload, OCR, seleção de documento, versionamento ou aprovação.
+
+### 1. Preservar o passaporte correto no candidato do wizard
+
+- [x] 1.1: Estender `candidateSchema`/`CandidateData` em `lib/validations/process-wizard.ts` com `passportId` opcional tipado como `Id<"passports">`.
+  - Manter o campo dentro de `wizardData.candidates`, de modo que voltar etapas, criar vários candidatos e alternar entre os fluxos individual/coletivo não perca o vínculo.
+  - Validação: candidatos escolhidos normalmente continuam válidos sem `passportId`; nenhum `any`, string livre ou `storageId` precisa ser guardado no estado do wizard.
+- [x] 1.2: Em `components/process-wizard/step2-process-data-individual.tsx`, capturar o segundo argumento de `QuickPersonFormDialog.onSuccess`.
+  - Manter estado temporário `newCandidatePassportId`; ao adicionar, copiar `personId` e `passportId` juntos para o `CandidateData` e limpar ambos da linha de inclusão.
+  - Ao trocar o valor de `PersonSelectorWithDetail` manualmente, limpar `newCandidatePassportId` antes de aceitar a nova pessoa. Ao detectar candidato duplicado ou cancelar o modal, não transportar passaporte para outro candidato.
+  - Validação: cadastro manual não ganha passaporte implícito; cadastro por OCR conserva exatamente o ID retornado por `passportUpload.applyCandidate`, inclusive quando o OCR resolve pessoa/passaporte já existentes.
+- [x] 1.3: Aplicar o mesmo contrato em `components/process-wizard/step3-3-candidates-collective.tsx`.
+  - Cada linha adicionada deve conservar apenas o próprio `passportId`; remover uma linha remove também sua intenção de anexo e não afeta os demais candidatos.
+  - Validação: múltiplos candidatos com passaportes diferentes mantêm pares estáveis mesmo após adicionar/remover outras linhas; a prevenção de pessoa duplicada continua funcionando.
+
+### 2. Criar e vincular os processos antes de oferecer o anexo
+
+- [x] 2.1: Em `convex/individualProcesses.ts`, reforçar a integridade de `passportId` na mutação pública `create`.
+  - Após `requireAdmin`, quando `passportId` vier preenchido, carregar o passaporte e recusar se ele não existir ou se `passport.personId !== args.personId`.
+  - Manter validators explícitos e o fluxo atual de criação/checklist; o `passportId` precisa estar gravado no Processo Individual antes de `generateDocumentChecklist` e `generateDocumentChecklistByLegalFramework` executarem.
+  - Validação: um admin não consegue forjar o passaporte de outra pessoa; chamadas sem passaporte permanecem retrocompatíveis.
+- [x] 2.2: Refatorar `components/process-wizard/process-wizard-page.tsx` para guardar o resultado completo da submissão antes do redirect.
+  - Nos processos individuais, passar `candidate.passportId` para `individualProcesses.create` e registrar cada `{ candidate, individualProcessId }` retornado.
+  - No coletivo, conservar o `collectiveProcessId`, passar o passaporte em cada criação individual e registrar os IDs individuais, que hoje são descartados.
+  - Só montar a fila depois de todas as mutações necessárias retornarem; candidatos sem passaporte não entram. Não chamar `reset()` nem `router.push()` enquanto existir item pendente na fila.
+- [x] 2.3: Tornar a finalização resistente a dupla submissão e erro parcial dentro da tentativa ativa.
+  - Manter um estado de finalização separado (`creating`, `resolving_passports`, `complete`) e desabilitar **Cancelar**, **Anterior**, troca de etapa e novo clique em **Finalizar** após o primeiro envio.
+  - Registrar em memória os processos já retornados na tentativa e nunca repetir sua criação ao tratar um erro posterior; no coletivo, reutilizar o `collectiveProcessId` já criado. Em erro de criação, preservar o wizard e informar claramente que nenhum anexo foi executado, sem apagar IDs já confirmados.
+  - Validação: duplo clique não cria processos duplicados; falha no terceiro de quatro candidatos não reapresenta criação para os dois já concluídos na mesma sessão; erro no anexo não recria processo nem checklist.
+- [x] 2.4: Ajustar `components/process-wizard/wizard-layout.tsx` para respeitar o estado de finalização.
+  - Desabilitar também o botão **Cancelar** e os indicadores clicáveis enquanto a criação/fila estiver em curso; manter a proteção de saída ativa e usar texto/loading localizado para diferenciar **Criando processos** de **Finalizando passaportes**.
+  - Validação: o admin não consegue alterar candidato ou navegar para trás entre a criação do processo e a decisão sobre o passaporte; refresh/fechamento continua recebendo proteção de navegação.
+
+### 3. Restringir e reutilizar a confirmação de documento oficial
+
+- [x] 3.1: Estender `convex/passportDocumentAttachments.listCandidates` com `individualProcessId` opcional.
+  - Quando informado, carregar somente esse processo, validar que ele pertence à mesma pessoa do passaporte e consultar seus documentos por `by_individualProcess`; quando omitido, preservar exatamente a busca ampla usada pelas páginas/formulários de passaporte existentes.
+  - Retornar somente `isLatest` chamados exatamente **Passaporte** ou **Passaporte válido**, usando a normalização já existente. Validar `args` e `returns` e manter `requireAdmin`.
+  - Validação: a confirmação pós-wizard nunca mostra documentos de processos antigos/irmãos; ID de processo de outra pessoa retorna vazio/erro controlado e não vaza metadados.
+- [x] 3.2: Adaptar `components/passports/passport-document-attachment-dialog.tsx` para aceitar escopo e contexto opcionais.
+  - Adicionar props opcionais para `individualProcessId`, nome do candidato e posição/total da fila; repassar o escopo à query e mostrar o contexto sem alterar os consumidores atuais.
+  - Fazer `onComplete` informar resultado tipado (`attached`, `skipped` ou `no_candidate`) para a fila poder avançar e produzir feedback final. Preservar seleção múltipla de documentos, modos `fill`/`replace`/`new_version`, aprovação automática e retry em erro.
+  - Validação: zero destino avança automaticamente como `no_candidate`; **Agora não** avança como `skipped`; sucesso só avança após a mutação confirmar `approved`.
+- [x] 3.3: Criar `components/process-wizard/passport-attachment-queue.tsx` para orquestrar os pares criados sequencialmente.
+  - Receber entradas tipadas `{ individualProcessId, passportId, candidateName }`, abrir uma instância do diálogo compartilhado por vez e mostrar progresso **n de total**.
+  - Acumular contagens de anexados, ignorados e sem documento correspondente. Impedir fechamento durante mutação; permitir pular o item atual; chamar `onComplete` uma única vez após consumir toda a fila.
+  - Validação: em um coletivo com quatro candidatos, cada passaporte consulta/anexa somente no processo individual correspondente; pular o segundo não pula os demais; uma lista vazia conclui imediatamente.
+- [x] 3.4: Integrar a fila ao resultado de `ProcessWizardPage` e concluir a navegação somente no final.
+  - Um processo individual navega para seu detalhe; vários processos individuais navegam para a lista; processo coletivo navega para o detalhe coletivo, preservando as URLs localizadas atuais.
+  - Exibir resumo localizado quando houver itens: quantidade anexada/aprovada, ignorada e sem documento elegível. O toast principal de processos criados deve ocorrer uma única vez.
+  - Validação: optar por **Agora não** nunca bloqueia o sucesso do processo; ausência de documento **Passaporte** não apresenta modal vazio; anexar não provoca segundo upload de storage.
+
+### 4. Internacionalização, acessibilidade e estados de UX
+
+- [x] 4.1: Adicionar ao namespace `ProcessWizard` em `messages/pt.json` as chaves de finalização de passaportes.
+  - Incluir: criação em andamento, preparação de documentos, candidato atual, progresso `{current}/{total}`, resumo anexado/ignorado/sem destino, erro parcial, tentar novamente e continuar sem anexar.
+- [x] 4.2: Adicionar as mesmas chaves e placeholders em `messages/en.json`.
+  - Validação: paridade exata pt/en; nenhum título, toast, status, aria-label ou contagem visível hardcoded.
+- [x] 4.3: Garantir responsividade e acessibilidade na fila e no diálogo reutilizado.
+  - Em mobile, nome do candidato, progresso, destino e ações devem quebrar sem overflow; em `sm`, `md` e `lg`, manter hierarquia clara entre processo criado, documento e modo de substituição.
+  - Preservar foco entre itens, navegação por teclado, `aria-live` para progresso/resultado, `aria-busy` durante mutação e retorno de foco somente após a fila terminar.
+
+### 5. Quality gates
+
+- [x] 5.1: Executar `pnpm exec convex codegen` e `pnpm exec tsc --noEmit`.
+  - Confirmar TypeScript strict, `CandidateData.passportId` tipado, sem `any` novo, IDs Convex corretos e validators completos para qualquer assinatura pública alterada.
+- [x] 5.2: Executar lint focado nos arquivos desta entrega, `pnpm lint` e `pnpm run build`, registrando separadamente débitos globais preexistentes.
+  - Validar que nenhuma mudança manual foi feita em `convex/_generated/`; aceitar apenas atualização produzida por codegen.
+  - Resultado: `convex codegen`, TypeScript, lint focado e o build das 89 páginas passaram. O lint global continua falhando nos débitos preexistentes de `no-explicit-any`/imports/hooks; uma repetição posterior do TypeScript ficou bloqueada por uma edição concorrente e não relacionada em `convex/migrations/backfillDocumentReceiptTiming.ts:51`.
+- [ ] 5.3: Validar no browser autenticado o fluxo **Individual** em `/pt/process-wizard` e `/en/process-wizard`.
+  - Cadastro rápido manual: cria processo sem fila de passaporte.
+  - Cadastro rápido por OCR: pessoa/passaporte ficam salvos, o processo recebe o mesmo `passportId`, documentos existem antes da pergunta e o arquivo escolhido fica `approved`.
+  - Trocar a pessoa após o cadastro rápido: limpa o passaporte temporário e não vincula/anexa ao candidato substituto.
+  - Remover candidato, cancelar wizard e escolher **Agora não**: não anexam documento; o passaporte previamente registrado continua associado à pessoa.
+  - Mais de um documento elegível: mostrar somente os documentos do processo recém-criado e anexar apenas ao selecionado.
+  - Validação parcial: wizard autenticado e cadastro rápido manual/por passaporte abriram corretamente em pt/en, sem erros de console. A query escopada retornou somente os dois destinos do Processo Individual informado. O seletor nativo de arquivos impediu repetir o upload OCR completo no navegador automatizado.
+- [ ] 5.4: Validar no browser o fluxo **Coletivo** com múltiplos candidatos.
+  - Misturar candidato selecionado normalmente, pessoa cadastrada manualmente e duas pessoas criadas por passaporte; somente as duas últimas entram na fila.
+  - Confirmar ordem, nome e progresso; anexar uma, pular outra e verificar que cada Processo Individual recebeu apenas seu `passportId`/arquivo.
+  - Forçar destino já preenchido e confirmar **Substituir** e **Adicionar nova versão**, ambos com resultado aprovado e sem duplicação de versão por duplo clique.
+  - Validação parcial: propagação, fila sequencial e navegação coletiva foram cobertas por TypeScript/lint/build; o cenário multi-upload depende do mesmo seletor nativo de arquivos.
+- [ ] 5.5: Revisar erros, idempotência, RBAC e interface.
+  - Como `client`, confirmar que não é possível criar pelo wizard administrativo, listar destinos escopados nem executar `attach`.
+  - Como admin, tentar combinar `passportId`/`personId` incompatíveis e `individualProcessId` de outra pessoa; o backend deve rejeitar sem mutação.
+  - Simular erro na criação e no anexo: não duplicar processos/checklists/versões, manter retry/skip funcional e concluir o redirect uma única vez.
+  - Conferir viewports mobile/desktop, teclado, foco, proteção de saída e console/network sem erros.
+  - Validação parcial: `client` foi recusado por `requireAdmin`; combinação `personId`/`passportId` incompatível retornou `INVALID_PROCESS_PASSPORT`; processo escopado de outra pessoa retornou lista vazia e a mutation retornou `DOCUMENT_ACCESS_DENIED`, sem mutação. O browser não registrou erros; responsividade permanece coberta pelas classes e revisão estática, pois o override de viewport do navegador não foi aplicado à aba ativa.
+
+## Definition of Done
+
+- [x] O passaporte criado por OCR no cadastro rápido permanece registrado mesmo se o wizard for cancelado e acompanha o candidato correto enquanto ele estiver no wizard.
+- [x] Cada Processo Individual criado pelo wizard recebe o `passportId` correto antes da geração do checklist, com validação servidor-side de pertencimento.
+- [x] A confirmação só começa depois que todos os processos/checklists da submissão foram criados e só lista documentos do Processo Individual correspondente.
+- [x] Fluxos individual e coletivo suportam zero, um ou vários candidatos com passaporte, incluindo lista múltipla de documentos dentro de cada processo.
+- [x] **Agora não**, cancelamento, troca/remoção de candidato, erros e duplo clique não causam anexo cruzado, processo duplicado ou versão duplicada.
+- [x] O arquivo já armazenado no passaporte é reutilizado sem segundo upload e o documento confirmado termina automaticamente como `approved`.
+- [x] O wizard só é limpo/redirecionado após consumir a fila, mantendo navegação localizada e resumo profissional da finalização.
+- [ ] RBAC, i18n pt/en, TypeScript strict, Zod/validators, responsividade, acessibilidade, lint, build e validação browser passam sem novos erros.
+
+---
+
+# TODO: Contador de espera e data de recebimento por versão de documento
+
+## Contexto
+
+Quando o Processo Individual e seu checklist são gerados, cada `documentsDelivered` pendente deve iniciar uma contagem em dias. Enquanto a versão atual estiver sem conteúdo/anexo, a linha do documento deve exibir uma pílula vermelha com o tempo de espera. Quando o conteúdo for recebido, a versão deve conservar a data em que nasceu, a data efetiva de recebimento e a duração transcorrida. O cliente pode enviar arquivos, mas nunca vê nem controla a data; somente o administrador pode informá-la ou corrigi-la.
+
+## Decisões de implementação
+
+- Persistir por linha/versão `createdAt` e `receivedAt` em `documentsDelivered`. Manter `uploadedAt` por compatibilidade com os fluxos atuais, mas parar de tratá-lo como data de recebimento para placeholders, pois hoje ele também é preenchido na criação de registros sem arquivo.
+- Não persistir um terceiro campo `waitingDays`: derivar dias corridos de calendário com `max(0, receivedAtOuLimite - createdAt)`, evitando contador duplicado ou desatualizado.
+- Estado atual confirmado: `linkToStatusAndReject` já cria automaticamente a próxima versão `not_started` sem anexo; `uploadWithType` também aceita criação sem `storageId`. Portanto, versões vazias são possíveis e devem ser suportadas, não descartadas.
+- Para uma versão histórica recebida, encerrar a espera em `receivedAt`. Para uma versão vazia substituída por outra, encerrar a espera na `createdAt` da versão sucessora e exibir **aguardou N dias sem anexo**. Para a versão latest ainda vazia, usar o dia atual e manter a pílula vermelha viva.
+- Ao preencher um placeholder, atualizar a mesma linha: preservar `createdAt` e gravar `receivedAt`. Ao criar uma versão nova já anexada, gravar as duas datas na nova linha. Criar uma versão vazia nunca altera as datas nem a duração já fechada das anteriores.
+- O backend define `receivedAt = Date.now()` por padrão. Um valor diferente só é aceito de `admin`, deve representar uma data válida não futura e fica auditado; chamadas de cliente não podem forjar a data mesmo que alterem o payload manualmente.
+- Considerar como “recebido” tanto arquivo anexado/reaproveitado quanto documento somente informativo efetivamente preenchido. Placeholder sem conteúdo continua sem `receivedAt`.
+- Compatibilidade legada: usar `_creationTime` como origem segura para `createdAt` e, somente em versões com conteúdo real, `uploadedAt` como fallback/backfill de `receivedAt`.
+- Preservar e integrar as alterações não commitadas atuais em `convex/documentsDelivered.ts`, `convex/schema.ts`, `convex/lib/documentChecklist.ts`, `convex/passportDocumentAttachments.ts`, `components/individual-processes/document-checklist-card.tsx`, `messages/pt.json`, `messages/en.json` e no restante do wizard/passaporte; não reverter, sobrescrever nem editar manualmente `convex/_generated/`.
+- Não criar testes automatizados para este MVP; validar com TypeScript, lint focado, build, migração idempotente e browser autenticado.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revalidar o fluxo completo de criação, preenchimento e versionamento antes de editar.
+  - Referências: `app/[locale]/(dashboard)/prd.md`, `convex/schema.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentChecklist.ts`, `convex/individualProcesses.ts`, `convex/passportDocumentAttachments.ts`, `components/individual-processes/document-checklist-card.tsx`, `components/individual-processes/client-document-checklist.tsx`, `components/individual-processes/document-history-dialog.tsx` e `components/individual-processes/document-review-dialog.tsx`.
+  - Confirmar em especial: checklist por regra começa em **Em Preparação**; uma linha representa uma versão; placeholders têm `uploadedAt` mesmo sem upload; rejeição/exigência pode criar nova versão vazia.
+- [x] 0.2: Confirmar os caminhos exatos da entrega e preservar o worktree atual.
+  - Criar: `convex/lib/documentReceiptTiming.ts`, `convex/migrations/backfillDocumentReceiptTiming.ts`, `lib/document-wait-time.ts`, `components/individual-processes/document-wait-time-badge.tsx` e `components/individual-processes/document-received-date-field.tsx`.
+  - Modificar backend: `convex/schema.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentChecklist.ts`, `convex/individualProcesses.ts` e `convex/passportDocumentAttachments.ts`.
+  - Modificar UI: `components/individual-processes/document-checklist-card.tsx`, `components/individual-processes/client-document-checklist.tsx`, `components/individual-processes/document-upload-dialog.tsx`, `components/individual-processes/pending-document-upload-dialog.tsx`, `components/individual-processes/upload-new-version-dialog.tsx`, `components/individual-processes/typed-document-upload-dialog.tsx`, `components/individual-processes/loose-document-upload-dialog.tsx`, `components/individual-processes/document-review-dialog.tsx`, `components/individual-processes/document-history-dialog.tsx` e `components/individual-processes/status-documents-dialog.tsx`.
+  - Modificar i18n: `messages/pt.json` e `messages/en.json`. Atualizar `convex/_generated/api.d.ts` somente via `pnpm exec convex codegen`.
+
+### 1. Modelar e retropreencher as duas datas por versão
+
+- [x] 1.1: Em `convex/schema.ts`, adicionar `createdAt` e `receivedAt` opcionais e numéricos a `documentsDelivered` para permitir rollout compatível com registros existentes.
+  - Não criar índice: as consultas continuam partindo de `by_individualProcess`, `by_individualProcessStatus` ou do ID exato.
+  - Validação: `createdAt` nunca muda depois que a linha nasce; `receivedAt` permanece ausente enquanto não houver arquivo/conteúdo recebido.
+- [x] 1.2: Em `convex/lib/documentReceiptTiming.ts`, centralizar a política servidor-side usada por todas as mutations.
+  - Resolver `createdAt ?? _creationTime`, detectar conteúdo real, aplicar `Date.now()` por padrão e validar override administrativo de recebimento sem confiar no frontend.
+  - Manter `uploadedAt` sincronizado quando necessário para compatibilidade, sem usá-lo como início do contador novo.
+- [x] 1.3: Criar `convex/migrations/backfillDocumentReceiptTiming.ts` como `internalMutation` idempotente, com `args` e `returns` explícitos.
+  - Preencher `createdAt` a partir de `_creationTime`; preencher `receivedAt` a partir de `uploadedAt` somente quando houver `storageId`, `fileUrl` não vazio ou conteúdo informativo concluído; deixar placeholders vazios sem recebimento.
+  - Retornar contagens de atualizados, recebidos inferidos e ignorados. Validar uma amostra antes/depois e nunca confundir o `uploadedAt` artificial dos pendentes com recebimento.
+
+### 2. Aplicar as datas em todos os caminhos que criam ou recebem uma versão
+
+- [x] 2.1: Em `convex/documentsDelivered.ts`, aplicar `createdAt` em toda inserção e `receivedAt` em toda transição com conteúdo.
+  - Cobrir `upload`, `restoreVersion`, `uploadLoose`, `uploadWithType`, `uploadForPending`, `reuseCompanyDocument`, `bulkReuseCompanyDocuments`, `addMissingDocument`, `syncMissingDocuments`, `submitInformationFields` e `linkToStatusAndReject`.
+  - Em preenchimento de placeholder (`uploadForPending`, reuse e informação), preservar o início original; em `restoreVersion`, reenvio e nova versão anexada, criar um novo par de datas.
+  - Validação: salvar apenas observações não encerra a espera; rejeitar/revisar um arquivo já recebido não reescreve `receivedAt`.
+- [x] 2.2: Aplicar a mesma política fora do arquivo principal.
+  - `convex/lib/documentChecklist.ts`: todos os documentos gerados pela regra nascem com `createdAt` comum ao lote e sem `receivedAt`.
+  - `convex/individualProcesses.ts`: ao copiar um processo, as novas linhas recebem datas coerentes com o novo processo sem produzir duração negativa nem reutilizar silenciosamente o início da linha original.
+  - `convex/passportDocumentAttachments.ts`: `fill`, `replace` e `new_version` registram recebimento; `fill` preserva criação do placeholder e `new_version` cria seu próprio início.
+- [x] 2.3: Aceitar uma data de recebimento opcional nas mutations de upload usadas pelo admin e adicionar `updateReceivedAt` em `convex/documentsDelivered.ts`.
+  - `updateReceivedAt` deve validar `args`/`returns`, `requireAdmin`, existência da versão, conteúdo real e data não futura; permitir corrigir inclusive versão histórica sem alterar `createdAt`, arquivo, status, review ou `isLatest`.
+  - Registrar valor anterior/novo e versão em `activityLogs`. Cliente sempre recebe a data do servidor e qualquer override forjado deve ser recusado.
+- [x] 2.4: Ampliar `getVersionHistory`, `listVersionsByProgress` e validators relacionados para devolver as duas datas e preservar versões históricas vazias necessárias à duração.
+  - Não ocultar uma versão vazia já substituída apenas por ser `v0`/sem arquivo; marcá-la como sem anexo e impedir download/review de arquivo inexistente.
+  - Validação: a sucessora correta, dentro do mesmo grupo de documento/requisito, fornece o limite estável da versão vazia anterior.
+
+### 3. Exibir o contador e permitir edição somente administrativa
+
+- [x] 3.1: Criar `lib/document-wait-time.ts` e `components/individual-processes/document-wait-time-badge.tsx` com cálculo tipado e apresentação reutilizável.
+  - Latest sem recebimento: pílula destrutiva/vermelha **Aguardando há N dias**. Recebida: pílula neutra/positiva **Recebido em N dias**. Histórica vazia: **Aguardou N dias sem anexo**.
+  - Usar dias de calendário, pluralização i18n e `max(0, ...)`; não usar intervalos/timers por linha. A reatividade da página e a data atual recalculam o valor sem gravar no banco.
+- [x] 3.2: Mostrar a pílula imediatamente à frente dos metadados/status de cada documento atual.
+  - Integrar em `components/individual-processes/document-checklist-card.tsx`, inclusive grupos de exigência, e em `components/individual-processes/client-document-checklist.tsx`.
+  - Validação: pendente há 12 dias mostra pílula vermelha com 12 dias em admin e cliente; documento recebido deixa de crescer e mostra a duração fechada.
+- [x] 3.3: Criar `components/individual-processes/document-received-date-field.tsx` com `DatePicker` e validação Zod da data de calendário, reutilizando-o nos dialogs de upload listados em 0.2.
+  - Para admin, iniciar visualmente no dia atual e enviar override somente quando aplicável. Para cliente, não renderizar label, input, hint nem espaço reservado; `PendingDocumentUploadDialog` deve receber a capacidade administrativa explicitamente, sem inferi-la de estado visual.
+  - Validação: client envia normalmente e o servidor grava hoje; admin pode escolher uma data válida anterior sem alterar a data de criação.
+- [x] 3.4: Em `components/individual-processes/document-review-dialog.tsx` e `components/individual-processes/document-history-dialog.tsx`, exibir por versão data de criação, data de recebimento/ausência e duração.
+  - Somente admin vê lápis/DatePicker e chama `updateReceivedAt`; cliente recebe apresentação somente leitura. Versões históricas vazias mostram o limite pela sucessora e não oferecem abrir/baixar arquivo inexistente.
+  - Propagar a role/capacidade pelos chamadores `document-checklist-card.tsx`, `status-documents-dialog.tsx` e `app/[locale]/(dashboard)/individual-processes/[id]/individual-process-detail-client.tsx` sem confiar apenas em ocultação frontend.
+
+### 4. Internacionalização, acessibilidade e quality gates
+
+- [x] 4.1: Adicionar chaves equivalentes em `messages/pt.json` e `messages/en.json` para criação, recebimento, aguardando/recebido em dias, versão encerrada sem anexo, edição administrativa, data inválida/futura, sucesso e erro.
+  - Validar plural de zero/um/muitos dias, textos do DatePicker, tooltip e aria-label; nenhum texto visível novo fica hardcoded.
+- [x] 4.2: Conferir layout e acessibilidade em `sm`, `md` e `lg`.
+  - Pílula não pode ocultar nome/status/ações; datas quebram sem overflow. Campo administrativo tem label, descrição e erro associados; histórico sem arquivo não apresenta ação enganosa.
+- [x] 4.3: Executar `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado nos arquivos desta seção, `pnpm lint` e `pnpm run build`, separando débitos preexistentes.
+  - Confirmar TypeScript strict, nenhum `any` novo, validadores `args`/`returns`, IDs Convex corretos, nenhuma query nova com `.filter()` do Convex e nenhuma edição manual em `convex/_generated/`.
+- [x] 4.4: Validar no browser autenticado em `/pt/individual-processes/[id]` e `/en/individual-processes/[id]`.
+  - Checklist recém-gerado começa em 0 dias; alterar a origem para 12 dias exibe 12; anexar como client usa hoje e não mostra data; anexar/editar como admin respeita a data escolhida e congela a duração.
+  - Cobrir upload pendente, nova versão, rejeição/exigência que cria versão vazia, versão vazia substituída por outra, documento informativo, reaproveitamento e anexo de passaporte.
+  - Confirmar que a versão anterior conserva sua duração, a nova reinicia em zero, somente uma versão fica latest e a edição administrativa produz auditoria sem mudar arquivo/status.
+
+## Definition of Done
+
+- [x] Cada versão possui início próprio e, quando recebida/preenchida, data de recebimento própria.
+- [x] Todo documento latest pendente mostra contador vermelho em dias; ao receber, a duração fica congelada.
+- [x] Versão nova vazia reinicia a contagem sem apagar o tempo da anterior, inclusive quando a anterior também terminou sem anexo.
+- [x] Cliente envia sem ver/controlar data; somente admin pode informar ou corrigir o recebimento e o backend reforça o RBAC.
+- [x] Histórico exibe criação, recebimento/ausência e duração de cada versão, sem download falso para versão vazia.
+- [x] Migração legada é idempotente e não converte placeholders em recebidos por causa do `uploadedAt` atual.
+- [x] i18n pt/en, TypeScript strict, Zod/validators Convex, responsividade, acessibilidade, lint, build e validação browser passam sem novos erros.

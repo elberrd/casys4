@@ -71,11 +71,19 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { DatePicker } from "@/components/ui/date-picker"
 import { LinkedFieldInput } from "./linked-field-input"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
+import { DocumentReceivedDateField } from "./document-received-date-field"
+import {
+  formatDocumentTimingDate,
+  getDocumentWaitTime,
+  timestampToIsoDate,
+} from "@/lib/document-wait-time"
 
 interface DocumentReviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   documentId: Id<"documentsDelivered"> | null
+  userRole?: "admin" | "client"
   onSuccess?: () => void
 }
 
@@ -83,9 +91,11 @@ export function DocumentReviewDialog({
   open,
   onOpenChange,
   documentId,
+  userRole = "client",
   onSuccess,
 }: DocumentReviewDialogProps) {
   const t = useTranslations("DocumentReview")
+  const tTiming = useTranslations("DocumentTiming")
   const tCommon = useTranslations("Common")
   const locale = useLocale()
 
@@ -107,6 +117,9 @@ export function DocumentReviewDialog({
   const [isEditingIssueDate, setIsEditingIssueDate] = useState(false)
   const [editingIssueDate, setEditingIssueDate] = useState<string | undefined>()
   const [isSavingIssueDate, setIsSavingIssueDate] = useState(false)
+  const [isEditingReceivedDate, setIsEditingReceivedDate] = useState(false)
+  const [editingReceivedDate, setEditingReceivedDate] = useState("")
+  const [isSavingReceivedDate, setIsSavingReceivedDate] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
@@ -172,6 +185,7 @@ export function DocumentReviewDialog({
   const removeDocument = useMutation(api.documentsDelivered.remove)
   const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
   const updateIssueDate = useMutation(api.documentsDelivered.updateIssueDate)
+  const updateReceivedAt = useMutation(api.documentsDelivered.updateReceivedAt)
   const toggleBypassConditions = useMutation(api.documentsDelivered.toggleBypassConditions)
 
   const isManuallyAdded = document
@@ -240,6 +254,8 @@ export function DocumentReviewDialog({
       setEditingNotes("")
       setIsEditingIssueDate(false)
       setEditingIssueDate(undefined)
+      setIsEditingReceivedDate(false)
+      setEditingReceivedDate("")
     }
   }, [open])
 
@@ -251,10 +267,13 @@ export function DocumentReviewDialog({
   // When no version is explicitly selected, prefer the latest from history (handles new uploads)
   const displayDocument = selectedVersion || latestVersion || document
   const isViewingOldVersion = !!(selectedVersion && !selectedVersion.isLatest)
+  const displayTiming = displayDocument ? getDocumentWaitTime(displayDocument) : null
 
   useEffect(() => {
     setIsEditingIssueDate(false)
     setEditingIssueDate(undefined)
+    setIsEditingReceivedDate(false)
+    setEditingReceivedDate("")
   }, [displayDocument?._id])
 
   const handleSaveIssueDate = async () => {
@@ -273,6 +292,25 @@ export function DocumentReviewDialog({
       toast.error(t("issueDateError"))
     } finally {
       setIsSavingIssueDate(false)
+    }
+  }
+
+  const handleSaveReceivedDate = async () => {
+    if (!displayDocument?._id || !editingReceivedDate) return
+
+    try {
+      setIsSavingReceivedDate(true)
+      await updateReceivedAt({
+        documentId: displayDocument._id,
+        receivedDate: editingReceivedDate,
+      })
+      toast.success(tTiming("receivedDateSaved"))
+      setIsEditingReceivedDate(false)
+    } catch (error) {
+      console.error("Error updating document received date:", error)
+      toast.error(tTiming("receivedDateError"))
+    } finally {
+      setIsSavingReceivedDate(false)
     }
   }
 
@@ -493,6 +531,7 @@ export function DocumentReviewDialog({
               <DialogTitle>{t("title")}</DialogTitle>
             </div>
             {getStatusBadge(document.status)}
+            {displayDocument && <DocumentWaitTimeBadge document={displayDocument} />}
           </div>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
@@ -602,13 +641,17 @@ export function DocumentReviewDialog({
 
           {!document?.documentType?.isInformationOnly && (
             <TabsContent value="preview" className="py-4 overflow-y-auto max-h-[55vh]">
-              {displayDocument?.fileUrl && (
+              {displayDocument?.fileUrl ? (
                 <FileViewer
                   fileUrl={displayDocument.fileUrl}
                   fileName={displayDocument.fileName}
                   mimeType={displayDocument.mimeType || ""}
                   className="rounded-lg border"
                 />
+              ) : (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  {tTiming("noAttachment")}
+                </div>
               )}
             </TabsContent>
           )}
@@ -1136,7 +1179,7 @@ export function DocumentReviewDialog({
 
           <Separator />
 
-          {/* Upload info */}
+          {/* Creation, receipt and uploader info */}
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
@@ -1149,13 +1192,73 @@ export function DocumentReviewDialog({
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{t("uploadedAt")}:</span>
+              <span className="text-muted-foreground">{tTiming("createdDate")}:</span>
               <span className="font-medium">
-                {displayDocument?.uploadedAt
-                  ? format(new Date(displayDocument.uploadedAt), "PPP p")
+                {displayTiming
+                  ? formatDocumentTimingDate(displayTiming.createdAt, locale)
                   : t("unknown")}
               </span>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">{tTiming("receivedDate")}:</span>
+              <span className="font-medium">
+                {displayTiming?.receivedAt !== undefined
+                  ? formatDocumentTimingDate(displayTiming.receivedAt, locale)
+                  : tTiming("notReceived")}
+              </span>
+              {userRole === "admin" && displayTiming?.receivedAt !== undefined && !isEditingReceivedDate && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => {
+                    setEditingReceivedDate(timestampToIsoDate(displayTiming.receivedAt!))
+                    setIsEditingReceivedDate(true)
+                  }}
+                >
+                  <Pencil className="mr-1 h-3 w-3" />
+                  {tTiming("editReceivedDate")}
+                </Button>
+              )}
+            </div>
+            {isEditingReceivedDate && displayTiming && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <DocumentReceivedDateField
+                  canEdit
+                  value={editingReceivedDate}
+                  onChange={setEditingReceivedDate}
+                  createdAt={displayTiming.createdAt}
+                  disabled={isSavingReceivedDate}
+                  id={`review-received-date-${displayDocument?._id ?? "document"}`}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingReceivedDate(false)}
+                    disabled={isSavingReceivedDate}
+                  >
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveReceivedDate}
+                    disabled={isSavingReceivedDate || !editingReceivedDate}
+                  >
+                    {isSavingReceivedDate ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Save className="mr-1 h-3 w-3" />
+                    )}
+                    {tCommon("save")}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Review info for displayed version */}
@@ -1202,17 +1305,19 @@ export function DocumentReviewDialog({
           )}
 
           {/* File preview / download */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(displayDocument?.fileUrl, "_blank")}
-              className="flex-1"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {t("downloadFile")}
-            </Button>
-          </div>
+          {displayDocument?.fileUrl && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(displayDocument.fileUrl, "_blank")}
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {t("downloadFile")}
+              </Button>
+            </div>
+          )}
 
           {/* Illegible checkbox - visible directly, only for non-information-only documents */}
           {!isViewingOldVersion && canChangeStatus && !document?.documentType?.isInformationOnly && (
@@ -1507,6 +1612,7 @@ export function DocumentReviewDialog({
           currentFileName={document.fileName}
           currentFileSize={document.fileSize}
           currentStatus={document.status}
+          canEditReceivedDate={userRole === "admin"}
           onSuccess={() => {
             setSelectedVersionId(null)
           }}
