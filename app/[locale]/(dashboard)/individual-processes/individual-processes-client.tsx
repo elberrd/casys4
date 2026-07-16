@@ -29,6 +29,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { toast } from "sonner"
 import { FixedActionButtons } from "@/components/fixed-action-buttons"
 import { getFullName } from "@/lib/utils/person-names"
+import { translateCountryName } from "@/lib/utils/country-translations"
 import { loadPersistedFilters, persistFilters, clearPersistedFilters } from "@/hooks/use-persisted-filters"
 
 export function IndividualProcessesClient() {
@@ -89,6 +90,8 @@ export function IndividualProcessesClient() {
     professionalExperience: false,
     notes: true,
     pendingDocs: true,
+    nationality: true,
+    cbo: true,
   }
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
@@ -199,13 +202,16 @@ export function IndividualProcessesClient() {
     individualProcesses.forEach((process) => {
       const nationality = process.person?.nationality
       if (nationality) {
-        uniqueNationalities.set(nationality._id, nationality.name)
+        uniqueNationalities.set(
+          nationality._id,
+          translateCountryName(nationality.name, locale),
+        )
       }
     })
     return Array.from(uniqueNationalities.entries())
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label))
-  }, [individualProcesses])
+  }, [individualProcesses, locale])
 
   // Get unique CBO codes from the individual processes data
   const cboOptions = useMemo(() => {

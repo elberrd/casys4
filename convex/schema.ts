@@ -741,6 +741,22 @@ export default defineSchema({
     versionNotes: v.optional(v.string()),
     reusedFromDocumentId: v.optional(v.id("documentsDelivered")), // Reference to the original reused document
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")), // Link to a specific status entry (e.g., "Exigência")
+    // Immutable snapshot of the process progress when this version was submitted.
+    // It is intentionally denormalized so later edits to case/status records do not
+    // rewrite the historical meaning of an already submitted document version.
+    processStatusAtUpload: v.optional(
+      v.object({
+        individualProcessStatusId: v.optional(
+          v.id("individualProcessStatuses")
+        ),
+        caseStatusId: v.optional(v.id("caseStatuses")),
+        name: v.string(),
+        nameEn: v.optional(v.string()),
+        code: v.string(),
+        color: v.optional(v.string()),
+        category: v.optional(v.string()),
+      })
+    ),
     documentName: v.optional(v.string()), // Custom name for loose documents saved without file
     isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
     excludedFromReport: v.optional(v.boolean()), // Whether the document is excluded from PDF reports

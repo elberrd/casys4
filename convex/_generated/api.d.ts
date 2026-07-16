@@ -44,8 +44,10 @@ import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_createIndividualProcess from "../lib/createIndividualProcess.js";
 import type * as lib_documentChecklist from "../lib/documentChecklist.js";
+import type * as lib_documentProgressSnapshot from "../lib/documentProgressSnapshot.js";
 import type * as lib_documentValidity from "../lib/documentValidity.js";
 import type * as lib_passportDocumentSync from "../lib/passportDocumentSync.js";
+import type * as lib_personOwnership from "../lib/personOwnership.js";
 import type * as lib_processHistory from "../lib/processHistory.js";
 import type * as lib_requirementsChecklist from "../lib/requirementsChecklist.js";
 import type * as lib_statusCalculation from "../lib/statusCalculation.js";
@@ -114,14 +116,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   activityLogs: typeof activityLogs;
   appointmentReminders: typeof appointmentReminders;
@@ -159,8 +153,10 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/createIndividualProcess": typeof lib_createIndividualProcess;
   "lib/documentChecklist": typeof lib_documentChecklist;
+  "lib/documentProgressSnapshot": typeof lib_documentProgressSnapshot;
   "lib/documentValidity": typeof lib_documentValidity;
   "lib/passportDocumentSync": typeof lib_passportDocumentSync;
+  "lib/personOwnership": typeof lib_personOwnership;
   "lib/processHistory": typeof lib_processHistory;
   "lib/requirementsChecklist": typeof lib_requirementsChecklist;
   "lib/statusCalculation": typeof lib_statusCalculation;
@@ -223,14 +219,30 @@ declare const fullApi: ApiFromModules<{
   userProfiles: typeof userProfiles;
   verifyCompanies: typeof verifyCompanies;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 

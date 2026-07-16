@@ -2,6 +2,7 @@ import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { getProcessStatusAtUpload } from "./documentProgressSnapshot";
 
 /**
  * Note stored on the auto-sent passport document (in versionNotes and in the
@@ -114,6 +115,7 @@ export async function syncPassportDocumentForProcess(
 
   const actingUserId = await getAuthUserId(ctx);
   const now = Date.now();
+  const processStatusAtUpload = await getProcessStatusAtUpload(ctx, process);
 
   let updatedAny = false;
   for (const doc of pendingPassportDocs) {
@@ -132,6 +134,7 @@ export async function syncPassportDocumentForProcess(
       uploadedBy,
       uploadedAt: now,
       versionNotes: AUTO_NOTE,
+      processStatusAtUpload: doc.processStatusAtUpload ?? processStatusAtUpload,
     });
 
     await ctx.db.insert("documentStatusHistory", {

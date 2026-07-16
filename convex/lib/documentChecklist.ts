@@ -3,6 +3,7 @@ import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { syncPassportDocumentForProcess } from "./passportDocumentSync";
+import { getProcessStatusAtUpload } from "./documentProgressSnapshot";
 
 /**
  * Helper function to generate document checklist for an individual process
@@ -336,12 +337,14 @@ export async function autoReuseCompanyDocuments(
   // Get user for history records
   const userId = actingUserId ?? (await getAuthUserId(ctx));
   if (!userId) return 0;
+  const processStatusAtUpload = await getProcessStatusAtUpload(ctx, process);
 
   let reusedCount = 0;
   for (const targetDoc of companyPendingDocs) {
     const sourceDoc = sourceByType.get(targetDoc.documentTypeId!);
     if (!sourceDoc) continue;
 
+    const uploadedAt = Date.now();
     await ctx.db.patch(targetDoc._id, {
       storageId: sourceDoc.storageId,
       fileName: sourceDoc.fileName,
@@ -353,9 +356,10 @@ export async function autoReuseCompanyDocuments(
       status: "approved",
       reusedFromDocumentId: sourceDoc._id,
       uploadedBy: userId,
-      uploadedAt: Date.now(),
+      uploadedAt,
       reviewedBy: userId,
-      reviewedAt: Date.now(),
+      reviewedAt: uploadedAt,
+      processStatusAtUpload: targetDoc.processStatusAtUpload ?? processStatusAtUpload,
     });
 
     await ctx.db.insert("documentStatusHistory", {

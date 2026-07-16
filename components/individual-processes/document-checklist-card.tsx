@@ -4,7 +4,7 @@ import { useState, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import {
   Card,
   CardHeader,
@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -22,6 +23,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Upload,
   CheckCircle2,
@@ -69,6 +80,7 @@ import { InformationFieldsDialog } from "./information-fields-dialog"
 import { PendingDocumentUploadDialog } from "./pending-document-upload-dialog"
 import { SelectExistingDocumentDialog } from "./select-existing-document-dialog"
 import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
+import { StatusDocumentsDialog } from "./status-documents-dialog"
 import type {
   PdfReportMode,
   ProcessInfoForReport,
@@ -147,6 +159,7 @@ export function DocumentChecklistCard({
 }: DocumentChecklistCardProps) {
   const t = useTranslations("DocumentChecklist")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
   const removeDocument = useMutation(api.documentsDelivered.remove)
 
   // Use the new grouped query
@@ -158,6 +171,72 @@ export function DocumentChecklistCard({
   const documents = useQuery(api.documentsDelivered.list, {
     individualProcessId,
   })
+
+  const documentVersionsByProgress = useQuery(
+    api.documentsDelivered.listVersionsByProgress,
+    { individualProcessId },
+  )
+
+  type DocumentVersionByProgress = NonNullable<
+    typeof documentVersionsByProgress
+  >[number]
+
+  type ProgressDocumentGroup = {
+    key: string
+    processStatusAtUpload: DocumentVersionByProgress["processStatusAtUpload"]
+    documents: DocumentVersionByProgress[]
+    latestUploadedAt: number
+    isWithoutProgress: boolean
+  }
+
+  const progressDocumentGroups = useMemo<ProgressDocumentGroup[]>(() => {
+    if (!documentVersionsByProgress) return []
+
+    const groups = new Map<string, ProgressDocumentGroup>()
+
+    for (const document of documentVersionsByProgress) {
+      const snapshot = document.processStatusAtUpload
+      const key = snapshot
+        ? snapshot.individualProcessStatusId
+          ? `status-entry:${snapshot.individualProcessStatusId}`
+          : snapshot.caseStatusId
+            ? `case-status:${snapshot.caseStatusId}`
+            : `snapshot:${snapshot.code}:${snapshot.name}:${snapshot.nameEn ?? ""}:${snapshot.category ?? ""}`
+        : "without-progress"
+
+      const existingGroup = groups.get(key)
+      if (existingGroup) {
+        existingGroup.documents.push(document)
+        existingGroup.latestUploadedAt = Math.max(
+          existingGroup.latestUploadedAt,
+          document.uploadedAt,
+        )
+        continue
+      }
+
+      groups.set(key, {
+        key,
+        processStatusAtUpload: snapshot,
+        documents: [document],
+        latestUploadedAt: document.uploadedAt,
+        isWithoutProgress: snapshot === undefined,
+      })
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        documents: [...group.documents].sort(
+          (a, b) => b.uploadedAt - a.uploadedAt || b.version - a.version,
+        ),
+      }))
+      .sort((a, b) => {
+        if (a.isWithoutProgress !== b.isWithoutProgress) {
+          return a.isWithoutProgress ? 1 : -1
+        }
+        return b.latestUploadedAt - a.latestUploadedAt
+      })
+  }, [documentVersionsByProgress])
 
   // Check which document types have reusable company documents
   const reusableTypeIds = useQuery(
@@ -193,6 +272,37 @@ export function DocumentChecklistCard({
     () => statusHistory?.some((s) => s.caseStatus?.code === "exigencia") ?? false,
     [statusHistory]
   )
+
+  const latestExigencia = useMemo(() => {
+    const latestStatus = statusHistory?.[0]
+    if (latestStatus?.caseStatus?.code !== "exigencia") return null
+
+    const statusDate = latestStatus.date ?? new Date(latestStatus.changedAt).toISOString()
+    const datePattern = statusDate.includes("T")
+      ? locale === "pt" ? "dd/MM/yyyy 'às' HH:mm" : "MM/dd/yyyy 'at' HH:mm"
+      : locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy"
+
+    let displayDate = statusDate
+    try {
+      displayDate = format(parseISO(statusDate), datePattern)
+    } catch {
+      // Keep the original value if a legacy date cannot be parsed.
+    }
+
+    return {
+      statusId: latestStatus._id,
+      caseStatusName: locale === "pt"
+        ? latestStatus.caseStatus.name
+        : latestStatus.caseStatus.nameEn || latestStatus.caseStatus.name,
+      caseStatusColor: latestStatus.caseStatus.color,
+      caseStatusCode: latestStatus.caseStatus.code,
+      displayDate,
+    }
+  }, [locale, statusHistory])
+
+  const [addDocumentMenuOpen, setAddDocumentMenuOpen] = useState(false)
+  const [latestExigenciaPromptOpen, setLatestExigenciaPromptOpen] = useState(false)
+  const [latestExigenciaDocumentsOpen, setLatestExigenciaDocumentsOpen] = useState(false)
 
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<Id<"documentsDelivered">>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -237,6 +347,32 @@ export function DocumentChecklistCard({
 
   const openTypedUploadDialog = () => {
     setDialogs(prev => ({ ...prev, typedUpload: { open: true } }))
+  }
+
+  const handleAddDocumentMenuOpenChange = (open: boolean) => {
+    if (!open) {
+      setAddDocumentMenuOpen(false)
+      return
+    }
+
+    if (statusHistory === undefined) return
+
+    if (latestExigencia) {
+      setLatestExigenciaPromptOpen(true)
+      return
+    }
+
+    setAddDocumentMenuOpen(true)
+  }
+
+  const handleAddOutsideLatestExigencia = () => {
+    setLatestExigenciaPromptOpen(false)
+    setAddDocumentMenuOpen(true)
+  }
+
+  const handleOpenLatestExigenciaDocuments = () => {
+    setLatestExigenciaPromptOpen(false)
+    setLatestExigenciaDocumentsOpen(true)
   }
 
   const openReuseDialog = (doc: any) => {
@@ -882,25 +1018,26 @@ export function DocumentChecklistCard({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex-1">
-            <CardTitle className="flex flex-wrap items-center gap-3">
-              {userRole === "admin" && selectableDocs.length > 0 && (
-                <Checkbox
-                  checked={allSelectableSelected}
-                  onCheckedChange={toggleSelectAll}
-                  aria-label={t("selectAll")}
-                />
-              )}
-              <span>{t("title")}</span>
-              <Badge variant="outline">
-                {requiredCompleted} / {requiredTotal} {t("completed")}
-              </Badge>
-            </CardTitle>
-            <CardDescription className="mt-2">{t("description")}</CardDescription>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+      <Tabs defaultValue="documents">
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex-1">
+              <CardTitle className="flex flex-wrap items-center gap-3">
+                {userRole === "admin" && selectableDocs.length > 0 && (
+                  <Checkbox
+                    checked={allSelectableSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label={t("selectAll")}
+                  />
+                )}
+                <span>{t("title")}</span>
+                <Badge variant="outline">
+                  {requiredCompleted} / {requiredTotal} {t("completed")}
+                </Badge>
+              </CardTitle>
+              <CardDescription className="mt-2">{t("description")}</CardDescription>
+            </div>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {userRole === "admin" && selectedDocuments.length > 0 && (
               <BulkDocumentActionsMenu
                 selectedDocuments={selectedDocuments.map(doc => ({
@@ -975,9 +1112,17 @@ export function DocumentChecklistCard({
             {/* Upload dropdown (admin only) */}
             {userRole === "admin" && (
               <div className="w-full sm:w-auto">
-                <DropdownMenu>
+                <DropdownMenu
+                  open={addDocumentMenuOpen}
+                  onOpenChange={handleAddDocumentMenuOpenChange}
+                >
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="w-full sm:w-auto">
+                    <Button
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      disabled={statusHistory === undefined}
+                      aria-busy={statusHistory === undefined}
+                    >
                       <Plus className="h-4 w-4 mr-1" />
                       {t("addDocument")}
                       <ChevronDown className="h-4 w-4 ml-1" />
@@ -1002,11 +1147,16 @@ export function DocumentChecklistCard({
                 </DropdownMenu>
               </div>
             )}
+            </div>
           </div>
-        </div>
-      </CardHeader>
+          <TabsList className="grid w-full grid-cols-2 sm:w-fit sm:min-w-80">
+            <TabsTrigger value="documents">{t("tabs.documents")}</TabsTrigger>
+            <TabsTrigger value="byProgress">{t("tabs.byProgress")}</TabsTrigger>
+          </TabsList>
+        </CardHeader>
 
-      <CardContent className="space-y-6">
+        <TabsContent value="documents" className="mt-0">
+          <CardContent className="space-y-6">
         {/* Progress bar */}
         {requiredTotal > 0 && (
           <div className="space-y-2">
@@ -1137,7 +1287,165 @@ export function DocumentChecklistCard({
             </div>
           </div>
         )}
-      </CardContent>
+          </CardContent>
+        </TabsContent>
+
+        <TabsContent value="byProgress" className="mt-0">
+          <CardContent className="space-y-6">
+            {documentVersionsByProgress === undefined && (
+              <div
+                className="py-8 text-center text-sm text-muted-foreground"
+                aria-live="polite"
+              >
+                {tCommon("loading")}
+              </div>
+            )}
+
+            {documentVersionsByProgress?.length === 0 && (
+              <div className="py-8 text-center text-muted-foreground">
+                <FileText className="mx-auto mb-3 h-12 w-12 opacity-50" aria-hidden="true" />
+                <p className="text-sm font-medium">{t("byProgress.noDocuments")}</p>
+                <p className="mt-2 text-xs">{t("byProgress.noDocumentsHint")}</p>
+              </div>
+            )}
+
+            {documentVersionsByProgress && progressDocumentGroups.map((group, groupIndex) => {
+              const snapshot = group.processStatusAtUpload
+              const groupName = group.isWithoutProgress
+                ? t("byProgress.noProgress")
+                : locale === "en" && snapshot?.nameEn
+                  ? snapshot.nameEn
+                  : snapshot?.name ?? t("byProgress.noProgress")
+
+              return (
+                <section
+                  key={group.key}
+                  className="space-y-3 rounded-lg border p-3 sm:p-4"
+                  aria-labelledby={`progress-document-group-${groupIndex}`}
+                  style={snapshot?.color ? { borderLeftColor: snapshot.color, borderLeftWidth: 4 } : undefined}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full bg-muted-foreground"
+                        style={snapshot?.color ? { backgroundColor: snapshot.color } : undefined}
+                        aria-hidden="true"
+                      />
+                      <h3
+                        id={`progress-document-group-${groupIndex}`}
+                        className="truncate text-sm font-semibold"
+                      >
+                        {groupName}
+                      </h3>
+                    </div>
+                    <Badge variant="outline">
+                      {t("byProgress.versionCount", { count: group.documents.length })}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2">
+                    {group.documents.map((document) => {
+                      const documentName = document.documentType?.name
+                        || document.documentName
+                        || document.fileName
+                      const uploadedAt = format(
+                        new Date(document.uploadedAt),
+                        locale === "pt" ? "dd/MM/yyyy HH:mm" : "MM/dd/yyyy hh:mm a",
+                      )
+
+                      return (
+                        <button
+                          key={document._id}
+                          type="button"
+                          className="flex w-full flex-col gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-row sm:items-center sm:justify-between"
+                          onClick={() => openReviewDialog(document._id)}
+                          aria-label={t("byProgress.viewVersion", {
+                            name: documentName,
+                            version: document.version,
+                          })}
+                        >
+                          <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                            {getStatusIcon(document.status)}
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="break-words text-sm font-medium">
+                                  {documentName}
+                                </span>
+                                <Badge variant="outline" className="text-xs">
+                                  {t("byProgress.version", { version: document.version })}
+                                </Badge>
+                                {document.isLatest && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {t("byProgress.currentVersion")}
+                                  </Badge>
+                                )}
+                              </div>
+                              {document.fileName !== documentName && (
+                                <p className="truncate text-xs text-muted-foreground" title={document.fileName}>
+                                  {document.fileName}
+                                </p>
+                              )}
+                              <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" aria-hidden="true" />
+                                {t("byProgress.uploadedAt", { date: uploadedAt })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+                            {getStatusBadge(document.status)}
+                            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              )
+            })}
+          </CardContent>
+        </TabsContent>
+      </Tabs>
+
+      {latestExigencia && (
+        <AlertDialog
+          open={latestExigenciaPromptOpen}
+          onOpenChange={setLatestExigenciaPromptOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("latestExigenciaPromptTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("latestExigenciaPromptDescription", {
+                  status: latestExigencia.caseStatusName,
+                  date: latestExigencia.displayDate,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleAddOutsideLatestExigencia}>
+                {tCommon("no")}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleOpenLatestExigenciaDocuments}>
+                {tCommon("yes")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {latestExigencia && latestExigenciaDocumentsOpen && (
+        <StatusDocumentsDialog
+          open={latestExigenciaDocumentsOpen}
+          onOpenChange={setLatestExigenciaDocumentsOpen}
+          individualProcessId={individualProcessId}
+          individualProcessStatusId={latestExigencia.statusId}
+          caseStatusName={latestExigencia.caseStatusName}
+          caseStatusColor={latestExigencia.caseStatusColor}
+          caseStatusCode={latestExigencia.caseStatusCode}
+          date={latestExigencia.displayDate}
+          userRole="admin"
+        />
+      )}
 
       {/* Dialogs */}
       {dialogs.upload.open && dialogs.upload.document && (

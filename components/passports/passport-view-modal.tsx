@@ -1,22 +1,26 @@
-"use client"
+"use client";
 
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { useTranslations } from "next-intl"
-import { EntityViewModal, ViewSection } from "@/components/ui/entity-view-modal"
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useLocale, useTranslations } from "next-intl";
+import {
+  EntityViewModal,
+  ViewSection,
+} from "@/components/ui/entity-view-modal";
 import {
   createField,
   createRelationshipField,
   createBadgeField,
-} from "@/lib/entity-view-helpers"
-import { FileText, User, Globe, Calendar, File } from "lucide-react"
+} from "@/lib/entity-view-helpers";
+import { FileText, User, Globe, Calendar, File } from "lucide-react";
+import { formatDate } from "@/lib/format-field-value";
 
 interface PassportViewModalProps {
-  passportId: Id<"passports">
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onEdit?: () => void
+  passportId: Id<"passports">;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEdit?: () => void;
 }
 
 export function PassportViewModal({
@@ -25,10 +29,11 @@ export function PassportViewModal({
   onOpenChange,
   onEdit,
 }: PassportViewModalProps) {
-  const t = useTranslations("Passports")
-  const tCommon = useTranslations("Common")
+  const t = useTranslations("Passports");
+  const tCommon = useTranslations("Common");
+  const locale = useLocale();
 
-  const passport = useQuery(api.passports.get, { id: passportId })
+  const passport = useQuery(api.passports.get, { id: passportId });
 
   if (!passport) {
     return (
@@ -41,29 +46,29 @@ export function PassportViewModal({
         loading={true}
         loadingText={tCommon("loading")}
       />
-    )
+    );
   }
 
   // Calculate expiry status
-  const now = new Date()
-  const expiryDate = passport.expiryDate ? new Date(passport.expiryDate) : null
+  const now = new Date();
+  const expiryDate = passport.expiryDate ? new Date(passport.expiryDate) : null;
   const daysUntilExpiry = expiryDate
     ? Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    : null
+    : null;
 
-  let expiryStatus = tCommon("unknown")
-  let expiryVariant: "default" | "secondary" | "destructive" = "secondary"
+  let expiryStatus = tCommon("unknown");
+  let expiryVariant: "default" | "secondary" | "destructive" = "secondary";
 
   if (daysUntilExpiry !== null) {
     if (daysUntilExpiry < 0) {
-      expiryStatus = t("expired")
-      expiryVariant = "destructive"
+      expiryStatus = t("expired");
+      expiryVariant = "destructive";
     } else if (daysUntilExpiry <= 90) {
-      expiryStatus = t("expiringSoon")
-      expiryVariant = "destructive"
+      expiryStatus = t("expiringSoon");
+      expiryVariant = "destructive";
     } else {
-      expiryStatus = t("valid")
-      expiryVariant = "default"
+      expiryStatus = t("valid");
+      expiryVariant = "default";
     }
   }
 
@@ -79,28 +84,33 @@ export function PassportViewModal({
           "name",
           {
             icon: <Globe className="h-4 w-4" />,
-          }
+          },
         ),
-        createField(t("issueDate"), passport.issueDate, "date", {
-          icon: <Calendar className="h-4 w-4" />,
-        }),
-        createField(t("expiryDate"), passport.expiryDate, "date", {
-          icon: <Calendar className="h-4 w-4" />,
-        }),
+        createField(
+          t("issueDate"),
+          passport.issueDate ? formatDate(passport.issueDate, locale) : null,
+          undefined,
+          {
+            icon: <Calendar className="h-4 w-4" />,
+          },
+        ),
+        createField(
+          t("expiryDate"),
+          passport.expiryDate ? formatDate(passport.expiryDate, locale) : null,
+          undefined,
+          {
+            icon: <Calendar className="h-4 w-4" />,
+          },
+        ),
       ],
     },
     {
       title: t("personInformation"),
       icon: <User className="h-5 w-5" />,
       fields: [
-        createRelationshipField(
-          t("person"),
-          passport.person,
-          "fullName",
-          {
-            icon: <User className="h-4 w-4" />,
-          }
-        ),
+        createRelationshipField(t("person"), passport.person, "fullName", {
+          icon: <User className="h-4 w-4" />,
+        }),
       ],
     },
     {
@@ -111,11 +121,11 @@ export function PassportViewModal({
         createBadgeField(
           t("isActive"),
           passport.isActive ? tCommon("active") : tCommon("inactive"),
-          passport.isActive ? "default" : "secondary"
+          passport.isActive ? "default" : "secondary",
         ),
       ],
     },
-  ]
+  ];
 
   // Add document section if file URL exists
   if (passport.fileUrl) {
@@ -127,7 +137,7 @@ export function PassportViewModal({
           fullWidth: true,
         }),
       ],
-    })
+    });
   }
 
   return (
@@ -140,5 +150,5 @@ export function PassportViewModal({
       size="lg"
       entity={passport}
     />
-  )
+  );
 }

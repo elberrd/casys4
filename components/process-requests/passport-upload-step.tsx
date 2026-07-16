@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -39,6 +40,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCountryTranslation } from "@/lib/i18n/countries";
+import {
+  PASSPORT_OCR_MAX_ATTEMPTS,
+  runPassportOcrWithRetries,
+} from "@/lib/passport-ocr-retry";
 
 const ACCEPTED_TYPES = [
   "image/png",
@@ -133,6 +139,8 @@ export interface PassportUploadStepProps {
   /** Reports how many reviewed passports are ready to commit (0 when none), so
    *  the wizard footer can enable "Próximo" / "Salvar rascunho". */
   onPendingReadyChange?: (count: number) => void;
+  /** Reports OCR/save activity so a containing dialog can prevent accidental close. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** Imperative handle: lets the wizard footer commit a pending review batch. */
@@ -163,8 +171,11 @@ type ExtractMatch = {
 type ExtractResult = {
   extracted: {
     givenNames?: string;
+    middleName?: string;
     surname?: string;
     fullName?: string;
+    fatherName?: string;
+    motherName?: string;
     passportNumber?: string;
     sex?: string;
     birthDate?: string;
@@ -188,18 +199,22 @@ type ExtractResult = {
       personName: string;
     } | null;
   } | null;
+  error: "invalid_response" | null;
 };
 
 type EditableFields = {
   givenNames: string;
+  middleName: string;
   surname: string;
+  fatherName: string;
+  motherName: string;
   passportNumber: string;
   sex: string;
   birthDate: string;
   issueDate: string;
   expiryDate: string;
-  nationality: string;
-  issuingCountry: string;
+  nationalityId: Id<"countries"> | "";
+  issuingCountryId: Id<"countries"> | "";
 };
 
 // --- Batch (multi-passport) review model -----------------------------------
@@ -222,11 +237,15 @@ type BatchItem = {
   id: string;
   fileName: string;
   status: BatchStatus;
+  attempt?: number;
   error?: string;
   // Populated once the passport has been read (status "ready"):
   storageId?: Id<"_storage">;
   givenNames?: string;
+  middleName?: string;
   surname?: string;
+  fatherName?: string;
+  motherName?: string;
   passportNumber?: string;
   sex?: string;
   birthDate?: string;
@@ -244,18 +263,21 @@ export const PassportUploadStep = forwardRef<
   PassportUploadStepHandle,
   PassportUploadStepProps
 >(function PassportUploadStep(
-  { onAdd, maxToAdd, disabled = false, onPendingReadyChange },
+  { onAdd, maxToAdd, disabled = false, onPendingReadyChange, onBusyChange },
   ref,
 ) {
   const t = useTranslations("ProcessRequests");
+  const getCountryName = useCountryTranslation();
 
   const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl);
   const applyCandidate = useMutation(api.passportUpload.applyCandidate);
   const extractPassport = useAction(api.passportOcr.extractPassport);
+  const countries = useQuery(api.countries.list, {}) ?? [];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isReading, setIsReading] = useState(false);
+  const [ocrAttempt, setOcrAttempt] = useState<number | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [storageId, setStorageId] = useState<Id<"_storage"> | null>(null);
   const [result, setResult] = useState<ExtractResult | null>(null);
@@ -270,6 +292,21 @@ export const PassportUploadStep = forwardRef<
   const busy =
     isReading || isApplying || isReadingBatch || isCommitting || disabled;
 
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+
+  const countryOptions = countries.map((country) => {
+    const translatedName = getCountryName(country.code) || country.name;
+    return {
+      value: country._id,
+      label: country.flag
+        ? `${country.flag} ${translatedName}`
+        : translatedName,
+    };
+  });
+
   // How many reviewed passports are ready to commit. Reported up so the wizard
   // footer can enable "Próximo" / "Salvar rascunho" before the explicit
   // "Adicionar candidatos" click, and reset to 0 when the uploader unmounts.
@@ -279,10 +316,7 @@ export const PassportUploadStep = forwardRef<
   useEffect(() => {
     onPendingReadyChange?.(pendingReadyCount);
   }, [pendingReadyCount, onPendingReadyChange]);
-  useEffect(
-    () => () => onPendingReadyChange?.(0),
-    [onPendingReadyChange],
-  );
+  useEffect(() => () => onPendingReadyChange?.(0), [onPendingReadyChange]);
 
   // Let the wizard footer commit the reviewed batch (same path as the explicit
   // "Adicionar candidatos" button) so navigating/saving isn't blocked by it.
@@ -302,6 +336,7 @@ export const PassportUploadStep = forwardRef<
   }, []);
 
   const resetState = () => {
+    setOcrAttempt(null);
     setStorageId(null);
     setResult(null);
     setFields(null);
@@ -337,6 +372,25 @@ export const PassportUploadStep = forwardRef<
     return uploaded;
   };
 
+  const readPassportWithRetries = (
+    uploaded: Id<"_storage">,
+    onAttempt: (attempt: number, maxAttempts: number) => void,
+  ): Promise<ExtractResult> =>
+    runPassportOcrWithRetries(
+      async () => {
+        const ocr = (await extractPassport({
+          storageId: uploaded,
+        })) as ExtractResult;
+
+        if (ocr.error) {
+          throw new Error("Passport OCR returned an invalid response");
+        }
+
+        return ocr;
+      },
+      { onAttempt },
+    );
+
   // --- Entry point: a set of files was selected/dropped --------------------
 
   const handleFiles = (fileList: FileList | null) => {
@@ -366,30 +420,35 @@ export const PassportUploadStep = forwardRef<
   const processSingle = async (file: File) => {
     try {
       setIsReading(true);
+      setOcrAttempt(null);
       setResult(null);
       setFields(null);
       const uploaded = await uploadFile(file);
       setStorageId(uploaded);
-      const ocr = (await extractPassport({
-        storageId: uploaded,
-      })) as ExtractResult;
+      const ocr = await readPassportWithRetries(uploaded, (attempt) =>
+        setOcrAttempt(attempt),
+      );
       setResult(ocr);
       setFields({
         givenNames: ocr.extracted.givenNames ?? "",
+        middleName: ocr.extracted.middleName ?? "",
         surname: ocr.extracted.surname ?? "",
+        fatherName: ocr.extracted.fatherName ?? "",
+        motherName: ocr.extracted.motherName ?? "",
         passportNumber: ocr.extracted.passportNumber ?? "",
         sex: ocr.extracted.sex ?? "",
         birthDate: ocr.extracted.birthDate ?? "",
         issueDate: ocr.extracted.issueDate ?? "",
         expiryDate: ocr.extracted.expiryDate ?? "",
-        nationality: ocr.extracted.nationality ?? "",
-        issuingCountry: ocr.extracted.issuingCountry ?? "",
+        nationalityId: ocr.nationalityId ?? "",
+        issuingCountryId: ocr.issuingCountryId ?? "",
       });
     } catch (error) {
       console.error("Error reading passport:", error);
       toast.error(t("ocrError"));
       resetState();
     } finally {
+      setOcrAttempt(null);
       setIsReading(false);
     }
   };
@@ -407,14 +466,22 @@ export const PassportUploadStep = forwardRef<
       toast.error(t("passportNumberRequired"));
       return;
     }
+    let handedOff = false;
     try {
       setIsApplying(true);
       const applied = (await applyCandidate({
         mode: "existing",
         personId,
         fillGaps: true,
+        middleName: fields.middleName.trim() || undefined,
+        surname: fields.surname.trim() || undefined,
+        fatherName: fields.fatherName.trim() || undefined,
+        motherName: fields.motherName.trim() || undefined,
+        sex: fields.sex || undefined,
+        birthDate: fields.birthDate || undefined,
+        nationalityId: fields.nationalityId || undefined,
         passportNumber: fields.passportNumber.trim(),
-        issuingCountryId: result?.issuingCountryId ?? undefined,
+        issuingCountryId: fields.issuingCountryId || undefined,
         issueDate: fields.issueDate || undefined,
         expiryDate: fields.expiryDate || undefined,
         storageId,
@@ -422,21 +489,25 @@ export const PassportUploadStep = forwardRef<
       const matched = result?.matches.find((m) => m._id === personId);
       const fullName =
         matched?.fullName ||
-        [fields.givenNames, fields.surname].filter(Boolean).join(" ").trim();
-      await onAdd([
-        toCandidateResult(
-          applied,
-          storageId,
-          fields.passportNumber.trim(),
-          fullName,
-        ),
-      ]);
+        [fields.givenNames, fields.middleName, fields.surname]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+      const candidate = toCandidateResult(
+        applied,
+        storageId,
+        fields.passportNumber.trim(),
+        fullName,
+      );
+      setIsApplying(false);
       resetState();
+      handedOff = true;
+      await onAdd([candidate]);
     } catch (error) {
       console.error("Error linking candidate:", error);
       toast.error(t("applyCandidateError"));
     } finally {
-      setIsApplying(false);
+      if (!handedOff) setIsApplying(false);
     }
   };
 
@@ -450,37 +521,46 @@ export const PassportUploadStep = forwardRef<
       toast.error(t("passportNumberRequired"));
       return;
     }
+    let handedOff = false;
     try {
       setIsApplying(true);
       const applied = (await applyCandidate({
         mode: "new",
         givenNames: fields.givenNames.trim(),
+        middleName: fields.middleName.trim() || undefined,
         surname: fields.surname.trim() || undefined,
+        fatherName: fields.fatherName.trim() || undefined,
+        motherName: fields.motherName.trim() || undefined,
         sex: fields.sex || undefined,
         birthDate: fields.birthDate || undefined,
-        nationalityId: result?.nationalityId ?? undefined,
+        nationalityId: fields.nationalityId || undefined,
         passportNumber: fields.passportNumber.trim(),
-        issuingCountryId: result?.issuingCountryId ?? undefined,
+        issuingCountryId: fields.issuingCountryId || undefined,
         issueDate: fields.issueDate || undefined,
         expiryDate: fields.expiryDate || undefined,
         storageId,
       })) as ApplyCandidateResult;
-      await onAdd([
-        toCandidateResult(
-          applied,
-          storageId,
-          fields.passportNumber.trim(),
-          [fields.givenNames.trim(), fields.surname.trim()]
-            .filter(Boolean)
-            .join(" "),
-        ),
-      ]);
+      const candidate = toCandidateResult(
+        applied,
+        storageId,
+        fields.passportNumber.trim(),
+        [
+          fields.givenNames.trim(),
+          fields.middleName.trim(),
+          fields.surname.trim(),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      setIsApplying(false);
       resetState();
+      handedOff = true;
+      await onAdd([candidate]);
     } catch (error) {
       console.error("Error creating candidate:", error);
       toast.error(t("applyCandidateError"));
     } finally {
-      setIsApplying(false);
+      if (!handedOff) setIsApplying(false);
     }
   };
 
@@ -513,12 +593,15 @@ export const PassportUploadStep = forwardRef<
         const id = items[i].id;
         try {
           const uploaded = await uploadFile(file);
-          const ocr = (await extractPassport({
-            storageId: uploaded,
-          })) as ExtractResult;
+          const ocr = await readPassportWithRetries(uploaded, (attempt) =>
+            patchItem(id, { attempt }),
+          );
 
           const givenNames = (ocr.extracted.givenNames ?? "").trim();
+          const middleName = (ocr.extracted.middleName ?? "").trim();
           const surname = (ocr.extracted.surname ?? "").trim();
+          const fatherName = (ocr.extracted.fatherName ?? "").trim();
+          const motherName = (ocr.extracted.motherName ?? "").trim();
           const passportNumber = (ocr.extracted.passportNumber ?? "").trim();
           if (!givenNames || !passportNumber) {
             patchItem(id, { status: "error", error: t("ocrIncomplete") });
@@ -562,7 +645,10 @@ export const PassportUploadStep = forwardRef<
             status: "ready",
             storageId: uploaded,
             givenNames,
+            middleName,
             surname,
+            fatherName,
+            motherName,
             passportNumber,
             sex: ocr.extracted.sex,
             birthDate: ocr.extracted.birthDate,
@@ -625,6 +711,13 @@ export const PassportUploadStep = forwardRef<
               mode: "existing",
               personId: resolution.personId,
               fillGaps: true,
+              middleName: item.middleName || undefined,
+              surname: item.surname || undefined,
+              fatherName: item.fatherName || undefined,
+              motherName: item.motherName || undefined,
+              sex: item.sex || undefined,
+              birthDate: item.birthDate || undefined,
+              nationalityId: item.nationalityId ?? undefined,
               passportNumber,
               issuingCountryId: item.issuingCountryId ?? undefined,
               issueDate: item.issueDate || undefined,
@@ -636,7 +729,10 @@ export const PassportUploadStep = forwardRef<
             applied = (await applyCandidate({
               mode: "new",
               givenNames: item.givenNames,
+              middleName: item.middleName || undefined,
               surname: item.surname || undefined,
+              fatherName: item.fatherName || undefined,
+              motherName: item.motherName || undefined,
               sex: item.sex || undefined,
               birthDate: item.birthDate || undefined,
               nationalityId: item.nationalityId ?? undefined,
@@ -646,14 +742,19 @@ export const PassportUploadStep = forwardRef<
               expiryDate: item.expiryDate || undefined,
               storageId: item.storageId,
             })) as ApplyCandidateResult;
-            fullName = [item.givenNames, item.surname]
+            fullName = [item.givenNames, item.middleName, item.surname]
               .filter(Boolean)
               .join(" ");
           }
           committedPersonIds.add(applied.personId);
           committedPassportNumbers.add(passportNumber);
           results.push(
-            toCandidateResult(applied, item.storageId!, passportNumber, fullName),
+            toCandidateResult(
+              applied,
+              item.storageId!,
+              passportNumber,
+              fullName,
+            ),
           );
         } catch (error) {
           console.error("Error resolving candidate:", error);
@@ -672,7 +773,9 @@ export const PassportUploadStep = forwardRef<
           toast.warning(t("somePassportsFailed", { count: failedCount }));
         }
         if (duplicateCount > 0) {
-          toast.info(t("duplicateCandidatesSkipped", { count: duplicateCount }));
+          toast.info(
+            t("duplicateCandidatesSkipped", { count: duplicateCount }),
+          );
         }
         const addedCount = await onAdd(results);
         committed =
@@ -923,6 +1026,15 @@ export const PassportUploadStep = forwardRef<
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="middle-name">{t("middleName")}</Label>
+                <Input
+                  id="middle-name"
+                  value={fields.middleName}
+                  onChange={(e) => setField("middleName", e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="surname">{t("surname")}</Label>
                 <Input
                   id="surname"
@@ -960,10 +1072,33 @@ export const PassportUploadStep = forwardRef<
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nationality">{t("nationality")}</Label>
+                <Combobox
+                  options={countryOptions}
+                  value={fields.nationalityId || undefined}
+                  onValueChange={(value) =>
+                    setField("nationalityId", value ?? "")
+                  }
+                  placeholder={t("selectCountry")}
+                  searchPlaceholder={t("searchCountry")}
+                  emptyText={t("noCountriesFound")}
+                  disabled={busy}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="father-name">{t("fatherName")}</Label>
                 <Input
-                  id="nationality"
-                  value={fields.nationality}
-                  onChange={(e) => setField("nationality", e.target.value)}
+                  id="father-name"
+                  value={fields.fatherName}
+                  onChange={(e) => setField("fatherName", e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mother-name">{t("motherName")}</Label>
+                <Input
+                  id="mother-name"
+                  value={fields.motherName}
+                  onChange={(e) => setField("motherName", e.target.value)}
                   disabled={busy}
                 />
               </div>
@@ -987,10 +1122,15 @@ export const PassportUploadStep = forwardRef<
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="issuing-country">{t("issuingCountry")}</Label>
-                <Input
-                  id="issuing-country"
-                  value={fields.issuingCountry}
-                  onChange={(e) => setField("issuingCountry", e.target.value)}
+                <Combobox
+                  options={countryOptions}
+                  value={fields.issuingCountryId || undefined}
+                  onValueChange={(value) =>
+                    setField("issuingCountryId", value ?? "")
+                  }
+                  placeholder={t("selectCountry")}
+                  searchPlaceholder={t("searchCountry")}
+                  emptyText={t("noCountriesFound")}
                   disabled={busy}
                 />
               </div>
@@ -1047,7 +1187,12 @@ export const PassportUploadStep = forwardRef<
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <div className="flex items-center gap-2 text-sm font-medium">
                 <ScanLine className="h-4 w-4" />
-                {t("reading")}
+                {ocrAttempt
+                  ? t("ocrAttempt", {
+                      attempt: ocrAttempt,
+                      max: PASSPORT_OCR_MAX_ATTEMPTS,
+                    })
+                  : t("reading")}
               </div>
             </>
           ) : (
@@ -1098,8 +1243,9 @@ function BatchItemCard({
   const t = useTranslations("ProcessRequests");
 
   const detectedName =
-    [item.givenNames, item.surname].filter(Boolean).join(" ") ||
-    `${t("candidate")} ${index + 1}`;
+    [item.givenNames, item.middleName, item.surname]
+      .filter(Boolean)
+      .join(" ") || `${t("candidate")} ${index + 1}`;
 
   const isLink = item.resolution?.kind === "link";
   const selectedPersonId =
@@ -1118,6 +1264,14 @@ function BatchItemCard({
             {item.status === "ready" && item.passportNumber && (
               <p className="truncate text-xs text-muted-foreground">
                 {t("passportNumber")}: {item.passportNumber}
+              </p>
+            )}
+            {item.status === "reading" && item.attempt && (
+              <p className="truncate text-xs text-muted-foreground">
+                {t("ocrAttempt", {
+                  attempt: item.attempt,
+                  max: PASSPORT_OCR_MAX_ATTEMPTS,
+                })}
               </p>
             )}
             {item.status === "error" && item.error && (

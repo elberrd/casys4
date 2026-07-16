@@ -39,6 +39,8 @@ export const applyCandidate = mutation({
     givenNames: v.optional(v.string()),
     middleName: v.optional(v.string()),
     surname: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    motherName: v.optional(v.string()),
     sex: v.optional(v.string()),
     birthDate: v.optional(v.string()),
     nationalityId: v.optional(v.id("countries")),
@@ -85,7 +87,9 @@ export const applyCandidate = mutation({
     let personId: Id<"people">;
     if (args.mode === "existing") {
       if (!args.personId) {
-        throw new Error("personId is required when using an existing candidate");
+        throw new Error(
+          "personId is required when using an existing candidate",
+        );
       }
       personId = args.personId;
       const person = await ctx.db.get(personId);
@@ -97,10 +101,16 @@ export const applyCandidate = mutation({
 
       if (args.fillGaps) {
         const patch: Record<string, unknown> = {};
-        if (!person.middleName && args.middleName) patch.middleName = args.middleName;
+        if (!person.middleName && args.middleName)
+          patch.middleName = args.middleName;
         if (!person.surname && args.surname) patch.surname = args.surname;
+        if (!person.fatherName && args.fatherName)
+          patch.fatherName = args.fatherName;
+        if (!person.motherName && args.motherName)
+          patch.motherName = args.motherName;
         if (!person.sex && args.sex) patch.sex = args.sex;
-        if (!person.birthDate && args.birthDate) patch.birthDate = args.birthDate;
+        if (!person.birthDate && args.birthDate)
+          patch.birthDate = args.birthDate;
         if (!person.nationalityId && args.nationalityId)
           patch.nationalityId = args.nationalityId;
         if (Object.keys(patch).length > 0) {
@@ -116,6 +126,8 @@ export const applyCandidate = mutation({
         givenNames: args.givenNames.trim(),
         middleName: args.middleName,
         surname: args.surname,
+        fatherName: args.fatherName,
+        motherName: args.motherName,
         sex: args.sex,
         birthDate: args.birthDate,
         nationalityId: args.nationalityId,
@@ -142,7 +154,7 @@ export const applyCandidate = mutation({
     const existingPassport = await ctx.db
       .query("passports")
       .withIndex("by_passportNumber", (q) =>
-        q.eq("passportNumber", passportNumber)
+        q.eq("passportNumber", passportNumber),
       )
       .first();
 
@@ -156,14 +168,19 @@ export const applyCandidate = mutation({
       // this is the backstop for any other caller.
       if (existingPassport.personId && existingPassport.personId !== personId) {
         throw new Error(
-          "This passport number is already registered to another person"
+          "This passport number is already registered to another person",
         );
       }
       passportId = existingPassport._id;
       const patch: Record<string, unknown> = { updatedAt: now };
       if (!existingPassport.personId) patch.personId = personId;
-      if (args.storageId && !existingPassport.storageId)
+      if (args.storageId && !existingPassport.storageId) {
         patch.storageId = args.storageId;
+      }
+      const resolvedStorageId = existingPassport.storageId ?? args.storageId;
+      if (!existingPassport.fileUrl && resolvedStorageId)
+        patch.fileUrl =
+          (await ctx.storage.getUrl(resolvedStorageId)) ?? undefined;
       if (!existingPassport.issuingCountryId && args.issuingCountryId)
         patch.issuingCountryId = args.issuingCountryId;
       if (!existingPassport.issueDate && args.issueDate)
@@ -173,23 +190,29 @@ export const applyCandidate = mutation({
       await ctx.db.patch(passportId, patch);
     } else {
       // Single-active-passport rule: deactivate other active passports.
-      const activePassports = await ctx.db
+      const personPassports = await ctx.db
         .query("passports")
         .withIndex("by_person", (q) => q.eq("personId", personId))
-        .filter((q) => q.eq(q.field("isActive"), true))
         .collect();
+      const activePassports = personPassports.filter(
+        (passport) => passport.isActive === true,
+      );
       await Promise.all(
         activePassports.map((p) =>
-          ctx.db.patch(p._id, { isActive: false, updatedAt: now })
-        )
+          ctx.db.patch(p._id, { isActive: false, updatedAt: now }),
+        ),
       );
 
+      const fileUrl = args.storageId
+        ? ((await ctx.storage.getUrl(args.storageId)) ?? undefined)
+        : undefined;
       passportId = await ctx.db.insert("passports", {
         personId,
         passportNumber,
         issuingCountryId: args.issuingCountryId,
         issueDate: args.issueDate,
         expiryDate: args.expiryDate,
+        fileUrl,
         storageId: args.storageId,
         isActive: true,
         createdAt: now,

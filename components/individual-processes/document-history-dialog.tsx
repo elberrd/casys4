@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useQuery, useMutation } from "convex/react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import {
@@ -35,11 +35,13 @@ import {
   Upload,
   RotateCcw,
   MessageSquare,
+  Lock,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { UploadNewVersionDialog } from "./upload-new-version-dialog"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 interface DocumentHistoryDialogProps {
   open: boolean
@@ -60,6 +62,7 @@ export function DocumentHistoryDialog({
 }: DocumentHistoryDialogProps) {
   const t = useTranslations("DocumentHistory")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
 
   const [restoreDocId, setRestoreDocId] = useState<Id<"documentsDelivered"> | null>(null)
   const [restoreVersion, setRestoreVersion] = useState<number>(0)
@@ -188,6 +191,11 @@ export function DocumentHistoryDialog({
                     const sizeDiff = getFileSizeDiff(doc.fileSize, previousDoc?.fileSize)
                     const uploaderName = doc.uploadedByProfile?.fullName || doc.uploadedByUser?.email || t("unknown")
                     const reviewerName = doc.reviewedByProfile?.fullName || doc.reviewedByUser?.email
+                    const processStatusName = doc.processStatusAtUpload
+                      ? locale === "en" && doc.processStatusAtUpload.nameEn
+                        ? doc.processStatusAtUpload.nameEn
+                        : doc.processStatusAtUpload.name
+                      : null
 
                     return (
                       <div key={doc._id} className="relative pl-10 pb-6 last:pb-0">
@@ -241,6 +249,29 @@ export function DocumentHistoryDialog({
                             <span className="text-muted-foreground whitespace-nowrap">
                               {formatFileSize(doc.fileSize)}
                             </span>
+                          </div>
+
+                          {/* Immutable process-progress snapshot for this version */}
+                          <div
+                            className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-sm"
+                            title={t("progressStatusAtUploadHint")}
+                          >
+                            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-muted-foreground">
+                              {t("progressStatusAtUpload")}:
+                            </span>
+                            {doc.processStatusAtUpload && processStatusName ? (
+                              <StatusBadge
+                                type="individual_process"
+                                status={processStatusName}
+                                color={doc.processStatusAtUpload.color}
+                                category={doc.processStatusAtUpload.category}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {t("progressStatusNotRecorded")}
+                              </span>
+                            )}
                           </div>
 
                           {/* Version notes */}

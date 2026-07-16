@@ -97,16 +97,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       isActive: false,
       items: [
         {
-          title: t('processRequests'),
-          url: "/process-requests",
+          title: t('individualProcesses'),
+          url: "/individual-processes",
         },
         {
           title: t('collectiveProcesses'),
           url: "/collective-processes",
         },
         {
-          title: t('individualProcesses'),
-          url: "/individual-processes",
+          title: t('processRequests'),
+          url: "/process-requests",
         },
       ],
     },

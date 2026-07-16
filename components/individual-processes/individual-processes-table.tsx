@@ -66,6 +66,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
+import { translateCountryName } from "@/lib/utils/country-translations";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
@@ -123,6 +124,10 @@ interface IndividualProcess {
     middleName?: string;
     surname?: string;
     email?: string;
+    nationality?: {
+      _id: Id<"countries">;
+      name: string;
+    } | null;
   } | null;
   collectiveProcess?: {
     _id: Id<"collectiveProcesses">;
@@ -144,6 +149,11 @@ interface IndividualProcess {
   userApplicant?: {
     _id: Id<"people">;
     fullName: string;
+  } | null;
+  cbo?: {
+    _id: Id<"cboCodes">;
+    code?: string;
+    title: string;
   } | null;
   protocolNumber?: string;
   rnmNumber?: string;
@@ -336,6 +346,8 @@ export function IndividualProcessesTable({
     professionalExperience: false,
     notes: true,
     progressDate: true,
+    nationality: true,
+    cbo: true,
   };
 
   // Support both controlled and uncontrolled column visibility
@@ -677,6 +689,30 @@ export function IndividualProcessesTable({
             text={row.original.person?.fullName || "-"}
           />
         ),
+      },
+      {
+        id: "nationality",
+        accessorFn: (row) => {
+          const nationalityName = row.person?.nationality?.name;
+          return nationalityName
+            ? translateCountryName(nationalityName, locale)
+            : "";
+        },
+        minSize: 110,
+        maxSize: 160,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("nationality")} />
+        ),
+        cell: ({ row }) => {
+          const nationality = row.getValue<string>("nationality");
+          return nationality ? (
+            <DataGridHighlightedCell text={nationality} />
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          );
+        },
+        enableSorting: true,
+        enableHiding: true,
       },
       {
         accessorKey: "protocolNumber",
@@ -1601,6 +1637,29 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
+        id: "cbo",
+        accessorFn: (row) => {
+          const cbo = row.cbo;
+          if (!cbo) return "";
+          return cbo.code ? `${cbo.code} - ${cbo.title}` : cbo.title;
+        },
+        minSize: 140,
+        maxSize: 240,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("cboColumn")} />
+        ),
+        cell: ({ row }) => {
+          const cbo = row.getValue<string>("cbo");
+          return cbo ? (
+            <DataGridHighlightedCell text={cbo} />
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          );
+        },
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
         accessorKey: "notesCount",
         id: "notes",
         minSize: 40,
@@ -1781,6 +1840,7 @@ export function IndividualProcessesTable({
     const headerByColumnId: Record<string, string> = {
       progressDate: t("progressDate"),
       person_fullName: t("personName"),
+      nationality: t("nationality"),
       protocolNumber: t("protocol"),
       companyApplicant_name: t("applicant"),
       userApplicant_fullName: t("userApplicant"),
@@ -1792,6 +1852,7 @@ export function IndividualProcessesTable({
       filledFields: t("filledFields"),
       processStatus: t("processStatus"),
       rnmDeadline: t("fields.rnmDeadline"),
+      cbo: t("cboColumn"),
       notes: t("notes"),
     };
 
@@ -1908,6 +1969,12 @@ export function IndividualProcessesTable({
           );
         case "person_fullName":
           return process.person?.fullName || "-";
+        case "nationality": {
+          const nationalityName = process.person?.nationality?.name;
+          return nationalityName
+            ? translateCountryName(nationalityName, locale)
+            : "-";
+        }
         case "protocolNumber":
           return process.protocolNumber || "-";
         case "companyApplicant_name":
@@ -1934,6 +2001,12 @@ export function IndividualProcessesTable({
           return formatProcessStatus(process);
         case "rnmDeadline":
           return formatRnmDeadline(process);
+        case "cbo":
+          return process.cbo
+            ? process.cbo.code
+              ? `${process.cbo.code} - ${process.cbo.title}`
+              : process.cbo.title
+            : "-";
         case "notes":
           return String(process.notesCount || 0);
         default:
@@ -2208,6 +2281,7 @@ export function IndividualProcessesTable({
             onReset={() => setColumnVisibility(getResetColumnVisibility())}
             columnLabels={{
               "person_fullName": t("personName"),
+              "nationality": t("nationality"),
               "protocolNumber": t("protocol"),
               "companyApplicant_name": t("applicant"),
               "userApplicant_fullName": t("userApplicant"),
@@ -2220,6 +2294,7 @@ export function IndividualProcessesTable({
               "filledFields": t("filledFields"),
               "processStatus": t("processStatus"),
               "rnmDeadline": t("fields.rnmDeadline"),
+              "cbo": t("cboColumn"),
               "notes": t("notes"),
             }}
             trigger={

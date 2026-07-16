@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useMutation, useQuery } from "convex/react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import {
@@ -49,6 +49,7 @@ import {
   Info,
   Trash2,
   ShieldOff,
+  Lock,
 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -67,7 +68,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { UploadNewVersionDialog } from "@/components/individual-processes/upload-new-version-dialog"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { DatePicker } from "@/components/ui/date-picker"
 import { LinkedFieldInput } from "./linked-field-input"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 interface DocumentReviewDialogProps {
   open: boolean
@@ -84,6 +87,7 @@ export function DocumentReviewDialog({
 }: DocumentReviewDialogProps) {
   const t = useTranslations("DocumentReview")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
 
   const [rejectionReason, setRejectionReason] = useState("")
   const [isIllegible, setIsIllegible] = useState(false)
@@ -100,6 +104,9 @@ export function DocumentReviewDialog({
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [editingNotes, setEditingNotes] = useState("")
   const [isSavingNotes, setIsSavingNotes] = useState(false)
+  const [isEditingIssueDate, setIsEditingIssueDate] = useState(false)
+  const [editingIssueDate, setEditingIssueDate] = useState<string | undefined>()
+  const [isSavingIssueDate, setIsSavingIssueDate] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
@@ -164,6 +171,7 @@ export function DocumentReviewDialog({
   const updateFieldValues = useMutation(api.documentTypeFieldMappings.updateFieldValues)
   const removeDocument = useMutation(api.documentsDelivered.remove)
   const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
+  const updateIssueDate = useMutation(api.documentsDelivered.updateIssueDate)
   const toggleBypassConditions = useMutation(api.documentsDelivered.toggleBypassConditions)
 
   const isManuallyAdded = document
@@ -230,6 +238,8 @@ export function DocumentReviewDialog({
       setIsIllegible(false)
       setIsEditingNotes(false)
       setEditingNotes("")
+      setIsEditingIssueDate(false)
+      setEditingIssueDate(undefined)
     }
   }, [open])
 
@@ -241,6 +251,30 @@ export function DocumentReviewDialog({
   // When no version is explicitly selected, prefer the latest from history (handles new uploads)
   const displayDocument = selectedVersion || latestVersion || document
   const isViewingOldVersion = !!(selectedVersion && !selectedVersion.isLatest)
+
+  useEffect(() => {
+    setIsEditingIssueDate(false)
+    setEditingIssueDate(undefined)
+  }, [displayDocument?._id])
+
+  const handleSaveIssueDate = async () => {
+    if (!displayDocument?._id) return
+
+    try {
+      setIsSavingIssueDate(true)
+      await updateIssueDate({
+        documentId: displayDocument._id,
+        issueDate: editingIssueDate,
+      })
+      toast.success(t("issueDateSaved"))
+      setIsEditingIssueDate(false)
+    } catch (error) {
+      console.error("Error saving issue date:", error)
+      toast.error(t("issueDateError"))
+    } finally {
+      setIsSavingIssueDate(false)
+    }
+  }
 
   const getEditKey = (entityType: string, fieldPath: string) => `${entityType}:${fieldPath}`
 
@@ -840,6 +874,32 @@ export function DocumentReviewDialog({
               </div>
             </div>
 
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-sm"
+              title={t("progressStatusAtUploadHint")}
+            >
+              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                {t("progressStatusAtUpload")}:
+              </span>
+              {displayDocument?.processStatusAtUpload ? (
+                <StatusBadge
+                  type="individual_process"
+                  status={
+                    locale === "en" && displayDocument.processStatusAtUpload.nameEn
+                      ? displayDocument.processStatusAtUpload.nameEn
+                      : displayDocument.processStatusAtUpload.name
+                  }
+                  color={displayDocument.processStatusAtUpload.color}
+                  category={displayDocument.processStatusAtUpload.category}
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {t("progressStatusNotRecorded")}
+                </span>
+              )}
+            </div>
+
             {document.reusedFromInfo && (
               <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 text-sm">
                 <RotateCcw className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -863,8 +923,8 @@ export function DocumentReviewDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-sm">
-              {displayDocument?.issueDate && (
-                <div>
+              <div>
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1">
                     <p className="text-muted-foreground">{t("issueDate")}</p>
                     <Tooltip>
@@ -876,11 +936,72 @@ export function DocumentReviewDialog({
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="font-medium">
-                    {format(parseISO(displayDocument.issueDate), "PPP")}
-                  </p>
+                  {!isEditingIssueDate && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setEditingIssueDate(displayDocument?.issueDate)
+                        setIsEditingIssueDate(true)
+                      }}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" />
+                      {tCommon("edit")}
+                    </Button>
+                  )}
                 </div>
-              )}
+                {isEditingIssueDate ? (
+                  <div className="mt-2 space-y-2">
+                    <DatePicker
+                      value={editingIssueDate}
+                      onChange={setEditingIssueDate}
+                      disabled={isSavingIssueDate}
+                      showYearMonthDropdowns
+                      toYear={new Date().getFullYear()}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setIsEditingIssueDate(false)
+                          setEditingIssueDate(undefined)
+                        }}
+                        disabled={isSavingIssueDate}
+                      >
+                        {tCommon("cancel")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleSaveIssueDate}
+                        disabled={
+                          isSavingIssueDate ||
+                          editingIssueDate === displayDocument?.issueDate
+                        }
+                      >
+                        {isSavingIssueDate ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Save className="mr-1 h-3 w-3" />
+                        )}
+                        {tCommon("save")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-medium">
+                    {displayDocument?.issueDate
+                      ? format(parseISO(displayDocument.issueDate), "PPP")
+                      : "—"}
+                  </p>
+                )}
+              </div>
               {displayDocument?.expiryDate && (
                 <div>
                   <div className="flex items-center gap-1">

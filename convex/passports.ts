@@ -1,17 +1,24 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { syncPassportDocumentForPassport } from "./lib/passportDocumentSync";
 
-function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: {
+  givenNames: string;
+  middleName?: string;
+  surname?: string;
+}): string {
+  return [person.givenNames, person.middleName, person.surname]
+    .filter(Boolean)
+    .join(" ");
 }
 
 // Helper function to calculate passport status
-function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
+function calculateStatus(
+  expiryDate: string,
+): "Valid" | "Expiring Soon" | "Expired" {
   const today = new Date();
   const expiry = new Date(expiryDate);
   const sixMonthsFromNow = new Date();
@@ -67,14 +74,18 @@ export const list = query({
 
       // Filter passports: keep only those for people from client's company
       passports = passports.filter((passport) =>
-        allowedPersonIds.has(passport.personId)
+        allowedPersonIds.has(passport.personId),
       );
     }
 
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
-        const person = passport.personId ? await ctx.db.get(passport.personId) : null;
-        const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
+        const person = passport.personId
+          ? await ctx.db.get(passport.personId)
+          : null;
+        const country = passport.issuingCountryId
+          ? await ctx.db.get(passport.issuingCountryId)
+          : null;
 
         return {
           ...passport,
@@ -91,17 +102,23 @@ export const list = query({
                 code: country.code,
               }
             : null,
-          status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
+          status: passport.expiryDate
+            ? calculateStatus(passport.expiryDate)
+            : "Expired",
         };
-      })
+      }),
     );
 
     // Apply search filter
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
       return passportsWithRelations.filter((passport) => {
-        const passportNumber = passport.passportNumber ? normalizeString(passport.passportNumber) : "";
-        const personName = passport.person ? normalizeString(passport.person.fullName) : "";
+        const passportNumber = passport.passportNumber
+          ? normalizeString(passport.passportNumber)
+          : "";
+        const personName = passport.person
+          ? normalizeString(passport.person.fullName)
+          : "";
 
         return (
           passportNumber.includes(searchNormalized) ||
@@ -135,13 +152,13 @@ export const listByPerson = query({
       const personCompany = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId)
+          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
         )
         .first();
 
       if (!personCompany) {
         throw new Error(
-          "Access denied: You do not have permission to view this person's passports"
+          "Access denied: You do not have permission to view this person's passports",
         );
       }
     }
@@ -153,7 +170,9 @@ export const listByPerson = query({
 
     const passportsWithRelations = await Promise.all(
       passports.map(async (passport) => {
-        const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
+        const country = passport.issuingCountryId
+          ? await ctx.db.get(passport.issuingCountryId)
+          : null;
 
         return {
           ...passport,
@@ -164,9 +183,11 @@ export const listByPerson = query({
                 code: country.code,
               }
             : null,
-          status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
+          status: passport.expiryDate
+            ? calculateStatus(passport.expiryDate)
+            : "Expired",
         };
-      })
+      }),
     );
 
     return passportsWithRelations;
@@ -194,13 +215,13 @@ export const getActivePassportByPerson = query({
       const personCompany = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId)
+          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
         )
         .first();
 
       if (!personCompany) {
         throw new Error(
-          "Access denied: You do not have permission to view this person's passports"
+          "Access denied: You do not have permission to view this person's passports",
         );
       }
     }
@@ -225,7 +246,9 @@ export const getActivePassportByPerson = query({
             name: country.name,
           }
         : null,
-      status: activePassport.expiryDate ? calculateStatus(activePassport.expiryDate) : "Expired",
+      status: activePassport.expiryDate
+        ? calculateStatus(activePassport.expiryDate)
+        : "Expired",
     };
   },
 });
@@ -251,13 +274,13 @@ export const countByPerson = query({
       const personCompany = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId)
+          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
         )
         .first();
 
       if (!personCompany) {
         throw new Error(
-          "Access denied: You do not have permission to view this person's passports"
+          "Access denied: You do not have permission to view this person's passports",
         );
       }
     }
@@ -295,22 +318,30 @@ export const get = query({
       const personCompany = await ctx.db
         .query("peopleCompanies")
         .withIndex("by_person_company", (q) =>
-          q.eq("personId", passport.personId).eq("companyId", clientCompanyId)
+          q.eq("personId", passport.personId).eq("companyId", clientCompanyId),
         )
         .first();
 
       if (!personCompany) {
         throw new Error(
-          "Access denied: You do not have permission to view this passport"
+          "Access denied: You do not have permission to view this passport",
         );
       }
     }
 
-    const person = passport.personId ? await ctx.db.get(passport.personId) : null;
-    const country = passport.issuingCountryId ? await ctx.db.get(passport.issuingCountryId) : null;
+    const person = passport.personId
+      ? await ctx.db.get(passport.personId)
+      : null;
+    const country = passport.issuingCountryId
+      ? await ctx.db.get(passport.issuingCountryId)
+      : null;
+    const fileUrl = passport.storageId
+      ? ((await ctx.storage.getUrl(passport.storageId)) ?? passport.fileUrl)
+      : passport.fileUrl;
 
     return {
       ...passport,
+      fileUrl,
       person: person
         ? {
             _id: person._id,
@@ -323,7 +354,9 @@ export const get = query({
             name: country.name,
           }
         : null,
-      status: passport.expiryDate ? calculateStatus(passport.expiryDate) : "Expired",
+      status: passport.expiryDate
+        ? calculateStatus(passport.expiryDate)
+        : "Expired",
     };
   },
 });
@@ -349,7 +382,9 @@ export const checkPassportNumberDuplicate = query({
 
     const existing = await ctx.db
       .query("passports")
-      .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber.trim()))
+      .withIndex("by_passportNumber", (q) =>
+        q.eq("passportNumber", args.passportNumber.trim()),
+      )
       .first();
 
     if (!existing) {
@@ -360,7 +395,9 @@ export const checkPassportNumberDuplicate = query({
       return { isAvailable: true, existingPassport: null };
     }
 
-    const person = existing.personId ? await ctx.db.get(existing.personId) : null;
+    const person = existing.personId
+      ? await ctx.db.get(existing.personId)
+      : null;
 
     return {
       isAvailable: false,
@@ -400,7 +437,9 @@ export const create = mutation({
     // Check for duplicate passport number
     const duplicatePassport = await ctx.db
       .query("passports")
-      .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber))
+      .withIndex("by_passportNumber", (q) =>
+        q.eq("passportNumber", args.passportNumber),
+      )
       .first();
     if (duplicatePassport) {
       throw new Error("This passport number is already registered");
@@ -423,8 +462,8 @@ export const create = mutation({
           ctx.db.patch(passport._id, {
             isActive: false,
             updatedAt: now,
-          })
-        )
+          }),
+        ),
       );
     }
 
@@ -507,7 +546,9 @@ export const update = mutation({
     if (args.passportNumber !== existing.passportNumber) {
       const duplicatePassport = await ctx.db
         .query("passports")
-        .withIndex("by_passportNumber", (q) => q.eq("passportNumber", args.passportNumber))
+        .withIndex("by_passportNumber", (q) =>
+          q.eq("passportNumber", args.passportNumber),
+        )
         .first();
       if (duplicatePassport) {
         throw new Error("This passport number is already registered");
@@ -530,8 +571,8 @@ export const update = mutation({
             ctx.db.patch(passport._id, {
               isActive: false,
               updatedAt: now,
-            })
-          )
+            }),
+          ),
       );
     }
 
@@ -563,12 +604,17 @@ export const update = mutation({
     // attached) — sync the "Passaporte" document of every process using it.
     await syncPassportDocumentForPassport(ctx, id);
 
-    const [previousPerson, nextPerson, previousCountry, nextCountry] = await Promise.all([
-      existing.personId ? ctx.db.get(existing.personId) : null,
-      updateData.personId ? ctx.db.get(updateData.personId) : null,
-      existing.issuingCountryId ? ctx.db.get(existing.issuingCountryId) : null,
-      updateData.issuingCountryId ? ctx.db.get(updateData.issuingCountryId) : null,
-    ]);
+    const [previousPerson, nextPerson, previousCountry, nextCountry] =
+      await Promise.all([
+        existing.personId ? ctx.db.get(existing.personId) : null,
+        updateData.personId ? ctx.db.get(updateData.personId) : null,
+        existing.issuingCountryId
+          ? ctx.db.get(existing.issuingCountryId)
+          : null,
+        updateData.issuingCountryId
+          ? ctx.db.get(updateData.issuingCountryId)
+          : null,
+      ]);
 
     const changes = buildChangedFields(
       {
@@ -586,7 +632,7 @@ export const update = mutation({
         issueDate: updateData.issueDate,
         expiryDate: updateData.expiryDate,
         isActive,
-      }
+      },
     );
 
     if (Object.keys(changes).length > 0) {

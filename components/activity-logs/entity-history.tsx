@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { formatDistanceToNow, format } from "date-fns"
+import { formatDistanceToNow, format, parseISO } from "date-fns"
 import { enUS, ptBR } from "date-fns/locale"
 import {
   Plus,
@@ -74,6 +74,7 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     salaryInBRL: "Salario em BRL",
     monthlyAmountToReceive: "Valor mensal a receber",
     dateProcess: "Data do processo",
+    issueDate: "Data de emissão",
     cboId: "CBO",
     consulateId: "Consulado",
     companyApplicantId: "Empresa requerente",
@@ -98,6 +99,7 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     salaryInBRL: "Salary in BRL",
     monthlyAmountToReceive: "Monthly amount to receive",
     dateProcess: "Process date",
+    issueDate: "Issue date",
     cboId: "CBO",
     consulateId: "Consulate",
     companyApplicantId: "Applicant company",
@@ -241,7 +243,7 @@ export function EntityHistory({
       // Check if it's an ISO date or date-like string
       if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
         try {
-          return format(new Date(value), locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy")
+          return format(parseISO(value), locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy")
         } catch {
           return value
         }

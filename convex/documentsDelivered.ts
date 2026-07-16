@@ -1,13 +1,65 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile, requireClientCanAccessProcess } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
+import { getProcessStatusAtUpload } from "./lib/documentProgressSnapshot";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
 }
+
+function isValidIsoDate(date: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+const processStatusAtUploadValidator = v.object({
+  individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
+  caseStatusId: v.optional(v.id("caseStatuses")),
+  name: v.string(),
+  nameEn: v.optional(v.string()),
+  code: v.string(),
+  color: v.optional(v.string()),
+  category: v.optional(v.string()),
+});
+
+const documentVersionByProgressValidator = v.object({
+  _id: v.id("documentsDelivered"),
+  _creationTime: v.number(),
+  documentTypeId: v.optional(v.id("documentTypes")),
+  documentRequirementId: v.optional(v.id("documentRequirements")),
+  fileName: v.string(),
+  fileUrl: v.string(),
+  fileSize: v.number(),
+  mimeType: v.string(),
+  status: v.string(),
+  uploadedAt: v.number(),
+  version: v.number(),
+  isLatest: v.boolean(),
+  documentName: v.optional(v.string()),
+  processStatusAtUpload: v.optional(processStatusAtUploadValidator),
+  documentType: v.union(
+    v.object({
+      _id: v.id("documentTypes"),
+      name: v.string(),
+      isInformationOnly: v.optional(v.boolean()),
+    }),
+    v.null(),
+  ),
+});
 
 /**
  * Query to list documents delivered for an individual process
@@ -97,6 +149,77 @@ export const list = query({
     );
 
     return enrichedDocuments;
+  },
+});
+
+/**
+ * Lists every submitted file version with the immutable process-progress
+ * snapshot captured when that exact version was uploaded.
+ */
+export const listVersionsByProgress = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  returns: v.array(documentVersionByProgressValidator),
+  handler: async (ctx, { individualProcessId }) => {
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+
+    const processDocuments = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId),
+      )
+      .collect();
+
+    const visibleVersions = processDocuments
+      .filter(
+        (document) =>
+          document.version > 0 &&
+          (document.storageId !== undefined || document.fileUrl.trim().length > 0),
+      )
+      .filter(
+        (document) =>
+          userProfile.role !== "client" || document.excludedFromReport !== true,
+      )
+      .sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+    return await Promise.all(
+      visibleVersions.map(async (document) => {
+        const documentType = document.documentTypeId
+          ? await ctx.db.get(document.documentTypeId)
+          : null;
+
+        return {
+          _id: document._id,
+          _creationTime: document._creationTime,
+          documentTypeId: document.documentTypeId,
+          documentRequirementId: document.documentRequirementId,
+          fileName: document.fileName,
+          fileUrl: document.fileUrl,
+          fileSize: document.fileSize,
+          mimeType: document.mimeType,
+          status: document.status,
+          uploadedAt: document.uploadedAt,
+          version: document.version,
+          isLatest: document.isLatest,
+          documentName: document.documentName,
+          processStatusAtUpload: document.processStatusAtUpload,
+          documentType: documentType
+            ? {
+                _id: documentType._id,
+                name: documentType.name,
+                isInformationOnly: documentType.isInformationOnly,
+              }
+            : null,
+        };
+      }),
+    );
   },
 });
 
@@ -345,6 +468,8 @@ export const upload = mutation({
     }
 
     const status = canAutoApprove ? "approved" : (isIllegible ? "rejected" : "uploaded");
+    const uploadedAt = Date.now();
+    const processStatusAtUpload = await getProcessStatusAtUpload(ctx, individualProcess);
     const documentId = await ctx.db.insert("documentsDelivered", {
       individualProcessId: args.individualProcessId,
       documentTypeId: args.documentTypeId,
@@ -357,9 +482,9 @@ export const upload = mutation({
       mimeType: args.mimeType,
       status,
       uploadedBy: uploaderUserId,
-      uploadedAt: Date.now(),
+      uploadedAt,
       reviewedBy: (canAutoApprove || isIllegible) ? uploaderUserId : undefined,
-      reviewedAt: (canAutoApprove || isIllegible) ? Date.now() : undefined,
+      reviewedAt: (canAutoApprove || isIllegible) ? uploadedAt : undefined,
       rejectionReason: isIllegible ? (args.rejectionReason || "Documento ilegível") : undefined,
       isIllegible: isIllegible || undefined,
       bypassConditions: args.bypassConditions || undefined,
@@ -368,6 +493,7 @@ export const upload = mutation({
       version: version,
       isLatest: true,
       versionNotes: args.versionNotes,
+      processStatusAtUpload,
       // Preserve exigência link when uploading a new version
       individualProcessStatusId: currentLatest?.individualProcessStatusId,
     });
@@ -866,6 +992,15 @@ export const restoreVersion = mutation({
 
     const newVersion = maxVersion + 1;
     const notes = args.versionNotes || `Restaurado da versão ${oldDocument.version}`;
+    const uploadedAt = Date.now();
+    const individualProcess = await ctx.db.get(oldDocument.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+    const processStatusAtUpload = await getProcessStatusAtUpload(
+      ctx,
+      individualProcess
+    );
 
     // Create new version reusing the old storageId
     const newDocId = await ctx.db.insert("documentsDelivered", {
@@ -883,11 +1018,12 @@ export const restoreVersion = mutation({
       mimeType: oldDocument.mimeType,
       status: "uploaded", // Reset to uploaded for re-review
       uploadedBy: adminProfile.userId,
-      uploadedAt: Date.now(),
+      uploadedAt,
       expiryDate: oldDocument.expiryDate,
       version: newVersion,
       isLatest: true,
       versionNotes: notes,
+      processStatusAtUpload,
       // Preserve exigência link from current latest version
       individualProcessStatusId: currentLatest?.individualProcessStatusId,
       excludedFromReport: oldDocument.excludedFromReport,
@@ -1120,6 +1256,64 @@ export const updateVersionNotes = mutation({
     });
 
     return args.documentId;
+  },
+});
+
+/**
+ * Update the issue date of a delivered document version (admin only).
+ * The document status is intentionally preserved.
+ */
+export const updateIssueDate = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    issueDate: v.optional(v.string()),
+  },
+  returns: v.id("documentsDelivered"),
+  handler: async (ctx, args) => {
+    const adminProfile = await requireAdmin(ctx);
+    const issueDate = args.issueDate?.trim() || undefined;
+
+    if (issueDate && !isValidIsoDate(issueDate)) {
+      throw new ConvexError({
+        code: "INVALID_ISSUE_DATE",
+        message: "Issue date must be a valid date in YYYY-MM-DD format",
+      });
+    }
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new ConvexError({
+        code: "DOCUMENT_NOT_FOUND",
+        message: "Document not found",
+      });
+    }
+
+    if (document.issueDate === issueDate) {
+      return document._id;
+    }
+
+    await ctx.db.patch(args.documentId, { issueDate });
+
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "issue_date_updated",
+        entityType: "document",
+        entityId: document._id,
+        details: {
+          fileName: document.fileName,
+          version: document.version,
+          changes: {
+            issueDate: {
+              before: document.issueDate ?? null,
+              after: issueDate ?? null,
+            },
+          },
+        },
+      });
+    }
+
+    return document._id;
   },
 });
 
@@ -1616,6 +1810,10 @@ export const uploadLoose = mutation({
     const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
     // Placeholder records (no file) start at version 0; filled records start at 1
     const initialVersion = hasFile ? 1 : 0;
+    const uploadedAt = Date.now();
+    const processStatusAtUpload = hasFile
+      ? await getProcessStatusAtUpload(ctx, individualProcess)
+      : undefined;
 
     // Create document without type (loose document)
     const documentId = await ctx.db.insert("documentsDelivered", {
@@ -1630,13 +1828,14 @@ export const uploadLoose = mutation({
       mimeType: hasFile ? args.mimeType! : "",
       status,
       uploadedBy: uploaderUserId,
-      uploadedAt: Date.now(),
-      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+      uploadedAt,
+      ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
       version: initialVersion,
       isLatest: true,
       versionNotes: args.versionNotes,
+      processStatusAtUpload,
       individualProcessStatusId: args.individualProcessStatusId,
       documentName: args.documentName,
     });
@@ -1838,6 +2037,10 @@ export const uploadWithType = mutation({
     }
 
     const status = canAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+    const uploadedAt = Date.now();
+    const processStatusAtUpload = hasFile
+      ? await getProcessStatusAtUpload(ctx, individualProcess)
+      : undefined;
 
     // Create document with type
     const documentId = await ctx.db.insert("documentsDelivered", {
@@ -1852,8 +2055,8 @@ export const uploadWithType = mutation({
       mimeType: hasFile ? (args.mimeType || "") : "",
       status,
       uploadedBy: uploaderUserId,
-      uploadedAt: Date.now(),
-      ...(canAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+      uploadedAt,
+      ...(canAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
       bypassConditions: args.bypassConditions || undefined,
       expiryDate: args.expiryDate,
       issueDate: args.issueDate,
@@ -1861,6 +2064,7 @@ export const uploadWithType = mutation({
       isLatest: true,
       isRequired: false, // Manual uploads with type are optional by default
       versionNotes: args.versionNotes,
+      processStatusAtUpload,
       individualProcessStatusId: args.individualProcessStatusId,
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
@@ -2114,6 +2318,8 @@ export const uploadForPending = mutation({
     // Determine status based on auto-approve
     const shouldAutoApprove = args.autoApprove === true;
     const status = shouldAutoApprove ? "approved" : "uploaded";
+    const uploadedAt = Date.now();
+    const processStatusAtUpload = await getProcessStatusAtUpload(ctx, individualProcess);
     let savedDocumentId = args.documentId;
     let newVersion = document.version === 0 ? 1 : document.version;
 
@@ -2148,13 +2354,14 @@ export const uploadForPending = mutation({
         mimeType: args.mimeType,
         status,
         uploadedBy: uploaderUserId,
-        uploadedAt: Date.now(),
-        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+        uploadedAt,
+        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
         expiryDate: args.expiryDate,
         issueDate: args.issueDate,
         versionNotes: args.versionNotes,
         version: newVersion,
         isLatest: true,
+        processStatusAtUpload,
         reusedFromDocumentId: document.reusedFromDocumentId,
         individualProcessStatusId: document.individualProcessStatusId,
         documentName: document.documentName,
@@ -2170,12 +2377,13 @@ export const uploadForPending = mutation({
         mimeType: args.mimeType,
         status,
         uploadedBy: uploaderUserId,
-        uploadedAt: Date.now(),
-        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: Date.now() } : {}),
+        uploadedAt,
+        ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
         expiryDate: args.expiryDate,
         issueDate: args.issueDate,
         versionNotes: args.versionNotes,
         version: newVersion,
+        processStatusAtUpload: document.processStatusAtUpload ?? processStatusAtUpload,
       });
     }
 
@@ -2898,6 +3106,8 @@ export const reuseCompanyDocument = mutation({
     const previousStatus = targetDoc.status;
     // Bump version 0 (placeholder) → 1 on first fill via reuse
     const newVersion = targetDoc.version === 0 ? 1 : targetDoc.version;
+    const uploadedAt = Date.now();
+    const processStatusAtUpload = await getProcessStatusAtUpload(ctx, targetProcess);
 
     // Copy file data from source to target
     await ctx.db.patch(targetDocumentId, {
@@ -2911,10 +3121,11 @@ export const reuseCompanyDocument = mutation({
       status: "approved",
       reusedFromDocumentId: sourceDocumentId,
       uploadedBy: userProfile.userId!,
-      uploadedAt: Date.now(),
+      uploadedAt,
       reviewedBy: userProfile.userId!,
-      reviewedAt: Date.now(),
+      reviewedAt: uploadedAt,
       version: newVersion,
+      processStatusAtUpload: targetDoc.processStatusAtUpload ?? processStatusAtUpload,
     });
 
     // Auto-create conditions for the document
@@ -3014,6 +3225,8 @@ export const bulkReuseCompanyDocuments = mutation({
     }
     if (companyPendingDocs.length === 0) return 0;
 
+    const processStatusAtUpload = await getProcessStatusAtUpload(ctx, process);
+
     // Get latest source doc per type from other processes
     const otherProcesses = await ctx.db
       .query("individualProcesses")
@@ -3049,6 +3262,7 @@ export const bulkReuseCompanyDocuments = mutation({
 
       // Bump version 0 (placeholder) → 1 on first fill via reuse
       const newVersion = targetDoc.version === 0 ? 1 : targetDoc.version;
+      const uploadedAt = Date.now();
 
       await ctx.db.patch(targetDoc._id, {
         storageId: sourceDoc.storageId,
@@ -3061,10 +3275,11 @@ export const bulkReuseCompanyDocuments = mutation({
         status: "approved",
         reusedFromDocumentId: sourceDoc._id,
         uploadedBy: userProfile.userId!,
-        uploadedAt: Date.now(),
+        uploadedAt,
         reviewedBy: userProfile.userId!,
-        reviewedAt: Date.now(),
+        reviewedAt: uploadedAt,
         version: newVersion,
+        processStatusAtUpload: targetDoc.processStatusAtUpload ?? processStatusAtUpload,
       });
 
       await ctx.db.insert("documentStatusHistory", {
@@ -3462,6 +3677,7 @@ export const submitInformationFields = mutation({
     );
 
     const now = Date.now();
+    const processStatusAtUpload = await getProcessStatusAtUpload(ctx, process);
 
     if (existingDoc) {
       // Bump version 0 (placeholder) → 1 on first fill; preserve existing for re-edit
@@ -3479,6 +3695,7 @@ export const submitInformationFields = mutation({
         reviewedAt: now,
         version: newVersion,
         isLatest: true,
+        ...(existingDoc.version === 0 ? { processStatusAtUpload } : {}),
       });
 
       return existingDoc._id;
@@ -3511,6 +3728,7 @@ export const submitInformationFields = mutation({
       reviewedAt: now,
       version: 1,
       isLatest: true,
+      processStatusAtUpload,
       excludedFromReport: documentType?.excludeFromReportByDefault || undefined,
     });
 

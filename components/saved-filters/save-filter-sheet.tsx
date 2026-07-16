@@ -89,6 +89,18 @@ export function SaveFilterSheet({
           label: t("filterSummary.legalFrameworks", { count: criteria.selectedLegalFrameworks.length }),
         })
       }
+      if (criteria.selectedNationalities?.length > 0) {
+        summary.push({
+          key: "nationalities",
+          label: t("filterSummary.nationalities", { count: criteria.selectedNationalities.length }),
+        })
+      }
+      if (criteria.selectedCbos?.length > 0) {
+        summary.push({
+          key: "cbos",
+          label: t("filterSummary.cbos", { count: criteria.selectedCbos.length }),
+        })
+      }
       if (criteria.isRnmModeActive) {
         summary.push({
           key: "rnm",

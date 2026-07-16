@@ -920,6 +920,8 @@ export const createFromExisting = mutation({
           isLatest: doc.isLatest,
           versionNotes: doc.versionNotes,
           reusedFromDocumentId: doc.reusedFromDocumentId,
+          // Preserve the original immutable snapshot together with uploadedAt.
+          processStatusAtUpload: doc.processStatusAtUpload,
           // individualProcessStatusId intentionally omitted (unlink from exigência)
           documentName: doc.documentName,
           isIllegible: doc.isIllegible,

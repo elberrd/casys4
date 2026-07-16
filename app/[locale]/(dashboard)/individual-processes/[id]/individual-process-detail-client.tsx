@@ -3,13 +3,13 @@
 import { useState } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations } from "next-intl"
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
+import { AlertTriangle, Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
 import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist"
@@ -34,6 +34,7 @@ import { translateCountryName } from "@/lib/utils/country-translations"
 import { formatRelativeDate } from "@/lib/utils/date-utils"
 import { formatResidenceDuration } from "@/lib/utils/residence-duration"
 import { getFullName } from "@/lib/utils/person-names"
+import { toast } from "sonner"
 
 interface IndividualProcessDetailClientProps {
   processId: Id<"individualProcesses">
@@ -59,9 +60,14 @@ export function IndividualProcessDetailClient({
   const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false)
   const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] = useState(false)
   const [reviewDocumentId, setReviewDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
+  const [optimisticUrgent, setOptimisticUrgent] = useState<boolean | null>(null)
+  const [isUpdatingUrgent, setIsUpdatingUrgent] = useState(false)
 
   const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
   const currentUser = useQuery(api.userProfiles.getCurrentUser)
+  const updateUrgentForCollectiveGroup = useMutation(
+    api.individualProcesses.updateUrgentForCollectiveGroup
+  )
 
   // Fetch collective process data when coming from collective process context
   const collectiveProcess = useQuery(
@@ -151,6 +157,30 @@ export function IndividualProcessDetailClient({
   }
 
   const isAdmin = currentUser?.role === "admin"
+  const isUrgent = optimisticUrgent ?? individualProcess.urgent === true
+
+  const handleUrgentToggle = async () => {
+    if (!isAdmin || isUpdatingUrgent) return
+
+    const newUrgentValue = !isUrgent
+    setOptimisticUrgent(newUrgentValue)
+    setIsUpdatingUrgent(true)
+
+    try {
+      await updateUrgentForCollectiveGroup({
+        id: processId,
+        urgent: newUrgentValue,
+      })
+      setOptimisticUrgent(null)
+    } catch (error) {
+      setOptimisticUrgent(null)
+      toast.error(t('urgentToggleError'), {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      setIsUpdatingUrgent(false)
+    }
+  }
 
   const statusVariant = individualProcess.status === "completed"
     ? "default"
@@ -177,7 +207,37 @@ export function IndividualProcessDetailClient({
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="break-words text-2xl font-bold">{individualProcess.person ? getFullName(individualProcess.person) : t('details')}</h1>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="min-w-0 break-words text-2xl font-bold">
+                {individualProcess.person ? getFullName(individualProcess.person) : t('details')}
+              </h1>
+              {isAdmin && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={handleUrgentToggle}
+                      disabled={isUpdatingUrgent}
+                      aria-label={isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}
+                      aria-pressed={isUrgent}
+                      className="shrink-0 rounded p-1 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <AlertTriangle
+                        aria-hidden="true"
+                        className={`h-5 w-5 cursor-pointer transition-all hover:scale-110 sm:h-6 sm:w-6 ${
+                          isUrgent
+                            ? "fill-amber-500 text-black stroke-2"
+                            : "fill-transparent text-muted-foreground"
+                        }`}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <p className="break-all text-muted-foreground sm:break-normal">
               {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
             </p>
