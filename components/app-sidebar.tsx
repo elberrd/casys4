@@ -43,15 +43,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isClient = userProfile?.role === "client"
 
-  // Client-only navigation: dashboard, process requests, individual processes, settings
+  // Client-only navigation: process requests, individual processes, settings
   const clientNav = [
-    {
-      title: t('dashboard'),
-      url: "/dashboard",
-      icon: LayoutDashboard,
-      isActive: true,
-      items: [],
-    },
     {
       title: t('processRequests'),
       url: "/process-requests",
@@ -248,13 +241,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: userProfile?.photoUrl ?? "/avatars/default.svg",
   }
 
+  const navigationItems = isClient
+    ? clientNav
+    : userProfile?.role === "admin"
+      ? navMain
+      : []
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <TeamSwitcher branding={brandingData} />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={isClient ? clientNav : navMain} />
+        <NavMain items={navigationItems} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

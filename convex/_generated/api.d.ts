@@ -43,6 +43,7 @@ import type * as legalFrameworks from "../legalFrameworks.js";
 import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_cachedGet from "../lib/cachedGet.js";
+import type * as lib_clientDocumentVisibility from "../lib/clientDocumentVisibility.js";
 import type * as lib_createIndividualProcess from "../lib/createIndividualProcess.js";
 import type * as lib_documentChecklist from "../lib/documentChecklist.js";
 import type * as lib_documentProgressSnapshot from "../lib/documentProgressSnapshot.js";
@@ -72,6 +73,7 @@ import type * as migrations_fixRnmFillableFields from "../migrations/fixRnmFilla
 import type * as migrations_forceRnmCacheInvalidation from "../migrations/forceRnmCacheInvalidation.js";
 import type * as migrations_importPeopleCsv from "../migrations/importPeopleCsv.js";
 import type * as migrations_linkPeopleToCompanies from "../migrations/linkPeopleToCompanies.js";
+import type * as migrations_markRn022017Article4ReceivedInBrazil from "../migrations/markRn022017Article4ReceivedInBrazil.js";
 import type * as migrations_mergeProcessRequestsIntoIndividualProcesses from "../migrations/mergeProcessRequestsIntoIndividualProcesses.js";
 import type * as migrations_migrateConditionsToLinks from "../migrations/migrateConditionsToLinks.js";
 import type * as migrations_migrateDocumentScopeToDocumentType from "../migrations/migrateDocumentScopeToDocumentType.js";
@@ -164,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activityLogger": typeof lib_activityLogger;
   "lib/auth": typeof lib_auth;
   "lib/cachedGet": typeof lib_cachedGet;
+  "lib/clientDocumentVisibility": typeof lib_clientDocumentVisibility;
   "lib/createIndividualProcess": typeof lib_createIndividualProcess;
   "lib/documentChecklist": typeof lib_documentChecklist;
   "lib/documentProgressSnapshot": typeof lib_documentProgressSnapshot;
@@ -193,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/forceRnmCacheInvalidation": typeof migrations_forceRnmCacheInvalidation;
   "migrations/importPeopleCsv": typeof migrations_importPeopleCsv;
   "migrations/linkPeopleToCompanies": typeof migrations_linkPeopleToCompanies;
+  "migrations/markRn022017Article4ReceivedInBrazil": typeof migrations_markRn022017Article4ReceivedInBrazil;
   "migrations/mergeProcessRequestsIntoIndividualProcesses": typeof migrations_mergeProcessRequestsIntoIndividualProcesses;
   "migrations/migrateConditionsToLinks": typeof migrations_migrateConditionsToLinks;
   "migrations/migrateDocumentScopeToDocumentType": typeof migrations_migrateDocumentScopeToDocumentType;

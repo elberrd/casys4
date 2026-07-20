@@ -1,7 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { requireAdmin } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  requireAdmin,
+  requireClientCanAccessProcess,
+} from "./lib/auth";
+import {
+  filterAccessibleDocuments,
+  resolveClientDocumentVisibility,
+} from "./lib/clientDocumentVisibility";
 
 /**
  * Query to list all field mappings for a specific document type
@@ -176,6 +184,13 @@ export const getLinkedFieldsMap = query({
   handler: async (ctx, args) => {
     const process = await ctx.db.get(args.individualProcessId);
     if (!process) return {};
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, process);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      process,
+    );
 
     // Collect all relevant document type IDs from both sources
     const docTypeIds = new Set<Id<"documentTypes">>();
@@ -194,12 +209,15 @@ export const getLinkedFieldsMap = query({
     }
 
     // Source 2: Delivered documents with a document type
-    const deliveredDocs = await ctx.db
+    const deliveredDocs = filterAccessibleDocuments(
+      await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) =>
         q.eq("individualProcessId", args.individualProcessId)
       )
-      .collect();
+      .collect(),
+      visibility,
+    );
     for (const doc of deliveredDocs) {
       if (doc.documentTypeId) {
         docTypeIds.add(doc.documentTypeId);

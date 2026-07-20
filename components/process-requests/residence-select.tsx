@@ -33,6 +33,8 @@ export interface ResidenceValue {
 
 export interface ResidenceSelectProps {
   value: ResidenceValue;
+  /** When provided, the legal framework fixes the destination (read-only). */
+  receiptLocation?: "brazil" | "abroad";
   onChange: (value: ResidenceValue) => void;
   disabled?: boolean;
 }
@@ -52,7 +54,7 @@ interface CityOption {
 
 /**
  * Foreign-residence selector used in the request wizard (and the process card).
- * Lets the user choose where the visa will be received and, when abroad, a
+ * Shows where the visa will be received and, when abroad, a
  * cascading Country -> State -> City selection plus a "living since" date, a
  * computed duration line, and a free-form address.
  *
@@ -66,12 +68,14 @@ interface CityOption {
  */
 export function ResidenceSelect({
   value,
+  receiptLocation,
   onChange,
   disabled = false,
 }: ResidenceSelectProps) {
   const t = useTranslations("ProcessRequests");
 
-  const isAbroad = value.visaReceiptLocation === "abroad";
+  const effectiveReceiptLocation = receiptLocation ?? value.visaReceiptLocation;
+  const isAbroad = effectiveReceiptLocation === "abroad";
 
   // Single cached country read; skipped while not abroad to avoid wasted reads.
   const dbCountries = useQuery(api.countries.list, isAbroad ? {} : "skip");
@@ -89,7 +93,10 @@ export function ResidenceSelect({
     // Dedupe by ISO2 code (the DB can contain duplicate rows for a country,
     // e.g. "BRASIL" and "Brazil" both with code "BR" — which would otherwise
     // produce duplicate React keys). Prefer the row that carries an iso3 code.
-    const byCode = new Map<string, { isoCode: string; name: string; iso3?: string }>();
+    const byCode = new Map<
+      string,
+      { isoCode: string; name: string; iso3?: string }
+    >();
     for (const c of dbCountries ?? []) {
       const iso = c.code;
       if (!iso) continue;
@@ -182,14 +189,19 @@ export function ResidenceSelect({
 
   const merge = React.useCallback(
     (patch: Partial<ResidenceValue>) => {
-      onChange({ ...value, ...patch });
+      onChange({
+        ...value,
+        ...(receiptLocation
+          ? { visaReceiptLocation: receiptLocation }
+          : undefined),
+        ...patch,
+      });
     },
-    [onChange, value],
+    [onChange, receiptLocation, value],
   );
 
   const handleLocationChange = (next: "brazil" | "abroad") => {
     if (next === "brazil") {
-      // Clear the abroad-only fields when switching back to Brazil.
       onChange({
         ...value,
         visaReceiptLocation: "brazil",
@@ -284,34 +296,47 @@ export function ResidenceSelect({
       {/* Where will the visa be received? */}
       <div className="space-y-2">
         <Label>{t("whereWillReceiveVisa")}</Label>
-        <div
-          role="radiogroup"
-          aria-label={t("whereWillReceiveVisa")}
-          className="grid grid-cols-2 gap-2"
-        >
-          <Button
-            type="button"
-            role="radio"
-            aria-checked={value.visaReceiptLocation === "brazil"}
-            variant={value.visaReceiptLocation === "brazil" ? "default" : "outline"}
-            disabled={disabled}
-            onClick={() => handleLocationChange("brazil")}
-            className="w-full"
+        {receiptLocation ? (
+          <div className="rounded-lg border bg-muted/30 px-4 py-3">
+            <p className="text-sm font-medium">{t(receiptLocation)}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("receiptLocationDeterminedByFramework")}
+            </p>
+          </div>
+        ) : (
+          <div
+            role="radiogroup"
+            aria-label={t("whereWillReceiveVisa")}
+            className="grid grid-cols-2 gap-2"
           >
-            {t("brazil")}
-          </Button>
-          <Button
-            type="button"
-            role="radio"
-            aria-checked={value.visaReceiptLocation === "abroad"}
-            variant={value.visaReceiptLocation === "abroad" ? "default" : "outline"}
-            disabled={disabled}
-            onClick={() => handleLocationChange("abroad")}
-            className="w-full"
-          >
-            {t("abroad")}
-          </Button>
-        </div>
+            <Button
+              type="button"
+              role="radio"
+              aria-checked={value.visaReceiptLocation === "brazil"}
+              variant={
+                value.visaReceiptLocation === "brazil" ? "default" : "outline"
+              }
+              disabled={disabled}
+              onClick={() => handleLocationChange("brazil")}
+              className="w-full"
+            >
+              {t("brazil")}
+            </Button>
+            <Button
+              type="button"
+              role="radio"
+              aria-checked={value.visaReceiptLocation === "abroad"}
+              variant={
+                value.visaReceiptLocation === "abroad" ? "default" : "outline"
+              }
+              disabled={disabled}
+              onClick={() => handleLocationChange("abroad")}
+              className="w-full"
+            >
+              {t("abroad")}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Abroad-only residence details */}
@@ -388,12 +413,11 @@ export function ResidenceSelect({
                 disabled={disabled || !value.residenceCountryCode}
               />
             )}
-            {value.residenceCountryCode &&
-              consularPostOptions.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {t("noConsularPostsForCountry")}
-                </p>
-              )}
+            {value.residenceCountryCode && consularPostOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t("noConsularPostsForCountry")}
+              </p>
+            )}
           </div>
 
           {/* Living since */}

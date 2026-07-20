@@ -8,6 +8,10 @@ import {
   requireAdmin,
 } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
+import {
+  filterClientChecklistDocuments,
+  resolveClientDocumentVisibility,
+} from "./lib/clientDocumentVisibility";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -518,15 +522,23 @@ export const getCompanyDocumentStatus = query({
         .query("documentsDelivered")
         .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", ip._id))
         .collect();
+      const visibility = await resolveClientDocumentVisibility(
+        ctx,
+        userProfile,
+        ip,
+      );
+      const visibleDocuments = filterClientChecklistDocuments(
+        docs.filter((doc) => doc.isLatest),
+        visibility,
+        false,
+      ).documents;
 
       const person = await cachedGet(ip.personId);
 
       return {
         personId: ip.personId,
         personName: person ? getFullName(person) : "Unknown",
-        documents: userProfile.role === "client"
-          ? docs.filter((doc) => doc.isLatest && !doc.excludedFromReport)
-          : docs.filter((doc) => doc.isLatest),
+        documents: visibleDocuments,
       };
     });
 
@@ -605,12 +617,16 @@ export const getClientMissingDocumentsSummary = query({
             q.eq("individualProcessId", process._id)
           )
           .collect();
-
-        const visibleDocuments = documents.filter(
-          (doc) =>
-            doc.isLatest &&
-            (userProfile.role !== "client" || !doc.excludedFromReport)
+        const visibility = await resolveClientDocumentVisibility(
+          ctx,
+          userProfile,
+          process,
         );
+        const visibleDocuments = filterClientChecklistDocuments(
+          documents.filter((doc) => doc.isLatest),
+          visibility,
+          false,
+        ).documents;
 
         const actionableDocuments = visibleDocuments.filter(isActionRequiredDocument);
         if (actionableDocuments.length === 0 && visibleDocuments.length === 0) {

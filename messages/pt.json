@@ -373,6 +373,7 @@
     "whereWillReceiveVisa": "Onde o visto será recebido?",
     "brazil": "Brasil",
     "abroad": "Exterior",
+    "receiptLocationDeterminedByFramework": "Definido automaticamente pelo amparo legal selecionado",
     "residenceCountry": "País de Residência",
     "residenceState": "Estado de Residência",
     "residenceCity": "Cidade de Residência",
@@ -1276,7 +1277,14 @@
     "statusApproved": "Aprovado",
     "statusRejected": "Rejeitado",
     "statusAwaitingReview": "Aguardando análise",
-    "genericDocument": "Documento"
+    "genericDocument": "Documento",
+    "exigenciaFocusDescription": "O processo está em exigência. Para facilitar, mostramos primeiro apenas os documentos desta exigência.",
+    "exigenciaOnlyDescription": "O processo está em exigência. Aqui aparecem exclusivamente os documentos vinculados à exigência atual.",
+    "documentsOnlyDuringExigencia": "Os documentos deste processo ficam disponíveis para você somente durante uma exigência.",
+    "noExigenciaDocuments": "Nenhum documento foi vinculado à exigência atual.",
+    "showOtherDocuments": "Mostrar outros documentos ({count})",
+    "hideOtherDocuments": "Ocultar outros documentos",
+    "otherDocumentsHint": "Inclui documentos de outras fases do processo."
   },
   "ProcessTimeline": {
     "title": "Histórico do Processo",
@@ -2146,6 +2154,8 @@
     "isActive": "Ativo",
     "showInRequest": "Disponível para solicitação",
     "showInRequestDescription": "Quando marcado, este amparo legal aparece para os usuários selecionarem ao criar uma solicitação de processo.",
+    "receivedInBrazil": "Recebido no Brasil",
+    "receivedInBrazilDescription": "Quando marcado, será recebido no Brasil. Caso contrário, será recebido no exterior e os dados de residência serão solicitados.",
     "createdSuccess": "Amparo legal criado com sucesso",
     "updatedSuccess": "Amparo legal atualizado com sucesso",
     "deletedSuccess": "Amparo legal excluído com sucesso",

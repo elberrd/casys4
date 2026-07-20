@@ -64,8 +64,7 @@ export default defineSchema({
     estimatedDays: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
-  })
-    .index("by_active", ["isActive"]),
+  }).index("by_active", ["isActive"]),
 
   // Legal Frameworks - Now has many-to-many relationship with Authorization Types via junction table
   // BREAKING CHANGE: Removed processTypeId field - use processTypesLegalFrameworks junction table instead
@@ -77,6 +76,9 @@ export default defineSchema({
     // step of the process-request wizard (name + description are shown). Admins
     // toggle this from the legal frameworks management screen.
     showInRequest: v.optional(v.boolean()),
+    // Determines whether this basis is received in Brazil. False/undefined
+    // means the visa is received abroad.
+    receivedInBrazil: v.optional(v.boolean()),
   })
     .index("by_active", ["isActive"])
     .index("by_showInRequest", ["showInRequest"]),
@@ -90,7 +92,10 @@ export default defineSchema({
   })
     .index("by_processType", ["processTypeId"])
     .index("by_legalFramework", ["legalFrameworkId"])
-    .index("by_processType_legalFramework", ["processTypeId", "legalFrameworkId"]),
+    .index("by_processType_legalFramework", [
+      "processTypeId",
+      "legalFrameworkId",
+    ]),
 
   // Client and people management tables
   people: defineTable({
@@ -210,8 +215,7 @@ export default defineSchema({
     phoneNumber: v.optional(v.string()),
     email: v.optional(v.string()),
     website: v.optional(v.string()),
-  })
-    .index("by_city", ["cityId"]),
+  }).index("by_city", ["cityId"]),
 
   cboCodes: defineTable({
     code: v.optional(v.string()),
@@ -331,7 +335,10 @@ export default defineSchema({
   })
     .index("by_documentType", ["documentTypeId"])
     .index("by_condition", ["documentTypeConditionId"])
-    .index("by_documentType_condition", ["documentTypeId", "documentTypeConditionId"]),
+    .index("by_documentType_condition", [
+      "documentTypeId",
+      "documentTypeConditionId",
+    ]),
 
   // Document Type Field Mappings - Links info fields to document types
   // Key piece: enables "document with linked info" pattern (e.g., Passport -> passportNumber, givenNames, etc.)
@@ -458,7 +465,7 @@ export default defineSchema({
     monthlyAmountToReceive: v.optional(v.number()), // Monthly amount candidate will receive in BRL
     // Visa receipt location + foreign residence (mirrored from process requests on approval)
     visaReceiptLocation: v.optional(
-      v.union(v.literal("brazil"), v.literal("abroad"))
+      v.union(v.literal("brazil"), v.literal("abroad")),
     ), // Where the candidate will collect the visa
     residenceCountryCode: v.optional(v.string()), // ISO2 country code (from country-state-city) when abroad
     residenceCountryName: v.optional(v.string()), // Country display name when abroad
@@ -469,7 +476,9 @@ export default defineSchema({
     consularPost: v.optional(v.string()), // Brazilian consular post where the visa will be collected (driven by residence country)
     professionalExperience: v.optional(v.string()), // Free-text professional experience narrative
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
-    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))), // Process status: "Atual" (current) or "Anterior" (previous)
+    processStatus: v.optional(
+      v.union(v.literal("Atual"), v.literal("Anterior")),
+    ), // Process status: "Atual" (current) or "Anterior" (previous)
     urgent: v.optional(v.boolean()), // Flag to mark process as urgent
     completedAt: v.optional(v.number()),
     // --- Client request workflow (formerly the separate processRequests table) ---
@@ -482,7 +491,7 @@ export default defineSchema({
     //                   row is a live process, flagged as client-originated.
     //   undefined    => admin-created process (normal behavior, always visible).
     requestStatus: v.optional(
-      v.union(v.literal("draft"), v.literal("solicitado"))
+      v.union(v.literal("draft"), v.literal("solicitado")),
     ),
     requestedBy: v.optional(v.id("users")), // client user who created the request
     requestedAt: v.optional(v.number()), // when the request was finalized (solicitado)
@@ -623,7 +632,7 @@ export default defineSchema({
     monthlyAmountToReceive: v.optional(v.number()),
     // Visa receipt + foreign residence
     visaReceiptLocation: v.optional(
-      v.union(v.literal("brazil"), v.literal("abroad"))
+      v.union(v.literal("brazil"), v.literal("abroad")),
     ),
     residenceCountryCode: v.optional(v.string()),
     residenceCountryName: v.optional(v.string()),
@@ -663,7 +672,10 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_individualProcess", ["individualProcessId"])
-    .index("by_individualProcess_createdAt", ["individualProcessId", "createdAt"])
+    .index("by_individualProcess_createdAt", [
+      "individualProcessId",
+      "createdAt",
+    ])
     .index("by_processRequest", ["processRequestId"]) // DEPRECATED legacy index
     .index("by_processRequest_createdAt", ["processRequestId", "createdAt"]),
 
@@ -721,7 +733,7 @@ export default defineSchema({
     documentTypeId: v.optional(v.id("documentTypes")), // Optional for loose documents
     documentRequirementId: v.optional(v.id("documentRequirements")),
     documentTypeLegalFrameworkId: v.optional(
-      v.id("documentTypesLegalFrameworks")
+      v.id("documentTypesLegalFrameworks"),
     ), // Link to document-legal framework association
     isRequired: v.optional(v.boolean()), // Whether this document is required (from auto-population)
     storageId: v.optional(v.id("_storage")), // Reference to Convex file storage
@@ -754,7 +766,7 @@ export default defineSchema({
     processStatusAtUpload: v.optional(
       v.object({
         individualProcessStatusId: v.optional(
-          v.id("individualProcessStatuses")
+          v.id("individualProcessStatuses"),
         ),
         caseStatusId: v.optional(v.id("caseStatuses")),
         name: v.string(),
@@ -762,7 +774,7 @@ export default defineSchema({
         code: v.string(),
         color: v.optional(v.string()),
         category: v.optional(v.string()),
-      })
+      }),
     ),
     documentName: v.optional(v.string()), // Custom name for loose documents saved without file
     isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
@@ -916,7 +928,7 @@ export default defineSchema({
     name: v.string(), // User-defined filter name
     filterType: v.union(
       v.literal("individualProcesses"),
-      v.literal("collectiveProcesses")
+      v.literal("collectiveProcesses"),
     ), // Which page this filter is for
     filterCriteria: v.any(), // Flexible JSON object storing filter state
     createdBy: v.id("users"), // User who created this filter

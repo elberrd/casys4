@@ -13,6 +13,12 @@ import {
   isValidIsoDate,
   resolveDocumentReceivedAt,
 } from "./lib/documentReceiptTiming";
+import {
+  canAccessDocument,
+  filterAccessibleDocuments,
+  filterClientChecklistDocuments,
+  resolveClientDocumentVisibility,
+} from "./lib/clientDocumentVisibility";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -77,11 +83,16 @@ export const list = query({
     // collectiveProcess.companyId via peopleCompanies.isCurrent).
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
     // Query documents by individual process
-    let documentsQuery = ctx.db
+    const documentsQuery = ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId));
 
@@ -99,6 +110,7 @@ export const list = query({
 
     // Filter to show only latest versions by default
     documents = documents.filter((doc) => doc.isLatest);
+    documents = filterAccessibleDocuments(documents, visibility);
 
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
@@ -165,6 +177,11 @@ export const listVersionsByProgress = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -175,15 +192,14 @@ export const listVersionsByProgress = query({
       )
       .collect();
 
-    const visibleVersions = processDocuments
+    const visibleVersions = filterAccessibleDocuments(
+      processDocuments,
+      visibility,
+    )
       .filter(
         (document) =>
           document.version > 0 &&
           (document.storageId !== undefined || document.fileUrl.trim().length > 0),
-      )
-      .filter(
-        (document) =>
-          userProfile.role !== "client" || document.excludedFromReport !== true,
       )
       .sort((a, b) => b.uploadedAt - a.uploadedAt);
 
@@ -244,6 +260,11 @@ export const listByStatus = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -256,7 +277,10 @@ export const listByStatus = query({
       .collect();
 
     // Filter to latest versions only
-    const latestDocs = documents.filter((doc) => doc.isLatest);
+    const latestDocs = filterAccessibleDocuments(
+      documents.filter((doc) => doc.isLatest),
+      visibility,
+    );
 
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
@@ -317,6 +341,14 @@ export const get = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
+    if (!canAccessDocument(document, visibility)) {
+      throw new Error("Document not found");
+    }
 
     // Enrich with related data
     const documentType = document.documentTypeId
@@ -332,7 +364,7 @@ export const get = query({
 
     // Enrich reused document info
     let reusedFromInfo = null;
-    if (document.reusedFromDocumentId) {
+    if (userProfile.role === "admin" && document.reusedFromDocumentId) {
       const sourceDoc = await ctx.db.get(document.reusedFromDocumentId);
       if (sourceDoc) {
         const sourceProcess = await ctx.db.get(sourceDoc.individualProcessId);
@@ -936,6 +968,11 @@ export const getVersionHistory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -949,7 +986,8 @@ export const getVersionHistory = query({
     documents = documents.filter(
       (doc) =>
         doc.documentTypeId === documentTypeId &&
-        doc.documentRequirementId === documentRequirementId
+        doc.documentRequirementId === documentRequirementId &&
+        canAccessDocument(doc, visibility)
     );
 
     const orderedDocuments = [...documents].sort(
@@ -1322,6 +1360,14 @@ export const updateVersionNotes = mutation({
     }
 
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
+    if (!canAccessDocument(document, visibility)) {
+      throw new Error("Document not found");
+    }
 
     await ctx.db.patch(args.documentId, {
       versionNotes: args.versionNotes,
@@ -2440,6 +2486,14 @@ export const uploadForPending = mutation({
     // Check access control — handles client access via any of the company linkages
     // (companyApplicantId, userApplicantCompanyId, collectiveProcess.companyId)
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
+    if (!canAccessDocument(document, visibility)) {
+      throw new Error("Document not found");
+    }
 
     if (!userProfile.userId) {
       throw new Error("User profile must be activated before uploading documents");
@@ -2679,8 +2733,12 @@ export const uploadForPending = mutation({
 export const listGroupedByCategory = query({
   args: {
     individualProcessId: v.id("individualProcesses"),
+    includeOtherDocuments: v.optional(v.boolean()),
   },
-  handler: async (ctx, { individualProcessId }) => {
+  handler: async (
+    ctx,
+    { individualProcessId, includeOtherDocuments = false },
+  ) => {
     // Get individual process to check access
     const individualProcess = await ctx.db.get(individualProcessId);
     if (!individualProcess) {
@@ -2689,6 +2747,11 @@ export const listGroupedByCategory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -2703,6 +2766,12 @@ export const listGroupedByCategory = query({
       .collect();
 
     documents = documents.filter((doc) => doc.isLatest);
+    const checklistVisibility = filterClientChecklistDocuments(
+      documents,
+      visibility,
+      includeOtherDocuments,
+    );
+    documents = checklistVisibility.documents;
 
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
@@ -2895,20 +2964,15 @@ export const listGroupedByCategory = query({
       }),
     );
 
-    // Filter out excluded-from-report documents for client users
-    const visibleDocuments = userProfile.role === "client"
-      ? enrichedDocuments.filter((doc) => !doc.excludedFromReport)
-      : enrichedDocuments;
-
     // Group by category
-    const required = visibleDocuments.filter(
+    const required = enrichedDocuments.filter(
       (doc) => doc.isRequired === true && doc.documentTypeId
     );
     // Treat documents with isRequired === false OR undefined as optional (when they have a type)
-    const optional = visibleDocuments.filter(
+    const optional = enrichedDocuments.filter(
       (doc) => doc.isRequired !== true && doc.documentTypeId
     );
-    const loose = visibleDocuments.filter(
+    const loose = enrichedDocuments.filter(
       (doc) => !doc.documentTypeId
     );
 
@@ -2917,6 +2981,19 @@ export const listGroupedByCategory = query({
       optional,
       loose,
       companyApplicantId: individualProcess.companyApplicantId,
+      visibility: {
+        accessScope: visibility.accessScope,
+        isCurrentExigencia: visibility.isCurrentExigencia,
+        currentExigenciaStatusId: visibility.currentExigenciaStatusId,
+        canToggleOtherDocuments:
+          visibility.viewerRole === "client" &&
+          visibility.hasFullDocumentAccess &&
+          visibility.currentExigenciaStatusId !== undefined &&
+          checklistVisibility.otherDocumentCount > 0,
+        hiddenDocumentCount: checklistVisibility.hiddenDocumentCount,
+        otherDocumentCount: checklistVisibility.otherDocumentCount,
+        showingOtherDocuments: checklistVisibility.showingOtherDocuments,
+      },
       summary: {
         totalRequired: required.length,
         totalOptional: optional.length,
@@ -2953,6 +3030,14 @@ export const getStatusHistory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
+    if (!canAccessDocument(document, visibility)) {
+      throw new Error("Document not found");
+    }
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -3953,6 +4038,11 @@ export const listAvailableForLinking = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
@@ -3967,6 +4057,7 @@ export const listAvailableForLinking = query({
     // Filter: latest only, exclude docs already linked to the same exigência
     const available = documents.filter((doc) => {
       if (!doc.isLatest) return false;
+      if (!canAccessDocument(doc, visibility)) return false;
       if (excludeStatusId && doc.individualProcessStatusId === excludeStatusId) return false;
       return true;
     });
@@ -4369,6 +4460,11 @@ export const getUnifiedDocumentHistory = query({
 
     const userProfile = await getCurrentUserProfile(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
 
     // Get all matching documents
     let documents;
@@ -4381,12 +4477,13 @@ export const getUnifiedDocumentHistory = query({
       documents = allDocs.filter(
         (doc) =>
           doc.documentTypeId === documentTypeId &&
-          doc.documentRequirementId === documentRequirementId
+          doc.documentRequirementId === documentRequirementId &&
+          canAccessDocument(doc, visibility)
       );
     } else if (documentId) {
       // Loose document: just get by ID
       const doc = await ctx.db.get(documentId);
-      documents = doc ? [doc] : [];
+      documents = doc && canAccessDocument(doc, visibility) ? [doc] : [];
     } else {
       return [];
     }

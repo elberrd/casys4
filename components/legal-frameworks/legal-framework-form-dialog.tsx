@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Button } from "@/components/ui/button"
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -22,27 +22,30 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Combobox } from "@/components/ui/combobox"
-import { Separator } from "@/components/ui/separator"
-import { useTranslations } from "next-intl"
-import { legalFrameworkSchema, LegalFrameworkFormData } from "@/lib/validations/legalFrameworks"
-import { Id } from "@/convex/_generated/dataModel"
-import { useToast } from "@/hooks/use-toast"
-import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
-import { DocumentTypeAssociationSection } from "./document-type-association-section"
-import { DocumentTypeFormDialog } from "@/components/document-types/document-type-form-dialog"
-import { InfoRequirementsSection } from "./info-requirements-section"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
+import { Separator } from "@/components/ui/separator";
+import { useTranslations } from "next-intl";
+import {
+  legalFrameworkSchema,
+  LegalFrameworkFormData,
+} from "@/lib/validations/legalFrameworks";
+import { Id } from "@/convex/_generated/dataModel";
+import { useToast } from "@/hooks/use-toast";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { DocumentTypeAssociationSection } from "./document-type-association-section";
+import { DocumentTypeFormDialog } from "@/components/document-types/document-type-form-dialog";
+import { InfoRequirementsSection } from "./info-requirements-section";
 
 interface LegalFrameworkFormDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  legalFrameworkId?: Id<"legalFrameworks">
-  onSuccess?: (createdId?: Id<"legalFrameworks">) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  legalFrameworkId?: Id<"legalFrameworks">;
+  onSuccess?: (createdId?: Id<"legalFrameworks">) => void;
 }
 
 export function LegalFrameworkFormDialog({
@@ -51,24 +54,31 @@ export function LegalFrameworkFormDialog({
   legalFrameworkId,
   onSuccess,
 }: LegalFrameworkFormDialogProps) {
-  const t = useTranslations('LegalFrameworks')
-  const tCommon = useTranslations('Common')
-  const { toast } = useToast()
+  const t = useTranslations("LegalFrameworks");
+  const tCommon = useTranslations("Common");
+  const { toast } = useToast();
 
   const legalFramework = useQuery(
     api.legalFrameworks.get,
-    legalFrameworkId ? { id: legalFrameworkId } : "skip"
-  )
+    legalFrameworkId ? { id: legalFrameworkId } : "skip",
+  );
 
-  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
+  const processTypesResult = useQuery(api.processTypes.listActive, {});
+  const processTypes = useMemo(
+    () => processTypesResult ?? [],
+    [processTypesResult],
+  );
 
-  const createLegalFramework = useMutation(api.legalFrameworks.create)
-  const updateLegalFramework = useMutation(api.legalFrameworks.update)
+  const createLegalFramework = useMutation(api.legalFrameworks.create);
+  const updateLegalFramework = useMutation(api.legalFrameworks.update);
 
   // State for nested document type creation dialog
-  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false)
-  const [pendingDocTypeId, setPendingDocTypeId] = useState<string | null>(null)
-  const handlePendingDocTypeHandled = useCallback(() => setPendingDocTypeId(null), [])
+  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
+  const [pendingDocTypeId, setPendingDocTypeId] = useState<string | null>(null);
+  const handlePendingDocTypeHandled = useCallback(
+    () => setPendingDocTypeId(null),
+    [],
+  );
 
   // Prepare process types options for combobox
   const processTypeOptions = useMemo(
@@ -77,8 +87,8 @@ export function LegalFrameworkFormDialog({
         value: pt._id,
         label: pt.name,
       })),
-    [processTypes]
-  )
+    [processTypes],
+  );
 
   const form = useForm<LegalFrameworkFormData>({
     resolver: zodResolver(legalFrameworkSchema),
@@ -88,9 +98,10 @@ export function LegalFrameworkFormDialog({
       processTypeIds: [],
       isActive: true,
       showInRequest: false,
+      receivedInBrazil: false,
       documentTypeAssociations: [],
     },
-  })
+  });
 
   // Unsaved changes protection
   const {
@@ -102,11 +113,11 @@ export function LegalFrameworkFormDialog({
   } = useUnsavedChanges({
     formState: form.formState,
     onConfirmedClose: () => {
-      form.reset()
-      onOpenChange(false)
+      form.reset();
+      onOpenChange(false);
     },
     isSubmitting: form.formState.isSubmitting,
-  })
+  });
 
   // Reset form when legal framework data loads
   useEffect(() => {
@@ -117,13 +128,18 @@ export function LegalFrameworkFormDialog({
         processTypeIds: legalFramework.processTypes?.map((pt) => pt._id) || [],
         isActive: legalFramework.isActive,
         showInRequest: legalFramework.showInRequest ?? false,
-        documentTypeAssociations: legalFramework.documentTypeAssociations?.map((a) => ({
-          documentTypeId: a.documentTypeId,
-          isRequired: a.isRequired,
-          validityType: a.validityType as "min_remaining" | "max_age" | undefined,
-          validityDays: a.validityDays,
-        })) || [],
-      })
+        receivedInBrazil: legalFramework.receivedInBrazil ?? false,
+        documentTypeAssociations:
+          legalFramework.documentTypeAssociations?.map((a) => ({
+            documentTypeId: a.documentTypeId,
+            isRequired: a.isRequired,
+            validityType: a.validityType as
+              | "min_remaining"
+              | "max_age"
+              | undefined,
+            validityDays: a.validityDays,
+          })) || [],
+      });
     } else if (!legalFrameworkId) {
       form.reset({
         name: "",
@@ -131,244 +147,272 @@ export function LegalFrameworkFormDialog({
         processTypeIds: [],
         isActive: true,
         showInRequest: false,
+        receivedInBrazil: false,
         documentTypeAssociations: [],
-      })
+      });
     }
-  }, [legalFramework, legalFrameworkId, form])
+  }, [legalFramework, legalFrameworkId, form]);
 
   const onSubmit = async (data: LegalFrameworkFormData) => {
     try {
       // Clean optional fields and convert IDs to the correct types
-      const documentTypeAssociations = data.documentTypeAssociations?.map((a) => ({
-        documentTypeId: a.documentTypeId as Id<"documentTypes">,
-        isRequired: a.isRequired,
-        validityType: a.validityType,
-        validityDays: a.validityDays,
-      }))
+      const documentTypeAssociations = data.documentTypeAssociations?.map(
+        (a) => ({
+          documentTypeId: a.documentTypeId as Id<"documentTypes">,
+          isRequired: a.isRequired,
+          validityType: a.validityType,
+          validityDays: a.validityDays,
+        }),
+      );
 
       const submitData = {
         ...data,
         description: data.description || undefined,
-        processTypeIds: data.processTypeIds && data.processTypeIds.length > 0
-          ? data.processTypeIds as Id<"processTypes">[]
-          : undefined,
-        documentTypeAssociations: documentTypeAssociations && documentTypeAssociations.length > 0
-          ? documentTypeAssociations
-          : undefined,
-      }
+        processTypeIds:
+          data.processTypeIds && data.processTypeIds.length > 0
+            ? (data.processTypeIds as Id<"processTypes">[])
+            : undefined,
+        documentTypeAssociations:
+          documentTypeAssociations && documentTypeAssociations.length > 0
+            ? documentTypeAssociations
+            : undefined,
+      };
 
-      let createdId: Id<"legalFrameworks"> | undefined
+      let createdId: Id<"legalFrameworks"> | undefined;
 
       if (legalFrameworkId) {
-        await updateLegalFramework({ id: legalFrameworkId, ...submitData })
+        await updateLegalFramework({ id: legalFrameworkId, ...submitData });
         toast({
-          title: t('updatedSuccess'),
-        })
+          title: t("updatedSuccess"),
+        });
       } else {
-        createdId = await createLegalFramework(submitData)
+        createdId = await createLegalFramework(submitData);
         toast({
-          title: t('createdSuccess'),
-        })
+          title: t("createdSuccess"),
+        });
       }
-      form.reset()
-      onSuccess?.(createdId)
+      form.reset();
+      onSuccess?.(createdId);
     } catch (error) {
       toast({
-        title: legalFrameworkId ? t('errorUpdate') : t('errorCreate'),
+        title: legalFrameworkId ? t("errorUpdate") : t("errorCreate"),
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>
-            {legalFrameworkId ? t('editTitle') : t('createTitle')}
-          </DialogTitle>
-          <DialogDescription>
-            {legalFrameworkId
-              ? t('editDescription')
-              : t('createDescription')
-            }
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>
+              {legalFrameworkId ? t("editTitle") : t("createTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {legalFrameworkId ? t("editDescription") : t("createDescription")}
+            </DialogDescription>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1 overflow-hidden">
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('name')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Law 13.445/2017" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col min-h-0 flex-1 overflow-hidden"
+            >
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-2">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("name")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Law 13.445/2017" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="processTypeIds"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('processType')}</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      multiple
-                      options={processTypeOptions}
-                      value={field.value || []}
-                      onValueChange={field.onChange}
-                      placeholder={t('selectProcessType')}
-                      searchPlaceholder={tCommon('search')}
-                      emptyText={tCommon('noResults')}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Select the process types this legal framework applies to
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="processTypeIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("processType")}</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          multiple
+                          options={processTypeOptions}
+                          value={field.value || []}
+                          onValueChange={field.onChange}
+                          placeholder={t("selectProcessType")}
+                          searchPlaceholder={tCommon("search")}
+                          emptyText={tCommon("noResults")}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Select the process types this legal framework applies to
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('description')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Description of the legal framework..."
-                      className="resize-none"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("description")}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Description of the legal framework..."
+                          className="resize-none"
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <Separator className="my-4" />
-
-            {/* Document Type Associations Section */}
-            <FormField
-              control={form.control}
-              name="documentTypeAssociations"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <DocumentTypeAssociationSection
-                      value={field.value || []}
-                      onChange={field.onChange}
-                      pendingDocTypeId={pendingDocTypeId}
-                      onPendingDocTypeHandled={handlePendingDocTypeHandled}
-                      onRequestCreateNew={() => setDocTypeDialogOpen(true)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Info Requirements Section - Only show in edit mode */}
-            {legalFrameworkId && (
-              <>
                 <Separator className="my-4" />
-                <InfoRequirementsSection legalFrameworkId={legalFrameworkId} />
-              </>
-            )}
 
-            <Separator className="my-4" />
+                {/* Document Type Associations Section */}
+                <FormField
+                  control={form.control}
+                  name="documentTypeAssociations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <DocumentTypeAssociationSection
+                          value={field.value || []}
+                          onChange={field.onChange}
+                          pendingDocTypeId={pendingDocTypeId}
+                          onPendingDocTypeHandled={handlePendingDocTypeHandled}
+                          onRequestCreateNew={() => setDocTypeDialogOpen(true)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="isActive"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                {/* Info Requirements Section - Only show in edit mode */}
+                {legalFrameworkId && (
+                  <>
+                    <Separator className="my-4" />
+                    <InfoRequirementsSection
+                      legalFrameworkId={legalFrameworkId}
                     />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>
-                      {t('isActive')}
-                    </FormLabel>
-                    <FormDescription>
-                      Active legal frameworks are available for selection
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
+                  </>
+                )}
 
-            <FormField
-              control={form.control}
-              name="showInRequest"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>{t('showInRequest')}</FormLabel>
-                    <FormDescription>
-                      {t('showInRequestDescription')}
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-            </div>
+                <Separator className="my-4" />
 
-            <DialogFooter className="flex-shrink-0 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={form.formState.isSubmitting}
-              >
-                {tCommon('cancel')}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? tCommon('loading') : tCommon('save')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>{t("isActive")}</FormLabel>
+                        <FormDescription>
+                          Active legal frameworks are available for selection
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
-    {/* Unsaved Changes Confirmation Dialog */}
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
+                <FormField
+                  control={form.control}
+                  name="showInRequest"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>{t("showInRequest")}</FormLabel>
+                        <FormDescription>
+                          {t("showInRequestDescription")}
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
-    {/* Document Type Creation Dialog - rendered outside parent Dialog to avoid nested dialog issues */}
-    <DocumentTypeFormDialog
-      open={docTypeDialogOpen}
-      onOpenChange={setDocTypeDialogOpen}
-      onSuccess={(createdId) => {
-        if (createdId) setPendingDocTypeId(createdId)
-      }}
-    />
+                <FormField
+                  control={form.control}
+                  name="receivedInBrazil"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>{t("receivedInBrazil")}</FormLabel>
+                        <FormDescription>
+                          {t("receivedInBrazilDescription")}
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter className="flex-shrink-0 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={form.formState.isSubmitting}
+                >
+                  {tCommon("cancel")}
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting
+                    ? tCommon("loading")
+                    : tCommon("save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
+
+      {/* Document Type Creation Dialog - rendered outside parent Dialog to avoid nested dialog issues */}
+      <DocumentTypeFormDialog
+        open={docTypeDialogOpen}
+        onOpenChange={setDocTypeDialogOpen}
+        onSuccess={(createdId) => {
+          if (createdId) setPendingDocTypeId(createdId);
+        }}
+      />
     </>
-  )
+  );
 }

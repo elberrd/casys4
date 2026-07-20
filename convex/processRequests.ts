@@ -55,7 +55,7 @@ const editableProcessFields = {
   monthlyAmountToReceive: v.optional(v.number()),
   // Visa receipt + foreign residence
   visaReceiptLocation: v.optional(
-    v.union(v.literal("brazil"), v.literal("abroad"))
+    v.union(v.literal("brazil"), v.literal("abroad")),
   ),
   residenceCountryCode: v.optional(v.string()),
   residenceCountryName: v.optional(v.string()),
@@ -102,7 +102,7 @@ async function applyPersonFields(
   personId: Id<"people">,
   args: PersonArgs,
   now: number,
-  overwrite: boolean
+  overwrite: boolean,
 ): Promise<void> {
   const person = await ctx.db.get(personId);
   if (!person) return;
@@ -135,12 +135,12 @@ function generateRequestGroupId(): string {
  */
 async function deriveProcessTypeId(
   ctx: MutationCtx,
-  legalFrameworkId: Id<"legalFrameworks">
+  legalFrameworkId: Id<"legalFrameworks">,
 ): Promise<Id<"processTypes"> | undefined> {
   const link = await ctx.db
     .query("processTypesLegalFrameworks")
     .withIndex("by_legalFramework", (q) =>
-      q.eq("legalFrameworkId", legalFrameworkId)
+      q.eq("legalFrameworkId", legalFrameworkId),
     )
     .first();
   return link?.processTypeId;
@@ -154,7 +154,7 @@ async function deriveProcessTypeId(
  */
 async function assertPersonExists(
   ctx: MutationCtx,
-  personId: Id<"people">
+  personId: Id<"people">,
 ): Promise<void> {
   const person = await ctx.db.get(personId);
   if (!person) throw new Error("Person not found");
@@ -167,7 +167,7 @@ async function assertPersonExists(
 async function assertPassportBelongsToPerson(
   ctx: MutationCtx,
   passportId: Id<"passports">,
-  personId: Id<"people">
+  personId: Id<"people">,
 ): Promise<void> {
   const passport = await ctx.db.get(passportId);
   if (!passport) throw new Error("Passport not found");
@@ -182,13 +182,37 @@ async function assertPassportBelongsToPerson(
  */
 async function assertFrameworkAvailable(
   ctx: MutationCtx,
-  legalFrameworkId: Id<"legalFrameworks">
-): Promise<void> {
+  legalFrameworkId: Id<"legalFrameworks">,
+): Promise<Doc<"legalFrameworks">> {
   const framework = await ctx.db.get(legalFrameworkId);
   if (!framework || framework.isActive === false || !framework.showInRequest) {
     throw new Error(
-      "Access denied: this legal framework is not available for requests"
+      "Access denied: this legal framework is not available for requests",
     );
+  }
+  return framework;
+}
+
+const RESIDENCE_ABROAD_FIELDS = [
+  "residenceCountryCode",
+  "residenceCountryName",
+  "residenceStateCode",
+  "residenceCity",
+  "residenceSince",
+  "residenceAddressAbroad",
+  "consularPost",
+] as const;
+
+/** Keep the stored receipt destination consistent with the legal framework. */
+function applyFrameworkReceiptRule(
+  patch: Record<string, unknown>,
+  framework: Doc<"legalFrameworks">,
+): void {
+  const receivedInBrazil = framework.receivedInBrazil === true;
+  patch.visaReceiptLocation = receivedInBrazil ? "brazil" : "abroad";
+
+  if (receivedInBrazil) {
+    for (const field of RESIDENCE_ABROAD_FIELDS) patch[field] = undefined;
   }
 }
 
@@ -200,7 +224,7 @@ async function enrichRequest(
   ctx: QueryCtx,
   process: Doc<"individualProcesses">,
   profile: Doc<"userProfiles">,
-  currentCompanyIds: Set<Id<"companies">>
+  currentCompanyIds: Set<Id<"companies">>,
 ) {
   const [
     companyApplicant,
@@ -211,9 +235,7 @@ async function enrichRequest(
     legalFramework,
     consulateRaw,
   ] = await Promise.all([
-    process.companyApplicantId
-      ? ctx.db.get(process.companyApplicantId)
-      : null,
+    process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
     process.userApplicantCompanyId
       ? ctx.db.get(process.userApplicantCompanyId)
       : null,
@@ -300,7 +322,7 @@ async function enrichRequest(
 
 async function notifyAdmins(
   ctx: MutationCtx,
-  payload: { type: string; title: string; message: string; entityId: string }
+  payload: { type: string; title: string; message: string; entityId: string },
 ) {
   const admins = await ctx.db
     .query("userProfiles")
@@ -332,7 +354,7 @@ async function notifyAdmins(
 export const list = query({
   args: {
     requestStatus: v.optional(
-      v.union(v.literal("draft"), v.literal("solicitado"))
+      v.union(v.literal("draft"), v.literal("solicitado")),
     ),
     companyId: v.optional(v.id("companies")),
   },
@@ -358,7 +380,7 @@ export const list = query({
         ctx.db
           .query("individualProcesses")
           .withIndex("by_requestStatus", (q) =>
-            q.eq("requestStatus", "solicitado")
+            q.eq("requestStatus", "solicitado"),
           )
           .collect(),
       ]);
@@ -372,7 +394,7 @@ export const list = query({
       results = results.filter(
         (r) =>
           r.companyApplicantId === args.companyId ||
-          r.userApplicantCompanyId === args.companyId
+          r.userApplicantCompanyId === args.companyId,
       );
     }
 
@@ -385,8 +407,8 @@ export const list = query({
 
     const enriched = await Promise.all(
       results.map((process) =>
-        enrichRequest(ctx, process, userProfile, currentCompanyIds)
-      )
+        enrichRequest(ctx, process, userProfile, currentCompanyIds),
+      ),
     );
 
     return enriched.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -409,7 +431,7 @@ export const get = query({
       process.requestedBy !== userProfile.userId
     ) {
       throw new Error(
-        "Access denied: You do not have permission to view this request"
+        "Access denied: You do not have permission to view this request",
       );
     }
 
@@ -456,9 +478,9 @@ export const createDraft = mutation({
     if (args.passportId) {
       await assertPassportBelongsToPerson(ctx, args.passportId, args.personId);
     }
-    if (args.legalFrameworkId) {
-      await assertFrameworkAvailable(ctx, args.legalFrameworkId);
-    }
+    const framework = args.legalFrameworkId
+      ? await assertFrameworkAvailable(ctx, args.legalFrameworkId)
+      : null;
 
     const now = Date.now();
 
@@ -468,6 +490,7 @@ export const createDraft = mutation({
     await applyPersonFields(ctx, args.personId, args, now, overwrite);
 
     const processPatch = buildProcessPatch(args);
+    if (framework) applyFrameworkReceiptRule(processPatch, framework);
     const processTypeId = args.legalFrameworkId
       ? await deriveProcessTypeId(ctx, args.legalFrameworkId)
       : undefined;
@@ -543,15 +566,21 @@ export const saveDraft = mutation({
 
     if (process.requestStatus !== "draft") {
       throw new Error(
-        "This request has already been submitted and can no longer be edited as a draft."
+        "This request has already been submitted and can no longer be edited as a draft.",
       );
     }
 
-    if (rest.legalFrameworkId !== undefined) {
-      await assertFrameworkAvailable(ctx, rest.legalFrameworkId);
-    }
+    const framework = rest.legalFrameworkId
+      ? await assertFrameworkAvailable(ctx, rest.legalFrameworkId)
+      : process.legalFrameworkId
+        ? await ctx.db.get(process.legalFrameworkId)
+        : null;
     if (rest.passportId !== undefined) {
-      await assertPassportBelongsToPerson(ctx, rest.passportId, process.personId);
+      await assertPassportBelongsToPerson(
+        ctx,
+        rest.passportId,
+        process.personId,
+      );
     }
 
     const now = Date.now();
@@ -559,15 +588,16 @@ export const saveDraft = mutation({
     const overwrite = await personOwnedByClient(
       ctx,
       userProfile,
-      process.personId
+      process.personId,
     );
     await applyPersonFields(ctx, process.personId, rest, now, overwrite);
 
     const patch = buildProcessPatch(rest);
+    if (framework) applyFrameworkReceiptRule(patch, framework);
     if (rest.legalFrameworkId !== undefined) {
       patch.processTypeId = await deriveProcessTypeId(
         ctx,
-        rest.legalFrameworkId
+        rest.legalFrameworkId,
       );
     }
     await ctx.db.patch(id, { ...patch, updatedAt: now });
@@ -590,9 +620,16 @@ async function finalizeOneDraft(
   ctx: MutationCtx,
   process: Doc<"individualProcesses">,
   userId: Id<"users">,
-  now: number
+  now: number,
 ): Promise<void> {
+  const framework = process.legalFrameworkId
+    ? await ctx.db.get(process.legalFrameworkId)
+    : null;
+  const receiptPatch: Record<string, unknown> = {};
+  if (framework) applyFrameworkReceiptRule(receiptPatch, framework);
+
   await ctx.db.patch(process._id, {
+    ...receiptPatch,
     requestStatus: "solicitado",
     requestedAt: now,
     updatedAt: now,
@@ -625,7 +662,7 @@ export const finalize = mutation({
     }
     if (process.requestStatus !== "draft") {
       throw new Error(
-        `Cannot finalize a request with status "${process.requestStatus}"`
+        `Cannot finalize a request with status "${process.requestStatus}"`,
       );
     }
     if (!process.legalFrameworkId) {
@@ -669,11 +706,11 @@ export const finalizeGroup = mutation({
     const rows = await ctx.db
       .query("individualProcesses")
       .withIndex("by_requestGroup", (q) =>
-        q.eq("requestGroupId", requestGroupId)
+        q.eq("requestGroupId", requestGroupId),
       )
       .collect();
     const drafts = rows.filter(
-      (r) => r.requestedBy === userId && r.requestStatus === "draft"
+      (r) => r.requestedBy === userId && r.requestStatus === "draft",
     );
     if (drafts.length === 0) {
       throw new Error("No draft candidates to submit in this request");
@@ -728,15 +765,13 @@ export const removeDraft = mutation({
     }
     if (process.requestStatus !== "draft") {
       throw new Error(
-        "Only draft requests can be deleted here. Finalized requests are deleted from the process list."
+        "Only draft requests can be deleted here. Finalized requests are deleted from the process list.",
       );
     }
 
     const messages = await ctx.db
       .query("processRequestMessages")
-      .withIndex("by_individualProcess", (q) =>
-        q.eq("individualProcessId", id)
-      )
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
       .collect();
     for (const m of messages) await ctx.db.delete(m._id);
 
@@ -767,7 +802,7 @@ export const getRequestGroup = query({
     const rows = await ctx.db
       .query("individualProcesses")
       .withIndex("by_requestGroup", (q) =>
-        q.eq("requestGroupId", requestGroupId)
+        q.eq("requestGroupId", requestGroupId),
       )
       .collect();
 
@@ -783,8 +818,8 @@ export const getRequestGroup = query({
         : new Set<Id<"companies">>();
     return Promise.all(
       visible.map((process) =>
-        enrichRequest(ctx, process, userProfile, currentCompanyIds)
-      )
+        enrichRequest(ctx, process, userProfile, currentCompanyIds),
+      ),
     );
   },
 });
@@ -805,7 +840,7 @@ export const removeGroup = mutation({
     const rows = await ctx.db
       .query("individualProcesses")
       .withIndex("by_requestGroup", (q) =>
-        q.eq("requestGroupId", requestGroupId)
+        q.eq("requestGroupId", requestGroupId),
       )
       .collect();
 
@@ -822,7 +857,7 @@ export const removeGroup = mutation({
       const messages = await ctx.db
         .query("processRequestMessages")
         .withIndex("by_individualProcess", (q) =>
-          q.eq("individualProcessId", row._id)
+          q.eq("individualProcessId", row._id),
         )
         .collect();
       for (const m of messages) await ctx.db.delete(m._id);

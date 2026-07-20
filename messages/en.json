@@ -373,6 +373,7 @@
     "whereWillReceiveVisa": "Where will the visa be received?",
     "brazil": "Brazil",
     "abroad": "Abroad",
+    "receiptLocationDeterminedByFramework": "Automatically determined by the selected legal basis",
     "residenceCountry": "Country of Residence",
     "residenceState": "State of Residence",
     "residenceCity": "City of Residence",
@@ -1276,7 +1277,14 @@
     "statusApproved": "Approved",
     "statusRejected": "Rejected",
     "statusAwaitingReview": "Awaiting review",
-    "genericDocument": "Document"
+    "genericDocument": "Document",
+    "exigenciaFocusDescription": "The process has an active requirement. To keep things focused, only documents for this requirement are shown first.",
+    "exigenciaOnlyDescription": "The process has an active requirement. Only documents linked to the current requirement are shown here.",
+    "documentsOnlyDuringExigencia": "Documents for this process are available to you only while a requirement is active.",
+    "noExigenciaDocuments": "No documents are linked to the current requirement.",
+    "showOtherDocuments": "Show other documents ({count})",
+    "hideOtherDocuments": "Hide other documents",
+    "otherDocumentsHint": "Includes documents from other phases of the process."
   },
   "ProcessTimeline": {
     "title": "Process History",
@@ -2121,6 +2129,8 @@
     "isActive": "Active",
     "showInRequest": "Available for requests",
     "showInRequestDescription": "When checked, this legal framework is shown to client users when creating a process request.",
+    "receivedInBrazil": "Received in Brazil",
+    "receivedInBrazilDescription": "When selected, it will be received in Brazil. Otherwise, it will be received abroad and residence details will be requested.",
     "createdSuccess": "Legal basis created successfully",
     "updatedSuccess": "Legal basis updated successfully",
     "deletedSuccess": "Legal basis deleted successfully",

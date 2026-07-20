@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
@@ -31,7 +30,9 @@ export const list = query({
       const searchNormalized = normalizeString(args.search);
       results = results.filter((item) => {
         const name = normalizeString(item.name);
-        const description = item.description ? normalizeString(item.description) : "";
+        const description = item.description
+          ? normalizeString(item.description)
+          : "";
 
         return (
           name.includes(searchNormalized) ||
@@ -45,21 +46,23 @@ export const list = query({
       results.map(async (legalFramework) => {
         const links = await ctx.db
           .query("processTypesLegalFrameworks")
-          .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", legalFramework._id))
+          .withIndex("by_legalFramework", (q) =>
+            q.eq("legalFrameworkId", legalFramework._id),
+          )
           .collect();
 
         const processTypes = await Promise.all(
           links.map(async (link) => {
             const pt = await ctx.db.get(link.processTypeId);
             return pt ? { ...pt, _id: link.processTypeId } : null;
-          })
+          }),
         );
 
         return {
           ...legalFramework,
           processTypes: processTypes.filter((pt) => pt !== null),
         };
-      })
+      }),
     );
 
     return resultsWithProcessTypes;
@@ -103,7 +106,7 @@ export const listForRequest = query({
         const link = await ctx.db
           .query("processTypesLegalFrameworks")
           .withIndex("by_legalFramework", (q) =>
-            q.eq("legalFrameworkId", framework._id)
+            q.eq("legalFrameworkId", framework._id),
           )
           .first();
         const processType = link ? await ctx.db.get(link.processTypeId) : null;
@@ -111,10 +114,11 @@ export const listForRequest = query({
           _id: framework._id,
           name: framework.name,
           description: framework.description,
+          receivedInBrazil: framework.receivedInBrazil ?? false,
           processTypeId: processType?._id,
           processTypeName: processType?.name,
         };
-      })
+      }),
     );
   },
 });
@@ -138,7 +142,7 @@ export const get = query({
       links.map(async (link) => {
         const pt = await ctx.db.get(link.processTypeId);
         return pt ? { ...pt, _id: link.processTypeId } : null;
-      })
+      }),
     );
 
     // Get document type associations for this legal framework
@@ -158,14 +162,14 @@ export const get = query({
           validityType: link.validityType,
           validityDays: link.validityDays,
         };
-      })
+      }),
     );
 
     return {
       ...legalFramework,
       processTypes: processTypes.filter((pt) => pt !== null),
       documentTypeAssociations: documentTypeAssociations.filter(
-        (a) => a.documentTypeName !== ""
+        (a) => a.documentTypeName !== "",
       ),
     };
   },
@@ -179,14 +183,16 @@ export const getProcessTypes = query({
   handler: async (ctx, { legalFrameworkId }) => {
     const links = await ctx.db
       .query("processTypesLegalFrameworks")
-      .withIndex("by_legalFramework", (q) => q.eq("legalFrameworkId", legalFrameworkId))
+      .withIndex("by_legalFramework", (q) =>
+        q.eq("legalFrameworkId", legalFrameworkId),
+      )
       .collect();
 
     const processTypes = await Promise.all(
       links.map(async (link) => {
         const pt = await ctx.db.get(link.processTypeId);
         return pt ? { ...pt, _id: link.processTypeId } : null;
-      })
+      }),
     );
 
     return processTypes.filter((pt) => pt !== null);
@@ -211,7 +217,7 @@ export const listByProcessType = query({
       links.map(async (link) => {
         const lf = await ctx.db.get(link.legalFrameworkId);
         return lf && lf.isActive ? lf : null;
-      })
+      }),
     );
 
     return legalFrameworks.filter((lf) => lf !== null);
@@ -228,6 +234,7 @@ export const create = mutation({
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
     showInRequest: v.optional(v.boolean()),
+    receivedInBrazil: v.optional(v.boolean()),
     documentTypeAssociations: v.optional(
       v.array(
         v.object({
@@ -235,8 +242,8 @@ export const create = mutation({
           isRequired: v.boolean(),
           validityType: v.optional(v.string()),
           validityDays: v.optional(v.number()),
-        })
-      )
+        }),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -244,10 +251,14 @@ export const create = mutation({
     const adminProfile = await requireAdmin(ctx);
 
     // Ensure userId exists if we need to create junction table records
-    const hasProcessTypes = args.processTypeIds && args.processTypeIds.length > 0;
-    const hasDocTypes = args.documentTypeAssociations && args.documentTypeAssociations.length > 0;
+    const hasProcessTypes =
+      args.processTypeIds && args.processTypeIds.length > 0;
+    const hasDocTypes =
+      args.documentTypeAssociations && args.documentTypeAssociations.length > 0;
     if ((hasProcessTypes || hasDocTypes) && !adminProfile.userId) {
-      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
     }
 
     const legalFrameworkId = await ctx.db.insert("legalFrameworks", {
@@ -255,6 +266,7 @@ export const create = mutation({
       description: args.description ?? "",
       isActive: args.isActive ?? true,
       showInRequest: args.showInRequest ?? false,
+      receivedInBrazil: args.receivedInBrazil ?? false,
     });
 
     const now = Date.now();
@@ -272,7 +284,10 @@ export const create = mutation({
     }
 
     // Create junction table records for document types
-    if (args.documentTypeAssociations && args.documentTypeAssociations.length > 0) {
+    if (
+      args.documentTypeAssociations &&
+      args.documentTypeAssociations.length > 0
+    ) {
       for (const assoc of args.documentTypeAssociations) {
         await ctx.db.insert("documentTypesLegalFrameworks", {
           documentTypeId: assoc.documentTypeId,
@@ -294,6 +309,8 @@ export const create = mutation({
       details: {
         name: args.name,
         isActive: args.isActive ?? true,
+        showInRequest: args.showInRequest ?? false,
+        receivedInBrazil: args.receivedInBrazil ?? false,
         processTypesCount: args.processTypeIds?.length ?? 0,
         documentTypesCount: args.documentTypeAssociations?.length ?? 0,
       },
@@ -314,6 +331,7 @@ export const update = mutation({
     processTypeIds: v.optional(v.array(v.id("processTypes"))),
     isActive: v.optional(v.boolean()),
     showInRequest: v.optional(v.boolean()),
+    receivedInBrazil: v.optional(v.boolean()),
     documentTypeAssociations: v.optional(
       v.array(
         v.object({
@@ -321,8 +339,8 @@ export const update = mutation({
           isRequired: v.boolean(),
           validityType: v.optional(v.string()),
           validityDays: v.optional(v.number()),
-        })
-      )
+        }),
+      ),
     ),
   },
   handler: async (ctx, { id, ...args }) => {
@@ -334,10 +352,15 @@ export const update = mutation({
     }
 
     // Ensure userId exists if we need to update junction table records
-    const hasProcessTypes = args.processTypeIds !== undefined && args.processTypeIds.length > 0;
-    const hasDocTypes = args.documentTypeAssociations !== undefined && args.documentTypeAssociations.length > 0;
+    const hasProcessTypes =
+      args.processTypeIds !== undefined && args.processTypeIds.length > 0;
+    const hasDocTypes =
+      args.documentTypeAssociations !== undefined &&
+      args.documentTypeAssociations.length > 0;
     if ((hasProcessTypes || hasDocTypes) && !adminProfile.userId) {
-      throw new Error("User profile not activated. Please contact an administrator to complete your account setup.");
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
     }
 
     const updates: Record<string, string | boolean> = {
@@ -348,6 +371,8 @@ export const update = mutation({
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.showInRequest !== undefined)
       updates.showInRequest = args.showInRequest;
+    if (args.receivedInBrazil !== undefined)
+      updates.receivedInBrazil = args.receivedInBrazil;
 
     await ctx.db.patch(id, updates);
 
@@ -409,12 +434,17 @@ export const update = mutation({
         name: existing.name,
         description: existing.description,
         isActive: existing.isActive,
+        showInRequest: existing.showInRequest,
+        receivedInBrazil: existing.receivedInBrazil,
       },
       {
         name: updates.name,
         description: updates.description ?? existing.description,
         isActive: updates.isActive ?? existing.isActive,
-      }
+        showInRequest: updates.showInRequest ?? existing.showInRequest,
+        receivedInBrazil:
+          updates.receivedInBrazil ?? existing.receivedInBrazil,
+      },
     );
 
     if (args.processTypeIds !== undefined) {

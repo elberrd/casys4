@@ -7,6 +7,10 @@ import { QueryCtx, MutationCtx } from "./_generated/server";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
+import {
+  canAccessDocument as canAccessDeliveredDocument,
+  resolveClientDocumentVisibility,
+} from "./lib/clientDocumentVisibility";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -151,6 +155,24 @@ export const list = query({
         }
         return false;
       });
+
+      const visibilityFilteredDocuments = await Promise.all(
+        deliveredDocuments.map(async (document) => {
+          const process = await cachedGet(document.individualProcessId);
+          if (!process) return null;
+          const visibility = await resolveClientDocumentVisibility(
+            ctx,
+            userProfile,
+            process,
+          );
+          return canAccessDeliveredDocument(document, visibility)
+            ? document
+            : null;
+        }),
+      );
+      deliveredDocuments = visibilityFilteredDocuments.filter(
+        (document): document is Doc<"documentsDelivered"> => document !== null,
+      );
     }
 
     // Fetch related data for standalone documents

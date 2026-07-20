@@ -1,3 +1,104 @@
+# TODO: Visibilidade de documentos do processo para clientes
+
+## Contexto
+
+Aplicar no backend e no detalhe do processo a regra de visibilidade por origem da solicitação, exigência ativa e data de criação do usuário. O cliente que criou a solicitação vê o histórico completo; durante exigência, a tela prioriza apenas os documentos da exigência e permite revelar os demais. Solicitações de outro cliente ficam restritas exclusivamente à exigência ativa. Em processos administrativos, o cliente vê somente documentos criados desde `userProfiles.createdAt`. O administrador mantém acesso integral.
+
+## Sequência de tarefas
+
+### 0. Análise e política de acesso
+
+- [x] 0.1: Mapear `individualProcesses.requestedBy/requestStatus`, `userProfiles.createdAt`, o status ativo e `documentsDelivered.individualProcessStatusId`.
+- [x] 0.2: Definir a matriz de acesso compondo a nova regra com `requireClientCanAccessProcess` e `excludedFromReport`.
+
+### 1. Backend Convex
+
+- [x] 1.1: Criar um helper central para resolver o escopo do cliente, a exigência ativa e o corte temporal sem alterar schema.
+- [x] 1.2: Aplicar a política às listas, detalhe, versões, históricos, documentos por status, mapa de campos vinculados e escrita de pendentes/notas.
+- [x] 1.3: Aplicar a mesma política às agregações de documentos e dashboard que podem ser consultadas diretamente.
+
+### 2. Interface e i18n
+
+- [x] 2.1: Fazer `listGroupedByCategory` devolver metadados de visibilidade e aceitar a revelação autorizada dos documentos secundários.
+- [x] 2.2: Adicionar toggle acessível ao checklist do cliente, recolhido por padrão a cada exigência ativa e sem toggle para cliente restrito.
+- [x] 2.3: Adicionar mensagens equivalentes em `messages/pt.json` e `messages/en.json`.
+
+### 3. Quality gates
+
+- [x] 3.1: Executar `pnpm exec tsc --noEmit` e lint focado, separando débitos preexistentes.
+  - TypeScript passou; o lint focado do helper, checklist, dashboard e agregação de documentos passou sem erros novos.
+  - `pnpm lint` continua bloqueado pelos débitos gerais preexistentes do repositório (`no-explicit-any`, variáveis não usadas e hooks), sem erro no novo helper ou no checklist alterado.
+- [x] 3.2: Executar `pnpm run build` e validar a tela local em pt/en no browser com os perfis disponíveis.
+  - `pnpm run build` passou e gerou 89 páginas; permaneceu apenas o warning CSS preexistente do seletor gerado.
+  - O perfil `admin` disponível carregou o processo em exigência em pt/en com checklist completo e sem overflow em viewport 390x844.
+  - Não há credencial de cliente documentada; a matriz específica de cliente foi validada no backend, nos tipos e no build sem alterar usuários ou dados para fabricar um login.
+
+## Definition of Done
+
+- [x] Criador da solicitação vê todos os documentos e, em exigência, pode alternar entre a exigência atual e os demais.
+- [x] Cliente que não criou a solicitação vê exclusivamente documentos da exigência ativa e nenhum fora dela.
+- [x] Processo criado pelo administrador respeita `userProfiles.createdAt` e não expõe documentos anteriores ao usuário.
+- [x] A política é aplicada no backend, inclusive a acessos diretos por ID e históricos.
+- [x] Admin permanece sem restrição; i18n pt/en e TypeScript não apresentam regressão.
+- [x] Build e validação browser não apresentam regressão nova nos perfis disponíveis.
+
+---
+
+# TODO: Ocultar o Painel para usuários clientes
+
+## Contexto
+
+Quando um usuário regular com role `client` entrar no sistema, ele não deve ver o item **Painel** no menu nem acessar a rota `/dashboard`. O menu do cliente deve continuar mostrando somente **Solicitações de Processos**, **Processos Individuais** e **Configurações**. Como o sign-in e a entrada pela raiz autenticada hoje direcionam primeiro para `/dashboard`, o guard centralizado deve encaminhar o cliente para `/individual-processes` sem renderizar o Painel. Usuários `admin` devem conservar o menu e a página do Painel sem alterações.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Confirmar o PRD e os padrões existentes de navegação e RBAC.
+  - Referências: `app/[locale]/(dashboard)/prd.md`, `components/app-sidebar.tsx`, `components/role-guard.tsx`, `components/login-form.tsx`, `app/[locale]/page.tsx` e `app/[locale]/(dashboard)/dashboard/dashboard-client.tsx`.
+  - Validação: `client` usa `clientNav`; sign-in/raiz autenticada enviam para `/dashboard`; `RoleGuard` já centraliza allowlist e redireciona cliente para `/individual-processes`; o PRD reserva o dashboard analítico ao admin.
+- [x] 0.2: Limitar os arquivos da implementação aos pontos centralizados.
+  - Modificar: `components/app-sidebar.tsx` e `components/role-guard.tsx`.
+  - Não modificar: página/widgets do dashboard, rotas das três áreas mantidas, backend Convex ou `messages/pt.json`/`messages/en.json`, pois não há texto novo nem mudança de dados.
+
+### 1. Remover o Painel da navegação do cliente
+
+- [x] 1.1: Em `components/app-sidebar.tsx`, remover somente a entrada `/dashboard` de `clientNav` e ajustar o comentário correspondente.
+  - Preservar, na mesma ordem, `/process-requests`, `/individual-processes` e `/settings` com seus ícones e traduções existentes.
+  - Não alterar `navMain`, garantindo que o admin continue vendo **Painel** e todos os demais módulos.
+  - Validação: o menu do cliente contém exatamente as três opções solicitadas e o menu do admin permanece inalterado.
+
+### 2. Impedir acesso do cliente à página Painel
+
+- [x] 2.1: Em `components/role-guard.tsx`, retirar `/dashboard` de `CLIENT_ALLOWED_PATHS` e manter `/individual-processes` como destino de fallback.
+  - Preservar o tratamento de prefixo de locale e a tela vazia enquanto o perfil carrega/redireciona, evitando flash do conteúdo do Painel.
+  - Validação: cliente vindo do sign-in, da raiz autenticada ou digitando `/pt/dashboard`/`/en/dashboard` termina na lista localizada de Processos Individuais; admin continua acessando `/pt/dashboard` e `/en/dashboard`.
+- [x] 2.2: Confirmar que as rotas permitidas do cliente continuam acessíveis e company-scoped conforme o RBAC existente.
+  - Validar `/process-requests`, `/individual-processes` (incluindo detalhes) e `/settings` em pt/en.
+  - Não criar mutation/query nem alterar autenticação Convex; ocultação visual não substitui o guard de rota já existente.
+
+### 3. Quality gates
+
+- [x] 3.1: Executar `pnpm exec tsc --noEmit`, lint focado em `components/app-sidebar.tsx` e `components/role-guard.tsx`, `pnpm lint` e `pnpm run build`, separando débitos preexistentes.
+  - Validação: TypeScript strict sem `any` novo; Zod, validators Convex e novos auth checks não se aplicam porque não há fronteira de dados ou função pública alterada.
+  - `pnpm exec tsc --noEmit`, o ESLint focado e `pnpm run build` passaram; o build gerou as 89 páginas.
+  - `pnpm lint` segue bloqueado apenas pelos débitos preexistentes do repositório (`no-explicit-any`, variáveis não usadas e hooks), sem ocorrências nos dois arquivos alterados.
+- [ ] 3.2: Validar no browser autenticado em pt/en, desktop e mobile.
+  - Como `client`: após sign-in não ver **Painel**, ver somente as três opções solicitadas, navegar pelas três e ser redirecionado ao tentar abrir `/dashboard` diretamente.
+  - Como `admin`: continuar vendo e abrindo **Painel** normalmente.
+  - Conferir ausência de flash do dashboard do cliente, erros no console, regressão de teclado/foco e overflow nos breakpoints `sm`, `md` e `lg`.
+  - Validação parcial: a credencial documentada é de `admin`; o Painel permaneceu acessível em pt/en após a mudança. Não há credencial de `client` no repositório, então o teste autenticado do cliente não foi executado para evitar alterar papel, senha ou dados. O menu e o redirecionamento do cliente foram verificados estaticamente nos pontos centralizados.
+
+## Definition of Done
+
+- [x] Cliente não vê o item **Painel** e não consegue permanecer na rota `/dashboard`.
+- [x] Após sign-in/entrada autenticada, cliente é encaminhado para `/individual-processes` sem flash do Painel.
+- [x] Cliente continua vendo e acessando somente Solicitações de Processos, Processos Individuais e Configurações.
+- [x] Admin conserva o item, a rota e o conteúdo do Painel.
+- [ ] i18n existente, RBAC, TypeScript, lint, build, responsividade e validação browser passam sem novas regressões.
+
+---
+
 # TODO: Adicionar documento pendente diretamente à exigência mais recente
 
 ## Contexto

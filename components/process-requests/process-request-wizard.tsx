@@ -112,6 +112,26 @@ interface CandidateFields {
   professionalExperience?: string;
 }
 
+type ReceiptLocation = "brazil" | "abroad";
+
+function receiptLocationPatch(
+  receiptLocation: ReceiptLocation,
+): Partial<CandidateFields> {
+  if (receiptLocation === "abroad") {
+    return { visaReceiptLocation: "abroad" };
+  }
+  return {
+    visaReceiptLocation: "brazil",
+    residenceCountryCode: undefined,
+    residenceCountryName: undefined,
+    residenceStateCode: undefined,
+    residenceCity: undefined,
+    residenceSince: undefined,
+    residenceAddressAbroad: undefined,
+    consularPost: undefined,
+  };
+}
+
 /** Structural shape of an enriched request row (from getRequestGroup / get). */
 interface EnrichedRequestRow {
   _id: Id<"individualProcesses">;
@@ -138,20 +158,18 @@ interface EnrichedRequestRow {
   residenceAddressAbroad?: string | null;
   consularPost?: string | null;
   professionalExperience?: string | null;
-  person:
-    | {
-        fullName: string;
-        owned?: boolean | null;
-        email?: string | null;
-        maritalStatus?: string | null;
-        fatherName?: string | null;
-        motherName?: string | null;
-        hasEmail?: boolean | null;
-        hasMaritalStatus?: boolean | null;
-        hasFatherName?: boolean | null;
-        hasMotherName?: boolean | null;
-      }
-    | null;
+  person: {
+    fullName: string;
+    owned?: boolean | null;
+    email?: string | null;
+    maritalStatus?: string | null;
+    fatherName?: string | null;
+    motherName?: string | null;
+    hasEmail?: boolean | null;
+    hasMaritalStatus?: boolean | null;
+    hasFatherName?: boolean | null;
+    hasMotherName?: boolean | null;
+  } | null;
   passport: { passportNumber: string } | null;
   legalFramework: { name: string } | null;
 }
@@ -278,7 +296,9 @@ export function ProcessRequestWizard({
   const finalizeGroup = useMutation(api.processRequests.finalizeGroup);
   const finalizeOne = useMutation(api.processRequests.finalize);
   const removeDraft = useMutation(api.processRequests.removeDraft);
-  const ensureRequestGroup = useMutation(api.processRequests.ensureRequestGroup);
+  const ensureRequestGroup = useMutation(
+    api.processRequests.ensureRequestGroup,
+  );
 
   // Legal frameworks offered to clients (admin-gated via showInRequest).
   const requestFrameworks = useQuery(api.legalFrameworks.listForRequest, {});
@@ -319,6 +339,16 @@ export function ProcessRequestWizard({
   const [pendingRemoval, setPendingRemoval] =
     React.useState<CandidateFields | null>(null);
   const hydratedRef = React.useRef(false);
+
+  const selectedFramework = requestFrameworks?.find(
+    (framework) => framework._id === legalFrameworkId,
+  );
+  const frameworkReceiptLocation: ReceiptLocation | undefined =
+    selectedFramework === undefined
+      ? undefined
+      : selectedFramework.receivedInBrazil
+        ? "brazil"
+        : "abroad";
 
   // ---------------------------------------------------------------------------
   // Hydration from an existing batch / legacy draft (runs once when resolved).
@@ -418,9 +448,20 @@ export function ProcessRequestWizard({
   // Legal framework (shared) — propagate a change to every candidate's draft.
   // ---------------------------------------------------------------------------
   const handleSelectFramework = React.useCallback(
-    async (id: Id<"legalFrameworks">, name: string) => {
+    async (
+      id: Id<"legalFrameworks">,
+      name: string,
+      receivedInBrazil: boolean,
+    ) => {
+      const receiptLocation = receivedInBrazil ? "brazil" : "abroad";
       setLegalFrameworkId(id);
       setLegalFrameworkName(name);
+      setCandidates((previous) =>
+        previous.map((candidate) => ({
+          ...candidate,
+          ...receiptLocationPatch(receiptLocation),
+        })),
+      );
       const existing = candidates.filter((c) => c.processId);
       if (existing.length === 0) return;
       try {
@@ -502,6 +543,7 @@ export function ProcessRequestWizard({
             personOwned: r.personOwned,
             presence: r.presence,
             touched: {},
+            ...receiptLocationPatch(frameworkReceiptLocation ?? "abroad"),
             // Prefill Dados Pessoais from the owned-gated snapshot (null when the
             // person is protected / cross-tenant → fields stay empty).
             candidateEmail: r.person.email ?? undefined,
@@ -529,7 +571,9 @@ export function ProcessRequestWizard({
           toast.warning(t("maxCandidatesReached", { max: MAX_CANDIDATES }));
         }
         if (duplicateDropped > 0) {
-          toast.info(t("duplicateCandidatesSkipped", { count: duplicateDropped }));
+          toast.info(
+            t("duplicateCandidatesSkipped", { count: duplicateDropped }),
+          );
         }
         setIsAddingCandidate(false);
       }
@@ -541,6 +585,7 @@ export function ProcessRequestWizard({
       ensureRequestGroup,
       requestGroupId,
       legalFrameworkId,
+      frameworkReceiptLocation,
       t,
     ],
   );
@@ -627,7 +672,8 @@ export function ProcessRequestWizard({
       } else {
         // Legacy single drafts without a group: finalize each row directly.
         for (const candidate of candidates) {
-          if (candidate.processId) await finalizeOne({ id: candidate.processId });
+          if (candidate.processId)
+            await finalizeOne({ id: candidate.processId });
         }
       }
       toast.success(t("createSuccess"));
@@ -705,9 +751,7 @@ export function ProcessRequestWizard({
                       <div
                         className={cn(
                           "h-[2px] w-full transition-colors duration-300",
-                          isCompleted
-                            ? "bg-primary"
-                            : "bg-muted-foreground/20",
+                          isCompleted ? "bg-primary" : "bg-muted-foreground/20",
                         )}
                       />
                     </div>
@@ -826,6 +870,11 @@ export function ProcessRequestWizard({
               <PersonalDataStep
                 key={activeCandidate.personId}
                 candidate={activeCandidate}
+                receiptLocation={
+                  frameworkReceiptLocation ??
+                  activeCandidate.visaReceiptLocation ??
+                  "abroad"
+                }
                 onPatch={(next) =>
                   patchCandidate(activeCandidate.personId, next)
                 }
@@ -837,6 +886,7 @@ export function ProcessRequestWizard({
               <ReviewStep
                 candidates={candidates}
                 legalFrameworkName={legalFrameworkName}
+                receiptLocation={frameworkReceiptLocation ?? "abroad"}
               />
             )}
           </div>
@@ -1041,10 +1091,12 @@ function CandidateTabBar({
 
 function PersonalDataStep({
   candidate,
+  receiptLocation,
   onPatch,
   disabled,
 }: {
   candidate: CandidateFields;
+  receiptLocation: ReceiptLocation;
   onPatch: (next: Partial<CandidateFields>) => void;
   disabled: boolean;
 }) {
@@ -1111,7 +1163,12 @@ function PersonalDataStep({
           </Label>
           {maritalLocked ? (
             // Read-only display: shows the stored value regardless of format.
-            <Input id="marital-status" value={maritalDisplay} disabled readOnly />
+            <Input
+              id="marital-status"
+              value={maritalDisplay}
+              disabled
+              readOnly
+            />
           ) : (
             <Select
               value={candidate.maritalStatus ?? ""}
@@ -1168,7 +1225,11 @@ function PersonalDataStep({
         <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
           {t("salary")}
         </h3>
-        <SalaryStep candidate={candidate} onPatch={onPatch} disabled={disabled} />
+        <SalaryStep
+          candidate={candidate}
+          onPatch={onPatch}
+          disabled={disabled}
+        />
       </section>
 
       {/* Experiência Profissional */}
@@ -1202,6 +1263,7 @@ function PersonalDataStep({
           {t("stepVisa")}
         </h3>
         <ResidenceSelect
+          receiptLocation={receiptLocation}
           value={{
             visaReceiptLocation: candidate.visaReceiptLocation,
             residenceCountryCode: candidate.residenceCountryCode,
@@ -1367,7 +1429,10 @@ function SalaryStep({
           onValueChange={(v) =>
             onPatch({
               lastSalaryAmount: v.floatValue,
-              salaryInBRL: computeBRL(v.floatValue, candidate.exchangeRateToBRL),
+              salaryInBRL: computeBRL(
+                v.floatValue,
+                candidate.exchangeRateToBRL,
+              ),
             })
           }
           thousandSeparator="."
@@ -1484,9 +1549,11 @@ function ReviewRow({ label, value }: { label: string; value?: string }) {
 function ReviewStep({
   candidates,
   legalFrameworkName,
+  receiptLocation,
 }: {
   candidates: CandidateFields[];
   legalFrameworkName?: string;
+  receiptLocation: ReceiptLocation;
 }) {
   const t = useTranslations("ProcessRequests");
 
@@ -1514,9 +1581,7 @@ function ReviewStep({
               ? t(candidate.maritalStatus as (typeof MARITAL_OPTIONS)[number])
               : candidate.maritalStatus
             : undefined;
-          const visaLabel = candidate.visaReceiptLocation
-            ? t(candidate.visaReceiptLocation)
-            : undefined;
+          const visaLabel = t(receiptLocation);
           return (
             <div key={candidate.personId} className="rounded-lg border p-4">
               <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -1526,7 +1591,9 @@ function ReviewStep({
                 <h3 className="font-semibold">
                   {candidate.name || `${t("candidate")} ${index + 1}`}
                 </h3>
-                <ExistingPersonBadge existingPerson={candidate.existingPerson} />
+                <ExistingPersonBadge
+                  existingPerson={candidate.existingPerson}
+                />
               </div>
               <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
                 <ReviewRow
@@ -1554,7 +1621,10 @@ function ReviewStep({
                   label={t("monthlyAmount")}
                   value={numberToString(candidate.monthlyAmountToReceive)}
                 />
-                <ReviewRow label={t("whereWillReceiveVisa")} value={visaLabel} />
+                <ReviewRow
+                  label={t("whereWillReceiveVisa")}
+                  value={visaLabel}
+                />
                 <ReviewRow
                   label={t("residenceCountry")}
                   value={candidate.residenceCountryName}
@@ -1600,6 +1670,7 @@ interface RequestFrameworkOption {
   name: string;
   description?: string;
   processTypeName?: string;
+  receivedInBrazil: boolean;
 }
 
 function RequestLegalFrameworkStep({
@@ -1610,7 +1681,11 @@ function RequestLegalFrameworkStep({
 }: {
   frameworks: RequestFrameworkOption[] | undefined;
   value?: Id<"legalFrameworks">;
-  onSelect: (id: Id<"legalFrameworks">, name: string) => void;
+  onSelect: (
+    id: Id<"legalFrameworks">,
+    name: string,
+    receivedInBrazil: boolean,
+  ) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("ProcessRequests");
@@ -1648,7 +1723,13 @@ function RequestLegalFrameworkStep({
               key={framework._id}
               type="button"
               disabled={disabled}
-              onClick={() => onSelect(framework._id, framework.name)}
+              onClick={() =>
+                onSelect(
+                  framework._id,
+                  framework.name,
+                  framework.receivedInBrazil,
+                )
+              }
               className={cn(
                 "flex flex-col items-start gap-1.5 rounded-lg border p-4 text-left transition-all",
                 selected

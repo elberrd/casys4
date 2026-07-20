@@ -7,7 +7,6 @@ import { useRouter } from "@/i18n/routing"
 import { useEffect } from "react"
 
 const CLIENT_ALLOWED_PATHS = [
-  "/dashboard",
   "/process-requests",
   "/individual-processes",
   "/settings",
@@ -36,7 +35,7 @@ export function RoleGuard({ children }: { children: React.ReactNode }) {
     }
   }, [userProfile, pathname, router])
 
-  // While loading profile, show children (auth is already handled by layout)
+  // While loading the profile, don't render protected content.
   if (userProfile === undefined) {
     return null
   }

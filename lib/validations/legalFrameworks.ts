@@ -8,14 +8,21 @@ export const documentTypeAssociationSchema = z.object({
   validityDays: z.number().min(1).optional(),
 });
 
-export type DocumentTypeAssociation = z.infer<typeof documentTypeAssociationSchema>;
+export type DocumentTypeAssociation = z.infer<
+  typeof documentTypeAssociationSchema
+>;
 
 export const legalFrameworkSchema = z.object({
   name: z.string().min(1, "Legal framework name is required"),
-  description: z.string().min(1, "Description must be at least 1 character").optional().or(z.literal("")),
+  description: z
+    .string()
+    .min(1, "Description must be at least 1 character")
+    .optional()
+    .or(z.literal("")),
   processTypeIds: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
   showInRequest: z.boolean().optional(),
+  receivedInBrazil: z.boolean().optional(),
   documentTypeAssociations: z.array(documentTypeAssociationSchema).optional(),
 });
 
