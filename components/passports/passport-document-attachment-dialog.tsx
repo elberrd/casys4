@@ -61,20 +61,24 @@ export function PassportDocumentAttachmentDialog({
       ? individualProcessId
         ? { passportId, individualProcessId }
         : { passportId }
-      : "skip"
+      : "skip",
   )
 
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("")
   const [attachmentMode, setAttachmentMode] =
     useState<AttachmentMode>("new_version")
   const [isAttaching, setIsAttaching] = useState(false)
+  const [autoAttachmentFailed, setAutoAttachmentFailed] = useState(false)
   const emptyResultHandledRef = useRef<string | null>(null)
+  const automaticAttachmentHandledRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!open || !passportId) {
       emptyResultHandledRef.current = null
+      automaticAttachmentHandledRef.current = null
       setSelectedDocumentId("")
       setAttachmentMode("new_version")
+      setAutoAttachmentFailed(false)
       return
     }
 
@@ -82,7 +86,7 @@ export function PassportDocumentAttachmentDialog({
 
     if (candidates?.length) {
       const selectedStillExists = candidates.some(
-        (candidate) => candidate.documentId === selectedDocumentId
+        (candidate) => candidate.documentId === selectedDocumentId,
       )
       if (!selectedStillExists) {
         setSelectedDocumentId(candidates[0].documentId)
@@ -108,8 +112,14 @@ export function PassportDocumentAttachmentDialog({
   ])
 
   const selectedCandidate = candidates?.find(
-    (candidate) => candidate.documentId === selectedDocumentId
+    (candidate) => candidate.documentId === selectedDocumentId,
   )
+  const automaticCandidate =
+    candidates?.length === 1 && candidates[0].isOfficialPassport
+      ? candidates[0]
+      : undefined
+  const shouldAutoAttach =
+    automaticCandidate !== undefined && !autoAttachmentFailed
   const dialogOpen =
     open &&
     passportId !== undefined &&
@@ -146,23 +156,72 @@ export function PassportDocumentAttachmentDialog({
       toast.error(
         isVersionConflict
           ? t("documentAttachmentConflict")
-          : t("documentAttachmentError")
+          : t("documentAttachmentError"),
       )
     } finally {
       setIsAttaching(false)
     }
   }
 
+  useEffect(() => {
+    if (
+      !open ||
+      !passportId ||
+      !automaticCandidate ||
+      autoAttachmentFailed ||
+      isAttaching
+    ) {
+      return
+    }
+
+    const resultKey = `${passportId}:${automaticCandidate.documentId}:${automaticCandidate.currentVersion}`
+    if (automaticAttachmentHandledRef.current === resultKey) return
+    automaticAttachmentHandledRef.current = resultKey
+
+    const attachOfficialPassport = async () => {
+      try {
+        setIsAttaching(true)
+        await attachPassportFile({
+          passportId,
+          ...(individualProcessId ? { individualProcessId } : {}),
+          documentId: automaticCandidate.documentId,
+          expectedVersion: automaticCandidate.currentVersion,
+          mode: automaticCandidate.hasFile ? "new_version" : "fill",
+        })
+        toast.success(t("documentAttachmentOfficialSuccess"))
+        onComplete("attached")
+      } catch {
+        automaticAttachmentHandledRef.current = null
+        setAutoAttachmentFailed(true)
+        toast.error(t("documentAttachmentError"))
+      } finally {
+        setIsAttaching(false)
+      }
+    }
+
+    void attachOfficialPassport()
+  }, [
+    attachPassportFile,
+    autoAttachmentFailed,
+    automaticCandidate,
+    individualProcessId,
+    isAttaching,
+    onComplete,
+    open,
+    passportId,
+    t,
+  ])
+
   return (
     <Dialog
       open={dialogOpen}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) handleSkip()
+        if (!nextOpen && !shouldAutoAttach) handleSkip()
       }}
     >
       <DialogContent
         className="max-h-[90vh] max-w-2xl overflow-y-auto"
-        showCloseButton={!isAttaching}
+        showCloseButton={!isAttaching && !shouldAutoAttach}
         aria-busy={isAttaching}
       >
         <DialogHeader>
@@ -181,11 +240,13 @@ export function PassportDocumentAttachmentDialog({
             )}
           </div>
           <DialogDescription>
-            {t(
-              individualProcessId
-                ? "documentAttachmentScopedDescription"
-                : "documentAttachmentDescription"
-            )}
+            {shouldAutoAttach
+              ? t("documentAttachmentOfficialDescription")
+              : t(
+                  individualProcessId
+                    ? "documentAttachmentScopedDescription"
+                    : "documentAttachmentDescription",
+                )}
           </DialogDescription>
           {candidateName && (
             <p className="break-words text-sm font-medium text-foreground">
@@ -243,9 +304,21 @@ export function PassportDocumentAttachmentDialog({
             </div>
           )}
 
-          {selectedCandidate && candidates?.length === 1 && (
-            <CandidateCard candidate={selectedCandidate} selected />
+          {shouldAutoAttach && (
+            <div
+              className="flex min-h-32 items-center justify-center gap-2 rounded-lg border border-dashed text-sm text-muted-foreground"
+              role="status"
+            >
+              <Loader2 className="size-4 animate-spin" />
+              {t("documentAttachmentOfficialSaving")}
+            </div>
           )}
+
+          {selectedCandidate &&
+            candidates?.length === 1 &&
+            !shouldAutoAttach && (
+              <CandidateCard candidate={selectedCandidate} selected />
+            )}
 
           {selectedCandidate?.hasFile && (
             <fieldset className="space-y-3">
@@ -284,7 +357,7 @@ export function PassportDocumentAttachmentDialog({
           </p>
         </div>
 
-        {candidates !== undefined && (
+        {candidates !== undefined && !shouldAutoAttach && (
           <DialogFooter>
             <Button
               type="button"
@@ -321,6 +394,7 @@ interface CandidateCardProps {
     currentVersion: number
     currentFileName: string | null
     hasFile: boolean
+    isOfficialPassport: boolean
   }
   selected: boolean
 }
@@ -339,7 +413,7 @@ function CandidateCard({ candidate, selected }: CandidateCardProps) {
         "rounded-lg border p-4 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
         selected
           ? "border-primary bg-primary/5"
-          : "hover:border-primary/40 hover:bg-muted/40"
+          : "hover:border-primary/40 hover:bg-muted/40",
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -410,7 +484,7 @@ function AttachmentModeCard({
           checked
             ? "border-primary bg-primary/5"
             : "hover:border-primary/40 hover:bg-muted/40",
-          disabled && "cursor-not-allowed opacity-60"
+          disabled && "cursor-not-allowed opacity-60",
         )}
       >
         <div className="mb-2 flex items-center gap-2">

@@ -20,6 +20,7 @@ import { Plus } from "lucide-react"
 
 interface PassportSelectorProps {
   personId: string
+  individualProcessId?: Id<"individualProcesses">
   value: string
   onChange: (value: string) => void
   disabled?: boolean
@@ -38,6 +39,7 @@ function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
 
 export function PassportSelector({
   personId,
+  individualProcessId,
   value,
   onChange,
   disabled = false,
@@ -47,22 +49,28 @@ export function PassportSelector({
   const getCountryName = useCountryTranslation()
   const [addPassportOpen, setAddPassportOpen] = useState(false)
 
-  const passports = useQuery(
-    api.passports.listByPerson,
-    personId ? { personId: personId as Id<"people"> } : "skip"
-  ) ?? []
+  const passports =
+    useQuery(
+      api.passports.listByPerson,
+      personId ? { personId: personId as Id<"people"> } : "skip",
+    ) ?? []
 
   const hasPassports = passports.length > 0
 
   const handleAddPassportSuccess = (newPassportId?: Id<"passports">) => {
-    console.log('[PassportSelector] handleAddPassportSuccess called with:', newPassportId)
+    console.log(
+      "[PassportSelector] handleAddPassportSuccess called with:",
+      newPassportId,
+    )
     // Automatically select the newly created passport BEFORE closing dialog
     if (newPassportId) {
-      console.log('[PassportSelector] Calling onChange with:', newPassportId)
+      console.log("[PassportSelector] Calling onChange with:", newPassportId)
       onChange(newPassportId)
-      console.log('[PassportSelector] onChange called')
+      console.log("[PassportSelector] onChange called")
     } else {
-      console.log('[PassportSelector] No passport ID provided, not calling onChange')
+      console.log(
+        "[PassportSelector] No passport ID provided, not calling onChange",
+      )
     }
     // Close dialog after setting the value
     setAddPassportOpen(false)
@@ -97,6 +105,7 @@ export function PassportSelector({
           open={addPassportOpen}
           onOpenChange={setAddPassportOpen}
           personId={personId as Id<"people">}
+          individualProcessId={individualProcessId}
           onSuccess={handleAddPassportSuccess}
         />
       </div>
@@ -114,14 +123,20 @@ export function PassportSelector({
             {passports.map((passport) => (
               <SelectItem key={passport._id} value={passport._id}>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">{passport.passportNumber}</span>
+                  <span className="font-mono text-sm">
+                    {passport.passportNumber}
+                  </span>
                   {passport.issuingCountry && (
                     <span className="text-muted-foreground">
-                      {getCountryName(passport.issuingCountry.code) || passport.issuingCountry.name}
+                      {getCountryName(passport.issuingCountry.code) ||
+                        passport.issuingCountry.name}
                     </span>
                   )}
                   {passport.status && (
-                    <Badge variant={getStatusVariant(passport.status)} className="text-xs">
+                    <Badge
+                      variant={getStatusVariant(passport.status)}
+                      className="text-xs"
+                    >
                       {t(`status${passport.status.replace(" ", "")}`)}
                     </Badge>
                   )}
@@ -152,6 +167,7 @@ export function PassportSelector({
         open={addPassportOpen}
         onOpenChange={setAddPassportOpen}
         personId={personId as Id<"people">}
+        individualProcessId={individualProcessId}
         onSuccess={handleAddPassportSuccess}
       />
     </>

@@ -39,6 +39,7 @@ export interface ClientRequestGroup {
   representative: ProcessRequestListItem;
   candidates: ProcessRequestListItem[];
   requestStatus?: "draft" | "solicitado";
+  documentationStartedAt?: number;
   legalFrameworkName?: string;
   urgent: boolean;
   updatedAt: number;
@@ -138,6 +139,7 @@ export function ClientRequestsTable({
         cell: ({ row }) => {
           const g = row.original;
           const isDraft = g.requestStatus === "draft";
+          const canDelete = isDraft && g.documentationStartedAt === undefined;
           return (
             // Stop propagation so the kebab doesn't also trigger the row click.
             <div
@@ -162,7 +164,7 @@ export function ClientRequestsTable({
                       {t("continueEditing")}
                     </DropdownMenuItem>
                   )}
-                  {isDraft && (
+                  {canDelete && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem

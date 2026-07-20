@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
@@ -10,6 +10,11 @@ import {
 import { personOwnedByClient, gatePersonPII } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import { runProcessCreationSideEffects } from "./lib/createIndividualProcess";
+import {
+  autoReuseCompanyDocuments,
+  generateDocumentChecklist,
+  generateDocumentChecklistByLegalFramework,
+} from "./lib/documentChecklist";
 
 /**
  * Process Requests ("Solicitações").
@@ -74,6 +79,16 @@ const editablePersonFields = {
   fatherName: v.optional(v.string()),
   motherName: v.optional(v.string()),
 };
+
+const draftCandidateUpdateValidator = v.object({
+  id: v.id("individualProcesses"),
+  ...editableProcessFields,
+  ...editablePersonFields,
+});
+
+type DraftCandidateUpdate = Infer<typeof draftCandidateUpdateValidator>;
+
+const MAX_REQUEST_CANDIDATES = 10;
 
 type ProcessArgs = Partial<Record<keyof typeof editableProcessFields, unknown>>;
 type PersonArgs = Partial<Record<keyof typeof editablePersonFields, unknown>>;
@@ -466,6 +481,10 @@ export const createDraft = mutation({
     ...editableProcessFields,
     ...editablePersonFields,
   },
+  returns: v.object({
+    processId: v.id("individualProcesses"),
+    requestGroupId: v.string(),
+  }),
   handler: async (ctx, args) => {
     const { profile, companyId } = await requireClient(ctx);
     if (!profile.userId) {
@@ -497,6 +516,8 @@ export const createDraft = mutation({
 
     // Reuse the supplied group id only if the caller already owns a row in it;
     // otherwise mint a fresh one (prevents injecting a row into another batch).
+    // Once documentation starts the candidate set is immutable, because removing
+    // or adding rows would leave the generated checklists inconsistent.
     let requestGroupId = args.requestGroupId;
     if (requestGroupId) {
       const gid = requestGroupId;
@@ -504,8 +525,34 @@ export const createDraft = mutation({
         .query("individualProcesses")
         .withIndex("by_requestGroup", (q) => q.eq("requestGroupId", gid))
         .collect();
-      if (!groupRows.some((r) => r.requestedBy === profile.userId)) {
+      const ownedRows = groupRows.filter(
+        (row) => row.requestedBy === profile.userId,
+      );
+      if (ownedRows.length === 0) {
         requestGroupId = undefined;
+      } else {
+        if (ownedRows.length !== groupRows.length) {
+          throw new ConvexError({ code: "REQUEST_GROUP_ACCESS_DENIED" });
+        }
+        if (groupRows.some((row) => row.documentationStartedAt !== undefined)) {
+          throw new ConvexError({ code: "REQUEST_DOCUMENTATION_LOCKED" });
+        }
+        const existingCandidate = groupRows.find(
+          (row) => row.personId === args.personId,
+        );
+        if (existingCandidate) {
+          return { processId: existingCandidate._id, requestGroupId: gid };
+        }
+        if (groupRows.length >= MAX_REQUEST_CANDIDATES) {
+          throw new ConvexError({ code: "REQUEST_CANDIDATE_LIMIT" });
+        }
+        const groupFrameworkId = groupRows[0]?.legalFrameworkId;
+        if (
+          groupFrameworkId !== undefined &&
+          args.legalFrameworkId !== groupFrameworkId
+        ) {
+          throw new ConvexError({ code: "REQUEST_FRAMEWORK_MISMATCH" });
+        }
       }
     }
     if (!requestGroupId) requestGroupId = generateRequestGroupId();
@@ -538,71 +585,225 @@ export const createDraft = mutation({
   },
 });
 
-/**
- * Save changes to a draft requested process.
- * - Client owner: only while requestStatus is "draft".
- * - Admin: only while requestStatus is "draft".
- * After finalize ("solicitado") the row is a live process; edits go through the
- * normal admin process-update flow.
- */
+async function assertFrameworkCanChange(
+  ctx: MutationCtx,
+  process: Doc<"individualProcesses">,
+  nextFrameworkId: Id<"legalFrameworks">,
+): Promise<void> {
+  if (process.legalFrameworkId === nextFrameworkId) return;
+  if (process.documentationStartedAt !== undefined) {
+    throw new ConvexError({ code: "REQUEST_DOCUMENTATION_LOCKED" });
+  }
+  if (!process.requestGroupId) return;
+
+  const groupRows = await ctx.db
+    .query("individualProcesses")
+    .withIndex("by_requestGroup", (q) =>
+      q.eq("requestGroupId", process.requestGroupId!),
+    )
+    .collect();
+  if (groupRows.some((row) => row.documentationStartedAt !== undefined)) {
+    throw new ConvexError({ code: "REQUEST_DOCUMENTATION_LOCKED" });
+  }
+}
+
+async function saveDraftCandidate(
+  ctx: MutationCtx,
+  userProfile: Doc<"userProfiles">,
+  { id, ...rest }: DraftCandidateUpdate,
+): Promise<void> {
+  const process = await ctx.db.get(id);
+  if (!process) throw new ConvexError({ code: "REQUEST_NOT_FOUND" });
+
+  if (userProfile.role === "client") {
+    if (process.requestedBy !== userProfile.userId) {
+      throw new ConvexError({ code: "REQUEST_ACCESS_DENIED" });
+    }
+  } else if (userProfile.role !== "admin") {
+    throw new ConvexError({ code: "REQUEST_ACCESS_DENIED" });
+  }
+
+  if (process.requestStatus !== "draft") {
+    throw new ConvexError({ code: "REQUEST_NOT_DRAFT" });
+  }
+
+  if (rest.legalFrameworkId !== undefined) {
+    await assertFrameworkCanChange(ctx, process, rest.legalFrameworkId);
+  }
+  const framework =
+    rest.legalFrameworkId !== undefined &&
+    rest.legalFrameworkId !== process.legalFrameworkId
+      ? await assertFrameworkAvailable(ctx, rest.legalFrameworkId)
+      : process.legalFrameworkId
+        ? await ctx.db.get(process.legalFrameworkId)
+        : null;
+  if (rest.passportId !== undefined) {
+    await assertPassportBelongsToPerson(ctx, rest.passportId, process.personId);
+  }
+
+  const now = Date.now();
+  const overwrite = await personOwnedByClient(
+    ctx,
+    userProfile,
+    process.personId,
+  );
+  await applyPersonFields(ctx, process.personId, rest, now, overwrite);
+
+  const patch = buildProcessPatch(rest);
+  if (framework) applyFrameworkReceiptRule(patch, framework);
+  if (
+    rest.legalFrameworkId !== undefined &&
+    rest.legalFrameworkId !== process.legalFrameworkId
+  ) {
+    patch.processTypeId = await deriveProcessTypeId(ctx, rest.legalFrameworkId);
+  }
+  await ctx.db.patch(id, { ...patch, updatedAt: now });
+}
+
+/** Save one draft candidate while preserving the legacy public API. */
 export const saveDraft = mutation({
   args: {
     id: v.id("individualProcesses"),
     ...editableProcessFields,
     ...editablePersonFields,
   },
-  handler: async (ctx, { id, ...rest }) => {
+  returns: v.id("individualProcesses"),
+  handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
-    const process = await ctx.db.get(id);
-    if (!process) throw new Error("Process request not found");
+    await saveDraftCandidate(ctx, userProfile, args);
+    return args.id;
+  },
+});
 
-    if (userProfile.role === "client") {
-      if (process.requestedBy !== userProfile.userId) {
-        throw new Error("Access denied: This is not your request");
-      }
-    } else if (userProfile.role !== "admin") {
-      throw new Error("Access denied");
+/** Save every candidate shown by the wizard in one Convex transaction. */
+export const saveDraftGroup = mutation({
+  args: { candidates: v.array(draftCandidateUpdateValidator) },
+  returns: v.object({ count: v.number() }),
+  handler: async (ctx, { candidates }) => {
+    if (
+      candidates.length === 0 ||
+      candidates.length > MAX_REQUEST_CANDIDATES ||
+      new Set(candidates.map((candidate) => candidate.id)).size !==
+        candidates.length
+    ) {
+      throw new ConvexError({ code: "INVALID_REQUEST_CANDIDATES" });
     }
 
-    if (process.requestStatus !== "draft") {
-      throw new Error(
-        "This request has already been submitted and can no longer be edited as a draft.",
-      );
+    const userProfile = await getCurrentUserProfile(ctx);
+    for (const candidate of candidates) {
+      await saveDraftCandidate(ctx, userProfile, candidate);
+    }
+    return { count: candidates.length };
+  },
+});
+
+/**
+ * Save the complete request group, generate every candidate's checklist, and
+ * persist the irreversible legal-framework/candidate-set lock atomically.
+ * Repeated calls repair missing placeholders without creating duplicates.
+ */
+export const prepareDocumentation = mutation({
+  args: { candidates: v.array(draftCandidateUpdateValidator) },
+  returns: v.object({
+    candidateCount: v.number(),
+    documentsCreated: v.number(),
+    documentationStartedAt: v.number(),
+  }),
+  handler: async (ctx, { candidates }) => {
+    const { profile, companyId } = await requireClient(ctx);
+    if (!profile.userId) {
+      throw new ConvexError({ code: "USER_PROFILE_NOT_ACTIVE" });
+    }
+    if (
+      candidates.length === 0 ||
+      candidates.length > MAX_REQUEST_CANDIDATES ||
+      new Set(candidates.map((candidate) => candidate.id)).size !==
+        candidates.length
+    ) {
+      throw new ConvexError({ code: "INVALID_REQUEST_CANDIDATES" });
     }
 
-    const framework = rest.legalFrameworkId
-      ? await assertFrameworkAvailable(ctx, rest.legalFrameworkId)
-      : process.legalFrameworkId
-        ? await ctx.db.get(process.legalFrameworkId)
-        : null;
-    if (rest.passportId !== undefined) {
-      await assertPassportBelongsToPerson(
-        ctx,
-        rest.passportId,
-        process.personId,
-      );
+    for (const candidate of candidates) {
+      await saveDraftCandidate(ctx, profile, candidate);
+    }
+
+    const first = await ctx.db.get(candidates[0].id);
+    if (!first) throw new ConvexError({ code: "REQUEST_NOT_FOUND" });
+    const rows = first.requestGroupId
+      ? await ctx.db
+          .query("individualProcesses")
+          .withIndex("by_requestGroup", (q) =>
+            q.eq("requestGroupId", first.requestGroupId!),
+          )
+          .collect()
+      : [first];
+
+    const submittedIds = new Set(candidates.map((candidate) => candidate.id));
+    const frameworkIds = new Set(
+      rows.map((row) => row.legalFrameworkId).filter(Boolean),
+    );
+    const distinctPeople = new Set(rows.map((row) => row.personId));
+    if (
+      rows.length === 0 ||
+      rows.length > MAX_REQUEST_CANDIDATES ||
+      submittedIds.size !== rows.length ||
+      rows.some((row) => !submittedIds.has(row._id)) ||
+      rows.some(
+        (row) =>
+          row.requestedBy !== profile.userId ||
+          row.requestStatus !== "draft" ||
+          row.companyApplicantId !== companyId,
+      ) ||
+      distinctPeople.size !== rows.length ||
+      frameworkIds.size !== 1 ||
+      rows.some((row) => !row.legalFrameworkId)
+    ) {
+      throw new ConvexError({ code: "INVALID_REQUEST_GROUP" });
     }
 
     const now = Date.now();
+    const documentationStartedAt =
+      rows.find((row) => row.documentationStartedAt !== undefined)
+        ?.documentationStartedAt ?? now;
+    let documentsCreated = 0;
 
-    const overwrite = await personOwnedByClient(
-      ctx,
-      userProfile,
-      process.personId,
-    );
-    await applyPersonFields(ctx, process.personId, rest, now, overwrite);
-
-    const patch = buildProcessPatch(rest);
-    if (framework) applyFrameworkReceiptRule(patch, framework);
-    if (rest.legalFrameworkId !== undefined) {
-      patch.processTypeId = await deriveProcessTypeId(
+    for (const row of rows) {
+      const templateIds = await generateDocumentChecklist(
         ctx,
-        rest.legalFrameworkId,
+        row._id,
+        profile.userId,
       );
+      const frameworkIdsCreated =
+        await generateDocumentChecklistByLegalFramework(
+          ctx,
+          row._id,
+          profile.userId,
+        );
+      documentsCreated += templateIds.length + frameworkIdsCreated.length;
+      await autoReuseCompanyDocuments(ctx, row._id, profile.userId);
+      await ctx.db.patch(row._id, {
+        documentationStartedAt,
+        updatedAt: now,
+      });
     }
-    await ctx.db.patch(id, { ...patch, updatedAt: now });
 
-    return id;
+    await logActivitySafely(ctx, {
+      userId: profile.userId,
+      action: "documentation_started",
+      entityType: "processRequest",
+      entityId: first.requestGroupId ?? first._id,
+      details: {
+        candidateCount: rows.length,
+        documentsCreated,
+        documentationStartedAt,
+      },
+    });
+
+    return {
+      candidateCount: rows.length,
+      documentsCreated,
+      documentationStartedAt,
+    };
   },
 });
 
@@ -646,6 +847,7 @@ async function finalizeOneDraft(
 
 export const finalize = mutation({
   args: { id: v.id("individualProcesses") },
+  returns: v.id("individualProcesses"),
   handler: async (ctx, { id }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     if (userProfile.role !== "client") {
@@ -667,6 +869,9 @@ export const finalize = mutation({
     }
     if (!process.legalFrameworkId) {
       throw new Error("A legal framework is required before finalizing");
+    }
+    if (process.documentationStartedAt === undefined) {
+      throw new ConvexError({ code: "REQUEST_DOCUMENTATION_REQUIRED" });
     }
 
     const now = Date.now();
@@ -693,6 +898,7 @@ export const finalize = mutation({
  */
 export const finalizeGroup = mutation({
   args: { requestGroupId: v.string() },
+  returns: v.object({ count: v.number(), requestGroupId: v.string() }),
   handler: async (ctx, { requestGroupId }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     if (userProfile.role !== "client") {
@@ -709,15 +915,22 @@ export const finalizeGroup = mutation({
         q.eq("requestGroupId", requestGroupId),
       )
       .collect();
-    const drafts = rows.filter(
-      (r) => r.requestedBy === userId && r.requestStatus === "draft",
-    );
-    if (drafts.length === 0) {
-      throw new Error("No draft candidates to submit in this request");
+    if (
+      rows.length === 0 ||
+      rows.length > MAX_REQUEST_CANDIDATES ||
+      rows.some(
+        (row) => row.requestedBy !== userId || row.requestStatus !== "draft",
+      )
+    ) {
+      throw new ConvexError({ code: "INVALID_REQUEST_GROUP" });
     }
+    const drafts = rows;
     for (const draft of drafts) {
       if (!draft.legalFrameworkId) {
         throw new Error("A legal framework is required before submitting");
+      }
+      if (draft.documentationStartedAt === undefined) {
+        throw new ConvexError({ code: "REQUEST_DOCUMENTATION_REQUIRED" });
       }
     }
 
@@ -748,6 +961,7 @@ export const finalizeGroup = mutation({
  */
 export const removeDraft = mutation({
   args: { id: v.id("individualProcesses") },
+  returns: v.id("individualProcesses"),
   handler: async (ctx, { id }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     const process = await ctx.db.get(id);
@@ -767,6 +981,9 @@ export const removeDraft = mutation({
       throw new Error(
         "Only draft requests can be deleted here. Finalized requests are deleted from the process list.",
       );
+    }
+    if (process.documentationStartedAt !== undefined) {
+      throw new ConvexError({ code: "REQUEST_DOCUMENTATION_LOCKED" });
     }
 
     const messages = await ctx.db
@@ -831,6 +1048,7 @@ export const getRequestGroup = query({
  */
 export const removeGroup = mutation({
   args: { requestGroupId: v.string() },
+  returns: v.object({ count: v.number() }),
   handler: async (ctx, { requestGroupId }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     if (userProfile.role !== "client" && userProfile.role !== "admin") {
@@ -843,6 +1061,14 @@ export const removeGroup = mutation({
         q.eq("requestGroupId", requestGroupId),
       )
       .collect();
+
+    if (
+      rows.some((row) => row.documentationStartedAt !== undefined) ||
+      (userProfile.role === "client" &&
+        rows.some((row) => row.requestedBy !== userProfile.userId))
+    ) {
+      throw new ConvexError({ code: "REQUEST_DOCUMENTATION_LOCKED" });
+    }
 
     let count = 0;
     for (const row of rows) {
@@ -888,6 +1114,7 @@ export const removeGroup = mutation({
  */
 export const ensureRequestGroup = mutation({
   args: { id: v.id("individualProcesses") },
+  returns: v.string(),
   handler: async (ctx, { id }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     const process = await ctx.db.get(id);
@@ -901,6 +1128,9 @@ export const ensureRequestGroup = mutation({
     }
     if (userProfile.role !== "client" && userProfile.role !== "admin") {
       throw new Error("Access denied");
+    }
+    if (process.requestStatus !== "draft") {
+      throw new ConvexError({ code: "REQUEST_NOT_DRAFT" });
     }
 
     if (process.requestGroupId) return process.requestGroupId;

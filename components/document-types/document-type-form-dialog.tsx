@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Building2, FileText, EyeOff } from "lucide-react";
@@ -56,7 +57,10 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { LegalFrameworkAssociationSection } from "./legal-framework-association-section";
 import { ConditionsSection, ConditionsSectionRef } from "./conditions-section";
 import { FieldMappingsSection } from "./field-mappings-section";
-import { LocalFieldMappingsSection, type LocalFieldMapping } from "./local-field-mappings-section";
+import {
+  LocalFieldMappingsSection,
+  type LocalFieldMapping,
+} from "./local-field-mappings-section";
 
 interface DocumentTypeFormDialogProps {
   open: boolean;
@@ -75,21 +79,23 @@ interface DocumentTypeFormDialogProps {
  * - Trims underscores from start/end
  */
 function generateCodeFromName(name: string): string {
-  return name
-    // Normalize unicode characters (NFD decomposes accented chars)
-    .normalize("NFD")
-    // Remove diacritical marks (accents)
-    .replace(/[\u0300-\u036f]/g, "")
-    // Convert to uppercase
-    .toUpperCase()
-    // Replace spaces and hyphens with underscores
-    .replace(/[\s-]+/g, "_")
-    // Remove any character that is not A-Z, 0-9, or underscore
-    .replace(/[^A-Z0-9_]/g, "")
-    // Replace multiple consecutive underscores with single underscore
-    .replace(/_+/g, "_")
-    // Remove leading/trailing underscores
-    .replace(/^_+|_+$/g, "");
+  return (
+    name
+      // Normalize unicode characters (NFD decomposes accented chars)
+      .normalize("NFD")
+      // Remove diacritical marks (accents)
+      .replace(/[\u0300-\u036f]/g, "")
+      // Convert to uppercase
+      .toUpperCase()
+      // Replace spaces and hyphens with underscores
+      .replace(/[\s-]+/g, "_")
+      // Remove any character that is not A-Z, 0-9, or underscore
+      .replace(/[^A-Z0-9_]/g, "")
+      // Replace multiple consecutive underscores with single underscore
+      .replace(/_+/g, "_")
+      // Remove leading/trailing underscores
+      .replace(/^_+|_+$/g, "")
+  );
 }
 
 export function DocumentTypeFormDialog({
@@ -110,23 +116,30 @@ export function DocumentTypeFormDialog({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
-  const [pendingCategoryCode, setPendingCategoryCode] = useState<string | null>(null);
+  const [pendingCategoryCode, setPendingCategoryCode] = useState<string | null>(
+    null,
+  );
 
   const documentType = useQuery(
     api.documentTypes.getWithLegalFrameworks,
-    documentTypeId ? { id: documentTypeId } : "skip"
+    documentTypeId ? { id: documentTypeId } : "skip",
   );
 
   // Query active document categories from database
-  const documentCategories = useQuery(api.documentCategories.listActive, {}) ?? [];
+  const documentCategories =
+    useQuery(api.documentCategories.listActive, {}) ?? [];
 
   const createDocumentType = useMutation(api.documentTypes.create);
-  const createDocumentTypeWithMappings = useMutation(api.documentTypes.createWithFieldMappings);
+  const createDocumentTypeWithMappings = useMutation(
+    api.documentTypes.createWithFieldMappings,
+  );
   const updateDocumentType = useMutation(api.documentTypes.update);
   const createCategory = useMutation(api.documentCategories.create);
 
   // Local field mappings state for create mode (info-only)
-  const [localFieldMappings, setLocalFieldMappings] = useState<LocalFieldMapping[]>([]);
+  const [localFieldMappings, setLocalFieldMappings] = useState<
+    LocalFieldMapping[]
+  >([]);
 
   // Handle inline category creation
   const handleCreateCategory = async () => {
@@ -163,18 +176,21 @@ export function DocumentTypeFormDialog({
     defaultValues: {
       name: documentType?.name ?? "",
       code: documentType?.code ?? "",
-      category: documentType?.category as any ?? "Other",
+      category: documentType?.category ?? "Other",
       description: documentType?.description ?? "",
       allowedFileTypes: documentType?.allowedFileTypes ?? [...commonFileTypes],
       maxFileSizeMB: documentType?.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
       isActive: documentType?.isActive ?? true,
       isCompanyDocument: documentType?.isCompanyDocument ?? false,
       isInformationOnly: documentType?.isInformationOnly ?? false,
-      excludeFromReportByDefault: documentType?.excludeFromReportByDefault ?? false,
-      legalFrameworkAssociations: documentType?.legalFrameworkAssociations?.map((a) => ({
-        legalFrameworkId: a.legalFrameworkId,
-        isRequired: a.isRequired,
-      })) ?? [],
+      isOfficialPassport: documentType?.isOfficialPassport ?? false,
+      excludeFromReportByDefault:
+        documentType?.excludeFromReportByDefault ?? false,
+      legalFrameworkAssociations:
+        documentType?.legalFrameworkAssociations?.map((a) => ({
+          legalFrameworkId: a.legalFrameworkId,
+          isRequired: a.isRequired,
+        })) ?? [],
     },
   });
 
@@ -203,18 +219,21 @@ export function DocumentTypeFormDialog({
       form.reset({
         name: documentType.name,
         code: documentType.code,
-        category: documentType.category as any,
+        category: documentType.category ?? "Other",
         description: documentType.description,
         allowedFileTypes: documentType.allowedFileTypes ?? [...commonFileTypes],
         maxFileSizeMB: documentType.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
         isActive: documentType.isActive,
         isCompanyDocument: documentType.isCompanyDocument ?? false,
         isInformationOnly: documentType.isInformationOnly ?? false,
-        excludeFromReportByDefault: documentType.excludeFromReportByDefault ?? false,
-        legalFrameworkAssociations: documentType.legalFrameworkAssociations?.map((a) => ({
-          legalFrameworkId: a.legalFrameworkId,
-          isRequired: a.isRequired,
-        })) ?? [],
+        isOfficialPassport: documentType.isOfficialPassport ?? false,
+        excludeFromReportByDefault:
+          documentType.excludeFromReportByDefault ?? false,
+        legalFrameworkAssociations:
+          documentType.legalFrameworkAssociations?.map((a) => ({
+            legalFrameworkId: a.legalFrameworkId,
+            isRequired: a.isRequired,
+          })) ?? [],
       });
       // When editing, consider the code as manually set (don't auto-generate)
       setIsCodeManuallyEdited(true);
@@ -232,10 +251,12 @@ export function DocumentTypeFormDialog({
   useEffect(() => {
     if (pendingCategoryCode && documentCategories.length > 0) {
       const categoryExists = documentCategories.some(
-        (cat) => cat.code === pendingCategoryCode
+        (cat) => cat.code === pendingCategoryCode,
       );
       if (categoryExists) {
-        form.setValue("category", pendingCategoryCode, { shouldValidate: true });
+        form.setValue("category", pendingCategoryCode, {
+          shouldValidate: true,
+        });
         setPendingCategoryCode(null);
       }
     }
@@ -265,6 +286,7 @@ export function DocumentTypeFormDialog({
           isActive: data.isActive,
           isCompanyDocument: data.isCompanyDocument,
           isInformationOnly: data.isInformationOnly,
+          isOfficialPassport: data.isOfficialPassport,
           excludeFromReportByDefault: data.excludeFromReportByDefault,
           legalFrameworkAssociations: associations,
         });
@@ -294,6 +316,7 @@ export function DocumentTypeFormDialog({
             isActive: data.isActive,
             isCompanyDocument: data.isCompanyDocument,
             isInformationOnly: data.isInformationOnly,
+            isOfficialPassport: data.isOfficialPassport,
             excludeFromReportByDefault: data.excludeFromReportByDefault,
             legalFrameworkAssociations: associations,
             fieldMappings: localFieldMappings,
@@ -309,6 +332,7 @@ export function DocumentTypeFormDialog({
             isActive: data.isActive,
             isCompanyDocument: data.isCompanyDocument,
             isInformationOnly: data.isInformationOnly,
+            isOfficialPassport: data.isOfficialPassport,
             excludeFromReportByDefault: data.excludeFromReportByDefault,
             legalFrameworkAssociations: associations,
           });
@@ -337,328 +361,388 @@ export function DocumentTypeFormDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>
-            {documentTypeId ? t("editTitle") : t("createTitle")}
-          </DialogTitle>
-          <DialogDescription>
-            {documentTypeId
-              ? "Edit the document type information below"
-              : "Add a new document type to the system"}
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>
+              {documentTypeId ? t("editTitle") : t("createTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {documentTypeId
+                ? "Edit the document type information below"
+                : "Add a new document type to the system"}
+            </DialogDescription>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
-            <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 space-y-4">
-              <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("name")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Auto-generate code from name if not manually edited
-                        if (!isCodeManuallyEdited && !documentTypeId) {
-                          const generatedCode = generateCodeFromName(e.target.value);
-                          form.setValue("code", generatedCode, { shouldValidate: true });
-                        }
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("code")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="PASSPORT"
-                        className="font-mono uppercase"
-                        onChange={(e) => {
-                          // Mark as manually edited when user types in the code field
-                          setIsCodeManuallyEdited(true);
-                          const value = e.target.value.toUpperCase().replace(/\s+/g, "");
-                          field.onChange(value);
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>{t("codeFormat")}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("category")}</FormLabel>
-                    <div className="flex gap-2">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder={t("selectCategory")} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {documentCategories.map((category) => (
-                            <SelectItem key={category._id} value={category.code}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            title={tCategories("createTitle")}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80" align="end">
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-sm">{tCategories("createTitle")}</h4>
-                            <Input
-                              placeholder={tCategories("name")}
-                              value={newCategoryName}
-                              onChange={(e) => setNewCategoryName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleCreateCategory();
-                                }
-                              }}
-                            />
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setNewCategoryName("");
-                                  setCategoryPopoverOpen(false);
-                                }}
-                              >
-                                {tCommon("cancel")}
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={handleCreateCategory}
-                                disabled={isCreatingCategory || !newCategoryName.trim()}
-                              >
-                                {isCreatingCategory ? tCommon("loading") : tCommon("save")}
-                              </Button>
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("description")}</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={3} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Separator className="my-4" />
-
-            {/* Legal Framework Associations Section */}
-            <FormField
-              control={form.control}
-              name="legalFrameworkAssociations"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <LegalFrameworkAssociationSection
-                      value={field.value || []}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Conditions Section - Only show in edit mode */}
-            {documentTypeId && (
-              <>
-                <Separator className="my-4" />
-                <ConditionsSection ref={conditionsSectionRef} documentTypeId={documentTypeId} />
-              </>
-            )}
-
-            {/* Field Mappings Section - Edit mode uses server-backed section, create mode uses local state */}
-            {documentTypeId && (
-              <>
-                <Separator className="my-4" />
-                <FieldMappingsSection documentTypeId={documentTypeId} />
-              </>
-            )}
-            {!documentTypeId && isInfoOnly && (
-              <>
-                <Separator className="my-4" />
-                <LocalFieldMappingsSection
-                  mappings={localFieldMappings}
-                  onChange={setLocalFieldMappings}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col min-h-0 flex-1"
+            >
+              <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("name")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            // Auto-generate code from name if not manually edited
+                            if (!isCodeManuallyEdited && !documentTypeId) {
+                              const generatedCode = generateCodeFromName(
+                                e.target.value,
+                              );
+                              form.setValue("code", generatedCode, {
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </>
-            )}
 
-            <Separator className="my-4" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("code")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="PASSPORT"
+                            className="font-mono uppercase"
+                            onChange={(e) => {
+                              // Mark as manually edited when user types in the code field
+                              setIsCodeManuallyEdited(true);
+                              const value = e.target.value
+                                .toUpperCase()
+                                .replace(/\s+/g, "");
+                              field.onChange(value);
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription>{t("codeFormat")}</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-            <FormField
-              control={form.control}
-              name="isInformationOnly"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {t("isInformationOnly")}
-                    </FormLabel>
-                    <FormDescription>
-                      {t("isInformationOnlyDescription")}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("category")}</FormLabel>
+                        <div className="flex gap-2">
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue
+                                  placeholder={t("selectCategory")}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {documentCategories.map((category) => (
+                                <SelectItem
+                                  key={category._id}
+                                  value={category.code}
+                                >
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Popover
+                            open={categoryPopoverOpen}
+                            onOpenChange={setCategoryPopoverOpen}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                title={tCategories("createTitle")}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80" align="end">
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm">
+                                  {tCategories("createTitle")}
+                                </h4>
+                                <Input
+                                  placeholder={tCategories("name")}
+                                  value={newCategoryName}
+                                  onChange={(e) =>
+                                    setNewCategoryName(e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      handleCreateCategory();
+                                    }
+                                  }}
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setNewCategoryName("");
+                                      setCategoryPopoverOpen(false);
+                                    }}
+                                  >
+                                    {tCommon("cancel")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleCreateCategory}
+                                    disabled={
+                                      isCreatingCategory ||
+                                      !newCategoryName.trim()
+                                    }
+                                  >
+                                    {isCreatingCategory
+                                      ? tCommon("loading")
+                                      : tCommon("save")}
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("description")}</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} rows={3} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Separator className="my-4" />
+
+                {/* Legal Framework Associations Section */}
+                <FormField
+                  control={form.control}
+                  name="legalFrameworkAssociations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <LegalFrameworkAssociationSection
+                          value={field.value || []}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Conditions Section - Only show in edit mode */}
+                {documentTypeId && (
+                  <>
+                    <Separator className="my-4" />
+                    <ConditionsSection
+                      ref={conditionsSectionRef}
+                      documentTypeId={documentTypeId}
                     />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                  </>
+                )}
 
-            <FormField
-              control={form.control}
-              name="isCompanyDocument"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      {t("isCompanyDocument")}
-                    </FormLabel>
-                    <FormDescription>
-                      {t("isCompanyDocumentDescription")}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                {/* Field Mappings Section - Edit mode uses server-backed section, create mode uses local state */}
+                {documentTypeId && (
+                  <>
+                    <Separator className="my-4" />
+                    <FieldMappingsSection documentTypeId={documentTypeId} />
+                  </>
+                )}
+                {!documentTypeId && isInfoOnly && (
+                  <>
+                    <Separator className="my-4" />
+                    <LocalFieldMappingsSection
+                      mappings={localFieldMappings}
+                      onChange={setLocalFieldMappings}
                     />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                  </>
+                )}
 
-            <FormField
-              control={form.control}
-              name="excludeFromReportByDefault"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base flex items-center gap-2">
-                      <EyeOff className="h-4 w-4" />
-                      {t("excludeFromReportByDefault")}
-                    </FormLabel>
-                    <FormDescription>
-                      {t("excludeFromReportByDefaultDescription")}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                <Separator className="my-4" />
 
-            <FormField
-              control={form.control}
-              name="isActive"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">{t("isActive")}</FormLabel>
-                    <FormDescription>
-                      {t("isActiveDescription")}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-              />
-            </div>
+                <FormField
+                  control={form.control}
+                  name="isOfficialPassport"
+                  render={({ field }) => (
+                    <FormItem className="flex items-start gap-3 rounded-lg border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked === true)
+                          }
+                          aria-describedby="official-passport-description"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-base">
+                          {t("isOfficialPassport")}
+                        </FormLabel>
+                        <FormDescription id="official-passport-description">
+                          {t("isOfficialPassportDescription")}
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
-            <DialogFooter className="flex-shrink-0 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleUnsavedOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? tCommon("loading") : tCommon("save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                <FormField
+                  control={form.control}
+                  name="isInformationOnly"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          {t("isInformationOnly")}
+                        </FormLabel>
+                        <FormDescription>
+                          {t("isInformationOnlyDescription")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
-    {/* Unsaved Changes Confirmation Dialog */}
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
+                <FormField
+                  control={form.control}
+                  name="isCompanyDocument"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          {t("isCompanyDocument")}
+                        </FormLabel>
+                        <FormDescription>
+                          {t("isCompanyDocumentDescription")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="excludeFromReportByDefault"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <EyeOff className="h-4 w-4" />
+                          {t("excludeFromReportByDefault")}
+                        </FormLabel>
+                        <FormDescription>
+                          {t("excludeFromReportByDefaultDescription")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          {t("isActive")}
+                        </FormLabel>
+                        <FormDescription>
+                          {t("isActiveDescription")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter className="flex-shrink-0 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleUnsavedOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  {tCommon("cancel")}
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? tCommon("loading") : tCommon("save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
     </>
   );
 }

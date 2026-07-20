@@ -6,7 +6,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { useTranslations, useLocale } from "next-intl"
 import { EntityViewModal, ViewSection } from "@/components/ui/entity-view-modal"
 import { createField, createBadgeField } from "@/lib/entity-view-helpers"
-import { FileText, Info, Link2 } from "lucide-react"
+import { FileText, Link2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ENTITY_TYPE_LABELS, type EntityType } from "@/lib/field-registry"
@@ -29,7 +29,9 @@ export function DocumentTypeViewModal({
   const locale = useLocale()
 
   const documentType = useQuery(api.documentTypes.get, { id: documentTypeId })
-  const fieldMappings = useQuery(api.documentTypeFieldMappings.list, { documentTypeId })
+  const fieldMappings = useQuery(api.documentTypeFieldMappings.list, {
+    documentTypeId,
+  })
 
   if (!documentType) {
     return (
@@ -52,25 +54,28 @@ export function DocumentTypeViewModal({
       fields: [
         createField(t("name"), documentType.name),
         createField(t("code"), documentType.code),
-        createBadgeField(
-          t("category"),
-          documentType.category,
-          "outline"
-        ),
+        createBadgeField(t("category"), documentType.category, "outline"),
         createField(t("description"), documentType.description, undefined, {
           fullWidth: true,
         }),
         createBadgeField(
           t("status"),
           documentType.isActive ? tCommon("active") : tCommon("inactive"),
-          documentType.isActive ? "default" : "secondary"
+          documentType.isActive ? "default" : "secondary",
+        ),
+        createBadgeField(
+          t("isOfficialPassport"),
+          documentType.isOfficialPassport ? tCommon("yes") : tCommon("no"),
+          documentType.isOfficialPassport ? "default" : "secondary",
         ),
       ],
     },
   ]
 
   // Group field mappings by entity type
-  const groupedMappings = (fieldMappings ?? []).reduce<Record<string, typeof fieldMappings>>((acc, mapping) => {
+  const groupedMappings = (fieldMappings ?? []).reduce<
+    Record<string, typeof fieldMappings>
+  >((acc, mapping) => {
     if (!mapping) return acc
     const key = mapping.entityType
     if (!acc[key]) acc[key] = []
@@ -107,8 +112,14 @@ export function DocumentTypeViewModal({
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {mappings!.map((mapping) => (
-                      <Badge key={mapping._id} variant="outline" className="text-xs">
-                        {locale === "en" ? (mapping.labelEn || mapping.label) : mapping.label}
+                      <Badge
+                        key={mapping._id}
+                        variant="outline"
+                        className="text-xs"
+                      >
+                        {locale === "en"
+                          ? mapping.labelEn || mapping.label
+                          : mapping.label}
                         {mapping.isRequired && (
                           <span className="text-destructive ml-0.5">*</span>
                         )}
@@ -119,7 +130,9 @@ export function DocumentTypeViewModal({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">{t("noLinkedFields")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("noLinkedFields")}
+            </p>
           )}
         </CardContent>
       </Card>

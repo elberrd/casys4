@@ -20,24 +20,24 @@ export async function generateDocumentChecklist(
     throw new Error("Individual process not found");
   }
 
-  // Get the main process to find the process type
+  // Resolve process metadata from the individual row first. Client-request
+  // drafts are intentionally not attached to a collective process yet.
   const collectiveProcess = individualProcess.collectiveProcessId
     ? await ctx.db.get(individualProcess.collectiveProcessId)
     : null;
 
   // Find matching document template
   // Match by processType and legalFramework (if specified)
-  if (!collectiveProcess?.processTypeId) {
+  const processTypeId =
+    individualProcess.processTypeId ?? collectiveProcess?.processTypeId;
+  if (!processTypeId) {
     // Cannot generate checklist without processTypeId
     return [];
   }
 
-  const processTypeId = collectiveProcess.processTypeId;
   const templates = await ctx.db
     .query("documentTemplates")
-    .withIndex("by_processType", (q) =>
-      q.eq("processTypeId", processTypeId),
-    )
+    .withIndex("by_processType", (q) => q.eq("processTypeId", processTypeId))
     .collect();
 
   // Filter by legalFramework and isActive
@@ -50,7 +50,7 @@ export async function generateDocumentChecklist(
   if (matchingTemplates.length === 0) {
     // No template found - this is okay, just return empty array
     console.log(
-      `No matching document template found for processType ${collectiveProcess.processTypeId} and legalFramework ${individualProcess.legalFrameworkId}`,
+      `No matching document template found for processType ${processTypeId} and legalFramework ${individualProcess.legalFrameworkId}`,
     );
     return [];
   }
@@ -100,7 +100,8 @@ export async function generateDocumentChecklist(
       documentTypeId: requirement.documentTypeId,
       documentRequirementId: requirement._id,
       personId: individualProcess.personId,
-      companyId: collectiveProcess.companyId,
+      companyId:
+        individualProcess.companyApplicantId ?? collectiveProcess?.companyId,
       fileName: "",
       fileUrl: "",
       fileSize: 0,
@@ -115,6 +116,7 @@ export async function generateDocumentChecklist(
     });
 
     createdDocumentIds.push(documentId);
+    existingDocTypeIds.add(requirement.documentTypeId.toString());
   }
 
   return createdDocumentIds;
@@ -172,9 +174,21 @@ export async function generateDocumentChecklistByLegalFramework(
     throw new Error("Not authenticated");
   }
 
-  // Create documentsDelivered records for each association
+  // Load existing rows once and maintain the set as inserts happen. This makes
+  // repeated preparation idempotent without one process-wide read per rule.
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
   const createdAt = Date.now();
+  const existingDocs = await ctx.db
+    .query("documentsDelivered")
+    .withIndex("by_individualProcess", (q) =>
+      q.eq("individualProcessId", individualProcessId),
+    )
+    .collect();
+  const existingDocTypeIds = new Set(
+    existingDocs
+      .filter((document) => document.documentTypeId && document.isLatest)
+      .map((document) => document.documentTypeId!.toString()),
+  );
 
   for (const assoc of associations) {
     // Check if document type is still active
@@ -183,21 +197,7 @@ export async function generateDocumentChecklistByLegalFramework(
       continue;
     }
 
-    // Check if document already exists for this process and type
-    const existingDocs = await ctx.db
-      .query("documentsDelivered")
-      .withIndex("by_individualProcess", (q) =>
-        q.eq("individualProcessId", individualProcessId),
-      )
-      .collect();
-
-    const alreadyExists = existingDocs.some(
-      (doc) =>
-        doc.documentTypeId === assoc.documentTypeId &&
-        doc.isLatest,
-    );
-
-    if (alreadyExists) {
+    if (existingDocTypeIds.has(assoc.documentTypeId.toString())) {
       continue;
     }
 
@@ -208,7 +208,8 @@ export async function generateDocumentChecklistByLegalFramework(
       documentTypeLegalFrameworkId: assoc._id,
       isRequired: assoc.isRequired,
       personId: individualProcess.personId,
-      companyId: collectiveProcess?.companyId,
+      companyId:
+        individualProcess.companyApplicantId ?? collectiveProcess?.companyId,
       fileName: "",
       fileUrl: "",
       fileSize: 0,
@@ -223,6 +224,7 @@ export async function generateDocumentChecklistByLegalFramework(
     });
 
     createdDocumentIds.push(documentId);
+    existingDocTypeIds.add(assoc.documentTypeId.toString());
   }
 
   return createdDocumentIds;
@@ -257,7 +259,10 @@ export async function regenerateDocumentChecklistForLegalFramework(
   }
 
   // Generate new checklist based on current legal framework
-  return await generateDocumentChecklistByLegalFramework(ctx, individualProcessId);
+  return await generateDocumentChecklistByLegalFramework(
+    ctx,
+    individualProcessId,
+  );
 }
 
 /**
@@ -275,7 +280,9 @@ export async function autoReuseCompanyDocuments(
   // Get pending documents for this process
   const pendingDocs = await ctx.db
     .query("documentsDelivered")
-    .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
+    .withIndex("by_individualProcess", (q) =>
+      q.eq("individualProcessId", individualProcessId),
+    )
     .collect();
 
   const companyDocs = pendingDocs.filter(
@@ -303,16 +310,20 @@ export async function autoReuseCompanyDocuments(
   // Get all other processes for this company
   const otherProcesses = await ctx.db
     .query("individualProcesses")
-    .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", process.companyApplicantId!))
+    .withIndex("by_companyApplicant", (q) =>
+      q.eq("companyApplicantId", process.companyApplicantId!),
+    )
     .collect();
 
   // Collect all candidate source documents from other processes
-  const sourceByType = new Map<string, typeof pendingDocs[number]>();
+  const sourceByType = new Map<string, (typeof pendingDocs)[number]>();
   for (const otherProcess of otherProcesses) {
     if (otherProcess._id === individualProcessId) continue;
     const docs = await ctx.db
       .query("documentsDelivered")
-      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", otherProcess._id))
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", otherProcess._id),
+      )
       .collect();
 
     for (const doc of docs) {
@@ -320,7 +331,7 @@ export async function autoReuseCompanyDocuments(
         doc.documentTypeId &&
         doc.isLatest &&
         (doc.storageId || doc.fileUrl) &&
-        ["uploaded", "approved", "under_review"].includes(doc.status)
+        doc.status === "approved"
       ) {
         const existing = sourceByType.get(doc.documentTypeId);
         if (!existing || doc.uploadedAt > existing.uploadedAt) {
@@ -355,9 +366,10 @@ export async function autoReuseCompanyDocuments(
       uploadedAt,
       createdAt: getDocumentCreatedAt(targetDoc),
       receivedAt: uploadedAt,
-      reviewedBy: userId,
-      reviewedAt: uploadedAt,
-      processStatusAtUpload: targetDoc.processStatusAtUpload ?? processStatusAtUpload,
+      reviewedBy: sourceDoc.reviewedBy,
+      reviewedAt: sourceDoc.reviewedAt ?? uploadedAt,
+      processStatusAtUpload:
+        targetDoc.processStatusAtUpload ?? processStatusAtUpload,
     });
 
     await ctx.db.insert("documentStatusHistory", {
@@ -376,11 +388,15 @@ export async function autoReuseCompanyDocuments(
 
     // Auto-create conditions for the document
     if (targetDoc.documentTypeId) {
-      await ctx.scheduler.runAfter(0, internal.documentDeliveredConditions.autoCreateForDocument, {
-        documentsDeliveredId: targetDoc._id,
-        documentTypeId: targetDoc.documentTypeId,
-        individualProcessId,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documentDeliveredConditions.autoCreateForDocument,
+        {
+          documentsDeliveredId: targetDoc._id,
+          documentTypeId: targetDoc.documentTypeId,
+          individualProcessId,
+        },
+      );
     }
 
     reusedCount++;

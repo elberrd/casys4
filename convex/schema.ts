@@ -273,12 +273,14 @@ export default defineSchema({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    isOfficialPassport: v.optional(v.boolean()),
     excludeFromReportByDefault: v.optional(v.boolean()),
   })
     .index("by_code", ["code"])
     .index("by_category", ["category"])
     .index("by_categoryId", ["categoryId"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_officialPassport", ["isOfficialPassport"]),
 
   // Junction table for document types and legal frameworks (many-to-many)
   documentTypesLegalFrameworks: defineTable({
@@ -501,6 +503,10 @@ export default defineSchema({
     // framework + requestedBy/company. Undefined on legacy/admin rows, which are
     // treated as a singleton group keyed by their own _id.
     requestGroupId: v.optional(v.string()),
+    // Irreversible milestone for the client request wizard. Once set, document
+    // placeholders have been generated for the request group and the shared
+    // legal framework/candidate set can no longer change.
+    documentationStartedAt: v.optional(v.number()),
     // True when this request candidate was linked to a person that ALREADY
     // existed (dedup match) rather than newly created — drives the "Atualizando
     // cadastro" signal durably across wizard resume. Undefined for brand-new

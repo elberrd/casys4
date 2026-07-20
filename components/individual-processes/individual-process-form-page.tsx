@@ -1141,6 +1141,7 @@ export function IndividualProcessFormPage({
                     <FormControl>
                       <PassportSelector
                         personId={form.watch("personId")}
+                        individualProcessId={individualProcessId}
                         value={field.value || ""}
                         onChange={field.onChange}
                       />

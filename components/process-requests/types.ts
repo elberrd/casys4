@@ -9,6 +9,7 @@ export interface ProcessRequestListItem {
   _id: Id<"individualProcesses">;
   requestStatus?: "draft" | "solicitado";
   requestGroupId?: string;
+  documentationStartedAt?: number;
   linkedExistingPerson?: boolean;
   requestedBy?: Id<"users">;
   requestedAt?: number;
@@ -39,38 +40,36 @@ export interface ProcessRequestListItem {
   createdAt: number;
   updatedAt: number;
   company: { _id: Id<"companies">; name: string } | null;
-  person:
-    | {
-        _id: Id<"people">;
-        fullName: string;
-        givenNames?: string;
-        middleName?: string;
-        surname?: string;
-        sex?: string;
-        birthDate?: string;
-        owned?: boolean;
-        email?: string | null;
-        maritalStatus?: string | null;
-        fatherName?: string | null;
-        motherName?: string | null;
-        hasEmail?: boolean;
-        hasMaritalStatus?: boolean;
-        hasFatherName?: boolean;
-        hasMotherName?: boolean;
-      }
-    | null;
-  passport:
-    | {
-        _id: Id<"passports">;
-        passportNumber: string;
-        issueDate?: string;
-        expiryDate?: string;
-      }
-    | null;
+  person: {
+    _id: Id<"people">;
+    fullName: string;
+    givenNames?: string;
+    middleName?: string;
+    surname?: string;
+    sex?: string;
+    birthDate?: string;
+    owned?: boolean;
+    email?: string | null;
+    maritalStatus?: string | null;
+    fatherName?: string | null;
+    motherName?: string | null;
+    hasEmail?: boolean;
+    hasMaritalStatus?: boolean;
+    hasFatherName?: boolean;
+    hasMotherName?: boolean;
+  } | null;
+  passport: {
+    _id: Id<"passports">;
+    passportNumber: string;
+    issueDate?: string;
+    expiryDate?: string;
+  } | null;
   processType: { _id: Id<"processTypes">; name: string } | null;
-  legalFramework:
-    | { _id: Id<"legalFrameworks">; name: string; description?: string }
-    | null;
+  legalFramework: {
+    _id: Id<"legalFrameworks">;
+    name: string;
+    description?: string;
+  } | null;
   consulate: { _id: Id<"consulates">; city?: { name: string } | null } | null;
   requesterProfile: { fullName?: string; email?: string } | null;
 }

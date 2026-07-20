@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { useLocale, useTranslations } from "next-intl";
@@ -47,7 +47,25 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
     | ProcessRequestDetail
     | null
     | undefined;
+  const groupedRequests = useQuery(
+    api.processRequests.getRequestGroup,
+    request?.requestGroupId
+      ? { requestGroupId: request.requestGroupId }
+      : "skip",
+  ) as ProcessRequestDetail[] | undefined;
   const currentUser = useQuery(api.userProfiles.getCurrentUser, {});
+  const [selectedRequestId, setSelectedRequestId] =
+    useState<Id<"individualProcesses">>(requestId);
+
+  const candidates = request?.requestGroupId
+    ? (groupedRequests ?? [])
+    : request
+      ? [request]
+      : [];
+  const activeRequest =
+    candidates.find((candidate) => candidate._id === selectedRequestId) ??
+    candidates.find((candidate) => candidate._id === requestId) ??
+    request;
 
   const maritalLabelMap = useMemo<Record<string, string>>(
     () => ({
@@ -73,11 +91,15 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
     { label: tBreadcrumbs("processRequests"), href: "/process-requests" },
     {
       label:
-        (request && request.person?.fullName) || t("requestDetails"),
+        (activeRequest && activeRequest.person?.fullName) ||
+        t("requestDetails"),
     },
   ];
 
-  const isLoading = request === undefined || currentUser === undefined;
+  const isLoading =
+    request === undefined ||
+    currentUser === undefined ||
+    (request?.requestGroupId !== undefined && groupedRequests === undefined);
 
   return (
     <>
@@ -98,20 +120,24 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-bold sm:text-2xl">
-                  {request?.person?.fullName || t("requestDetails")}
+                  {activeRequest?.person?.fullName || t("requestDetails")}
                 </h1>
-                {request && <RequestStatusBadge status={request.requestStatus} />}
-                {request?.urgent && (
+                {activeRequest && (
+                  <RequestStatusBadge status={activeRequest.requestStatus} />
+                )}
+                {activeRequest?.urgent && (
                   <Badge variant="destructive" className="text-xs">
                     {t("urgent")}
                   </Badge>
                 )}
               </div>
               <p className="truncate text-sm text-muted-foreground">
-                {request?.company?.name || ""}
-                {request?.requestedAt
+                {activeRequest?.company?.name || ""}
+                {activeRequest?.requestedAt
                   ? ` · ${formatDate(
-                      new Date(request.requestedAt).toISOString().slice(0, 10),
+                      new Date(activeRequest.requestedAt)
+                        .toISOString()
+                        .slice(0, 10),
                       locale,
                     )}`
                   : ""}
@@ -119,14 +145,14 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
             </div>
           </div>
 
-          {request?.requestStatus === "draft" &&
+          {activeRequest?.requestStatus === "draft" &&
             currentUser?.role === "client" && (
               <Button
                 onClick={() =>
                   router.push(
-                    request.requestGroupId
-                      ? `/process-requests/new?group=${request.requestGroupId}`
-                      : `/process-requests/new?id=${request._id}`,
+                    activeRequest.requestGroupId
+                      ? `/process-requests/new?group=${activeRequest.requestGroupId}`
+                      : `/process-requests/new?id=${activeRequest._id}`,
                   )
                 }
               >
@@ -135,11 +161,11 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
               </Button>
             )}
 
-          {request?.requestStatus === "solicitado" && (
+          {activeRequest?.requestStatus === "solicitado" && (
             <Button
               variant="outline"
               onClick={() =>
-                router.push(`/individual-processes/${request._id}`)
+                router.push(`/individual-processes/${activeRequest._id}`)
               }
             >
               {t("viewProcess")}
@@ -153,7 +179,7 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
             <Skeleton className="h-48 w-full" />
             <Skeleton className="h-40 w-full" />
           </div>
-        ) : request === null ? (
+        ) : request === null || !activeRequest ? (
           <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
             <p className="text-sm text-muted-foreground">{t("noRequests")}</p>
             <Button
@@ -165,228 +191,266 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
           </Card>
         ) : (
           <div className="space-y-4">
-              {/* Candidate + passport */}
+            {candidates.length > 1 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">
+                    {t("candidatesCount", { count: candidates.length })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className="flex gap-2 overflow-x-auto pb-1"
+                    role="group"
+                    aria-label={t("candidate")}
+                  >
+                    {candidates.map((candidate, index) => {
+                      const isSelected = candidate._id === activeRequest._id;
+                      return (
+                        <Button
+                          key={candidate._id}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className="max-w-[16rem] shrink-0"
+                          aria-pressed={isSelected}
+                          onClick={() => setSelectedRequestId(candidate._id)}
+                        >
+                          <span className="truncate">
+                            {candidate.person?.fullName ||
+                              `${t("candidate")} ${index + 1}`}
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Candidate + passport */}
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base">{t("candidate")}</CardTitle>
+                  {activeRequest.linkedExistingPerson && (
+                    <Badge variant="secondary" className="font-normal">
+                      {t("linkedExistingPersonBadge")}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <Field
+                  label={t("candidate")}
+                  value={activeRequest.person?.fullName}
+                />
+                <Field
+                  label={t("candidateEmail")}
+                  value={activeRequest.person?.email}
+                />
+                <Field
+                  label={t("maritalStatus")}
+                  value={
+                    activeRequest.person?.maritalStatus
+                      ? (maritalLabelMap[activeRequest.person.maritalStatus] ??
+                        activeRequest.person.maritalStatus)
+                      : undefined
+                  }
+                />
+                <Field
+                  label={t("fatherName")}
+                  value={activeRequest.person?.fatherName}
+                />
+                <Field
+                  label={t("motherName")}
+                  value={activeRequest.person?.motherName}
+                />
+                <Field
+                  label={t("passportNumber")}
+                  value={activeRequest.passport?.passportNumber}
+                />
+                <Field
+                  label={t("issueDate")}
+                  value={
+                    activeRequest.passport?.issueDate
+                      ? formatDate(activeRequest.passport.issueDate, locale)
+                      : undefined
+                  }
+                />
+                <Field
+                  label={t("expiryDate")}
+                  value={
+                    activeRequest.passport?.expiryDate
+                      ? formatDate(activeRequest.passport.expiryDate, locale)
+                      : undefined
+                  }
+                />
+              </CardContent>
+            </Card>
+
+            {/* Process / legal framework */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {t("basicInformation")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <Field
+                    label={t("processType")}
+                    value={activeRequest.processType?.name}
+                  />
+                  <Field
+                    label={t("legalFramework")}
+                    value={activeRequest.legalFramework?.name}
+                  />
+                  <Field
+                    label={t("consulate")}
+                    value={activeRequest.consulate?.city?.name}
+                  />
+                  <Field
+                    label={t("requestDate")}
+                    value={
+                      activeRequest.dateProcess
+                        ? formatDate(activeRequest.dateProcess, locale)
+                        : undefined
+                    }
+                  />
+                </div>
+                {activeRequest.legalFramework?.description && (
+                  <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                    {activeRequest.legalFramework.description}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Salary */}
+            {(activeRequest.lastSalaryAmount !== undefined ||
+              activeRequest.salaryInBRL !== undefined ||
+              activeRequest.monthlyAmountToReceive !== undefined) && (
               <Card>
                 <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-base">
-                      {t("candidate")}
-                    </CardTitle>
-                    {request.linkedExistingPerson && (
-                      <Badge variant="secondary" className="font-normal">
-                        {t("linkedExistingPersonBadge")}
-                      </Badge>
-                    )}
-                  </div>
+                  <CardTitle className="text-base">{t("salary")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   <Field
-                    label={t("candidate")}
-                    value={request.person?.fullName}
+                    label={t("amount")}
+                    value={formatMoney(
+                      activeRequest.lastSalaryCurrency,
+                      activeRequest.lastSalaryAmount,
+                    )}
                   />
                   <Field
-                    label={t("candidateEmail")}
-                    value={request.person?.email}
-                  />
-                  <Field
-                    label={t("maritalStatus")}
+                    label={t("exchangeRate")}
                     value={
-                      request.person?.maritalStatus
-                        ? maritalLabelMap[request.person.maritalStatus] ??
-                          request.person.maritalStatus
-                        : undefined
+                      activeRequest.lastSalaryCurrency === "BRL" ||
+                      !activeRequest.exchangeRateToBRL
+                        ? undefined
+                        : activeRequest.exchangeRateToBRL
                     }
                   />
                   <Field
-                    label={t("fatherName")}
-                    value={request.person?.fatherName}
+                    label={t("salaryInBRL")}
+                    value={formatMoney("BRL", activeRequest.salaryInBRL)}
                   />
                   <Field
-                    label={t("motherName")}
-                    value={request.person?.motherName}
-                  />
-                  <Field
-                    label={t("passportNumber")}
-                    value={request.passport?.passportNumber}
-                  />
-                  <Field
-                    label={t("issueDate")}
-                    value={
-                      request.passport?.issueDate
-                        ? formatDate(request.passport.issueDate, locale)
-                        : undefined
-                    }
-                  />
-                  <Field
-                    label={t("expiryDate")}
-                    value={
-                      request.passport?.expiryDate
-                        ? formatDate(request.passport.expiryDate, locale)
-                        : undefined
-                    }
+                    label={t("monthlyAmount")}
+                    value={formatMoney(
+                      "BRL",
+                      activeRequest.monthlyAmountToReceive,
+                    )}
                   />
                 </CardContent>
               </Card>
+            )}
 
-              {/* Process / legal framework */}
+            {/* Visa receipt + residence */}
+            {(activeRequest.visaReceiptLocation ||
+              activeRequest.residenceCountryName ||
+              activeRequest.residenceCity) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">
-                    {t("basicInformation")}
+                    {t("visaReceiptLocation")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field
-                      label={t("processType")}
-                      value={request.processType?.name}
-                    />
-                    <Field
-                      label={t("legalFramework")}
-                      value={request.legalFramework?.name}
-                    />
-                    <Field
-                      label={t("consulate")}
-                      value={request.consulate?.city?.name}
-                    />
-                    <Field
-                      label={t("requestDate")}
+                      label={t("visaReceiptLocation")}
                       value={
-                        request.dateProcess
-                          ? formatDate(request.dateProcess, locale)
+                        activeRequest.visaReceiptLocation === "brazil"
+                          ? t("brazil")
+                          : activeRequest.visaReceiptLocation === "abroad"
+                            ? t("abroad")
+                            : undefined
+                      }
+                    />
+                    <Field
+                      label={t("residenceCountry")}
+                      value={activeRequest.residenceCountryName}
+                    />
+                    <Field
+                      label={t("residenceState")}
+                      value={activeRequest.residenceStateCode}
+                    />
+                    <Field
+                      label={t("residenceCity")}
+                      value={activeRequest.residenceCity}
+                    />
+                    <Field
+                      label={t("consularPost")}
+                      value={activeRequest.consularPost}
+                    />
+                    <Field
+                      label={t("residenceSince")}
+                      value={
+                        activeRequest.residenceSince
+                          ? formatDate(activeRequest.residenceSince, locale)
                           : undefined
                       }
                     />
                   </div>
-                  {request.legalFramework?.description && (
-                    <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                      {request.legalFramework.description}
-                    </p>
-                  )}
+                  <Field
+                    label={t("residenceAddressAbroad")}
+                    value={activeRequest.residenceAddressAbroad}
+                  />
                 </CardContent>
               </Card>
+            )}
 
-              {/* Salary */}
-              {(request.lastSalaryAmount !== undefined ||
-                request.salaryInBRL !== undefined ||
-                request.monthlyAmountToReceive !== undefined) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">{t("salary")}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <Field
-                      label={t("amount")}
-                      value={formatMoney(
-                        request.lastSalaryCurrency,
-                        request.lastSalaryAmount,
-                      )}
-                    />
-                    <Field
-                      label={t("exchangeRate")}
-                      value={
-                        request.lastSalaryCurrency === "BRL" ||
-                        !request.exchangeRateToBRL
-                          ? undefined
-                          : request.exchangeRateToBRL
-                      }
-                    />
-                    <Field
-                      label={t("salaryInBRL")}
-                      value={formatMoney("BRL", request.salaryInBRL)}
-                    />
-                    <Field
-                      label={t("monthlyAmount")}
-                      value={formatMoney("BRL", request.monthlyAmountToReceive)}
-                    />
-                  </CardContent>
-                </Card>
-              )}
+            {/* Professional experience */}
+            {activeRequest.professionalExperience && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {t("professionalExperience")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                    {activeRequest.professionalExperience}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
-              {/* Visa receipt + residence */}
-              {(request.visaReceiptLocation ||
-                request.residenceCountryName ||
-                request.residenceCity) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      {t("visaReceiptLocation")}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                      <Field
-                        label={t("visaReceiptLocation")}
-                        value={
-                          request.visaReceiptLocation === "brazil"
-                            ? t("brazil")
-                            : request.visaReceiptLocation === "abroad"
-                              ? t("abroad")
-                              : undefined
-                        }
-                      />
-                      <Field
-                        label={t("residenceCountry")}
-                        value={request.residenceCountryName}
-                      />
-                      <Field
-                        label={t("residenceState")}
-                        value={request.residenceStateCode}
-                      />
-                      <Field
-                        label={t("residenceCity")}
-                        value={request.residenceCity}
-                      />
-                      <Field
-                        label={t("consularPost")}
-                        value={request.consularPost}
-                      />
-                      <Field
-                        label={t("residenceSince")}
-                        value={
-                          request.residenceSince
-                            ? formatDate(request.residenceSince, locale)
-                            : undefined
-                        }
-                      />
-                    </div>
-                    <Field
-                      label={t("residenceAddressAbroad")}
-                      value={request.residenceAddressAbroad}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Professional experience */}
-              {request.professionalExperience && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      {t("professionalExperience")}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                      {request.professionalExperience}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Notes */}
-              {request.requestNotes && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">{t("notes")}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                      {request.requestNotes}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+            {/* Notes */}
+            {activeRequest.requestNotes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">{t("notes")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                    {activeRequest.requestNotes}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

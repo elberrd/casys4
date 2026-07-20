@@ -26,6 +26,7 @@ const attachmentCandidateValidator = v.object({
   currentVersion: v.number(),
   currentFileName: v.union(v.string(), v.null()),
   hasFile: v.boolean(),
+  isOfficialPassport: v.boolean(),
 });
 
 const attachmentModeValidator = v.union(
@@ -78,14 +79,21 @@ export const listCandidates = query({
     const personId = passport?.personId;
     if (!personId) return [];
 
+    const officialPassportTypes = await ctx.db
+      .query("documentTypes")
+      .withIndex("by_officialPassport", (q) => q.eq("isOfficialPassport", true))
+      .collect();
+    const officialPassportTypeId =
+      officialPassportTypes.length === 1
+        ? officialPassportTypes[0]._id
+        : undefined;
+
     const scopedProcess = args.individualProcessId
       ? await ctx.db.get(args.individualProcessId)
       : null;
     if (
       args.individualProcessId &&
-      (!scopedProcess ||
-        scopedProcess.personId !== personId ||
-        scopedProcess.passportId !== passport._id)
+      (!scopedProcess || scopedProcess.personId !== personId)
     ) {
       return [];
     }
@@ -100,22 +108,25 @@ export const listCandidates = query({
 
     const candidatesByProcess = await Promise.all(
       processes.map(async (individualProcess) => {
-        const [documents, collectiveProcess, legalFramework] = await Promise.all([
-          ctx.db
-            .query("documentsDelivered")
-            .withIndex("by_individualProcess", (q) =>
-              q.eq("individualProcessId", individualProcess._id),
-            )
-            .collect(),
-          individualProcess.collectiveProcessId
-            ? cachedGet(individualProcess.collectiveProcessId)
-            : null,
-          individualProcess.legalFrameworkId
-            ? cachedGet(individualProcess.legalFrameworkId)
-            : null,
-        ]);
+        const [documents, collectiveProcess, legalFramework] =
+          await Promise.all([
+            ctx.db
+              .query("documentsDelivered")
+              .withIndex("by_individualProcess", (q) =>
+                q.eq("individualProcessId", individualProcess._id),
+              )
+              .collect(),
+            individualProcess.collectiveProcessId
+              ? cachedGet(individualProcess.collectiveProcessId)
+              : null,
+            individualProcess.legalFrameworkId
+              ? cachedGet(individualProcess.legalFrameworkId)
+              : null,
+          ]);
 
-        const latestDocuments = documents.filter((document) => document.isLatest);
+        const latestDocuments = documents.filter(
+          (document) => document.isLatest,
+        );
 
         return await Promise.all(
           latestDocuments.map(async (document) => {
@@ -123,8 +134,13 @@ export const listCandidates = query({
               ? await cachedGet(document.documentTypeId)
               : null;
             const documentName = documentType?.name ?? document.documentName;
+            const isOfficialPassport =
+              document.documentTypeId === officialPassportTypeId;
 
-            if (!documentName || !isPassportDocumentName(documentName)) {
+            if (!documentName) {
+              return null;
+            }
+            if (!isOfficialPassport && !isPassportDocumentName(documentName)) {
               return null;
             }
 
@@ -142,21 +158,28 @@ export const listCandidates = query({
               currentVersion: document.version,
               currentFileName: hasFile ? document.fileName || null : null,
               hasFile,
+              isOfficialPassport,
             };
           }),
         );
       }),
     );
 
-    return candidatesByProcess
+    const allCandidates = candidatesByProcess
       .flat()
-      .filter((candidate) => candidate !== null)
-      .sort((a, b) => {
-        if (a.hasFile !== b.hasFile) return a.hasFile ? 1 : -1;
-        return (a.processReference ?? a.documentName).localeCompare(
-          b.processReference ?? b.documentName,
-        );
-      });
+      .filter((candidate) => candidate !== null);
+    const officialCandidates = allCandidates.filter(
+      (candidate) => candidate.isOfficialPassport,
+    );
+    const resolvedCandidates =
+      officialCandidates.length > 0 ? officialCandidates : allCandidates;
+
+    return resolvedCandidates.sort((a, b) => {
+      if (a.hasFile !== b.hasFile) return a.hasFile ? 1 : -1;
+      return (a.processReference ?? a.documentName).localeCompare(
+        b.processReference ?? b.documentName,
+      );
+    });
   },
 });
 
@@ -194,30 +217,48 @@ export const attach = mutation({
     if (!targetDocument) {
       throw new ConvexError({ code: "DOCUMENT_NOT_FOUND" });
     }
-    if (!targetDocument.isLatest || targetDocument.version !== args.expectedVersion) {
+    if (
+      !targetDocument.isLatest ||
+      targetDocument.version !== args.expectedVersion
+    ) {
       throw new ConvexError({ code: "DOCUMENT_VERSION_CONFLICT" });
     }
 
-    const [individualProcess, documentType] = await Promise.all([
-      ctx.db.get(targetDocument.individualProcessId),
-      targetDocument.documentTypeId
-        ? ctx.db.get(targetDocument.documentTypeId)
-        : null,
-    ]);
-    if (!individualProcess || individualProcess.personId !== passport.personId) {
+    const [individualProcess, documentType, officialPassportTypes] =
+      await Promise.all([
+        ctx.db.get(targetDocument.individualProcessId),
+        targetDocument.documentTypeId
+          ? ctx.db.get(targetDocument.documentTypeId)
+          : null,
+        ctx.db
+          .query("documentTypes")
+          .withIndex("by_officialPassport", (q) =>
+            q.eq("isOfficialPassport", true),
+          )
+          .collect(),
+      ]);
+    if (
+      !individualProcess ||
+      individualProcess.personId !== passport.personId
+    ) {
       throw new ConvexError({ code: "DOCUMENT_ACCESS_DENIED" });
     }
     if (
       args.individualProcessId &&
       (targetDocument.individualProcessId !== args.individualProcessId ||
-        individualProcess._id !== args.individualProcessId ||
-        individualProcess.passportId !== passport._id)
+        individualProcess._id !== args.individualProcessId)
     ) {
       throw new ConvexError({ code: "DOCUMENT_ACCESS_DENIED" });
     }
 
     const documentName = documentType?.name ?? targetDocument.documentName;
-    if (!documentName || !isPassportDocumentName(documentName)) {
+    const isOfficialPassport =
+      officialPassportTypes.length === 1 &&
+      targetDocument.documentTypeId === officialPassportTypes[0]._id;
+    if (
+      !isOfficialPassport &&
+      (!documentName || !isPassportDocumentName(documentName))
+    ) {
       throw new ConvexError({ code: "INVALID_PASSPORT_DOCUMENT" });
     }
 
@@ -272,7 +313,8 @@ export const attach = mutation({
         isSameDocumentGroup(document, targetDocument),
       );
       savedVersion =
-        Math.max(...matchingVersions.map((document) => document.version), 0) + 1;
+        Math.max(...matchingVersions.map((document) => document.version), 0) +
+        1;
 
       await ctx.db.patch(targetDocument._id, { isLatest: false });
       savedDocumentId = await ctx.db.insert("documentsDelivered", {

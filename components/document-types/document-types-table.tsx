@@ -40,6 +40,7 @@ interface DocumentType {
   description?: string
   isActive?: boolean
   isCompanyDocument?: boolean
+  isOfficialPassport?: boolean
 }
 
 interface DocumentTypesTableProps {
@@ -58,16 +59,23 @@ const getCategoryColor = (category: string) => {
     IDENTITY: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
     Work: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     WORK: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-    Education: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-    EDUCATION: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-    Financial: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-    FINANCIAL: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    Education:
+      "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    EDUCATION:
+      "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    Financial:
+      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    FINANCIAL:
+      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
     Legal: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     LEGAL: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     Other: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
     OTHER: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
   }
-  return colors[category] || "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+  return (
+    colors[category] ||
+    "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+  )
 }
 
 export function DocumentTypesTable({
@@ -75,10 +83,10 @@ export function DocumentTypesTable({
   onView,
   onEdit,
   onDelete,
-  onCreateNew
+  onCreateNew,
 }: DocumentTypesTableProps) {
-  const t = useTranslations('DocumentTypes')
-  const tCommon = useTranslations('Common')
+  const t = useTranslations("DocumentTypes")
+  const tCommon = useTranslations("Common")
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   // Delete confirmation for single item
@@ -105,26 +113,26 @@ export function DocumentTypesTable({
       {
         accessorKey: "name",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('name')} />
+          <DataGridColumnHeader column={column} title={t("name")} />
         ),
-        cell: ({ row }) => (
-          <DataGridHighlightedCell text={row.original.name} />
-        ),
+        cell: ({ row }) => <DataGridHighlightedCell text={row.original.name} />,
         size: 350,
       },
       {
         accessorKey: "code",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('code')} />
+          <DataGridColumnHeader column={column} title={t("code")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-muted-foreground">{row.original.code || '-'}</span>
+          <span className="font-mono text-muted-foreground">
+            {row.original.code || "-"}
+          </span>
         ),
       },
       {
         accessorKey: "category",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('category')} />
+          <DataGridColumnHeader column={column} title={t("category")} />
         ),
         cell: ({ row }) => {
           const category = row.original.category
@@ -139,28 +147,58 @@ export function DocumentTypesTable({
       {
         accessorKey: "description",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('description')} />
+          <DataGridColumnHeader column={column} title={t("description")} />
         ),
         cell: ({ row }) => {
           const description = row.original.description
-          if (!description) return <span className="text-sm text-muted-foreground">-</span>
+          if (!description)
+            return <span className="text-sm text-muted-foreground">-</span>
           const truncated =
             description.length > 60
               ? description.substring(0, 60) + "..."
               : description
-          return <span className="text-sm text-muted-foreground">{truncated}</span>
+          return (
+            <span className="text-sm text-muted-foreground">{truncated}</span>
+          )
         },
+      },
+      {
+        accessorKey: "isOfficialPassport",
+        header: ({ column }) => (
+          <DataGridColumnHeader
+            column={column}
+            title={t("isOfficialPassport")}
+          />
+        ),
+        cell: ({ row }) =>
+          row.original.isOfficialPassport ? (
+            <Badge
+              variant="outline"
+              className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+            >
+              {t("officialPassportBadge")}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          ),
       },
       {
         accessorKey: "isCompanyDocument",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('isCompanyDocument')} />
+          <DataGridColumnHeader
+            column={column}
+            title={t("isCompanyDocument")}
+          />
         ),
         cell: ({ row }) => {
-          if (!row.original.isCompanyDocument) return <span className="text-muted-foreground">-</span>
+          if (!row.original.isCompanyDocument)
+            return <span className="text-muted-foreground">-</span>
           return (
-            <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
-              {tCommon('yes')}
+            <Badge
+              variant="outline"
+              className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
+            >
+              {tCommon("yes")}
             </Badge>
           )
         },
@@ -168,11 +206,11 @@ export function DocumentTypesTable({
       {
         accessorKey: "isActive",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t('isActive')} />
+          <DataGridColumnHeader column={column} title={t("isActive")} />
         ),
         cell: ({ row }) => (
           <Badge variant={row.original.isActive ? "default" : "secondary"}>
-            {row.original.isActive ? tCommon('active') : tCommon('inactive')}
+            {row.original.isActive ? tCommon("active") : tCommon("inactive")}
           </Badge>
         ),
         filterFn: (row, id, value) => {
@@ -181,29 +219,30 @@ export function DocumentTypesTable({
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">{tCommon('actions')}</span>,
+        header: () => <span className="sr-only">{tCommon("actions")}</span>,
         cell: ({ row }) => (
           <DataGridRowActions
             actions={[
               ...(onView
                 ? [
                     {
-                      label: tCommon('view'),
+                      label: tCommon("view"),
                       icon: <Eye className="h-4 w-4" />,
                       onClick: () => onView(row.original._id),
                     },
                   ]
                 : []),
               {
-                label: tCommon('edit'),
+                label: tCommon("edit"),
                 icon: <Edit className="h-4 w-4" />,
                 onClick: () => onEdit(row.original._id),
                 variant: "default" as const,
               },
               {
-                label: tCommon('delete'),
+                label: tCommon("delete"),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: () => deleteConfirmation.confirmDelete(row.original._id),
+                onClick: () =>
+                  deleteConfirmation.confirmDelete(row.original._id),
                 variant: "destructive",
                 separator: true,
               },
@@ -215,7 +254,7 @@ export function DocumentTypesTable({
         enableHiding: false,
       },
     ],
-    [t, tCommon, onView, onEdit, onDelete]
+    [t, tCommon, onView, onEdit, onDelete],
   )
 
   const table = useReactTable({
@@ -245,7 +284,7 @@ export function DocumentTypesTable({
     <DataGrid
       table={table}
       recordCount={documentTypes.length}
-      emptyMessage={t('noResults')}
+      emptyMessage={t("noResults")}
       onRowClick={onView ? (row) => onView(row._id) : undefined}
       tableLayout={{
         columnsVisibility: true,
@@ -257,11 +296,23 @@ export function DocumentTypesTable({
           <div className="flex flex-col sm:flex-row gap-2">
             <DataGridColumnVisibility
               table={table}
-              trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
+              trigger={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                >
+                  Columns
+                </Button>
+              }
             />
-            <Button onClick={onCreateNew} size="sm" className="w-full sm:w-auto">
+            <Button
+              onClick={onCreateNew}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
               <Plus className="h-4 w-4 mr-2" />
-              {t('createTitle')}
+              {t("createTitle")}
             </Button>
           </div>
         </div>
@@ -269,7 +320,7 @@ export function DocumentTypesTable({
           table={table}
           actions={[
             {
-              label: tCommon('deleteSelected'),
+              label: tCommon("deleteSelected"),
               icon: <Trash2 className="h-4 w-4" />,
               onClick: (selectedRows) => {
                 bulkDeleteConfirmation.confirmBulkDelete(selectedRows)

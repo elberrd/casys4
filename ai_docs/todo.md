@@ -1,3 +1,47 @@
+# TODO: Etapa de documentação nas solicitações com múltiplos candidatos
+
+## Contexto
+
+Adicionar uma quinta etapa **Documentos** ao wizard do cliente. Cada candidato continua sendo persistido como um `individualProcesses` em rascunho e as linhas da mesma solicitação continuam vinculadas por `requestGroupId`; não reativar a tabela legada `processRequests`. Ao entrar em Documentos, salvar o grupo, gerar os checklists de todos os candidatos de forma transacional/idempotente e registrar um marco persistente que bloqueia a troca do amparo legal e mudanças no conjunto de candidatos. A etapa deve mostrar somente documentos autorizados ao cliente e permitir navegar entre candidatos.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar PRD, migração legada, schema, mutations de solicitação, geração/visibilidade documental, wizard e listagem/detalhe do cliente.
+- [x] 0.2: Decidir pelo modelo existente `individualProcesses` + `requestGroupId`, evitando uma segunda fonte de verdade e reforçando as invariantes com mutations de grupo.
+
+### 1. Persistência e invariantes Convex
+
+- [x] 1.1: Adicionar `documentationStartedAt` aos processos individuais originados de solicitação.
+- [x] 1.2: Criar salvamento transacional do grupo e preparação idempotente dos documentos para todos os candidatos, com auth, limite e validação de empresa/amparo/status.
+- [x] 1.3: Bloquear alteração do amparo, inclusão/remoção de candidatos e envio sem documentação depois do marco correspondente.
+- [x] 1.4: Tornar os helpers de checklist eficientes para processos sem coletivo e preservar a visibilidade `excludedFromReport` no backend.
+
+### 2. Wizard e experiência do cliente
+
+- [x] 2.1: Adicionar a quinta etapa **Documentos**, confirmação do bloqueio e ações **Ir para revisão** / **Ir para documentos**.
+- [x] 2.2: Reutilizar o checklist do cliente em modo incorporado e a navegação por candidato, restaurando diretamente a etapa ao retomar um rascunho preparado.
+- [x] 2.3: Mostrar o bloqueio do amparo e impedir alterações incompatíveis no frontend sem depender apenas da UI.
+- [x] 2.4: Fazer o detalhe de uma solicitação agrupada permitir alternar entre todos os candidatos/processos vinculados.
+
+### 3. Internacionalização e quality gates
+
+- [x] 3.1: Adicionar mensagens equivalentes em `messages/pt.json` e `messages/en.json`.
+- [x] 3.2: Executar codegen Convex, TypeScript e lint focado; registrar separadamente débitos globais preexistentes.
+  - Codegen, TypeScript e ESLint dos arquivos alterados passaram. `pnpm lint` global continua falhando em arquivos não tocados por esta feature, principalmente pelo débito existente de `no-explicit-any` e avisos de hooks/imports.
+- [ ] 3.3: Executar build e validar no browser autenticado em pt/en, desktop/mobile, incluindo múltiplos candidatos, bloqueio, retomada, visibilidade e upload.
+  - Build, pt/en, RBAC de rota e viewport móvel foram validados. O fluxo completo do cliente continua pendente porque a única credencial documentada é de `admin`; não foram alterados papel, senha ou dados de autenticação para contornar a limitação.
+
+## Definition of Done
+
+- [x] Um rascunho possui um processo individual por candidato e uma única visualização agrupada da solicitação.
+- [x] Entrar em Documentos salva e gera, uma única vez, os checklists de todos os candidatos e bloqueia o amparo legal.
+- [x] O usuário alterna candidatos na etapa e vê/envia somente documentos permitidos pelo backend.
+- [ ] Retomada, remoção, finalização, RBAC, i18n, TypeScript, build e browser não apresentam regressão nova.
+
+---
+
 # TODO: Visibilidade de documentos do processo para clientes
 
 ## Contexto
@@ -1238,3 +1282,36 @@ Quando o Processo Individual e seu checklist são gerados, cada `documentsDelive
 - [x] Histórico exibe criação, recebimento/ausência e duração de cada versão, sem download falso para versão vazia.
 - [x] Migração legada é idempotente e não converte placeholders em recebidos por causa do `uploadedAt` atual.
 - [x] i18n pt/en, TypeScript strict, Zod/validators Convex, responsividade, acessibilidade, lint, build e validação browser passam sem novos erros.
+
+---
+
+# TODO: Configurar e anexar passaporte oficial automaticamente
+
+## Contexto
+
+O fluxo de inclusão de passaporte dentro do Processo Individual salvava o arquivo, mas só oferecia o anexo quando o nome do documento era exatamente **Passaporte** ou **Passaporte válido**. Quando não havia correspondência, a resolução terminava silenciosamente; além disso, o ID do processo aberto não era encaminhado até a busca de destino.
+
+## Sequência de tarefas
+
+- [x] 1. Adicionar `documentTypes.isOfficialPassport` opcional, índice dedicado e checkbox localizado no cadastro do tipo de documento.
+  - Garantir transacionalmente no backend que somente um tipo permaneça marcado; marcar um novo desmarca o anterior.
+  - Exibir a configuração na tabela e no modal de detalhes.
+- [x] 2. Priorizar o tipo marcado na busca/anexo do passaporte.
+  - Com um único tipo oficial e um único destino no escopo, reutilizar o mesmo arquivo, preencher ou criar nova versão e aprovar automaticamente.
+  - Sem destino oficial no processo, preservar o fallback exato por **Passaporte**, **Passaporte válido**, **Passport** ou **Valid passport** e continuar mostrando a escolha existente.
+- [x] 3. Encaminhar `individualProcessId` por `LinkPassportDialog`/formulários → `PassportSelector` → `PassportFormDialog` → resolução de anexo.
+  - Validar pessoa e processo no backend sem exigir que o novo `passportId` já esteja persistido no processo antes do salvamento do diálogo externo.
+- [x] 4. Manter RBAC administrativo, validators Convex, histórico, datas, condições e idempotência do anexo existente.
+- [x] 5. Adicionar i18n equivalente em pt/en e gerar os tipos Convex.
+- [ ] 6. Validar o fluxo autenticado completo no browser em pt/en, incluindo destino oficial vazio, destino já preenchido e fallback sem marcação.
+  - Validação parcial em 20/07/2026: cadastro, edição, coluna/badge e unicidade do tipo oficial confirmados em `/pt/document-types`; encadeamento autenticado confirmado em um Processo Individual até o diálogo **Criar Passaporte** e a ação **Ler com IA**.
+  - O seletor nativo de arquivo do Chrome MCP recusou o arquivo de teste (`Not allowed`), portanto os três cenários de upload/anexo permanecem pendentes para validação manual sem criar passaporte ou documento de teste incompleto.
+
+## Definition of Done
+
+- [x] Apenas um tipo de documento pode ser configurado como passaporte oficial.
+- [x] Um único destino oficial do processo recebe e aprova automaticamente o arquivo lido pela IA, sem segundo upload.
+- [x] Na ausência de destino oficial, a seleção por nome continua disponível.
+- [x] O fluxo iniciado dentro de um Processo Individual fica restrito ao processo aberto.
+- [ ] TypeScript, lint focado, build e validação autenticada no browser passam sem novos erros.
+  - `convex codegen`, `tsc --noEmit`, lint focado e build passaram. O `pnpm lint` global continua falhando por débitos preexistentes de `no-explicit-any` fora do escopo; nenhuma ocorrência nova apareceu no lint focado.

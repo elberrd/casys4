@@ -49,15 +49,16 @@ import { Separator } from "@/components/ui/separator"
 import { CompanyApplicantSelector } from "./company-applicant-selector"
 import { UserApplicantSelector } from "./user-applicant-selector"
 import { PassportSelector } from "./passport-selector"
-import { getCountryCurrencyOptions, getCurrencySymbol } from "@/lib/constants/currencies"
+import {
+  getCountryCurrencyOptions,
+  getCurrencySymbol,
+} from "@/lib/constants/currencies"
 import { FormDescription } from "@/components/ui/form"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Calculator, Loader2, RefreshCw } from "lucide-react"
 import { fetchExchangeRate } from "@/lib/api/exchange-rate"
 import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator"
-import {
-  TooltipProvider,
-} from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 interface IndividualProcessFormDialogProps {
   open: boolean
@@ -80,8 +81,8 @@ export function IndividualProcessFormDialog({
 
   // State for initial status when creating new process
   const [initialStatus, setInitialStatus] = useState<{
-    caseStatusId: Id<"caseStatuses">;
-    date: string;
+    caseStatusId: Id<"caseStatuses">
+    date: string
   } | null>(null)
 
   // State for exchange rate loading
@@ -89,7 +90,7 @@ export function IndividualProcessFormDialog({
 
   const individualProcess = useQuery(
     api.individualProcesses.get,
-    individualProcessId ? { id: individualProcessId } : "skip"
+    individualProcessId ? { id: individualProcessId } : "skip",
   )
 
   const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
@@ -106,7 +107,7 @@ export function IndividualProcessFormDialog({
     resolver: zodResolver(individualProcessSchema) as any,
     defaultValues: {
       collectiveProcessId: "" as Id<"collectiveProcesses">,
-      dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
+      dateProcess: new Date().toISOString().split("T")[0], // Pre-fill with today's date
       personId: "" as Id<"people">,
       passportId: "",
       applicantId: "", // DEPRECATED: Kept for backward compatibility
@@ -175,10 +176,10 @@ export function IndividualProcessFormDialog({
   // Check if conversion can be calculated
   const canCalculateConversion = Boolean(
     selectedCurrency &&
-    lastSalaryAmount &&
-    lastSalaryAmount > 0 &&
-    exchangeRate &&
-    exchangeRate > 0
+      lastSalaryAmount &&
+      lastSalaryAmount > 0 &&
+      exchangeRate &&
+      exchangeRate > 0,
   )
 
   // Handle conversion calculation
@@ -198,16 +199,17 @@ export function IndividualProcessFormDialog({
     api.processTypes.getLegalFrameworks,
     selectedProcessTypeId && selectedProcessTypeId !== ""
       ? { processTypeId: selectedProcessTypeId as Id<"processTypes"> }
-      : "skip"
+      : "skip",
   )
 
   // Fallback to all legal frameworks if no authorization type selected
   const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
 
   // Use filtered or all legal frameworks
-  const legalFrameworks = selectedProcessTypeId && selectedProcessTypeId !== ""
-    ? (filteredLegalFrameworks ?? [])
-    : (allLegalFrameworks ?? [])
+  const legalFrameworks =
+    selectedProcessTypeId && selectedProcessTypeId !== ""
+      ? (filteredLegalFrameworks ?? [])
+      : (allLegalFrameworks ?? [])
 
   // Reset form when individual process data loads
   useEffect(() => {
@@ -222,14 +224,22 @@ export function IndividualProcessFormDialog({
         userApplicantId: individualProcess.userApplicantId ?? "",
         userApplicantCompanyId: individualProcess.userApplicantCompanyId ?? "",
         consulateId: individualProcess.consulateId ?? "",
-        caseStatusId: individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
+        caseStatusId:
+          individualProcess.caseStatusId ?? ("" as Id<"caseStatuses">),
         status: individualProcess.status ?? "", // DEPRECATED: Kept for backward compatibility
         processTypeId: individualProcess.processTypeId ?? "",
         legalFrameworkId: individualProcess.legalFrameworkId,
         funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
-        qualification: (individualProcess.qualification ?? "") as "" | "medio" | "tecnico" | "mestrado" | "superior" | "naoPossui",
-        professionalExperienceSince: individualProcess.professionalExperienceSince ?? "",
+        qualification: (individualProcess.qualification ?? "") as
+          | ""
+          | "medio"
+          | "tecnico"
+          | "mestrado"
+          | "superior"
+          | "naoPossui",
+        professionalExperienceSince:
+          individualProcess.professionalExperienceSince ?? "",
         mreOfficeNumber: individualProcess.mreOfficeNumber ?? "",
         douNumber: individualProcess.douNumber ?? "",
         douSection: individualProcess.douSection ?? "",
@@ -249,12 +259,14 @@ export function IndividualProcessFormDialog({
         salaryInBRL: individualProcess.salaryInBRL,
         monthlyAmountToReceive: individualProcess.monthlyAmountToReceive,
         isActive: individualProcess.isActive,
-        processStatus: individualProcess.processStatus ?? (individualProcess.isActive === false ? "Anterior" : "Atual"),
+        processStatus:
+          individualProcess.processStatus ??
+          (individualProcess.isActive === false ? "Anterior" : "Atual"),
       })
     } else if (!individualProcessId) {
       form.reset({
         collectiveProcessId: "" as Id<"collectiveProcesses">,
-        dateProcess: new Date().toISOString().split('T')[0], // Pre-fill with today's date
+        dateProcess: new Date().toISOString().split("T")[0], // Pre-fill with today's date
         personId: "" as Id<"people">,
         passportId: "",
         applicantId: "", // DEPRECATED
@@ -359,7 +371,8 @@ export function IndividualProcessFormDialog({
         funcao: data.funcao || undefined,
         cboId: data.cboId || undefined,
         qualification: data.qualification || undefined,
-        professionalExperienceSince: data.professionalExperienceSince || undefined,
+        professionalExperienceSince:
+          data.professionalExperienceSince || undefined,
         mreOfficeNumber: data.mreOfficeNumber || undefined,
         douNumber: data.douNumber || undefined,
         douSection: data.douSection || undefined,
@@ -387,8 +400,16 @@ export function IndividualProcessFormDialog({
 
       if (individualProcessId) {
         // Remove personId, userApplicantId, userApplicantCompanyId from submit data when updating (immutable after creation)
-        const { personId, userApplicantId, userApplicantCompanyId, ...updateData } = submitData
-        await updateIndividualProcess({ id: individualProcessId, ...updateData })
+        const {
+          personId,
+          userApplicantId,
+          userApplicantCompanyId,
+          ...updateData
+        } = submitData
+        await updateIndividualProcess({
+          id: individualProcessId,
+          ...updateData,
+        })
         toast({
           title: t("updatedSuccess"),
         })
@@ -425,7 +446,10 @@ export function IndividualProcessFormDialog({
   }))
 
   const legalFrameworkOptions = legalFrameworks
-    .filter((framework): framework is NonNullable<typeof framework> => framework !== null)
+    .filter(
+      (framework): framework is NonNullable<typeof framework> =>
+        framework !== null,
+    )
     .map((framework) => ({
       value: framework._id,
       label: framework.name,
@@ -449,7 +473,9 @@ export function IndividualProcessFormDialog({
     const cityName = consulate.city?.name ?? ""
     const stateName = consulate.state?.name ?? ""
     const countryName = consulate.country?.name ?? ""
-    const label = [cityName, stateName, countryName].filter(Boolean).join(", ") || consulate._id
+    const label =
+      [cityName, stateName, countryName].filter(Boolean).join(", ") ||
+      consulate._id
     return {
       value: consulate._id,
       label,
@@ -458,788 +484,908 @@ export function IndividualProcessFormDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
-        <TooltipProvider>
-        <DialogHeader>
-          <DialogTitle>
-            {individualProcessId ? t("editTitle") : t("createTitle")}
-          </DialogTitle>
-          <DialogDescription>
-            {individualProcessId
-              ? "Edit the individual process information below"
-              : "Fill in the information to create a new individual process"
-            }
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
+          <TooltipProvider>
+            <DialogHeader>
+              <DialogTitle>
+                {individualProcessId ? t("editTitle") : t("createTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {individualProcessId
+                  ? "Edit the individual process information below"
+                  : "Fill in the information to create a new individual process"}
+              </DialogDescription>
+            </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Required Fields Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("requiredFields")}</h3>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
+                {/* Required Fields Section */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">
+                    {t("requiredFields")}
+                  </h3>
 
-              <FormField
-                control={form.control}
-                name="dateProcess"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("dateProcess")}</FormLabel>
-                    <FormControl>
-                      <DatePicker value={field.value} onChange={field.onChange} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="collectiveProcessId"
-                render={({ field }) => (
-                  <FormItem className="hidden">
-                    <FormLabel>{t("collectiveProcess")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={collectiveProcessOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCollectiveProcess")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="userApplicantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("userApplicant")}</FormLabel>
-                    <FormControl>
-                      <UserApplicantSelector
-                        value={field.value || ""}
-                        onChange={(value, companyId) => {
-                          field.onChange(value)
-                          form.setValue("userApplicantCompanyId", (companyId || "") as any)
-                        }}
-                        disabled={!!individualProcessId}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="processTypeId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("processType")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={processTypeOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectProcessType")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="legalFrameworkId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("legalFramework")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={legalFrameworkOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectLegalFramework")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="personId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("person")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={peopleOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectPerson")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="cboId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("cbo")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={cboOptions}
-                        value={field.value || ""}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCbo")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="funcao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center">{t("funcao")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="funcao" /></FormLabel>
-                    <FormControl>
-                      <Input placeholder={t("funcaoPlaceholder")} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="qualification"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">{t("qualification")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="qualification" /></FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t("selectQualification")} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="medio">
-                            {t("qualificationOptions.medio")}
-                          </SelectItem>
-                          <SelectItem value="tecnico">
-                            {t("qualificationOptions.tecnico")}
-                          </SelectItem>
-                          <SelectItem value="mestrado">
-                            {t("qualificationOptions.mestrado")}
-                          </SelectItem>
-                          <SelectItem value="superior">
-                            {t("qualificationOptions.superior")}
-                          </SelectItem>
-                          <SelectItem value="naoPossui">
-                            {t("qualificationOptions.naoPossui")}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="professionalExperienceSince"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">{t("professionalExperienceSince")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="professionalExperienceSince" /></FormLabel>
-                      <FormControl>
-                        <DatePicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t("professionalExperienceSinceLabel")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="companyApplicantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("companyApplicant")}</FormLabel>
-                    <FormControl>
-                      <CompanyApplicantSelector
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="consulateId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("consulate")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={consulateOptions}
-                        value={field.value || ""}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectConsulate")}
-                        searchPlaceholder={t("searchConsulates")}
-                        emptyText={t("noConsulatesFound")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="passportId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("passport")}</FormLabel>
-                    <FormControl>
-                      <PassportSelector
-                        personId={form.watch("personId")}
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Salary Information Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("salaryInformation")}</h3>
-
-              {/* Currency and Amount Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="lastSalaryCurrency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("lastSalaryCurrency")}</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={getCountryCurrencyOptions(locale).map(option => ({
-                            value: option.value,
-                            label: option.label,
-                          }))}
-                          value={field.value || ""}
-                          onValueChange={field.onChange}
-                          placeholder={t("selectCountryForCurrency")}
-                          searchPlaceholder={t("searchCountry")}
-                          emptyText={t("noCountryFound")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="lastSalaryAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("lastSalaryAmount")}</FormLabel>
-                      <FormControl>
-                        <CurrencyInput
-                          placeholder={t("enterSalaryAmount")}
-                          value={field.value}
-                          onChange={field.onChange}
-                          currencySymbol={selectedCurrency ? getCurrencySymbol(selectedCurrency) : undefined}
-                          currencyCode={selectedCurrency || "USD"}
-                          disabled={!selectedCurrency}
-                        />
-                      </FormControl>
-                      {!selectedCurrency && (
-                        <FormDescription className="text-muted-foreground text-xs">
-                          {t("selectCurrencyFirst")}
-                        </FormDescription>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Exchange Rate and Calculated Value Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="exchangeRateToBRL"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        {t("exchangeRateToBRL")}
-                        {isLoadingExchangeRate && (
-                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                        )}
-                      </FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <CurrencyInput
-                            placeholder={t("enterExchangeRate")}
-                            value={field.value}
-                            onChange={field.onChange}
-                            currencySymbol="R$"
-                            currencyCode="BRL"
-                            disabled={isLoadingExchangeRate}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          disabled={!selectedCurrency || selectedCurrency === "BRL" || isLoadingExchangeRate}
-                          onClick={handleFetchExchangeRate}
-                          className="h-10 w-10 shrink-0"
-                          title={t("fetchExchangeRate") || "Buscar cotação"}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {selectedCurrency && (
-                        <FormDescription className="text-xs text-muted-foreground">
-                          {isLoadingExchangeRate
-                            ? "Buscando cotação..."
-                            : `1 ${getCurrencySymbol(selectedCurrency)} = X R$`
-                          }
-                        </FormDescription>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="salaryInBRL"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("salaryInBRL")}</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <CurrencyInput
-                            value={field.value}
-                            onChange={field.onChange}
-                            currencySymbol="R$"
-                            currencyCode="BRL"
-                            disabled
-                            className="bg-muted flex-1"
-                          />
-                        </FormControl>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          disabled={!canCalculateConversion}
-                          onClick={handleCalculateConversion}
-                          className="h-10 w-10 shrink-0"
-                          title={t("calculateConversion")}
-                        >
-                          <Calculator className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Monthly Amount to Receive */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="monthlyAmountToReceive"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">{t("monthlyAmountToReceive")}<LinkedDocIndicator individualProcessId={individualProcessId} entityType="individualProcess" fieldPath="monthlyAmountToReceive" /></FormLabel>
-                      <FormControl>
-                        <CurrencyInput
-                          placeholder={t("enterMonthlyAmount")}
-                          value={field.value}
-                          onChange={field.onChange}
-                          currencySymbol="R$"
-                          currencyCode="BRL"
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
-                        {t("monthlyAmountDescription")}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Deadline Information Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("deadlineDate")}</h3>
-
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="deadlineUnit"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>{t("deadlineUnit")}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={t("selectDeadlineUnit")} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="years">{t("deadlineUnits.years")}</SelectItem>
-                          <SelectItem value="months">{t("deadlineUnits.months")}</SelectItem>
-                          <SelectItem value="days">{t("deadlineUnits.days")}</SelectItem>
-                          <SelectItem value="prefixed">{t("deadlineUnits.prefixed")}</SelectItem>
-                          <SelectItem value="indeterminate">{t("deadlineUnits.indeterminate")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {(selectedDeadlineUnit === "days" || selectedDeadlineUnit === "months" || selectedDeadlineUnit === "years") && (
                   <FormField
                     control={form.control}
-                    name="deadlineQuantity"
+                    name="dateProcess"
                     render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>{t("deadlineQuantity")}</FormLabel>
+                      <FormItem>
+                        <FormLabel>{t("dateProcess")}</FormLabel>
+                        <FormControl>
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="collectiveProcessId"
+                    render={({ field }) => (
+                      <FormItem className="hidden">
+                        <FormLabel>{t("collectiveProcess")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={collectiveProcessOptions}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectCollectiveProcess")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="userApplicantId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("userApplicant")}</FormLabel>
+                        <FormControl>
+                          <UserApplicantSelector
+                            value={field.value || ""}
+                            onChange={(value, companyId) => {
+                              field.onChange(value)
+                              form.setValue(
+                                "userApplicantCompanyId",
+                                (companyId || "") as any,
+                              )
+                            }}
+                            disabled={!!individualProcessId}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="processTypeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("processType")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={processTypeOptions}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectProcessType")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="legalFrameworkId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("legalFramework")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={legalFrameworkOptions}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectLegalFramework")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="personId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("person")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={peopleOptions}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectPerson")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="cboId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("cbo")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={cboOptions}
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectCbo")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="funcao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center">
+                          {t("funcao")}
+                          <LinkedDocIndicator
+                            individualProcessId={individualProcessId}
+                            entityType="individualProcess"
+                            fieldPath="funcao"
+                          />
+                        </FormLabel>
                         <FormControl>
                           <Input
-                            type="number"
-                            placeholder={t("enterDeadlineQuantity")}
+                            placeholder={t("funcaoPlaceholder")}
                             {...field}
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
-                            className="w-full"
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
 
-                {selectedDeadlineUnit === "prefixed" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="qualification"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center">
+                            {t("qualification")}
+                            <LinkedDocIndicator
+                              individualProcessId={individualProcessId}
+                              entityType="individualProcess"
+                              fieldPath="qualification"
+                            />
+                          </FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t("selectQualification")}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="medio">
+                                {t("qualificationOptions.medio")}
+                              </SelectItem>
+                              <SelectItem value="tecnico">
+                                {t("qualificationOptions.tecnico")}
+                              </SelectItem>
+                              <SelectItem value="mestrado">
+                                {t("qualificationOptions.mestrado")}
+                              </SelectItem>
+                              <SelectItem value="superior">
+                                {t("qualificationOptions.superior")}
+                              </SelectItem>
+                              <SelectItem value="naoPossui">
+                                {t("qualificationOptions.naoPossui")}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="professionalExperienceSince"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center">
+                            {t("professionalExperienceSince")}
+                            <LinkedDocIndicator
+                              individualProcessId={individualProcessId}
+                              entityType="individualProcess"
+                              fieldPath="professionalExperienceSince"
+                            />
+                          </FormLabel>
+                          <FormControl>
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder={t(
+                                "professionalExperienceSinceLabel",
+                              )}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
-                    name="deadlineSpecificDate"
+                    name="companyApplicantId"
                     render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>{t("deadlineSpecificDate")}</FormLabel>
+                      <FormItem>
+                        <FormLabel>{t("companyApplicant")}</FormLabel>
                         <FormControl>
-                          <DatePicker value={field.value} onChange={field.onChange} />
+                          <CompanyApplicantSelector
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
-              </div>
-            </div>
 
-            {/* Status Section - Show Initial Status Form when creating, Subtable when editing */}
-            <div className="space-y-4">
-              {!individualProcessId ? (
-                <InitialStatusForm
-                  onStatusChange={(caseStatusId, date) => {
-                    setInitialStatus({ caseStatusId, date })
-                    // Also update the form's caseStatusId for backend compatibility
-                    form.setValue("caseStatusId", caseStatusId)
-                  }}
-                  defaultDate={new Date().toISOString().split('T')[0]}
-                />
-              ) : (
-                userProfile && (
-                  <>
-                    <Separator />
-                    <IndividualProcessStatusesSubtable
-                      individualProcessId={individualProcessId}
-                      userRole={userProfile.role}
+                  <FormField
+                    control={form.control}
+                    name="consulateId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("consulate")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={consulateOptions}
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectConsulate")}
+                            searchPlaceholder={t("searchConsulates")}
+                            emptyText={t("noConsulatesFound")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="passportId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("passport")}</FormLabel>
+                        <FormControl>
+                          <PassportSelector
+                            personId={form.watch("personId")}
+                            individualProcessId={individualProcessId}
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Salary Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">
+                    {t("salaryInformation")}
+                  </h3>
+
+                  {/* Currency and Amount Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="lastSalaryCurrency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("lastSalaryCurrency")}</FormLabel>
+                          <FormControl>
+                            <Combobox
+                              options={getCountryCurrencyOptions(locale).map(
+                                (option) => ({
+                                  value: option.value,
+                                  label: option.label,
+                                }),
+                              )}
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              placeholder={t("selectCountryForCurrency")}
+                              searchPlaceholder={t("searchCountry")}
+                              emptyText={t("noCountryFound")}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </>
-                )
-              )}
-            </div>
 
-            {/* Optional Fields Section */}
-            {false && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("optionalFields")}</h3>
+                    <FormField
+                      control={form.control}
+                      name="lastSalaryAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("lastSalaryAmount")}</FormLabel>
+                          <FormControl>
+                            <CurrencyInput
+                              placeholder={t("enterSalaryAmount")}
+                              value={field.value}
+                              onChange={field.onChange}
+                              currencySymbol={
+                                selectedCurrency
+                                  ? getCurrencySymbol(selectedCurrency)
+                                  : undefined
+                              }
+                              currencyCode={selectedCurrency || "USD"}
+                              disabled={!selectedCurrency}
+                            />
+                          </FormControl>
+                          {!selectedCurrency && (
+                            <FormDescription className="text-muted-foreground text-xs">
+                              {t("selectCurrencyFirst")}
+                            </FormDescription>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-              <FormField
-                control={form.control}
-                name="cboId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("cbo")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={cboOptions}
-                        value={field.value || ""}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCbo")}
+                  {/* Exchange Rate and Calculated Value Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="exchangeRateToBRL"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            {t("exchangeRateToBRL")}
+                            {isLoadingExchangeRate && (
+                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            )}
+                          </FormLabel>
+                          <div className="flex gap-2">
+                            <FormControl>
+                              <CurrencyInput
+                                placeholder={t("enterExchangeRate")}
+                                value={field.value}
+                                onChange={field.onChange}
+                                currencySymbol="R$"
+                                currencyCode="BRL"
+                                disabled={isLoadingExchangeRate}
+                                className="flex-1"
+                              />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="secondary"
+                              disabled={
+                                !selectedCurrency ||
+                                selectedCurrency === "BRL" ||
+                                isLoadingExchangeRate
+                              }
+                              onClick={handleFetchExchangeRate}
+                              className="h-10 w-10 shrink-0"
+                              title={t("fetchExchangeRate") || "Buscar cotação"}
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          {selectedCurrency && (
+                            <FormDescription className="text-xs text-muted-foreground">
+                              {isLoadingExchangeRate
+                                ? "Buscando cotação..."
+                                : `1 ${getCurrencySymbol(selectedCurrency)} = X R$`}
+                            </FormDescription>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="salaryInBRL"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("salaryInBRL")}</FormLabel>
+                          <div className="flex gap-2">
+                            <FormControl>
+                              <CurrencyInput
+                                value={field.value}
+                                onChange={field.onChange}
+                                currencySymbol="R$"
+                                currencyCode="BRL"
+                                disabled
+                                className="bg-muted flex-1"
+                              />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="secondary"
+                              disabled={!canCalculateConversion}
+                              onClick={handleCalculateConversion}
+                              className="h-10 w-10 shrink-0"
+                              title={t("calculateConversion")}
+                            >
+                              <Calculator className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Monthly Amount to Receive */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="monthlyAmountToReceive"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center">
+                            {t("monthlyAmountToReceive")}
+                            <LinkedDocIndicator
+                              individualProcessId={individualProcessId}
+                              entityType="individualProcess"
+                              fieldPath="monthlyAmountToReceive"
+                            />
+                          </FormLabel>
+                          <FormControl>
+                            <CurrencyInput
+                              placeholder={t("enterMonthlyAmount")}
+                              value={field.value}
+                              onChange={field.onChange}
+                              currencySymbol="R$"
+                              currencyCode="BRL"
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs text-muted-foreground">
+                            {t("monthlyAmountDescription")}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Deadline Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">{t("deadlineDate")}</h3>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="deadlineUnit"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel>{t("deadlineUnit")}</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={t("selectDeadlineUnit")}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="years">
+                                {t("deadlineUnits.years")}
+                              </SelectItem>
+                              <SelectItem value="months">
+                                {t("deadlineUnits.months")}
+                              </SelectItem>
+                              <SelectItem value="days">
+                                {t("deadlineUnits.days")}
+                              </SelectItem>
+                              <SelectItem value="prefixed">
+                                {t("deadlineUnits.prefixed")}
+                              </SelectItem>
+                              <SelectItem value="indeterminate">
+                                {t("deadlineUnits.indeterminate")}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {(selectedDeadlineUnit === "days" ||
+                      selectedDeadlineUnit === "months" ||
+                      selectedDeadlineUnit === "years") && (
+                      <FormField
+                        control={form.control}
+                        name="deadlineQuantity"
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormLabel>{t("deadlineQuantity")}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder={t("enterDeadlineQuantity")}
+                                {...field}
+                                value={field.value ?? ""}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    e.target.value === ""
+                                      ? undefined
+                                      : e.target.valueAsNumber,
+                                  )
+                                }
+                                className="w-full"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+
+                    {selectedDeadlineUnit === "prefixed" && (
+                      <FormField
+                        control={form.control}
+                        name="deadlineSpecificDate"
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormLabel>{t("deadlineSpecificDate")}</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Status Section - Show Initial Status Form when creating, Subtable when editing */}
+                <div className="space-y-4">
+                  {!individualProcessId ? (
+                    <InitialStatusForm
+                      onStatusChange={(caseStatusId, date) => {
+                        setInitialStatus({ caseStatusId, date })
+                        // Also update the form's caseStatusId for backend compatibility
+                        form.setValue("caseStatusId", caseStatusId)
+                      }}
+                      defaultDate={new Date().toISOString().split("T")[0]}
+                    />
+                  ) : (
+                    userProfile && (
+                      <>
+                        <Separator />
+                        <IndividualProcessStatusesSubtable
+                          individualProcessId={individualProcessId}
+                          userRole={userProfile.role}
+                        />
+                      </>
+                    )
+                  )}
+                </div>
+
+                {/* Optional Fields Section */}
+                {false && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">
+                      {t("optionalFields")}
+                    </h3>
+
+                    <FormField
+                      control={form.control}
+                      name="cboId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("cbo")}</FormLabel>
+                          <FormControl>
+                            <Combobox
+                              options={cboOptions}
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              placeholder={t("selectCbo")}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="mreOfficeNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("mreOfficeNumber")}</FormLabel>
+                          <FormControl>
+                            <Input placeholder="MRE-123456" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="deadlineDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("deadlineDate")}</FormLabel>
+                          <FormControl>
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="appointmentDateTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("appointmentDateTime")}</FormLabel>
+                          <FormControl>
+                            <Input type="datetime-local" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="mreOfficeNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("mreOfficeNumber")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="MRE-123456" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {/* Government Protocol Information Section */}
+                {false && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">
+                      {t("governmentProtocolInformation")}
+                    </h3>
+
+                    <FormField
+                      control={form.control}
+                      name="protocolNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("protocolNumber")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("protocolNumberPlaceholder")}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="deadlineDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("deadlineDate")}</FormLabel>
-                    <FormControl>
-                      <DatePicker value={field.value} onChange={field.onChange} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {/* DOU Information Section */}
+                {false && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">
+                      {t("douInformation")}
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="douNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("douNumber")}</FormLabel>
+                            <FormControl>
+                              <Input placeholder="123" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="douSection"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("douSection")}</FormLabel>
+                            <FormControl>
+                              <Input placeholder="1" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="douPage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("douPage")}</FormLabel>
+                            <FormControl>
+                              <Input placeholder="45" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="douDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("douDate")}</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="appointmentDateTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("appointmentDateTime")}</FormLabel>
-                    <FormControl>
-                      <Input type="datetime-local" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {/* RNM Information Section */}
+                {false && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">
+                      {t("rnmInformation")}
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="rnmNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("rnmNumber")}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder={t("rnmNumberPlaceholder")}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="rnmDeadline"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("rnmDeadline")}</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
                 )}
-              />
-            </div>
-            )}
 
-            {/* Government Protocol Information Section */}
-            {false && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("governmentProtocolInformation")}</h3>
-
-              <FormField
-                control={form.control}
-                name="protocolNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("protocolNumber")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t("protocolNumberPlaceholder")} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            )}
-
-            {/* DOU Information Section */}
-            {false && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("douInformation")}</h3>
-
-              <div className="grid grid-cols-2 gap-4">
+                {/* Process Status */}
                 <FormField
                   control={form.control}
-                  name="douNumber"
+                  name="processStatus"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("douNumber")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="123" {...field} />
-                      </FormControl>
+                      <FormLabel>{t("processStatus")}</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={t("selectProcessStatus")}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Atual">
+                            {t("processStatusCurrent")}
+                          </SelectItem>
+                          <SelectItem value="Anterior">
+                            {t("processStatusPrevious")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="douSection"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("douSection")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="1" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting
+                      ? tCommon("loading")
+                      : tCommon("save")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </TooltipProvider>
+        </DialogContent>
+      </Dialog>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="douPage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("douPage")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="45" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="douDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("douDate")}</FormLabel>
-                      <FormControl>
-                        <DatePicker value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            )}
-
-            {/* RNM Information Section */}
-            {false && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("rnmInformation")}</h3>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="rnmNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("rnmNumber")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t("rnmNumberPlaceholder")} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="rnmDeadline"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("rnmDeadline")}</FormLabel>
-                      <FormControl>
-                        <DatePicker value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            )}
-
-            {/* Process Status */}
-            <FormField
-              control={form.control}
-              name="processStatus"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("processStatus")}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("selectProcessStatus")} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Atual">{t("processStatusCurrent")}</SelectItem>
-                      <SelectItem value="Anterior">{t("processStatusPrevious")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? tCommon("loading") : tCommon("save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-        </TooltipProvider>
-      </DialogContent>
-    </Dialog>
-
-    {/* Unsaved Changes Confirmation Dialog */}
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
+      {/* Unsaved Changes Confirmation Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
     </>
   )
 }

@@ -10,6 +10,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Loader2,
   Lock,
   RefreshCw,
@@ -53,6 +54,7 @@ import {
 } from "./passport-upload-step";
 import { ResidenceSelect } from "./residence-select";
 import { ExistingPersonBadge } from "./existing-person-badge";
+import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist";
 
 // ---------------------------------------------------------------------------
 // Per-candidate state. A multi-candidate request shares ONE legal framework
@@ -138,6 +140,7 @@ interface EnrichedRequestRow {
   personId: Id<"people">;
   passportId?: Id<"passports"> | null;
   requestGroupId?: string | null;
+  documentationStartedAt?: number | null;
   linkedExistingPerson?: boolean | null;
   legalFrameworkId?: Id<"legalFrameworks"> | null;
   consulateId?: Id<"consulates"> | null;
@@ -179,11 +182,15 @@ const STEP_KEYS = [
   "stepPassports",
   "stepPersonalData",
   "stepReview",
+  "stepDocuments",
 ] as const;
 
 // Steps edited individually per candidate (rendered with a candidate tab bar).
 // "Dados Pessoais" holds ALL per-candidate fields in one step.
-const PER_CANDIDATE_STEP_KEYS = new Set<string>(["stepPersonalData"]);
+const PER_CANDIDATE_STEP_KEYS = new Set<string>([
+  "stepPersonalData",
+  "stepDocuments",
+]);
 
 // Maximum candidates per request (also the max passports selectable at once).
 const MAX_CANDIDATES = 10;
@@ -292,7 +299,10 @@ export function ProcessRequestWizard({
   const locale = useLocale();
 
   const createDraft = useMutation(api.processRequests.createDraft);
-  const saveDraft = useMutation(api.processRequests.saveDraft);
+  const saveDraftGroup = useMutation(api.processRequests.saveDraftGroup);
+  const prepareDocumentation = useMutation(
+    api.processRequests.prepareDocumentation,
+  );
   const finalizeGroup = useMutation(api.processRequests.finalizeGroup);
   const finalizeOne = useMutation(api.processRequests.finalize);
   const removeDraft = useMutation(api.processRequests.removeDraft);
@@ -331,11 +341,19 @@ export function ProcessRequestWizard({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isAddingCandidate, setIsAddingCandidate] = React.useState(false);
   const [isCommittingBatch, setIsCommittingBatch] = React.useState(false);
+  const [isPreparingDocumentation, setIsPreparingDocumentation] =
+    React.useState(false);
+  const [documentationStartedAt, setDocumentationStartedAt] = React.useState<
+    number | undefined
+  >();
+  const [reviewVisited, setReviewVisited] = React.useState(false);
   // Reviewed-but-not-yet-added passports living inside the uploader. Lets the
   // footer enable + auto-commit them on "Próximo" / "Salvar rascunho".
   const [pendingReady, setPendingReady] = React.useState(0);
   const uploadRef = React.useRef<PassportUploadStepHandle>(null);
   const [showSubmitDialog, setShowSubmitDialog] = React.useState(false);
+  const [showDocumentationDialog, setShowDocumentationDialog] =
+    React.useState(false);
   const [pendingRemoval, setPendingRemoval] =
     React.useState<CandidateFields | null>(null);
   const hydratedRef = React.useRef(false);
@@ -370,6 +388,14 @@ export function ProcessRequestWizard({
     setRequestGroupId(first.requestGroupId ?? initialGroupId);
     setLegalFrameworkId(first.legalFrameworkId ?? undefined);
     setLegalFrameworkName(first.legalFramework?.name ?? undefined);
+    const startedAt = rows.find(
+      (row) => row.documentationStartedAt !== undefined,
+    )?.documentationStartedAt;
+    setDocumentationStartedAt(startedAt ?? undefined);
+    if (startedAt !== undefined && startedAt !== null) {
+      setReviewVisited(true);
+      setStepIndex(STEP_KEYS.indexOf("stepDocuments"));
+    }
   }, [groupRows, legacyRow, initialGroupId]);
 
   const steps = STEP_KEYS.map((key, index) => ({
@@ -384,7 +410,11 @@ export function ProcessRequestWizard({
   const frameworkComplete = Boolean(legalFrameworkId);
   const hasCandidates = candidates.length > 0;
   const busy =
-    isSaving || isSubmitting || isAddingCandidate || isCommittingBatch;
+    isSaving ||
+    isSubmitting ||
+    isAddingCandidate ||
+    isCommittingBatch ||
+    isPreparingDocumentation;
   // Something is committable when there are candidates OR a reviewed batch.
   const canProceed = hasCandidates || pendingReady > 0;
 
@@ -415,21 +445,31 @@ export function ProcessRequestWizard({
   // ---------------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------------
-  const persistCandidate = React.useCallback(
-    async (candidate: CandidateFields) => {
-      if (!candidate.processId) return;
-      await saveDraft({
-        id: candidate.processId,
-        ...toSaveArgs(candidate, legalFrameworkId),
-      });
-    },
-    [saveDraft, legalFrameworkId],
+  const getDraftUpdates = React.useCallback(
+    () =>
+      candidates.flatMap((candidate) =>
+        candidate.processId
+          ? [
+              {
+                id: candidate.processId,
+                ...toSaveArgs(candidate, legalFrameworkId),
+              },
+            ]
+          : [],
+      ),
+    [candidates, legalFrameworkId],
   );
 
   const persistAll = React.useCallback(async (): Promise<boolean> => {
     try {
       setIsSaving(true);
-      for (const candidate of candidates) await persistCandidate(candidate);
+      const updates = getDraftUpdates();
+      if (updates.length !== candidates.length) return false;
+      // A just-committed passport batch is already persisted by createDraft,
+      // while React may not have exposed the new candidate rows to this render
+      // yet. Treat that empty pre-commit snapshot as successfully saved.
+      if (updates.length === 0) return true;
+      await saveDraftGroup({ candidates: updates });
       return true;
     } catch (error) {
       console.error("Error saving draft:", error);
@@ -438,7 +478,7 @@ export function ProcessRequestWizard({
     } finally {
       setIsSaving(false);
     }
-  }, [candidates, persistCandidate, t]);
+  }, [candidates.length, getDraftUpdates, saveDraftGroup, t]);
 
   // Person/process edits are kept in local wizard state while editing and are
   // ONLY written to the database on "Salvar rascunho" or on final submit — so
@@ -453,6 +493,10 @@ export function ProcessRequestWizard({
       name: string,
       receivedInBrazil: boolean,
     ) => {
+      if (documentationStartedAt !== undefined) {
+        toast.error(t("legalFrameworkLockedDescription"));
+        return;
+      }
       const receiptLocation = receivedInBrazil ? "brazil" : "abroad";
       setLegalFrameworkId(id);
       setLegalFrameworkName(name);
@@ -466,16 +510,19 @@ export function ProcessRequestWizard({
       if (existing.length === 0) return;
       try {
         setIsSaving(true);
-        for (const candidate of existing) {
-          await saveDraft({ id: candidate.processId!, legalFrameworkId: id });
-        }
+        await saveDraftGroup({
+          candidates: existing.map((candidate) => ({
+            id: candidate.processId!,
+            legalFrameworkId: id,
+          })),
+        });
       } catch (error) {
         console.error("Error updating framework:", error);
       } finally {
         setIsSaving(false);
       }
     },
-    [candidates, saveDraft],
+    [candidates, documentationStartedAt, saveDraftGroup, t],
   );
 
   // ---------------------------------------------------------------------------
@@ -613,8 +660,13 @@ export function ProcessRequestWizard({
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
+  const reviewStepIndex = STEP_KEYS.indexOf("stepReview");
+  const documentsStepIndex = STEP_KEYS.indexOf("stepDocuments");
   const isStepLocked = (index: number) =>
-    (index >= 1 && !frameworkComplete) || (index >= 2 && !hasCandidates);
+    (index >= 1 && !frameworkComplete) ||
+    (index >= 2 && !hasCandidates) ||
+    (index === 1 && documentationStartedAt !== undefined) ||
+    (index === documentsStepIndex && documentationStartedAt === undefined);
 
   const goNext = async () => {
     if (stepIndex === 0 && !frameworkComplete) {
@@ -630,15 +682,20 @@ export function ProcessRequestWizard({
         return;
       }
     }
-    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+    const nextIndex = Math.min(stepIndex + 1, steps.length - 1);
+    if (nextIndex === reviewStepIndex) setReviewVisited(true);
+    setStepIndex(nextIndex);
   };
 
   const goPrevious = () => {
-    setStepIndex((i) => Math.max(i - 1, 0));
+    const previousIndex = Math.max(stepIndex - 1, 0);
+    if (previousIndex === reviewStepIndex) setReviewVisited(true);
+    setStepIndex(previousIndex);
   };
 
   const goToStep = (index: number) => {
     if (isStepLocked(index) || index === stepIndex) return;
+    if (index === reviewStepIndex) setReviewVisited(true);
     setStepIndex(index);
   };
 
@@ -661,12 +718,42 @@ export function ProcessRequestWizard({
     router.push(`/${locale}/process-requests`);
   };
 
+  const handlePrepareDocumentation = async () => {
+    if (!hasCandidates) return;
+    try {
+      setIsPreparingDocumentation(true);
+      const updates = getDraftUpdates();
+      if (updates.length !== candidates.length) {
+        throw new Error("Some request candidates have not been persisted");
+      }
+      const result = await prepareDocumentation({ candidates: updates });
+      setDocumentationStartedAt(result.documentationStartedAt);
+      setStepIndex(documentsStepIndex);
+      toast.success(t("documentsGenerated", { count: result.candidateCount }));
+    } catch (error) {
+      console.error("Error preparing request documentation:", error);
+      toast.error(t("documentsGenerationError"));
+    } finally {
+      setIsPreparingDocumentation(false);
+      setShowDocumentationDialog(false);
+    }
+  };
+
+  const handleGoToDocumentation = () => {
+    if (documentationStartedAt !== undefined) {
+      setStepIndex(documentsStepIndex);
+      return;
+    }
+    setShowDocumentationDialog(true);
+  };
+
   const handleConfirmSubmit = async () => {
     if (!hasCandidates) return;
     try {
       setIsSubmitting(true);
       // Persist the latest edits before finalizing.
-      for (const candidate of candidates) await persistCandidate(candidate);
+      const persisted = await persistAll();
+      if (!persisted) return;
       if (requestGroupId) {
         await finalizeGroup({ requestGroupId });
       } else {
@@ -695,7 +782,9 @@ export function ProcessRequestWizard({
           <div className="flex items-center overflow-x-auto">
             {steps.map((step, index) => {
               const isActive = index === stepIndex;
-              const isCompleted = index < stepIndex;
+              const isCompleted =
+                index < stepIndex &&
+                (step.id !== "stepReview" || reviewVisited);
               const isLocked = isStepLocked(index);
               const isClickable = !isLocked && !isActive;
               return (
@@ -793,7 +882,8 @@ export function ProcessRequestWizard({
                 frameworks={requestFrameworks}
                 value={legalFrameworkId}
                 onSelect={handleSelectFramework}
-                disabled={busy}
+                disabled={busy || documentationStartedAt !== undefined}
+                locked={documentationStartedAt !== undefined}
               />
             )}
 
@@ -889,6 +979,20 @@ export function ProcessRequestWizard({
                 receiptLocation={frameworkReceiptLocation ?? "abroad"}
               />
             )}
+
+            {currentStepId === "stepDocuments" &&
+              activeCandidate?.processId && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    {t("documentsCandidateHint")}
+                  </p>
+                  <ClientDocumentChecklist
+                    key={activeCandidate.processId}
+                    individualProcessId={activeCandidate.processId}
+                    embedded
+                  />
+                </div>
+              )}
           </div>
         </CardContent>
       </Card>
@@ -896,13 +1000,13 @@ export function ProcessRequestWizard({
       {/* Footer navigation */}
       <Card className="border-0 bg-card/50 shadow-sm backdrop-blur-sm">
         <CardContent className="px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button
               type="button"
               variant="ghost"
               onClick={handleSaveDraft}
               disabled={busy || !canProceed}
-              className="text-muted-foreground hover:text-foreground"
+              className="justify-start text-muted-foreground hover:text-foreground"
             >
               {isSaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -912,7 +1016,7 @@ export function ProcessRequestWizard({
               {t("saveDraft")}
             </Button>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap justify-end gap-3">
               {!isFirstStep && (
                 <Button
                   type="button"
@@ -926,7 +1030,47 @@ export function ProcessRequestWizard({
                 </Button>
               )}
 
-              {isLastStep ? (
+              {currentStepId === "stepPersonalData" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setReviewVisited(true);
+                      setStepIndex(reviewStepIndex);
+                    }}
+                    disabled={busy}
+                  >
+                    {t("goToReview")}
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleGoToDocumentation}
+                    disabled={busy || !hasCandidates}
+                  >
+                    {isPreparingDocumentation ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="mr-2 h-4 w-4" />
+                    )}
+                    {t("goToDocuments")}
+                  </Button>
+                </>
+              ) : currentStepId === "stepReview" ? (
+                <Button
+                  type="button"
+                  onClick={handleGoToDocumentation}
+                  disabled={busy || !hasCandidates}
+                >
+                  {isPreparingDocumentation ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="mr-2 h-4 w-4" />
+                  )}
+                  {t("goToDocuments")}
+                </Button>
+              ) : isLastStep ? (
                 <Button
                   type="button"
                   onClick={() => setShowSubmitDialog(true)}
@@ -962,6 +1106,38 @@ export function ProcessRequestWizard({
           </div>
         </CardContent>
       </Card>
+
+      {/* Documentation preparation confirmation (locks framework/candidates). */}
+      <AlertDialog
+        open={showDocumentationDialog}
+        onOpenChange={setShowDocumentationDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("documentsConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("documentsConfirmBody", { count: candidates.length })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPreparingDocumentation}>
+              {tCommon("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void handlePrepareDocumentation();
+              }}
+              disabled={isPreparingDocumentation}
+            >
+              {isPreparingDocumentation && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("generateDocuments")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Submit confirmation */}
       <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
@@ -1678,6 +1854,7 @@ function RequestLegalFrameworkStep({
   value,
   onSelect,
   disabled,
+  locked = false,
 }: {
   frameworks: RequestFrameworkOption[] | undefined;
   value?: Id<"legalFrameworks">;
@@ -1687,6 +1864,7 @@ function RequestLegalFrameworkStep({
     receivedInBrazil: boolean,
   ) => void;
   disabled?: boolean;
+  locked?: boolean;
 }) {
   const t = useTranslations("ProcessRequests");
 
@@ -1710,6 +1888,19 @@ function RequestLegalFrameworkStep({
 
   return (
     <div className="space-y-3">
+      {locked && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              {t("legalFrameworkLockedTitle")}
+            </p>
+            <p className="text-xs opacity-80">
+              {t("legalFrameworkLockedDescription")}
+            </p>
+          </div>
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
         {t("selectLegalFrameworkHint")}
       </p>

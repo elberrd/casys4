@@ -33,6 +33,7 @@ import { DocumentWaitTimeBadge } from "./document-wait-time-badge";
 
 interface ClientDocumentChecklistProps {
   individualProcessId: Id<"individualProcesses">;
+  embedded?: boolean;
 }
 
 type UploadDialogState = {
@@ -48,6 +49,7 @@ type ClientChecklistDocument = FunctionReturnType<
 
 export function ClientDocumentChecklist({
   individualProcessId,
+  embedded = false,
 }: ClientDocumentChecklistProps) {
   const t = useTranslations("ClientPortal");
   const tCommon = useTranslations("Common");
@@ -157,6 +159,13 @@ export function ClientDocumentChecklist({
   );
 
   if (groupedDocuments === undefined) {
+    if (embedded) {
+      return (
+        <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
+          {tCommon("loading")}
+        </div>
+      );
+    }
     return (
       <Card>
         <CardHeader>
@@ -354,16 +363,32 @@ export function ClientDocumentChecklist({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          {t("checklistTitle")}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
+    <Card
+      className={cn(
+        embedded &&
+          "gap-0 rounded-none border-0 bg-transparent py-0 shadow-none",
+      )}
+    >
+      {!embedded && (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            {t("checklistTitle")}
+          </CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+      )}
 
-      <CardContent className="space-y-6">
+      <CardContent className={cn("space-y-6", embedded && "p-0")}>
+        {embedded && (
+          <div className="space-y-1">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <FileText className="h-5 w-5" />
+              {t("checklistTitle")}
+            </h3>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        )}
         {visibility.canToggleOtherDocuments && (
           <div className="flex items-start justify-between gap-4 rounded-lg border bg-muted/30 p-3">
             <div className="space-y-1">

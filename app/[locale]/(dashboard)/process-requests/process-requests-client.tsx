@@ -80,6 +80,9 @@ export function ProcessRequestsClient() {
           representative,
           candidates,
           requestStatus: anyDraft ? "draft" : representative.requestStatus,
+          documentationStartedAt: candidates.find(
+            (candidate) => candidate.documentationStartedAt !== undefined,
+          )?.documentationStartedAt,
           legalFrameworkName: representative.legalFramework?.name,
           urgent: candidates.some((r) => r.urgent),
           updatedAt: Math.max(...candidates.map((r) => r.updatedAt)),

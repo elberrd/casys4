@@ -53,23 +53,25 @@ export function EditUserDialog({
   open,
   onOpenChange,
   userProfileId,
-  onSuccess
+  onSuccess,
 }: EditUserDialogProps) {
-  const t = useTranslations('Users')
-  const tCommon = useTranslations('Common')
+  const t = useTranslations("Users")
+  const tCommon = useTranslations("Common")
   const { toast } = useToast()
 
   const userProfile = useQuery(
     api.userProfiles.get,
-    open ? { id: userProfileId } : "skip"
+    open ? { id: userProfileId } : "skip",
   )
   const companies = useQuery(api.companies.list, {}) ?? []
   const updateUser = useMutation(api.userProfiles.update)
 
   const form = useForm<UserFormData & { isActive: boolean }>({
-    resolver: zodResolver(userSchema.extend({
-      isActive: z.boolean(),
-    })),
+    resolver: zodResolver(
+      userSchema.safeExtend({
+        isActive: z.boolean(),
+      }),
+    ),
     defaultValues: {
       email: "",
       fullName: "",
@@ -137,7 +139,7 @@ export function EditUserDialog({
       await updateUser(submitData)
 
       toast({
-        title: t('success.updated'),
+        title: t("success.updated"),
       })
 
       form.reset()
@@ -145,7 +147,7 @@ export function EditUserDialog({
       onOpenChange(false)
     } catch (error) {
       toast({
-        title: t('errors.update'),
+        title: t("errors.update"),
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       })
@@ -161,154 +163,162 @@ export function EditUserDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('editTitle')}</DialogTitle>
-          <DialogDescription>
-            {t('editDescription')}
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("editTitle")}</DialogTitle>
+            <DialogDescription>{t("editDescription")}</DialogDescription>
+          </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('email')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="user@example.com"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('fullName')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('role')}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('selectRole')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="admin">{t('admin')}</SelectItem>
-                        <SelectItem value="client">{t('client')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {selectedRole === "client" && (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
-                  name="companyId"
+                  name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('company')}</FormLabel>
+                      <FormLabel>{t("email")}</FormLabel>
                       <FormControl>
-                        <Combobox
-                          options={companyOptions}
-                          value={field.value || ""}
-                          onValueChange={field.onChange}
-                          placeholder={t('selectCompany')}
+                        <Input
+                          type="email"
+                          placeholder="user@example.com"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
 
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('phoneNumber')} ({tCommon('optional')})</FormLabel>
-                    <FormControl>
-                      <PhoneInput {...field} defaultCountry="BR" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                <FormField
+                  control={form.control}
+                  name="fullName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("fullName")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("role")}</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("selectRole")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">{t("admin")}</SelectItem>
+                          <SelectItem value="client">{t("client")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {selectedRole === "client" && (
+                  <FormField
+                    control={form.control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("company")}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={companyOptions}
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            placeholder={t("selectCompany")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel>{t('isActive')}</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t("phoneNumber")} ({tCommon("optional")})
+                      </FormLabel>
+                      <FormControl>
+                        <PhoneInput {...field} defaultCountry="BR" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? tCommon('loading') : tCommon('save')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        )}
-      </DialogContent>
-    </Dialog>
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>{t("isActive")}</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
-    {/* Unsaved Changes Confirmation Dialog */}
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting
+                      ? tCommon("loading")
+                      : tCommon("save")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
     </>
   )
 }

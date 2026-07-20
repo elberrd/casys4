@@ -37,7 +37,9 @@ export function LinkPassportDialog({
   const tPassports = useTranslations("Passports")
   const updateProcess = useMutation(api.individualProcesses.update)
 
-  const [selectedPassportId, setSelectedPassportId] = useState<string>(currentPassportId ?? "")
+  const [selectedPassportId, setSelectedPassportId] = useState<string>(
+    currentPassportId ?? "",
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -71,12 +73,15 @@ export function LinkPassportDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t("passportInformation")}</DialogTitle>
-          <DialogDescription>{t("passportInformationDescription")}</DialogDescription>
+          <DialogDescription>
+            {t("passportInformationDescription")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-2">
           <PassportSelector
             personId={personId}
+            individualProcessId={individualProcessId}
             value={selectedPassportId}
             onChange={setSelectedPassportId}
             disabled={isSubmitting}
@@ -95,7 +100,11 @@ export function LinkPassportDialog({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isSubmitting || !selectedPassportId || selectedPassportId === (currentPassportId ?? "")}
+            disabled={
+              isSubmitting ||
+              !selectedPassportId ||
+              selectedPassportId === (currentPassportId ?? "")
+            }
           >
             {isSubmitting ? tCommon("loading") : tCommon("save")}
           </Button>

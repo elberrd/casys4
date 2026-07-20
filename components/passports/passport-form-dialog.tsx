@@ -28,7 +28,10 @@ import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { DatePicker } from "@/components/ui/date-picker"
-import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
+import {
+  passportSchema,
+  type PassportFormData,
+} from "@/lib/validations/passports"
 import { toast } from "sonner"
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
@@ -46,10 +49,13 @@ interface PassportFormDialogProps {
   onOpenChange: (open: boolean) => void
   passportId?: Id<"passports">
   personId?: Id<"people">
+  individualProcessId?: Id<"individualProcesses">
   onSuccess?: (passportId?: Id<"passports">) => void
 }
 
-function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
+function calculateStatus(
+  expiryDate: string,
+): "Valid" | "Expiring Soon" | "Expired" {
   const today = new Date()
   const expiry = new Date(expiryDate)
   const sixMonthsFromNow = new Date()
@@ -80,6 +86,7 @@ export function PassportFormDialog({
   onOpenChange,
   passportId,
   personId,
+  individualProcessId,
   onSuccess,
 }: PassportFormDialogProps) {
   const t = useTranslations("Passports")
@@ -88,7 +95,7 @@ export function PassportFormDialog({
 
   const passport = useQuery(
     api.passports.get,
-    passportId ? { id: passportId } : "skip"
+    passportId ? { id: passportId } : "skip",
   )
   const people = useQuery(api.people.list, {}) ?? []
   const countries = useQuery(api.countries.list, {}) ?? []
@@ -139,7 +146,11 @@ export function PassportFormDialog({
   const watchedIssuingCountryId = form.watch("issuingCountryId")
   const watchedIssueDate = form.watch("issueDate")
   const watchedPersonId = form.watch("personId")
-  const { isChecking: isPassportChecking, isAvailable: isPassportAvailable, existingPassport } = usePassportNumberValidation({
+  const {
+    isChecking: isPassportChecking,
+    isAvailable: isPassportAvailable,
+    existingPassport,
+  } = usePassportNumberValidation({
     passportNumber: watchedPassportNumber,
     passportId: passportId,
     enabled: open,
@@ -181,9 +192,7 @@ export function PassportFormDialog({
     form.setValue("fileUrl", "", { shouldDirty: true })
   }
 
-  const handleApplyExtractedFields = (
-    fields: ExtractedAdminPassportFields
-  ) => {
+  const handleApplyExtractedFields = (fields: ExtractedAdminPassportFields) => {
     form.setValue("passportNumber", fields.passportNumber, {
       shouldDirty: true,
       shouldTouch: true,
@@ -216,16 +225,19 @@ export function PassportFormDialog({
     handleOpenChange(nextOpen)
   }
 
-  const finishPassportSave = useCallback((savedPassportId: Id<"passports">) => {
-    setPendingPassportAttachmentId(undefined)
-    setSelectedFile(null)
-    setPreparedStorageId(undefined)
-    if (onSuccess) {
-      onSuccess(savedPassportId)
-    } else {
-      onOpenChange(false)
-    }
-  }, [onOpenChange, onSuccess])
+  const finishPassportSave = useCallback(
+    (savedPassportId: Id<"passports">) => {
+      setPendingPassportAttachmentId(undefined)
+      setSelectedFile(null)
+      setPreparedStorageId(undefined)
+      if (onSuccess) {
+        onSuccess(savedPassportId)
+      } else {
+        onOpenChange(false)
+      }
+    },
+    [onOpenChange, onSuccess],
+  )
 
   const completePassportSave = useCallback(() => {
     if (!pendingPassportAttachmentId) return
@@ -255,7 +267,7 @@ export function PassportFormDialog({
         })
         if (!result.ok) throw new Error("Failed to upload file")
         const uploadResult = passportUploadResponseSchema.parse(
-          await result.json()
+          await result.json(),
         )
         storageId = uploadResult.storageId
         setIsUploading(false)
@@ -305,137 +317,76 @@ export function PassportFormDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        showCloseButton={
-          !isAiProcessing && pendingPassportAttachmentId === undefined
-        }
-      >
-        <DialogHeader>
-          <DialogTitle>
-            {passportId ? t("editTitle") : t("createTitle")}
-          </DialogTitle>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          showCloseButton={
+            !isAiProcessing && pendingPassportAttachmentId === undefined
+          }
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {passportId ? t("editTitle") : t("createTitle")}
+            </DialogTitle>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
-              <PassportAiUploadField
-                selectedFile={selectedFile}
-                currentFileUrl={currentFileUrl}
-                currentFields={{
-                  passportNumber: watchedPassportNumber,
-                  issuingCountryId: watchedIssuingCountryId,
-                  issueDate: watchedIssueDate,
-                  expiryDate,
-                }}
-                disabled={
-                  !watchedPersonId ||
-                  isUploading ||
-                  Boolean(pendingPassportAttachmentId) ||
-                  form.formState.isSubmitting
-                }
-                onSelectedFileChange={setSelectedFile}
-                onCurrentFileRemove={handleRemoveCurrentFile}
-                onStorageIdChange={setPreparedStorageId}
-                onApplyExtractedFields={handleApplyExtractedFields}
-                onProcessingChange={setIsAiProcessing}
-              />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="space-y-4">
+                <PassportAiUploadField
+                  selectedFile={selectedFile}
+                  currentFileUrl={currentFileUrl}
+                  currentFields={{
+                    passportNumber: watchedPassportNumber,
+                    issuingCountryId: watchedIssuingCountryId,
+                    issueDate: watchedIssueDate,
+                    expiryDate,
+                  }}
+                  disabled={
+                    !watchedPersonId ||
+                    isUploading ||
+                    Boolean(pendingPassportAttachmentId) ||
+                    form.formState.isSubmitting
+                  }
+                  onSelectedFileChange={setSelectedFile}
+                  onCurrentFileRemove={handleRemoveCurrentFile}
+                  onStorageIdChange={setPreparedStorageId}
+                  onApplyExtractedFields={handleApplyExtractedFields}
+                  onProcessingChange={setIsAiProcessing}
+                />
 
-              {!watchedPersonId && (
-                <p className="text-sm text-amber-700 dark:text-amber-300" role="status">
-                  {t("selectPersonBeforePassport")}
-                </p>
-              )}
-
-              <FormField
-                control={form.control}
-                name="personId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("person")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        value={field.value}
-                        onValueChange={(value) => field.onChange(value || "")}
-                        disabled={
-                          Boolean(personId) ||
-                          isAiProcessing ||
-                          Boolean(selectedFile) ||
-                          Boolean(preparedStorageId)
-                        }
-                        options={people.map((person) => ({
-                          value: person._id,
-                          label: person.fullName,
-                        }))}
-                        placeholder={t("selectPerson")}
-                        searchPlaceholder={tCommon("search")}
-                        emptyText={tCommon("noResults")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {!watchedPersonId && (
+                  <p
+                    className="text-sm text-amber-700 dark:text-amber-300"
+                    role="status"
+                  >
+                    {t("selectPersonBeforePassport")}
+                  </p>
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="passportNumber"
-                render={({ field }) => (
-                  <FormItem className="relative">
-                    <FormLabel>{t("passportNumber")}</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    <PassportNumberValidationFeedback
-                      isChecking={isPassportChecking}
-                      isAvailable={isPassportAvailable}
-                      existingPassport={existingPassport}
-                    />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="issuingCountryId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("issuingCountry")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        value={field.value}
-                        onValueChange={(value) => field.onChange(value || "")}
-                        options={countries.map((country) => {
-                          const translatedName = getCountryName(country.code) || country.name
-                          return {
-                            value: country._id,
-                            label: translatedName,
-                          }
-                        })}
-                        placeholder={t("selectCountry")}
-                        searchPlaceholder={tCommon("search")}
-                        emptyText={tCommon("noResults")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="issueDate"
+                  name="personId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("issueDate")}</FormLabel>
+                      <FormLabel>{t("person")}</FormLabel>
                       <FormControl>
-                        <DatePicker
+                        <Combobox
                           value={field.value}
-                          onChange={field.onChange}
+                          onValueChange={(value) => field.onChange(value || "")}
+                          disabled={
+                            Boolean(personId) ||
+                            isAiProcessing ||
+                            Boolean(selectedFile) ||
+                            Boolean(preparedStorageId)
+                          }
+                          options={people.map((person) => ({
+                            value: person._id,
+                            label: person.fullName,
+                          }))}
+                          placeholder={t("selectPerson")}
+                          searchPlaceholder={tCommon("search")}
+                          emptyText={tCommon("noResults")}
                         />
                       </FormControl>
                       <FormMessage />
@@ -445,83 +396,169 @@ export function PassportFormDialog({
 
                 <FormField
                   control={form.control}
-                  name="expiryDate"
+                  name="passportNumber"
+                  render={({ field }) => (
+                    <FormItem className="relative">
+                      <FormLabel>{t("passportNumber")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                      <PassportNumberValidationFeedback
+                        isChecking={isPassportChecking}
+                        isAvailable={isPassportAvailable}
+                        existingPassport={existingPassport}
+                      />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="issuingCountryId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("expiryDate")}</FormLabel>
+                      <FormLabel>{t("issuingCountry")}</FormLabel>
                       <FormControl>
-                        <DatePicker
+                        <Combobox
                           value={field.value}
-                          onChange={field.onChange}
+                          onValueChange={(value) => field.onChange(value || "")}
+                          options={countries.map((country) => {
+                            const translatedName =
+                              getCountryName(country.code) || country.name
+                            return {
+                              value: country._id,
+                              label: translatedName,
+                            }
+                          })}
+                          placeholder={t("selectCountry")}
+                          searchPlaceholder={tCommon("search")}
+                          emptyText={tCommon("noResults")}
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="issueDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("issueDate")}</FormLabel>
+                        <FormControl>
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="expiryDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("expiryDate")}</FormLabel>
+                        <FormControl>
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {status && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {t("status")}:
+                    </span>
+                    <Badge variant={getStatusVariant(status)}>
+                      {t(`status${status.replace(" ", "")}`)}
+                    </Badge>
+                  </div>
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          {t("isActive")}
+                        </FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
               </div>
 
-              {status && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{t("status")}:</span>
-                  <Badge variant={getStatusVariant(status)}>
-                    {t(`status${status.replace(" ", "")}`)}
-                  </Badge>
-                </div>
-              )}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDialogOpenChange(false)}
+                  disabled={
+                    isAiProcessing || pendingPassportAttachmentId !== undefined
+                  }
+                >
+                  {tCommon("cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    !watchedPersonId ||
+                    form.formState.isSubmitting ||
+                    isUploading ||
+                    isAiProcessing ||
+                    Boolean(pendingPassportAttachmentId) ||
+                    isPassportChecking ||
+                    isPassportAvailable === false
+                  }
+                >
+                  {form.formState.isSubmitting ||
+                  isUploading ||
+                  isAiProcessing ||
+                  pendingPassportAttachmentId
+                    ? tCommon("loading")
+                    : tCommon("save")}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
-              <FormField
-                control={form.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">{t("isActive")}</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+      <PassportDocumentAttachmentDialog
+        open={pendingPassportAttachmentId !== undefined}
+        passportId={pendingPassportAttachmentId}
+        individualProcessId={individualProcessId}
+        onComplete={completePassportSave}
+      />
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleDialogOpenChange(false)}
-                disabled={
-                  isAiProcessing || pendingPassportAttachmentId !== undefined
-                }
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={!watchedPersonId || form.formState.isSubmitting || isUploading || isAiProcessing || Boolean(pendingPassportAttachmentId) || isPassportChecking || isPassportAvailable === false}>
-                {form.formState.isSubmitting || isUploading || isAiProcessing || pendingPassportAttachmentId ? tCommon("loading") : tCommon("save")}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-
-    <PassportDocumentAttachmentDialog
-      open={pendingPassportAttachmentId !== undefined}
-      passportId={pendingPassportAttachmentId}
-      onComplete={completePassportSave}
-    />
-
-    {/* Unsaved Changes Confirmation Dialog */}
-    <UnsavedChangesDialog
-      open={showUnsavedDialog}
-      onOpenChange={setShowUnsavedDialog}
-      onConfirm={handleConfirmClose}
-      onCancel={handleCancelClose}
-    />
+      {/* Unsaved Changes Confirmation Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
     </>
   )
 }

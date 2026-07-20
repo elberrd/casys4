@@ -1,9 +1,29 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
-import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
+
+async function makeOnlyOfficialPassportType(
+  ctx: MutationCtx,
+  selectedDocumentTypeId?: Id<"documentTypes">,
+): Promise<void> {
+  const currentOfficialTypes = await ctx.db
+    .query("documentTypes")
+    .withIndex("by_officialPassport", (q) => q.eq("isOfficialPassport", true))
+    .collect();
+
+  await Promise.all(
+    currentOfficialTypes
+      .filter((documentType) => documentType._id !== selectedDocumentTypeId)
+      .map((documentType) =>
+        ctx.db.patch(documentType._id, {
+          isOfficialPassport: false,
+        }),
+      ),
+  );
+}
 
 export const list = query({
   args: {
@@ -15,11 +35,15 @@ export const list = query({
     let documentTypes = await ctx.db.query("documentTypes").collect();
 
     if (args.category !== undefined) {
-      documentTypes = documentTypes.filter((dt) => dt.category === args.category);
+      documentTypes = documentTypes.filter(
+        (dt) => dt.category === args.category,
+      );
     }
 
     if (args.isActive !== undefined) {
-      documentTypes = documentTypes.filter((dt) => dt.isActive === args.isActive);
+      documentTypes = documentTypes.filter(
+        (dt) => dt.isActive === args.isActive,
+      );
     }
 
     // Apply search filter
@@ -27,7 +51,9 @@ export const list = query({
       const searchNormalized = normalizeString(args.search);
       documentTypes = documentTypes.filter((item) => {
         const name = normalizeString(item.name);
-        const description = item.description ? normalizeString(item.description) : "";
+        const description = item.description
+          ? normalizeString(item.description)
+          : "";
         const category = item.category ? normalizeString(item.category) : "";
 
         return (
@@ -95,7 +121,7 @@ export const getWithLegalFrameworks = query({
           legalFrameworkName: legalFramework?.name ?? "",
           isRequired: assoc.isRequired,
         };
-      })
+      }),
     );
 
     return {
@@ -114,7 +140,7 @@ export const listByLegalFramework = query({
     const associations = await ctx.db
       .query("documentTypesLegalFrameworks")
       .withIndex("by_legalFramework", (q) =>
-        q.eq("legalFrameworkId", args.legalFrameworkId)
+        q.eq("legalFrameworkId", args.legalFrameworkId),
       )
       .collect();
 
@@ -128,11 +154,11 @@ export const listByLegalFramework = query({
           ...documentType,
           isRequired: assoc.isRequired,
         };
-      })
+      }),
     );
 
     return documentTypes.filter(
-      (dt): dt is NonNullable<typeof dt> => dt !== null
+      (dt): dt is NonNullable<typeof dt> => dt !== null,
     );
   },
 });
@@ -151,16 +177,18 @@ export const create = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    isOfficialPassport: v.optional(v.boolean()),
     excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
           legalFrameworkId: v.id("legalFrameworks"),
           isRequired: v.boolean(),
-        })
-      )
+        }),
+      ),
     ),
   },
+  returns: v.id("documentTypes"),
   handler: async (ctx, args) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
@@ -180,6 +208,10 @@ export const create = mutation({
       }
     }
 
+    if (args.isOfficialPassport) {
+      await makeOnlyOfficialPassportType(ctx);
+    }
+
     const documentTypeId = await ctx.db.insert("documentTypes", {
       name: args.name,
       code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
@@ -190,11 +222,15 @@ export const create = mutation({
       isActive: args.isActive ?? true,
       isCompanyDocument: args.isCompanyDocument ?? false,
       isInformationOnly: args.isInformationOnly ?? false,
+      isOfficialPassport: args.isOfficialPassport ?? false,
       excludeFromReportByDefault: args.excludeFromReportByDefault ?? false,
     });
 
     // Create legal framework associations if provided
-    if (args.legalFrameworkAssociations && args.legalFrameworkAssociations.length > 0) {
+    if (
+      args.legalFrameworkAssociations &&
+      args.legalFrameworkAssociations.length > 0
+    ) {
       const now = Date.now();
       for (const assoc of args.legalFrameworkAssociations) {
         await ctx.db.insert("documentTypesLegalFrameworks", {
@@ -217,6 +253,7 @@ export const create = mutation({
         code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
         category: args.category,
         isActive: args.isActive ?? true,
+        isOfficialPassport: args.isOfficialPassport ?? false,
         legalFrameworksCount: args.legalFrameworkAssociations?.length ?? 0,
       },
     });
@@ -240,16 +277,18 @@ export const update = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    isOfficialPassport: v.optional(v.boolean()),
     excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
           legalFrameworkId: v.id("legalFrameworks"),
           isRequired: v.boolean(),
-        })
-      )
+        }),
+      ),
     ),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
@@ -279,12 +318,18 @@ export const update = mutation({
       }
     }
 
+    if (updateData.isOfficialPassport) {
+      await makeOnlyOfficialPassportType(ctx, id);
+    }
+
     await ctx.db.patch(id, {
       name: updateData.name,
       ...(updateData.code !== undefined && {
         code: updateData.code.toUpperCase().replace(/\s+/g, ""),
       }),
-      ...(updateData.category !== undefined && { category: updateData.category }),
+      ...(updateData.category !== undefined && {
+        category: updateData.category,
+      }),
       ...(updateData.description !== undefined && {
         description: updateData.description,
       }),
@@ -294,10 +339,21 @@ export const update = mutation({
       ...(updateData.maxFileSizeMB !== undefined && {
         maxFileSizeMB: updateData.maxFileSizeMB,
       }),
-      ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
-      ...(updateData.isCompanyDocument !== undefined && { isCompanyDocument: updateData.isCompanyDocument }),
-      ...(updateData.isInformationOnly !== undefined && { isInformationOnly: updateData.isInformationOnly }),
-      ...(updateData.excludeFromReportByDefault !== undefined && { excludeFromReportByDefault: updateData.excludeFromReportByDefault }),
+      ...(updateData.isActive !== undefined && {
+        isActive: updateData.isActive,
+      }),
+      ...(updateData.isCompanyDocument !== undefined && {
+        isCompanyDocument: updateData.isCompanyDocument,
+      }),
+      ...(updateData.isInformationOnly !== undefined && {
+        isInformationOnly: updateData.isInformationOnly,
+      }),
+      ...(updateData.isOfficialPassport !== undefined && {
+        isOfficialPassport: updateData.isOfficialPassport,
+      }),
+      ...(updateData.excludeFromReportByDefault !== undefined && {
+        excludeFromReportByDefault: updateData.excludeFromReportByDefault,
+      }),
     });
 
     // Update legal framework associations if provided
@@ -328,6 +384,7 @@ export const update = mutation({
         description: existing.description,
         maxFileSizeMB: existing.maxFileSizeMB,
         isActive: existing.isActive,
+        isOfficialPassport: existing.isOfficialPassport,
       },
       {
         name: updateData.name,
@@ -339,7 +396,9 @@ export const update = mutation({
         description: updateData.description ?? existing.description,
         maxFileSizeMB: updateData.maxFileSizeMB ?? existing.maxFileSizeMB,
         isActive: updateData.isActive ?? existing.isActive,
-      }
+        isOfficialPassport:
+          updateData.isOfficialPassport ?? existing.isOfficialPassport,
+      },
     );
 
     if (legalFrameworkAssociations !== undefined) {
@@ -361,6 +420,8 @@ export const update = mutation({
         },
       });
     }
+
+    return null;
   },
 });
 
@@ -409,14 +470,15 @@ export const createWithFieldMappings = mutation({
     isActive: v.optional(v.boolean()),
     isCompanyDocument: v.optional(v.boolean()),
     isInformationOnly: v.optional(v.boolean()),
+    isOfficialPassport: v.optional(v.boolean()),
     excludeFromReportByDefault: v.optional(v.boolean()),
     legalFrameworkAssociations: v.optional(
       v.array(
         v.object({
           legalFrameworkId: v.id("legalFrameworks"),
           isRequired: v.boolean(),
-        })
-      )
+        }),
+      ),
     ),
     fieldMappings: v.optional(
       v.array(
@@ -428,10 +490,11 @@ export const createWithFieldMappings = mutation({
           fieldType: v.optional(v.string()),
           isRequired: v.boolean(),
           sortOrder: v.number(),
-        })
-      )
+        }),
+      ),
     ),
   },
+  returns: v.id("documentTypes"),
   handler: async (ctx, args) => {
     const userProfile = await requireAdmin(ctx);
     if (!userProfile.userId) {
@@ -450,6 +513,10 @@ export const createWithFieldMappings = mutation({
       }
     }
 
+    if (args.isOfficialPassport) {
+      await makeOnlyOfficialPassportType(ctx);
+    }
+
     const documentTypeId = await ctx.db.insert("documentTypes", {
       name: args.name,
       code: args.code ? args.code.toUpperCase().replace(/\s+/g, "") : "",
@@ -460,11 +527,15 @@ export const createWithFieldMappings = mutation({
       isActive: args.isActive ?? true,
       isCompanyDocument: args.isCompanyDocument ?? false,
       isInformationOnly: args.isInformationOnly ?? false,
+      isOfficialPassport: args.isOfficialPassport ?? false,
       excludeFromReportByDefault: args.excludeFromReportByDefault ?? false,
     });
 
     // Create legal framework associations if provided
-    if (args.legalFrameworkAssociations && args.legalFrameworkAssociations.length > 0) {
+    if (
+      args.legalFrameworkAssociations &&
+      args.legalFrameworkAssociations.length > 0
+    ) {
       const now = Date.now();
       for (const assoc of args.legalFrameworkAssociations) {
         await ctx.db.insert("documentTypesLegalFrameworks", {
@@ -507,6 +578,7 @@ export const createWithFieldMappings = mutation({
         category: args.category,
         isActive: args.isActive ?? true,
         isInformationOnly: args.isInformationOnly ?? false,
+        isOfficialPassport: args.isOfficialPassport ?? false,
         legalFrameworksCount: args.legalFrameworkAssociations?.length ?? 0,
         fieldMappingsCount: args.fieldMappings?.length ?? 0,
       },

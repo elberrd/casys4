@@ -5,7 +5,12 @@ import { normalizeString } from "./stringUtils";
 export const PASSPORT_DOCUMENT_ATTACHMENT_NOTE =
   "Anexado e aprovado automaticamente a partir do arquivo do passaporte";
 
-const PASSPORT_DOCUMENT_NAMES = new Set(["passaporte", "passaporte valido"]);
+const PASSPORT_DOCUMENT_NAMES = new Set([
+  "passaporte",
+  "passaporte valido",
+  "passport",
+  "valid passport",
+]);
 
 function normalizeDocumentName(name: string): string {
   return normalizeString(name).trim().replace(/\s+/g, " ");
@@ -48,7 +53,7 @@ export async function getPassportDocumentFileMetadata(
   passport: Doc<"passports">,
 ): Promise<PassportDocumentFileMetadata | null> {
   const fileUrl = passport.storageId
-    ? (await ctx.storage.getUrl(passport.storageId)) ?? passport.fileUrl
+    ? ((await ctx.storage.getUrl(passport.storageId)) ?? passport.fileUrl)
     : passport.fileUrl;
   if (!fileUrl) return null;
 
