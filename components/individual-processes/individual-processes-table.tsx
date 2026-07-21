@@ -93,6 +93,13 @@ import type {
 
 interface IndividualProcess {
   _id: Id<"individualProcesses">;
+  requestStatus?: "draft" | "solicitado";
+  requestedBy?: Id<"users">;
+  requestGroupId?: string;
+  requesterProfile?: {
+    fullName: string;
+    email: string;
+  } | null;
   status?: string;
   caseStatusId?: Id<"caseStatuses">;
   isActive?: boolean;
@@ -203,6 +210,7 @@ interface IndividualProcessesTableProps {
   ) => void;
   onBulkCreateTask?: (selected: IndividualProcess[]) => void;
   onRowClick?: (id: Id<"individualProcesses">) => void;
+  onOpenProcessRequest?: (id: Id<"individualProcesses">) => void;
   onUpdateStatus?: (id: Id<"individualProcesses">) => void;
   // Candidate filter props
   candidateOptions?: CandidateFilterOption[];
@@ -279,6 +287,7 @@ export function IndividualProcessesTable({
   onBulkStatusUpdate,
   onBulkCreateTask,
   onRowClick,
+  onOpenProcessRequest,
   onUpdateStatus,
   applicantOptions = [],
   selectedApplicants = [],
@@ -941,7 +950,12 @@ export function IndividualProcessesTable({
       },
       {
         id: "userApplicant_fullName",
-        accessorFn: (row) => row.userApplicant?.fullName ?? "",
+        accessorFn: (row) =>
+          row.requesterProfile !== undefined &&
+          row.requestedBy &&
+          row.requestStatus === "solicitado"
+            ? row.requesterProfile?.fullName || row.requesterProfile?.email || ""
+            : row.userApplicant?.fullName ?? "",
         minSize: 100,
         maxSize: 150,
         header: ({ column }) => (
@@ -951,7 +965,59 @@ export function IndividualProcessesTable({
           />
         ),
         cell: ({ row }) => {
-          const { userApplicant } = row.original;
+          const {
+            userApplicant,
+            requestedBy,
+            requesterProfile,
+            requestStatus,
+          } = row.original;
+          const isClientRequest = Boolean(
+            requesterProfile !== undefined &&
+              requestedBy &&
+              requestStatus === "solicitado",
+          );
+
+          if (isClientRequest) {
+            const requesterName =
+              requesterProfile?.fullName || requesterProfile?.email;
+            if (!requesterName) {
+              return (
+                <span className="text-sm text-muted-foreground">-</span>
+              );
+            }
+
+            if (!onOpenProcessRequest) {
+              return <span className="text-sm">{requesterName}</span>;
+            }
+
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t("openProcessRequest", {
+                        requester: requesterName,
+                      })}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenProcessRequest(row.original._id);
+                      }}
+                      className="rounded-sm text-left text-sm font-medium underline underline-offset-4 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      {requesterName}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {t("openProcessRequest", { requester: requesterName })}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+
           if (!userApplicant) {
             return (
               <span className="text-sm text-muted-foreground">
@@ -1788,6 +1854,7 @@ export function IndividualProcessesTable({
       onCreateFromExisting,
       onDelete,
       confirmDelete,
+      onOpenProcessRequest,
       onUpdateStatus,
       // Ensure urgent flag cell re-renders immediately on optimistic state changes
       optimisticUrgent,
@@ -1980,7 +2047,13 @@ export function IndividualProcessesTable({
         case "companyApplicant_name":
           return process.companyApplicant?.name || "-";
         case "userApplicant_fullName":
-          return process.userApplicant?.fullName || "-";
+          return process.requesterProfile !== undefined &&
+            process.requestedBy &&
+            process.requestStatus === "solicitado"
+            ? process.requesterProfile?.fullName ||
+                process.requesterProfile?.email ||
+                "-"
+            : process.userApplicant?.fullName || "-";
         case "processType_name":
           return process.processType
             ? locale === "en" && process.processType.nameEn

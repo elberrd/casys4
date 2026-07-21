@@ -48,13 +48,15 @@ export interface ClientRequestGroup {
 interface ClientRequestsTableProps {
   groups: ClientRequestGroup[];
   onOpen: (group: ClientRequestGroup) => void;
-  onContinue: (group: ClientRequestGroup) => void;
-  onDelete: (group: ClientRequestGroup) => void;
+  showRequester?: boolean;
+  onContinue?: (group: ClientRequestGroup) => void;
+  onDelete?: (group: ClientRequestGroup) => void;
 }
 
 export function ClientRequestsTable({
   groups,
   onOpen,
+  showRequester = false,
   onContinue,
   onDelete,
 }: ClientRequestsTableProps) {
@@ -64,6 +66,39 @@ export function ClientRequestsTable({
 
   const columns = useMemo<ColumnDef<ClientRequestGroup>[]>(
     () => [
+      ...(showRequester
+        ? [
+            {
+              id: "requester",
+              accessorFn: (g: ClientRequestGroup) => {
+                const requester = g.representative.requesterProfile;
+                return [requester?.fullName, requester?.email]
+                  .filter(Boolean)
+                  .join(" ");
+              },
+              header: ({ column }) => (
+                <DataGridColumnHeader
+                  column={column}
+                  title={t("requestedBy")}
+                />
+              ),
+              cell: ({ row }) => {
+                const requester = row.original.representative.requesterProfile;
+                const primary = requester?.fullName || requester?.email || "-";
+                return (
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{primary}</p>
+                    {requester?.fullName && requester.email && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {requester.email}
+                      </p>
+                    )}
+                  </div>
+                );
+              },
+            } satisfies ColumnDef<ClientRequestGroup>,
+          ]
+        : []),
       {
         id: "candidate",
         accessorFn: (g) =>
@@ -77,14 +112,10 @@ export function ClientRequestsTable({
         cell: ({ row }) => {
           const g = row.original;
           const count = g.candidates.length;
-          const primary =
-            g.representative.person?.fullName ||
-            g.legalFrameworkName ||
-            t("newRequest");
           return (
             <div className="flex items-center gap-2">
               <span className="font-medium">
-                {count === 1 ? primary : t("candidatesCount", { count })}
+                {t("candidatesCount", { count })}
               </span>
               {g.urgent && (
                 <Badge variant="destructive" className="text-xs">
@@ -158,13 +189,13 @@ export function ClientRequestsTable({
                     <Eye className="mr-2 h-4 w-4" />
                     {t("viewDetails")}
                   </DropdownMenuItem>
-                  {isDraft && (
+                  {isDraft && onContinue && (
                     <DropdownMenuItem onClick={() => onContinue(g)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       {t("continueEditing")}
                     </DropdownMenuItem>
                   )}
-                  {canDelete && (
+                  {canDelete && onDelete && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -183,7 +214,7 @@ export function ClientRequestsTable({
         },
       },
     ],
-    [t, tCommon, locale, onOpen, onContinue, onDelete],
+    [t, tCommon, locale, onOpen, showRequester, onContinue, onDelete],
   );
 
   const table = useReactTable({

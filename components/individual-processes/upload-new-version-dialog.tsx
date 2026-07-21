@@ -265,16 +265,13 @@ export function UploadNewVersionDialog({
             </div>
           )}
 
-          {/* Version notes (optional) */}
-          {selectedFile && (
-            <DocumentReceivedDateField
-              canEdit={canEditReceivedDate}
-              value={receivedDate}
-              onChange={setReceivedDate}
-              disabled={isUploading}
-              id="new-version-received-date"
-            />
-          )}
+          <DocumentReceivedDateField
+            canEdit={canEditReceivedDate}
+            value={receivedDate}
+            onChange={setReceivedDate}
+            disabled={isUploading}
+            id="new-version-received-date"
+          />
 
           {/* Version notes (optional) */}
           <div className="space-y-2">

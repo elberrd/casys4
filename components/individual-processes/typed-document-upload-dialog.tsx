@@ -414,16 +414,13 @@ export function TypedDocumentUploadDialog({
             </div>
           )}
 
-          {/* Version notes (optional) */}
-          {selectedFile && (
-            <DocumentReceivedDateField
-              canEdit={canEditReceivedDate}
-              value={receivedDate}
-              onChange={setReceivedDate}
-              disabled={isUploading}
-              id="typed-document-received-date"
-            />
-          )}
+          <DocumentReceivedDateField
+            canEdit={canEditReceivedDate}
+            value={receivedDate}
+            onChange={setReceivedDate}
+            disabled={isUploading}
+            id="typed-document-received-date"
+          />
 
           {/* Version notes (optional) */}
           <div className="space-y-2">

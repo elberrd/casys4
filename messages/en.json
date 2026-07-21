@@ -759,6 +759,7 @@
     "funcaoPlaceholder": "e.g., Developer, Analyst",
     "cbo": "CBO Code",
     "cboColumn": "CBO",
+    "openProcessRequest": "Open request from {requester}",
     "mreOfficeNumber": "MRE Office Number",
     "douNumber": "DOU Number",
     "douSection": "DOU Section",

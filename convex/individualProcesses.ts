@@ -38,6 +38,26 @@ export const list = query({
     // statuses, countries, ...) repeat across rows, so each unique id is
     // fetched from the db at most once per execution.
     const cachedGet = createCachedGet(ctx.db);
+    const requesterProfilePromises = new Map<
+      Id<"users">,
+      Promise<{ fullName: string; email: string } | null>
+    >();
+    const getRequesterProfile = (userId: Id<"users">) => {
+      const existing = requesterProfilePromises.get(userId);
+      if (existing) return existing;
+
+      const pending = ctx.db
+        .query("userProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .first()
+        .then((profile) =>
+          profile
+            ? { fullName: profile.fullName, email: profile.email }
+            : null,
+        );
+      requesterProfilePromises.set(userId, pending);
+      return pending;
+    };
 
     let results;
 
@@ -126,7 +146,7 @@ export const list = query({
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, consulate, notesCount, pendingDocsCount] = await Promise.all([
+        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, requesterProfile, consulate, notesCount, pendingDocsCount] = await Promise.all([
           cachedGet(process.personId),
           process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
           process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
@@ -150,6 +170,12 @@ export const list = query({
           process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
           // Get user applicant details if userApplicantId exists
           process.userApplicantId ? cachedGet(process.userApplicantId) : null,
+          // For administrators, resolve the client user who submitted a
+          // request. Only the public identity fields needed by the table are
+          // projected, and repeated requesters are fetched once per query.
+          userProfile.role === "admin" && process.requestedBy
+            ? getRequesterProfile(process.requestedBy)
+            : null,
           // Get consulate details if consulateId exists
           process.consulateId ? cachedGet(process.consulateId) : null,
           // Get notes count for this individual process
@@ -319,6 +345,7 @@ export const list = query({
             fullName: getFullName(userApplicant),
             company: process.userApplicantCompanyId ? await cachedGet(process.userApplicantCompanyId) : null,
           } : null, // Include user applicant details with stored company
+          ...(userProfile.role === "admin" ? { requesterProfile } : {}),
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
           pendingDocsCount, // Count of documents with status="not_started" (client portal badge)

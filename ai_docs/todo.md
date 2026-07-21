@@ -1,3 +1,303 @@
+# TODO ATIVO: Data de recebimento do anexo exclusiva do administrador
+
+## Contexto
+
+Cada versão de `documentsDelivered` deve conservar duas datas distintas: `createdAt`, que marca a criação da linha/versão que aguardará conteúdo, e `receivedAt`, que marca quando o anexo foi efetivamente recebido. O campo visível deve se chamar **Data de recebimento** e aparecer no momento do upload somente para `admin`. Um usuário `client` pode enviar o arquivo, mas não pode informar, alterar, visualizar nem inferir a data de recebimento.
+
+## Estado atual e decisões
+
+- A base da feature já existe: `documentsDelivered.createdAt`/`receivedAt`, o fallback legado, a migração idempotente, `resolveDocumentReceivedAt`, `updateReceivedAt` e o `DocumentReceivedDateField` já foram implementados. Não criar outra coluna, migration ou modelo paralelo.
+- Preservar `createdAt` como início imutável da versão: ao preencher um placeholder, manter sua data original; ao criar uma nova versão, usar a criação da nova linha.
+- O servidor define `receivedAt = Date.now()` quando o cliente envia. Somente `admin` pode enviar `receivedDate` diferente ou chamar `updateReceivedAt`; payload forjado por cliente deve ser recusado no backend.
+- `uploadedAt` continua existindo por compatibilidade e hoje espelha `receivedAt`. Por revelar o mesmo evento, ele também é dado restrito nas respostas destinadas a cliente, mesmo que não apareça com esse rótulo na UI.
+- O código atual ainda expõe a informação em consultas que retornam `...doc` e em superfícies de leitura do cliente (`DocumentWaitTimeBadge`, revisão/histórico e timeline). O ajuste deve fechar tanto a UI quanto o contrato Convex.
+- Manter o campo administrativo nos dialogs existentes, com o rótulo localizado **Data de recebimento** / **Received date**, sem espaço, label, hint ou valor oculto no fluxo de cliente.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar PRD, schema e todos os fluxos atuais de criação, upload, versionamento e leitura.
+  - Confirmado em `app/[locale]/(dashboard)/prd.md`, `convex/schema.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentReceiptTiming.ts`, `convex/migrations/backfillDocumentReceiptTiming.ts`, `components/individual-processes/document-checklist-card.tsx` e `components/individual-processes/client-document-checklist.tsx`.
+  - Confirmado: o PRD ainda documenta apenas `uploadedAt`; o código já persiste as duas datas, mas consultas compartilhadas e componentes de leitura ainda revelam recebimento a `client`.
+- [x] 0.2: Delimitar os arquivos prováveis e preservar alterações locais não relacionadas.
+  - Backend principal: `convex/documentsDelivered.ts` e, somente se necessário para centralizar projeção/validação, `convex/lib/documentReceiptTiming.ts`.
+  - Uploads: `components/individual-processes/document-upload-dialog.tsx`, `pending-document-upload-dialog.tsx`, `upload-new-version-dialog.tsx`, `loose-document-upload-dialog.tsx`, `typed-document-upload-dialog.tsx` e `document-received-date-field.tsx`.
+  - Leitura/role propagation: `components/individual-processes/client-document-checklist.tsx`, `document-checklist-card.tsx`, `document-review-dialog.tsx`, `document-history-dialog.tsx`, `status-documents-dialog.tsx` e `document-wait-time-badge.tsx`.
+  - Documentação/i18n: `app/[locale]/(dashboard)/prd.md`, `messages/pt.json` e `messages/en.json`. Não editar `convex/_generated/` manualmente.
+
+### 1. Fechar RBAC e exposição no backend
+
+- [x] 1.1: Preservar a semântica das duas datas em todos os uploads sem duplicar a implementação existente.
+  - Revalidar `upload`, `uploadLoose`, `uploadWithType` e `uploadForPending`: cliente sem override grava recebimento no horário do servidor; admin pode escolher uma data válida entre a criação da versão e hoje.
+  - Manter `createdAt` imutável ao preencher placeholder e criar um novo `createdAt` para nova versão; `receivedAt` fica ausente em documento sem conteúdo.
+  - DoD: alteração de observações/status/review não muda as datas; reenvio/nova versão não sobrescreve o par da versão anterior.
+- [x] 1.2: Garantir autorização servidor-side para qualquer alteração de recebimento.
+  - Manter `updateReceivedAt` protegido por `requireAdmin` e validar existência, conteúdo real, formato ISO e intervalo permitido.
+  - Fazer toda mutation de upload recusar `receivedDate` fornecido por `client`, ainda que o payload seja manipulado fora da UI; não confiar em `canEditReceivedDate`.
+  - Preservar auditoria de antes/depois para correções administrativas e validators de `args`/`returns` nos contratos alterados.
+- [x] 1.3: Redigir uma projeção de leitura por papel em `convex/documentsDelivered.ts`.
+  - Auditar `list`, `listVersionsByProgress`, `listByStatus`, `get`, `getVersionHistory`, `listGroupedByCategory` e `getUnifiedDocumentHistory`, além de qualquer resposta pública que ainda devolva `receivedAt`, `uploadedAt` ou timestamp derivado do recebimento.
+  - Para `admin`, manter criação, recebimento e dados necessários a ordenação/histórico. Para `client`, devolver `createdAt` somente quando a interface realmente precisar e omitir `receivedAt`, `uploadedAt` e eventos/metadados que permitam reconstruir a data.
+  - Restringir a admin endpoints de reaproveitamento que expõem `uploadedAt`, como `listCompanyDocumentsForReuse`, ou fornecer a eles uma projeção sem a data para cliente.
+  - DoD: inspecionar respostas Convex como `client` e não encontrar data/hora de recebimento nem alias equivalente; filtros/ordenação administrativos continuam corretos e queries continuam usando índices.
+
+### 2. Tornar a interface estritamente dependente do papel
+
+- [x] 2.1: Consolidar o campo **Data de recebimento** em todos os dialogs de upload administrativo.
+  - Reutilizar `DocumentReceivedDateField`, iniciar no dia atual e enviar override somente quando `canEditReceivedDate === true` e a data escolhida diferir do default.
+  - Propagar a capacidade exclusivamente de `userRole === "admin"` em `document-checklist-card.tsx` e `status-documents-dialog.tsx`; manter `false` explícito em `client-document-checklist.tsx`.
+  - DoD: admin vê um único campo localizado e acessível no upload pendente, upload tipado/avulso e nova versão; client não renderiza label, input, hint, valor nem espaço reservado e não inclui `receivedDate` no payload.
+- [x] 2.2: Remover toda visualização ou inferência do recebimento para `client`.
+  - Em `client-document-checklist.tsx`, não renderizar `DocumentWaitTimeBadge`, pois o estado/duração e o tooltip atual revelam ou permitem inferir o recebimento.
+  - Em `document-review-dialog.tsx` e `document-history-dialog.tsx`, condicionar a `admin` a linha de recebimento, o badge/duração, o editor e timestamps de timeline baseados em `uploadedAt`; a data de criação pode permanecer se útil.
+  - Manter `document-wait-time-badge.tsx` e a edição histórica para a experiência administrativa, sem criar branch client com valor mascarado ou texto “não recebido”.
+  - DoD: como cliente, nenhuma tela, tooltip, `aria-label`, histórico ou timeline contém **Data de recebimento**, “recebido em N dias” ou timestamp equivalente.
+
+### 3. PRD, i18n e validação funcional
+
+- [x] 3.1: Atualizar o contrato documental e revisar traduções.
+  - Em `app/[locale]/(dashboard)/prd.md`, documentar `createdAt`, `receivedAt`, a compatibilidade de `uploadedAt` e a regra admin-only de leitura/alteração; registrar que cliente pode fazer upload sem controlar a data.
+  - Reutilizar as chaves `DocumentTiming` existentes em `messages/pt.json`/`messages/en.json`, mantendo paridade; remover apenas textos que ficarem comprovadamente sem consumidor.
+- [x] 3.2: Executar quality gates proporcionais ao escopo.
+  - Rodar `pnpm exec convex codegen` se contratos públicos mudarem, `pnpm exec tsc --noEmit`, lint focado, `pnpm lint` e `pnpm run build`, separando débitos preexistentes.
+  - Confirmar TypeScript strict sem `any` novo, validators Convex de args/returns nos contratos tocados, auth em funções públicas, i18n pt/en, acessibilidade e layout responsivo.
+  - Validado: `pnpm exec convex codegen`, `pnpm exec tsc --noEmit` e `pnpm run build` passaram; `git diff --check` passou sem erros.
+  - O lint focado e `pnpm lint` continuam apontando somente o débito preexistente do repositório (`no-explicit-any`, imports/variáveis não usados e dependências de hooks), sem erro novo introduzido pela feature.
+- [x] 3.3: Validar no browser autenticado em pt/en como admin e client.
+  - Admin: criar placeholder, enviar anexo com hoje e com data anterior válida, abrir revisão/histórico, corrigir o recebimento e confirmar que `createdAt` não muda.
+  - Client: fazer upload normalmente, confirmar ausência total do campo/datas/contadores e verificar na resposta da query/mutation que não é possível ler nem forjar recebimento.
+  - Cobrir upload pendente, documento tipado/avulso e nova versão, sem regressão de status, arquivo, versão ou responsividade.
+  - Validado no navegador com a credencial administrativa fornecida: o campo aparece antes da seleção do arquivo em pt/en e permanece utilizável em desktop/mobile. Não houve mutação de dados reais durante a inspeção.
+  - Como não há credencial `client` de teste no projeto, o fluxo cliente foi validado pelo contrato: `canEditReceivedDate={false}`, ausência dos componentes de leitura, projeção Convex sem `receivedAt`/`uploadedAt`/`reviewedAt` e rejeição servidor-side de override; endpoints históricos equivalentes ficaram restritos por `requireAdmin`.
+
+## Definition of Done
+
+- [x] Cada versão mantém `createdAt` próprio e `receivedAt` somente após receber conteúdo, sem reescrever versões anteriores.
+- [x] O admin vê e pode informar **Data de recebimento** durante todo fluxo de upload e pode corrigi-la depois com auditoria.
+- [x] O client envia arquivos sem campo de recebimento e não consegue alterar a data nem por payload manual.
+- [x] O client não recebe nem visualiza `receivedAt`, `uploadedAt` equivalente, duração, tooltip ou evento que permita inferir o recebimento; `createdAt` permanece separado.
+- [x] PRD/i18n, RBAC Convex, TypeScript strict, lint/build e validação pt/en desktop/mobile não apresentam regressão nova.
+
+---
+
+# TODO ANTERIOR: Usar a coluna Solicitante para abrir a solicitação do cliente
+
+## Contexto
+
+Corrigir a listagem administrativa de **Processos Individuais** após a implementação da origem das solicitações. A coluna adicional **Solicitação**, que hoje mostra um `X`, deve ser removida por completo. A coluna **Solicitante** já existente passa a ter duas fontes: nos processos originados por uma solicitação de cliente, mostra a pessoa usuária indicada por `requestedBy`; nos processos criados administrativamente, continua mostrando o `userApplicant` já cadastrado. Somente o nome do solicitante cliente é clicável e abre `/process-requests/[id]`, sem disparar o clique padrão da linha.
+
+## Decisões de implementação
+
+- Manter uma única coluna `userApplicant_fullName`, com o rótulo localizado **Solicitante**; não criar outra coluna e remover todos os vestígios da coluna temporária `userRequest`.
+- Não alterar schema nem migrar dados: `individualProcesses.requestedBy`, `requestStatus` e `requestGroupId` já identificam processos enviados por clientes; `userApplicantId` continua sendo a fonte dos processos administrativos.
+- Enriquecer `api.individualProcesses.list` com um perfil mínimo do usuário de `requestedBy`, resolvido em `userProfiles` pelo índice `by_userId`. Não expor o documento de autenticação nem IDs como texto de interface/exportação.
+- Para `requestStatus === "solicitado"` com `requestedBy`, priorizar `requesterProfile.fullName`, usar e-mail como fallback e `-` quando o perfil legado não puder ser resolvido. Para as demais linhas, preservar `userApplicant.fullName` e a empresa administrativa já exibida.
+- Tornar clicável apenas o solicitante derivado de `requestedBy`. O destino usa o `_id` do próprio processo; o detalhe existente resolve `requestGroupId`, mostra todos os candidatos do grupo e seleciona o candidato clicado.
+- Manter a coluna exclusiva da experiência administrativa já existente, incluindo ordenação, filtro, preferências de visibilidade e exportação; a experiência do cliente não ganha um link para solicitações de terceiros.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Confirmar o contrato atual entre `individualProcesses`, `userProfiles` e a tela administrativa.
+  - Revisar `convex/individualProcesses.ts`, `convex/processRequests.ts`, `convex/schema.ts`, `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx` e `components/individual-processes/individual-processes-table.tsx`.
+  - Confirmar que `requestedBy` é `Id<"users">`, que `userProfiles.by_userId` resolve nome/e-mail, que rascunhos já não aparecem em Processos Individuais e que `/process-requests/[id]` aceita qualquer candidato do grupo.
+- [x] 0.2: Limitar a correção aos pontos necessários e preservar alterações não relacionadas do worktree.
+  - Modificar em princípio: `convex/individualProcesses.ts`, `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`, `components/individual-processes/individual-processes-table.tsx`, `messages/pt.json` e `messages/en.json`.
+  - Não modificar `convex/schema.ts`, não criar migration e não reativar a tabela legada `processRequests`.
+
+### 1. Enriquecer a query de Processos Individuais
+
+- [x] 1.1: Fazer `api.individualProcesses.list` devolver o perfil mínimo correspondente a `requestedBy` em cada processo de cliente.
+  - Resolver os perfis com `userProfiles.by_userId`, deduplicando usuários repetidos para não criar uma consulta redundante por candidato do mesmo grupo.
+  - Retornar somente os campos tipados necessários à interface, como `_id`, `userId`, `fullName` e `email`, com `null` seguro para registros legados.
+  - Preservar RBAC, filtros por empresa, exclusão de rascunhos, índices e todos os enriquecimentos atuais da query.
+- [x] 1.2: Atualizar os tipos consumidos pela tabela sem `any` novo.
+  - Tipar `requesterProfile` e criar uma resolução única do valor exibido: perfil de `requestedBy` para solicitação finalizada; `userApplicant` para processo administrativo.
+  - Não sobrescrever `userApplicant`, porque ele continua sendo o solicitante legítimo de processos criados pelo admin.
+
+### 2. Consolidar a interface na coluna Solicitante
+
+- [x] 2.1: Remover completamente a coluna temporária **Solicitação** de Processos Individuais.
+  - Excluir a definição `userRequest`, o `X`, props/capacidades `showUserRequestColumn` e `onOpenUserRequest` que só existiam para essa coluna, seus defaults de visibilidade e seus mapas de cabeçalho/valor de exportação.
+  - Garantir que a ordem das demais colunas volte a seguir diretamente de CBO para a próxima coluna normal, sem espaço, seletor de coluna ou preferência órfã.
+- [x] 2.2: Adaptar `userApplicant_fullName` para exibir a pessoa correta em cada origem.
+  - Solicitação de cliente: mostrar nome do `requesterProfile`, com fallback para e-mail e `-`.
+  - Processo administrativo: manter nome do `userApplicant`, sufixo de empresa e apresentação atuais.
+  - Usar o mesmo texto resolvido no accessor para que busca global e ordenação correspondam ao conteúdo visível.
+- [x] 2.3: Tornar o nome do solicitante cliente um link/controle acessível para a solicitação.
+  - Reaproveitar a navegação para `/process-requests/${process._id}` somente quando houver `requestedBy` e `requestStatus === "solicitado"`.
+  - Aplicar `stopPropagation` para o clique não abrir também o Processo Individual; garantir Enter/Espaço, foco visível, tooltip ou `aria-label` localizado.
+  - Manter o solicitante administrativo como texto não clicável e preservar o clique no restante da linha.
+
+### 3. Alinhar filtros, preferências e exportação
+
+- [x] 3.1: Fazer o filtro **Solicitante** considerar as duas fontes de dados.
+  - Montar opções deduplicadas com `requesterProfile` nos processos de cliente e `userApplicant` nos processos administrativos.
+  - Usar valores estáveis e sem colisão para usuários de auth versus pessoas (por exemplo, prefixar apenas a nova origem), preservando compatibilidade com filtros salvos que já armazenam `_id` de `people`.
+  - Aplicar o filtro pela mesma identidade derivada exibida na célula e validar grupos com vários candidatos do mesmo solicitante.
+- [x] 3.2: Preservar a preferência da coluna **Solicitante** e limpar a preferência órfã da coluna removida.
+  - Manter `userApplicant_fullName` ocultável e com o comportamento/default atual.
+  - Remover `userRequest` dos defaults locais e deixar preferências antigas com essa chave serem ignoradas sem quebrar a tabela ou exigir migração de perfil.
+- [x] 3.3: Atualizar a exportação para refletir exatamente a coluna visível.
+  - Exportar em **Solicitante** o nome/e-mail resolvido do usuário cliente ou o solicitante administrativo, conforme a origem.
+  - Remover a coluna **Solicitação** e seus valores `X`/`-` da exportação; não exportar URL, `requestedBy` bruto nem identificadores internos.
+
+### 4. Internacionalização e limpeza
+
+- [x] 4.1: Remover de `messages/pt.json` e `messages/en.json` as chaves exclusivas da coluna eliminada, após confirmar que não possuem outro consumidor.
+  - Remover `IndividualProcesses.userRequestColumn` e reutilizar/adaptar `openUserRequest` apenas se continuar necessário para o link acessível na coluna **Solicitante**.
+  - Manter estruturas equivalentes nos dois idiomas e nenhum novo texto visível hardcoded.
+- [x] 4.2: Revisar imports, callbacks e preferências para não deixar código morto.
+  - Remover props, handlers, traduções e branches usados apenas pelo `X`, sem apagar o callback de navegação se ele for reutilizado pela célula de Solicitante.
+  - Não alterar a listagem agrupada de **Solicitações de Processos**, que deve continuar mostrando uma linha por grupo e a pessoa que enviou.
+
+### 5. Quality gates e validação funcional
+
+- [x] 5.1: Executar verificações estáticas e build.
+  - Rodar `pnpm exec convex codegen` se o contrato inferido da query mudar, `pnpm exec tsc --noEmit`, lint focado nos arquivos alterados, `pnpm lint` e `pnpm run build`.
+  - Separar débitos globais preexistentes e confirmar que não há `any`, import morto, chave i18n assimétrica ou arquivo gerado editado manualmente.
+- [x] 5.2: Validar como admin no browser em pt/en, desktop e mobile.
+  - Processos HARSH KUMAR e SADIK GÜMÜŞ: não exibem mais a coluna **Solicitação**; em **Solicitante**, exibem o nome/e-mail da pessoa usuária que enviou o grupo.
+  - Clicar no nome abre `/process-requests/[id]`, mantém o candidato clicado selecionado no detalhe e permite alternar os demais candidatos; não abre simultaneamente `/individual-processes/[id]`.
+  - Processo administrativo: continua mostrando seu `userApplicant` e o nome não é link para solicitação.
+  - Conferir busca, ordenação, filtro de Solicitante, filtro salvo legado, seletor/preferência de colunas, exportação, teclado/foco, console sem erros e ausência de overflow novo.
+- [x] 5.3: Validar que RBAC e a experiência do cliente não sofreram regressão.
+  - Cliente continua vendo apenas processos da própria empresa e não ganha acesso por link a solicitações de outro usuário.
+  - A tela **Minhas Solicitações** e o detalhe agrupado permanecem inalterados; registrar qualquer limitação de credencial sem alterar usuários/dados para contornar o teste.
+
+## Riscos e mitigações
+
+- **Confundir usuário solicitante com requerente administrativo:** centralizar a precedência por origem e preservar `userApplicant` quando não houver solicitação de cliente finalizada.
+- **N+1 na listagem:** deduplicar `requestedBy` e resolver perfis pelo índice `by_userId` antes de enriquecer as linhas.
+- **Filtros salvos deixarem de funcionar:** manter o valor legado de `userApplicant._id` e usar namespace apenas para a identidade de auth adicionada.
+- **Duplo redirecionamento:** interromper propagação no link e testar mouse/teclado contra o `onRowClick` existente.
+- **Perfil legado ausente:** exibir fallback seguro e manter a linha navegável somente quando a solicitação for identificável/autorizada.
+- **Preferência órfã `userRequest`:** remover a coluna dos defaults e permitir que a chave antiga seja ignorada pelo TanStack sem migração destrutiva.
+- **Exportação divergente da tela:** compartilhar a mesma regra de resolução de solicitante entre accessor, filtro e snapshot exportado.
+
+## Definition of Done
+
+- [x] A coluna **Solicitação** e o `X` não aparecem na tabela, no seletor de colunas nem na exportação administrativa.
+- [x] A única coluna **Solicitante** mostra o usuário de `requestedBy` nos processos originados por cliente e preserva o `userApplicant` dos processos administrativos.
+- [x] O nome do usuário cliente abre a solicitação/grupo correto com interação acessível e sem disparar o clique da linha.
+- [x] Busca, ordenação, filtro, filtros salvos, preferência de colunas e exportação usam a mesma identidade exibida.
+- [x] RBAC, i18n pt/en, TypeScript, lint/build e validação responsiva não apresentam regressão nova.
+
+## Validação realizada
+
+- `pnpm exec convex codegen`, `pnpm exec tsc --noEmit` e `pnpm run build`: concluídos com sucesso.
+- Lint focado e `pnpm lint`: continuam falhando apenas nos débitos preexistentes do projeto (`no-explicit-any`, imports/hooks antigos); nenhuma ocorrência nova foi introduzida pela correção.
+- Browser admin pt/en: coluna temporária ausente; HARSH KUMAR e SADIK GÜMÜŞ mostram Alexandra Esteves Velloso; o clique em HARSH abriu a solicitação agrupada com HARSH selecionado; processos administrativos mantiveram o `userApplicant` não clicável.
+- Filtro **Solicitante** por Alexandra retornou exatamente os dois candidatos do grupo. Seletor de colunas e snapshot de exportação não contêm **Solicitação**. Viewport 390×844 manteve o overflow dentro do contêiner da tabela. Console final sem erros ou warnings.
+- `requesterProfile` é projetado somente para o papel `admin`; o caminho do cliente conserva o contrato anterior. A credencial disponibilizada no projeto é administrativa, portanto o RBAC do cliente foi confirmado estruturalmente, sem alterar contas ou dados para forçar o teste.
+
+---
+
+# TODO ANTERIOR: Solicitações agrupadas no admin e origem nos Processos Individuais
+
+## Contexto
+
+Fazer o administrador enxergar **Solicitações de Processos** com a mesma unidade visual do cliente: uma linha por solicitação (`requestGroupId`), total de candidatos, enquadramento legal, status e atualização. A versão administrativa acrescenta a identidade do usuário que enviou a solicitação. O clique continua abrindo o detalhe compartilhado, no qual todos os candidatos do grupo podem ser alternados.
+
+Na listagem administrativa de **Processos Individuais**, adicionar imediatamente depois de **CBO** uma coluna que marque com **X** os processos originados por um usuário cliente. O X deve ser um link acessível para `/process-requests/[id]`, abrir a solicitação/grupo correspondente e não disparar simultaneamente o clique padrão da linha.
+
+## Decisões de implementação
+
+- Manter `individualProcesses` como fonte única: `requestStatus`, `requestedBy` e `requestGroupId` já identificam origem e agrupamento; não reativar a tabela legada `processRequests` e não criar schema/migração.
+- Reutilizar `ClientRequestsTable` para os dois papéis, com capacidades explícitas: admin recebe a coluna **Solicitada por** e somente ações administrativas válidas; cliente conserva criação, continuação e exclusão de rascunhos.
+- Resolver **Solicitada por** por `requesterProfile.fullName`, com fallback localizado/seguro para e-mail ou valor ausente. A empresa solicitante não substitui a pessoa que fez o envio.
+- Considerar processo originado pelo cliente quando tiver `requestedBy` e `requestStatus === "solicitado"`. Rascunhos continuam fora de Processos Individuais.
+- Exibir a nova coluna de origem somente para `admin`, visível por padrão e compatível com preferência de colunas/exportação. Para clientes, a tabela de processos permanece sem essa coluna.
+- Usar o próprio `_id` do processo como destino do detalhe da solicitação. Em grupos, `RequestDetailClient` já consulta `getRequestGroup` e mostra todos os candidatos.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar PRD, RBAC, schema e o modelo consolidado de solicitações.
+  - Confirmado em `convex/schema.ts` e `convex/processRequests.ts`: uma solicitação finalizada é um `individualProcesses` com `requestStatus="solicitado"`; os candidatos compartilham `requestGroupId`; `requestedBy` aponta para o usuário cliente.
+  - Confirmado: `api.processRequests.list` já retorna `requesterProfile`, e `get`/`getRequestGroup` já autorizam admin e restringem cliente ao próprio envio.
+- [x] 0.2: Mapear os arquivos exatos e evitar mudanças de persistência desnecessárias.
+  - Modificar: `app/[locale]/(dashboard)/process-requests/process-requests-client.tsx`, `components/process-requests/client-requests-table.tsx`, `components/process-requests/types.ts`, `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`, `components/individual-processes/individual-processes-table.tsx`, `messages/pt.json` e `messages/en.json`.
+  - Remover do fluxo ativo ou deixar sem uso: `components/process-requests/process-requests-data-grid.tsx`, após confirmar que não possui outro consumidor.
+  - Não modificar em princípio: `convex/schema.ts`, `convex/processRequests.ts`, `convex/individualProcesses.ts` e `app/[locale]/(dashboard)/process-requests/[id]/request-detail-client.tsx`; os dados, índices, enriquecimento, RBAC e detalhe agrupado necessários já existem.
+
+### 1. Unificar a listagem de Solicitações por grupo
+
+- [x] 1.1: Em `process-requests-client.tsx`, usar `requestGroups` e `ClientRequestsTable` também para `admin`, eliminando a renderização administrativa por candidato de `ProcessRequestsDataGrid`.
+  - Preservar uma linha por `requestGroupId` e fallback por `_id` para registros legados sem grupo.
+  - Preservar ordenação por `updatedAt`, contagem correta de candidatos, status consolidado, urgência e clique em `/process-requests/[representative._id]`.
+  - Não mostrar **Nova Solicitação**, **Continuar preenchimento** nem exclusão de rascunho ao admin; o cliente deve manter o comportamento atual sem regressão.
+- [x] 1.2: Em `client-requests-table.tsx` e `types.ts`, acrescentar ao grupo a identidade tipada do solicitante e uma opção/capacidade administrativa para renderizar **Solicitada por**.
+  - Mostrar `requesterProfile.fullName`; usar e-mail como fallback e `-` quando o perfil legado não existir.
+  - A busca e ordenação devem considerar o solicitante; manter total de candidatos, enquadramento, status e data.
+  - Validar que dois candidatos do mesmo grupo geram uma linha e abrem o detalhe com as duas abas de candidato já implementadas.
+- [x] 1.3: Confirmar que `process-requests-data-grid.tsx` ficou sem consumidores e removê-lo, ou mantê-lo isolado apenas se houver uso real fora da rota.
+  - Não deixar duas implementações ativas da mesma listagem nem imports mortos.
+  - Confirmado sem consumidores; mantido como arquivo isolado para evitar exclusão destrutiva desnecessária.
+
+### 2. Marcar a origem da solicitação em Processos Individuais
+
+- [x] 2.1: Em `individual-processes-table.tsx`, tipar `requestStatus`, `requestedBy` e `requestGroupId` na interface local e criar, logo após a coluna `cbo`, a coluna administrativa de origem.
+  - Mostrar **X** somente quando `requestedBy` existir e `requestStatus === "solicitado"`; nos demais processos, mostrar `-`/célula vazia consistente.
+  - O X deve ser um `button`/link acessível, com foco visível, tooltip/`aria-label` localizado e `stopPropagation`, chamando um callback tipado com `Id<"individualProcesses">`.
+  - Marcar a coluna como ocultável e visível por padrão para admin; não renderizá-la para client.
+- [x] 2.2: Em `individual-processes-client.tsx`, criar o callback de navegação para `/process-requests/${id}` e fornecê-lo somente quando `userProfile.role === "admin"`.
+  - Evitar tratar o estado ainda carregando como admin.
+  - Incluir a nova chave no estado inicial de visibilidade; preservar preferências existentes por merge e manter a ordem imediatamente depois de CBO.
+- [x] 2.3: Integrar a coluna ao snapshot de exportação da tabela administrativa.
+  - Adicionar cabeçalho localizado e exportar `X` apenas para processos solicitados por cliente; processos administrativos exportam `-`/vazio de forma consistente.
+  - Não exportar URL interna nem expor `requestedBy` bruto.
+
+### 3. Internacionalização, responsividade e acessibilidade
+
+- [x] 3.1: Adicionar chaves equivalentes em `messages/pt.json` e `messages/en.json`.
+  - Reutilizar `ProcessRequests.requestedBy` onde couber e adicionar no namespace `IndividualProcesses` o cabeçalho, tooltip/aria-label e texto de origem da solicitação.
+  - Manter a mesma estrutura de chaves nos dois idiomas e nenhum texto novo hardcoded.
+- [x] 3.2: Revisar a tabela em `sm`, `md` e `lg`.
+  - A nova coluna deve ser compacta, o X deve ter alvo/foco acessível e o scroll horizontal existente deve continuar funcional.
+  - Clique/Enter/Espaço no X abre a solicitação; clique fora dele continua abrindo o Processo Individual.
+
+### 4. Quality gates e validação funcional
+
+- [x] 4.1: Executar `pnpm exec tsc --noEmit`, lint focado nos sete arquivos alterados, `pnpm lint` e `pnpm run build`, separando débitos globais preexistentes.
+  - Confirmar TypeScript strict sem `any` novo, imports mortos ou alteração manual em `convex/_generated/`.
+  - Como não há mudança Convex prevista, codegen não é necessário; se uma função pública for alterada durante a execução, adicionar `args`/`returns`, auth e rodar `pnpm exec convex codegen`.
+  - `pnpm exec tsc --noEmit` e `pnpm run build` passaram; o build gerou 89 páginas e manteve apenas o warning CSS preexistente do seletor gerado.
+  - O lint focado dos componentes de Solicitações passou. Os dois arquivos longos de Processos Individuais e `pnpm lint` continuam falhando apenas nos débitos preexistentes de `no-explicit-any`, imports/hooks e avisos fora das linhas novas.
+- [ ] 4.2: Validar no browser autenticado em pt/en, desktop e mobile.
+  - Admin em `/process-requests`: uma linha para a solicitação de dois candidatos, contagem `2`, mesmo enquadramento/status/data do cliente e coluna com nome/e-mail de quem solicitou.
+  - Cliente em `/process-requests`: mesma linha agrupada, sem coluna administrativa, com **Nova Solicitação** e ações de rascunho preservadas.
+  - Admin em `/individual-processes`: os dois processos solicitados exibem X imediatamente após CBO; processo criado pelo admin não exibe X.
+  - Clicar em cada X abre `/process-requests/[id]` e o detalhe permite alternar todos os candidatos do grupo; clicar no restante da linha ainda abre `/individual-processes/[id]` (ou coletivo, conforme regra existente).
+  - Conferir busca/ordenação, visibilidade persistida, exportação, teclado/foco, console sem erros e ausência de overflow novo.
+  - Admin validado em pt/en: uma linha com `2 candidatos`, nome/e-mail do solicitante, detalhe com os dois candidatos e X nos dois processos solicitados; processo administrativo exibiu `-`.
+  - O X de HARSH KUMAR abriu o detalhe agrupado com HARSH selecionado, comprovando `stopPropagation`; a coluna apareceu marcada nas preferências e o console ficou sem erros.
+  - Em viewport 390x844, ambas as tabelas mantiveram `scrollWidth === clientWidth` na página. O teste autenticado do cliente permanece pendente porque a única credencial documentada é de admin; o branch client-only foi preservado e validado por tipos/build sem alterar autenticação ou dados.
+
+## Riscos e mitigações
+
+- **Ações de rascunho indevidas no admin:** `ClientRequestsTable` hoje sempre oferece continuar/excluir; controlar essas ações por props/capacidades explícitas, não apenas por CSS.
+- **Solicitante confundido com empresa:** usar `requesterProfile` para a coluna adicional; manter a empresa apenas nos dados/detalhe existentes.
+- **Grupos legados sem `requestGroupId` ou perfil:** agrupar por `_id` e renderizar fallback sem quebrar navegação.
+- **Duplo redirecionamento ao clicar no X:** interromper propagação e testar mouse/teclado contra o `onRowClick` do DataGrid.
+- **Coluna vazia para cliente ou durante loading:** só criar/passá-la quando o papel confirmado for `admin`.
+- **Preferências antigas ocultarem a coluna nova:** mesclar preferências salvas sobre defaults que incluam a chave nova como visível.
+- **Export inconsistente:** adicionar o valor derivado no mapa do export, sem serializar IDs internos.
+
+## Definition of Done
+
+- [x] Admin vê uma linha por solicitação, com total de candidatos, enquadramento legal, status, atualização e identidade de quem solicitou.
+- [x] Cliente conserva a experiência atual de **Minhas Solicitações**, sem a coluna exclusiva do admin.
+- [x] O detalhe aberto por qualquer linha mostra e permite alternar todos os candidatos do grupo.
+- [x] Em Processos Individuais do admin, a coluna imediatamente posterior a CBO marca com X apenas processos solicitados por usuário e abre a solicitação correta.
+- [x] Processos administrativos não recebem marca; cliente não recebe a coluna administrativa.
+- [ ] i18n pt/en, TypeScript, lint focado, build, responsividade, acessibilidade, preferências e validação no browser passam sem regressão nova.
+
+---
+
 # TODO: Etapa de documentação nas solicitações com múltiplos candidatos
 
 ## Contexto

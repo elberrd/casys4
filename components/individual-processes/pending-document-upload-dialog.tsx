@@ -261,17 +261,14 @@ export function PendingDocumentUploadDialog({
             </div>
           )}
 
-          {/* Version notes (optional) */}
-          {selectedFile && (
-            <DocumentReceivedDateField
-              canEdit={canEditReceivedDate}
-              value={receivedDate}
-              onChange={setReceivedDate}
-              createdAt={documentCreatedAt}
-              disabled={isUploading}
-              id="pending-document-received-date"
-            />
-          )}
+          <DocumentReceivedDateField
+            canEdit={canEditReceivedDate}
+            value={receivedDate}
+            onChange={setReceivedDate}
+            createdAt={documentCreatedAt}
+            disabled={isUploading}
+            id="pending-document-received-date"
+          />
 
           {/* Version notes (optional) */}
           <div className="space-y-2">

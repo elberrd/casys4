@@ -275,7 +275,9 @@ export function DocumentHistoryDialog({
                                   {sizeDiff.text}
                                 </span>
                               )}
-                              <DocumentWaitTimeBadge document={doc} />
+                              {userRole === "admin" && (
+                                <DocumentWaitTimeBadge document={doc} />
+                              )}
                             </div>
                             {getStatusBadge(doc.status)}
                           </div>
@@ -336,12 +338,14 @@ export function DocumentHistoryDialog({
                                 <Calendar className="h-3 w-3" />
                                 {tTiming("createdDate")}: {formatDocumentTimingDate(timing.createdAt, locale)}
                               </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {tTiming("receivedDate")}: {timing.receivedAt !== undefined
-                                  ? formatDocumentTimingDate(timing.receivedAt, locale)
-                                  : tTiming("notReceived")}
-                              </span>
+                              {userRole === "admin" && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {tTiming("receivedDate")}: {timing.receivedAt !== undefined
+                                    ? formatDocumentTimingDate(timing.receivedAt, locale)
+                                    : tTiming("notReceived")}
+                                </span>
+                              )}
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="flex items-center gap-1">
@@ -364,7 +368,7 @@ export function DocumentHistoryDialog({
                                 </Button>
                               )}
                             </div>
-                            {editingReceivedDocumentId === doc._id && (
+                            {userRole === "admin" && editingReceivedDocumentId === doc._id && (
                               <div className="space-y-2 rounded-md border bg-background p-3">
                                 <DocumentReceivedDateField
                                   canEdit

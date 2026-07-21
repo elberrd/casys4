@@ -835,7 +835,9 @@ Actual documents uploaded by users.
   mimeType: string                     // File type
   status: "not_started" | "pending_upload" | "uploaded" | "under_review" | "approved" | "rejected" | "expired"
   uploadedBy: Id<"users">              // Who uploaded
-  uploadedAt: number                   // Upload timestamp
+  uploadedAt: number                   // Legacy compatibility timestamp; mirrors receivedAt for received content
+  createdAt?: number                   // Creation of this row/version; immutable after creation
+  receivedAt?: number                  // Business receipt date; absent until content is received
   reviewedBy?: Id<"users">             // Who reviewed
   reviewedAt?: number                  // Review timestamp
   rejectionReason?: string             // Why rejected
@@ -846,8 +848,9 @@ Actual documents uploaded by users.
 ```
 
 **Access Control**:
-- Admin users: Full CRUD access to all documents
-- Client users: Read-only access to documents for their company (filtered via `companyId` or person's company through `peopleCompanies`)
+- Admin users: Full CRUD access to all documents; can view, set during upload, and later correct `receivedAt`
+- Client users: Can upload documents for processes in their company, but cannot send an override or read `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
+- The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original `createdAt`; a new version receives a new `createdAt`
 
 #### Tracking and History Tables
 

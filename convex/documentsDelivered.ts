@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile, requireClientCanAccessProcess } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
@@ -22,6 +22,39 @@ import {
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+type ClientVisibleDocument = Omit<
+  Doc<"documentsDelivered">,
+  "receivedAt" | "reviewedAt" | "uploadedAt"
+> & {
+  receivedAt?: undefined;
+  reviewedAt?: undefined;
+  uploadedAt?: undefined;
+};
+
+/**
+ * Receipt timestamps are operational metadata. Clients may submit files, but
+ * only administrators may receive these fields back from public queries.
+ */
+function projectDocumentForViewer(
+  document: Doc<"documentsDelivered">,
+  viewerRole: "admin" | "client",
+): Doc<"documentsDelivered"> | ClientVisibleDocument {
+  if (viewerRole === "admin") return document;
+
+  const {
+    receivedAt: restrictedReceivedAt,
+    reviewedAt: restrictedReviewedAt,
+    uploadedAt: restrictedUploadedAt,
+    ...clientVisibleDocument
+  } = document;
+
+  void restrictedReceivedAt;
+  void restrictedReviewedAt;
+  void restrictedUploadedAt;
+
+  return clientVisibleDocument;
 }
 
 const processStatusAtUploadValidator = v.object({
@@ -146,7 +179,7 @@ export const list = query({
         }
 
         return {
-          ...doc,
+          ...projectDocumentForViewer(doc, userProfile.role),
           documentType,
           documentRequirement,
           uploadedByUser,
@@ -175,7 +208,7 @@ export const listVersionsByProgress = query({
       throw new Error("Individual process not found");
     }
 
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await requireAdmin(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
     const visibility = await resolveClientDocumentVisibility(
       ctx,
@@ -305,7 +338,7 @@ export const listByStatus = query({
         }
 
         return {
-          ...doc,
+          ...projectDocumentForViewer(doc, userProfile.role),
           documentType,
           uploadedByUser,
           previousRejectionReason,
@@ -380,7 +413,7 @@ export const get = query({
     }
 
     return {
-      ...document,
+      ...projectDocumentForViewer(document, userProfile.role),
       documentType,
       documentRequirement,
       uploadedByUser,
@@ -1019,15 +1052,24 @@ export const getVersionHistory = query({
         const hasContent = hasDocumentContent(doc);
         const successor = orderedDocuments[index + 1];
 
+        const documentForViewer = projectDocumentForViewer(
+          doc,
+          userProfile.role,
+        );
+
         return {
-          ...doc,
+          ...documentForViewer,
           createdAt: getDocumentCreatedAt(doc),
-          receivedAt: getDocumentReceivedAt(doc),
+          ...(userProfile.role === "admin"
+            ? {
+                receivedAt: getDocumentReceivedAt(doc),
+                waitingEndedAt:
+                  !hasContent && successor
+                    ? getDocumentCreatedAt(successor)
+                    : undefined,
+              }
+            : {}),
           hasContent,
-          waitingEndedAt:
-            !hasContent && successor
-              ? getDocumentCreatedAt(successor)
-              : undefined,
           uploadedByUser,
           uploadedByProfile,
           reviewedByUser,
@@ -2949,7 +2991,7 @@ export const listGroupedByCategory = query({
         }
 
         return {
-          ...doc,
+          ...projectDocumentForViewer(doc, userProfile.role),
           documentType,
           documentRequirement,
           uploadedByUser,
@@ -3028,7 +3070,7 @@ export const getStatusHistory = query({
       throw new Error("Individual process not found");
     }
 
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await requireAdmin(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
     const visibility = await resolveClientDocumentVisibility(
       ctx,
@@ -3208,6 +3250,8 @@ export const listCompanyDocumentsForReuse = query({
     excludeProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, { companyApplicantId, documentTypeId, excludeProcessId }) => {
+    await requireAdmin(ctx);
+
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
     // Find all individual processes for this company
@@ -3298,6 +3342,8 @@ export const getReusableDocumentTypeIds = query({
     excludeProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, { companyApplicantId, excludeProcessId }) => {
+    await requireAdmin(ctx);
+
     const processes = await ctx.db
       .query("individualProcesses")
       .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", companyApplicantId))
@@ -4458,7 +4504,7 @@ export const getUnifiedDocumentHistory = query({
       throw new Error("Individual process not found");
     }
 
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await requireAdmin(ctx);
     await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
     const visibility = await resolveClientDocumentVisibility(
       ctx,

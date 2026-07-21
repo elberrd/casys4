@@ -5,7 +5,7 @@ export interface DocumentTimingLike {
   _creationTime: number;
   createdAt?: number;
   receivedAt?: number;
-  uploadedAt: number;
+  uploadedAt?: number;
   waitingEndedAt?: number;
   storageId?: unknown;
   fileUrl: string;

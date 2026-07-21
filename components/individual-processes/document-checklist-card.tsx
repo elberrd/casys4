@@ -183,7 +183,7 @@ export function DocumentChecklistCard({
 
   const documentVersionsByProgress = useQuery(
     api.documentsDelivered.listVersionsByProgress,
-    { individualProcessId },
+    userRole === "admin" ? { individualProcessId } : "skip",
   )
 
   type DocumentVersionByProgress = NonNullable<
@@ -250,7 +250,7 @@ export function DocumentChecklistCard({
   // Check which document types have reusable company documents
   const reusableTypeIds = useQuery(
     api.documentsDelivered.getReusableDocumentTypeIds,
-    groupedDocuments?.companyApplicantId
+    userRole === "admin" && groupedDocuments?.companyApplicantId
       ? { companyApplicantId: groupedDocuments.companyApplicantId, excludeProcessId: individualProcessId }
       : "skip"
   )
@@ -819,7 +819,9 @@ export function DocumentChecklistCard({
             <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
               {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
             </p>
-            <DocumentWaitTimeBadge document={doc} />
+            {userRole === "admin" && (
+              <DocumentWaitTimeBadge document={doc} />
+            )}
             {showCritical && doc.isRequired && (
               <Badge variant="default" className="text-xs">
                 {t("required")}

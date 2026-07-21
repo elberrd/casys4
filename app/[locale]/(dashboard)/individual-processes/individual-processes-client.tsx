@@ -32,10 +32,20 @@ import { getFullName } from "@/lib/utils/person-names"
 import { translateCountryName } from "@/lib/utils/country-translations"
 import { loadPersistedFilters, persistFilters, clearPersistedFilters } from "@/hooks/use-persisted-filters"
 
+function withoutRemovedRequestColumn(
+  visibility?: VisibilityState,
+): VisibilityState {
+  if (!visibility) return {}
+  const normalized = { ...visibility }
+  delete normalized.userRequest
+  return normalized
+}
+
 export function IndividualProcessesClient() {
   const userProfile = useQuery(api.userProfiles.getCurrentUser)
   const userProfileId = userProfile?._id
   const isClient = userProfile?.role === "client"
+  const isAdmin = userProfile?.role === "admin"
   const t = useTranslations('IndividualProcesses')
   const tCommon = useTranslations('Common')
   const tBreadcrumbs = useTranslations('Breadcrumbs')
@@ -96,7 +106,10 @@ export function IndividualProcessesClient() {
   }
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    () => persisted?.columnVisibility ?? initialColumnVisibility
+    () => ({
+      ...initialColumnVisibility,
+      ...withoutRemovedRequestColumn(persisted?.columnVisibility),
+    })
   )
   const hasLoadedColumnPreferencesRef = useRef(false)
   const [sorting, setSorting] = useState<SortingState>(
@@ -129,7 +142,7 @@ export function IndividualProcessesClient() {
     if (savedVisibility) {
       setColumnVisibility({
         ...initialColumnVisibilityRef.current,
-        ...savedVisibility,
+        ...withoutRemovedRequestColumn(savedVisibility),
       })
     }
 
@@ -189,7 +202,18 @@ export function IndividualProcessesClient() {
   const userApplicantOptions = useMemo(() => {
     const uniqueUserApplicants = new Map<string, string>()
     individualProcesses.forEach((process) => {
-      if (process.userApplicant) {
+      if (
+        process.requesterProfile !== undefined &&
+        process.requestedBy &&
+        process.requestStatus === "solicitado"
+      ) {
+        if (process.requesterProfile) {
+          uniqueUserApplicants.set(
+            `requester:${process.requestedBy}`,
+            process.requesterProfile.fullName || process.requesterProfile.email,
+          )
+        }
+      } else if (process.userApplicant) {
         uniqueUserApplicants.set(process.userApplicant._id, process.userApplicant.fullName)
       }
     })
@@ -468,7 +492,10 @@ export function IndividualProcessesClient() {
     }
     // Apply saved column visibility if present, otherwise reset to initial
     if (filterCriteria.columnVisibility) {
-      setColumnVisibility(filterCriteria.columnVisibility)
+      setColumnVisibility({
+        ...initialColumnVisibilityRef.current,
+        ...withoutRemovedRequestColumn(filterCriteria.columnVisibility),
+      })
     } else {
       setColumnVisibility(initialColumnVisibilityRef.current)
     }
@@ -575,7 +602,12 @@ export function IndividualProcessesClient() {
     // Apply user applicant (solicitante) multi-select filter
     if (selectedUserApplicants.length > 0) {
       result = result.filter((process) => {
-        const userApplicantId = process.userApplicant?._id
+        const userApplicantId =
+          process.requesterProfile !== undefined &&
+          process.requestedBy &&
+          process.requestStatus === "solicitado"
+            ? `requester:${process.requestedBy}`
+            : process.userApplicant?._id
         return userApplicantId && selectedUserApplicants.includes(userApplicantId)
       })
     }
@@ -868,6 +900,10 @@ export function IndividualProcessesClient() {
     }
   }
 
+  const handleOpenProcessRequest = useCallback((id: Id<"individualProcesses">) => {
+    router.push(`/process-requests/${id}`)
+  }, [router])
+
   const handleEdit = (id: Id<"individualProcesses">) => {
     setSelectedProcessId(id)
     setIsDialogOpen(true)
@@ -1120,6 +1156,7 @@ export function IndividualProcessesClient() {
           onFillFields={isClient ? undefined : handleFillFields}
           onCreateFromExisting={isClient ? undefined : handleCreateFromExisting}
           onRowClick={handleView}
+          onOpenProcessRequest={isAdmin ? handleOpenProcessRequest : undefined}
           {...(!isClient && {
             candidateOptions,
             selectedCandidates,

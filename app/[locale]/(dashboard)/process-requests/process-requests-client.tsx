@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
-import { ProcessRequestsDataGrid } from "@/components/process-requests/process-requests-data-grid";
 import {
   ClientRequestsTable,
   type ClientRequestGroup,
@@ -53,12 +52,7 @@ export function ProcessRequestsClient() {
     { label: tBreadcrumbs("processRequests") },
   ];
 
-  // Admin grid row click → open the full detail page.
-  const openRequest = (request: ProcessRequestListItem) => {
-    router.push(`/process-requests/${request._id}`);
-  };
-
-  // Group the client's rows into one row per multi-candidate request batch
+  // Group rows into one row per multi-candidate request batch for both roles
   // (fallback to the row id for legacy rows without a group).
   const requestGroups = useMemo<ClientRequestGroup[]>(() => {
     if (!processRequests) return [];
@@ -168,12 +162,7 @@ export function ProcessRequestsClient() {
           )}
         </div>
 
-        {isAdmin ? (
-          <ProcessRequestsDataGrid
-            processRequests={processRequests}
-            onRowClick={openRequest}
-          />
-        ) : processRequests.length === 0 ? (
+        {!isAdmin && processRequests.length === 0 ? (
           <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
             <FileText className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{t("noRequests")}</p>
@@ -186,8 +175,9 @@ export function ProcessRequestsClient() {
           <ClientRequestsTable
             groups={requestGroups}
             onOpen={openDetails}
-            onContinue={continueGroup}
-            onDelete={(group) => setPendingDelete(group)}
+            showRequester={isAdmin}
+            onContinue={isAdmin ? undefined : continueGroup}
+            onDelete={isAdmin ? undefined : (group) => setPendingDelete(group)}
           />
         )}
       </div>

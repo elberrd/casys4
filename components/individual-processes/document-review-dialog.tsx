@@ -137,14 +137,9 @@ export function DocumentReviewDialog({
       : "skip"
   )
 
-  const statusHistory = useQuery(
-    api.documentsDelivered.getStatusHistory,
-    documentId ? { documentId } : "skip"
-  )
-
   const unifiedTimeline = useQuery(
     api.documentsDelivered.getUnifiedDocumentHistory,
-    document
+    userRole === "admin" && document
       ? {
           individualProcessId: document.individualProcessId,
           documentTypeId: document.documentTypeId ?? undefined,
@@ -531,7 +526,9 @@ export function DocumentReviewDialog({
               <DialogTitle>{t("title")}</DialogTitle>
             </div>
             {getStatusBadge(document.status)}
-            {displayDocument && <DocumentWaitTimeBadge document={displayDocument} />}
+            {userRole === "admin" && displayDocument && (
+              <DocumentWaitTimeBadge document={displayDocument} />
+            )}
           </div>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
@@ -600,7 +597,14 @@ export function DocumentReviewDialog({
         </div>
 
         <Tabs defaultValue={document?.documentType?.isInformationOnly ? "linkedFields" : "preview"} className="w-full min-h-0 flex flex-col flex-1">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 shrink-0">
+          <TabsList
+            className={cn(
+              "grid w-full shrink-0",
+              userRole === "admin"
+                ? "grid-cols-3 sm:grid-cols-5"
+                : "grid-cols-2 sm:grid-cols-4",
+            )}
+          >
             {!document?.documentType?.isInformationOnly && (
               <TabsTrigger value="preview">{t("preview") || "Visualizar"}</TabsTrigger>
             )}
@@ -636,7 +640,9 @@ export function DocumentReviewDialog({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="history">{t("history")}</TabsTrigger>
+            {userRole === "admin" && (
+              <TabsTrigger value="history">{t("history")}</TabsTrigger>
+            )}
           </TabsList>
 
           {!document?.documentType?.isInformationOnly && (
@@ -1199,31 +1205,33 @@ export function DocumentReviewDialog({
                   : t("unknown")}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{tTiming("receivedDate")}:</span>
-              <span className="font-medium">
-                {displayTiming?.receivedAt !== undefined
-                  ? formatDocumentTimingDate(displayTiming.receivedAt, locale)
-                  : tTiming("notReceived")}
-              </span>
-              {userRole === "admin" && displayTiming?.receivedAt !== undefined && !isEditingReceivedDate && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => {
-                    setEditingReceivedDate(timestampToIsoDate(displayTiming.receivedAt!))
-                    setIsEditingReceivedDate(true)
-                  }}
-                >
-                  <Pencil className="mr-1 h-3 w-3" />
-                  {tTiming("editReceivedDate")}
-                </Button>
-              )}
-            </div>
-            {isEditingReceivedDate && displayTiming && (
+            {userRole === "admin" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">{tTiming("receivedDate")}:</span>
+                <span className="font-medium">
+                  {displayTiming?.receivedAt !== undefined
+                    ? formatDocumentTimingDate(displayTiming.receivedAt, locale)
+                    : tTiming("notReceived")}
+                </span>
+                {displayTiming?.receivedAt !== undefined && !isEditingReceivedDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEditingReceivedDate(timestampToIsoDate(displayTiming.receivedAt!))
+                      setIsEditingReceivedDate(true)
+                    }}
+                  >
+                    <Pencil className="mr-1 h-3 w-3" />
+                    {tTiming("editReceivedDate")}
+                  </Button>
+                )}
+              </div>
+            )}
+            {userRole === "admin" && isEditingReceivedDate && displayTiming && (
               <div className="space-y-2 rounded-md border bg-muted/30 p-3">
                 <DocumentReceivedDateField
                   canEdit
@@ -1435,8 +1443,9 @@ export function DocumentReviewDialog({
           )}
           </TabsContent>
 
-          <TabsContent value="history" className="py-4 overflow-y-auto max-h-[55vh]">
-            <div className="space-y-4">
+          {userRole === "admin" && (
+            <TabsContent value="history" className="py-4 overflow-y-auto max-h-[55vh]">
+              <div className="space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <History className="h-4 w-4" />
                 {t("unifiedTimeline")}
@@ -1536,8 +1545,9 @@ export function DocumentReviewDialog({
                   <History className="h-8 w-8 mx-auto mb-2 opacity-50 animate-pulse" />
                 </div>
               )}
-            </div>
-          </TabsContent>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         <DialogFooter>
