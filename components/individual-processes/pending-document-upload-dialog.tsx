@@ -38,7 +38,6 @@ interface PendingDocumentUploadDialogProps {
   onSuccess?: () => void;
   hideAutoApprove?: boolean;
   canEditReceivedDate?: boolean;
-  documentCreatedAt?: number;
 }
 
 export function PendingDocumentUploadDialog({
@@ -50,7 +49,6 @@ export function PendingDocumentUploadDialog({
   onSuccess,
   hideAutoApprove,
   canEditReceivedDate = false,
-  documentCreatedAt,
 }: PendingDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -265,7 +263,6 @@ export function PendingDocumentUploadDialog({
             canEdit={canEditReceivedDate}
             value={receivedDate}
             onChange={setReceivedDate}
-            createdAt={documentCreatedAt}
             disabled={isUploading}
             id="pending-document-received-date"
           />

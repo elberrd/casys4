@@ -848,7 +848,7 @@ Actual documents uploaded by users.
 ```
 
 **Access Control**:
-- Admin users: Full CRUD access to all documents; can view, set during upload, and later correct `receivedAt`
+- Admin users: Full CRUD access to all documents; can view, set during upload, and later correct `receivedAt` to any valid calendar date, including dates before the version's `createdAt` and future dates
 - Client users: Can upload documents for processes in their company, but cannot send an override or read `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
 - The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original `createdAt`; a new version receives a new `createdAt`
 

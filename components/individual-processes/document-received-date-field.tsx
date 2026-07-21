@@ -7,39 +7,39 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { timestampToIsoDate } from "@/lib/document-wait-time";
 
-function buildReceivedDateSchema(createdAt?: number) {
-  const today = timestampToIsoDate(Date.now());
-  const createdDate = createdAt === undefined
-    ? undefined
-    : timestampToIsoDate(createdAt);
+const receivedDateSchema = z.string().refine((value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
 
-  return z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .refine((value) => !Number.isNaN(Date.parse(`${value}T12:00:00.000Z`)))
-    .refine((value) => value <= today)
-    .refine((value) => createdDate === undefined || value >= createdDate);
-}
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+});
 
 export function DocumentReceivedDateField({
   canEdit,
   value,
   onChange,
-  createdAt,
   disabled = false,
   id = "document-received-date",
 }: {
   canEdit: boolean;
   value: string;
   onChange: (value: string) => void;
-  createdAt?: number;
   disabled?: boolean;
   id?: string;
 }) {
   const t = useTranslations("DocumentTiming");
   if (!canEdit) return null;
 
-  const validation = buildReceivedDateSchema(createdAt).safeParse(value);
+  const validation = receivedDateSchema.safeParse(value);
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
 
@@ -52,7 +52,6 @@ export function DocumentReceivedDateField({
         onChange={(nextValue) => onChange(nextValue ?? getDefaultReceivedDate())}
         disabled={disabled}
         showYearMonthDropdowns
-        toYear={new Date().getFullYear()}
         ariaLabel={t("receivedDate")}
         ariaDescribedBy={validation.success ? hintId : errorId}
       />

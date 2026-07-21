@@ -8,7 +8,7 @@ Cada versão de `documentsDelivered` deve conservar duas datas distintas: `creat
 
 - A base da feature já existe: `documentsDelivered.createdAt`/`receivedAt`, o fallback legado, a migração idempotente, `resolveDocumentReceivedAt`, `updateReceivedAt` e o `DocumentReceivedDateField` já foram implementados. Não criar outra coluna, migration ou modelo paralelo.
 - Preservar `createdAt` como início imutável da versão: ao preencher um placeholder, manter sua data original; ao criar uma nova versão, usar a criação da nova linha.
-- O servidor define `receivedAt = Date.now()` quando o cliente envia. Somente `admin` pode enviar `receivedDate` diferente ou chamar `updateReceivedAt`; payload forjado por cliente deve ser recusado no backend.
+- O servidor define `receivedAt = Date.now()` quando o cliente envia. Somente `admin` pode enviar `receivedDate` diferente ou chamar `updateReceivedAt`; payload forjado por cliente deve ser recusado no backend. Para o administrador, qualquer data de calendário válida é aceita, inclusive anterior a `createdAt` ou futura.
 - `uploadedAt` continua existindo por compatibilidade e hoje espelha `receivedAt`. Por revelar o mesmo evento, ele também é dado restrito nas respostas destinadas a cliente, mesmo que não apareça com esse rótulo na UI.
 - O código atual ainda expõe a informação em consultas que retornam `...doc` e em superfícies de leitura do cliente (`DocumentWaitTimeBadge`, revisão/histórico e timeline). O ajuste deve fechar tanto a UI quanto o contrato Convex.
 - Manter o campo administrativo nos dialogs existentes, com o rótulo localizado **Data de recebimento** / **Received date**, sem espaço, label, hint ou valor oculto no fluxo de cliente.
@@ -29,11 +29,11 @@ Cada versão de `documentsDelivered` deve conservar duas datas distintas: `creat
 ### 1. Fechar RBAC e exposição no backend
 
 - [x] 1.1: Preservar a semântica das duas datas em todos os uploads sem duplicar a implementação existente.
-  - Revalidar `upload`, `uploadLoose`, `uploadWithType` e `uploadForPending`: cliente sem override grava recebimento no horário do servidor; admin pode escolher uma data válida entre a criação da versão e hoje.
+  - Revalidar `upload`, `uploadLoose`, `uploadWithType` e `uploadForPending`: cliente sem override grava recebimento no horário do servidor; admin pode escolher qualquer data de calendário válida, sem limite baseado na criação da versão ou no dia atual.
   - Manter `createdAt` imutável ao preencher placeholder e criar um novo `createdAt` para nova versão; `receivedAt` fica ausente em documento sem conteúdo.
   - DoD: alteração de observações/status/review não muda as datas; reenvio/nova versão não sobrescreve o par da versão anterior.
 - [x] 1.2: Garantir autorização servidor-side para qualquer alteração de recebimento.
-  - Manter `updateReceivedAt` protegido por `requireAdmin` e validar existência, conteúdo real, formato ISO e intervalo permitido.
+  - Manter `updateReceivedAt` protegido por `requireAdmin` e validar existência, conteúdo real e formato ISO, sem impor intervalo à escolha administrativa.
   - Fazer toda mutation de upload recusar `receivedDate` fornecido por `client`, ainda que o payload seja manipulado fora da UI; não confiar em `canEditReceivedDate`.
   - Preservar auditoria de antes/depois para correções administrativas e validators de `args`/`returns` nos contratos alterados.
 - [x] 1.3: Redigir uma projeção de leitura por papel em `convex/documentsDelivered.ts`.

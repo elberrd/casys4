@@ -538,7 +538,6 @@ export const upload = mutation({
       ? getDocumentCreatedAt(currentLatest)
       : now;
     const receivedAt = resolveDocumentReceivedAt({
-      createdAt,
       requestedDate: args.receivedDate,
       userRole: userProfile.role,
       now,
@@ -1507,7 +1506,6 @@ export const updateReceivedAt = mutation({
     const createdAt = getDocumentCreatedAt(document);
     const previousReceivedAt = getDocumentReceivedAt(document);
     const receivedAt = resolveDocumentReceivedAt({
-      createdAt,
       requestedDate: args.receivedDate,
       userRole: "admin",
     });
@@ -2044,7 +2042,6 @@ export const uploadLoose = mutation({
     const createdAt = Date.now();
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
-          createdAt,
           requestedDate: args.receivedDate,
           userRole: userProfile.role,
         })
@@ -2282,7 +2279,6 @@ export const uploadWithType = mutation({
     const createdAt = Date.now();
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
-          createdAt,
           requestedDate: args.receivedDate,
           userRole: userProfile.role,
         })
@@ -2585,7 +2581,6 @@ export const uploadForPending = mutation({
       ? now
       : getDocumentCreatedAt(document);
     const receivedAt = resolveDocumentReceivedAt({
-      createdAt,
       requestedDate: args.receivedDate,
       userRole: userProfile.role,
       now,

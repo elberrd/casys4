@@ -43,7 +43,6 @@ interface DocumentUploadDialogProps {
   documentRequirementId?: Id<"documentRequirements">
   existingDocumentId?: Id<"documentsDelivered">
   existingVersionNotes?: string
-  documentCreatedAt?: number
   canEditReceivedDate?: boolean
   documentInfo?: {
     name: string
@@ -72,7 +71,6 @@ export function DocumentUploadDialog({
   documentRequirementId,
   existingDocumentId,
   existingVersionNotes,
-  documentCreatedAt,
   canEditReceivedDate = false,
   documentInfo,
   validityRule,
@@ -422,7 +420,6 @@ export function DocumentUploadDialog({
             canEdit={canEditReceivedDate}
             value={receivedDate}
             onChange={setReceivedDate}
-            createdAt={documentCreatedAt}
             disabled={isUploading}
             id="document-upload-received-date"
           />

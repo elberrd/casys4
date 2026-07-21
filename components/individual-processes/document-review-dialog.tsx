@@ -1237,7 +1237,6 @@ export function DocumentReviewDialog({
                   canEdit
                   value={editingReceivedDate}
                   onChange={setEditingReceivedDate}
-                  createdAt={displayTiming.createdAt}
                   disabled={isSavingReceivedDate}
                   id={`review-received-date-${displayDocument?._id ?? "document"}`}
                 />

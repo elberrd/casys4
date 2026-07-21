@@ -2747,8 +2747,8 @@
     "notReceived": "Not received yet",
     "noAttachment": "Version without an attachment",
     "editReceivedDate": "Edit received date",
-    "receivedDateHint": "Only administrators can adjust the actual received date.",
-    "receivedDateInvalid": "Enter a valid date between this version's creation date and today.",
+    "receivedDateHint": "Only administrators can adjust the actual received date to any valid date.",
+    "receivedDateInvalid": "Enter a valid date.",
     "receivedDateSaved": "Received date updated successfully",
     "receivedDateError": "Error updating the received date"
   },

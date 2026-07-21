@@ -149,7 +149,6 @@ type DialogState = {
     documentId: Id<"documentsDelivered"> | null
     documentName: string
     existingVersionNotes?: string
-    documentCreatedAt?: number
   }
   selectExisting: { open: boolean }
 }
@@ -480,7 +479,6 @@ export function DocumentChecklistCard({
         documentId: doc._id,
         documentName: doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument"),
         existingVersionNotes: doc.versionNotes,
-        documentCreatedAt: doc.createdAt ?? doc._creationTime,
       },
     }))
   }
@@ -1598,7 +1596,6 @@ export function DocumentChecklistCard({
           documentRequirementId={dialogs.upload.document.documentRequirementId}
           existingDocumentId={dialogs.upload.document._id}
           existingVersionNotes={dialogs.upload.document.versionNotes}
-          documentCreatedAt={dialogs.upload.document.createdAt ?? dialogs.upload.document._creationTime}
           canEditReceivedDate={userRole === "admin"}
           documentInfo={{
             name: dialogs.upload.document.documentType?.name || "",
@@ -1740,7 +1737,6 @@ export function DocumentChecklistCard({
           documentId={dialogs.pendingUpload.documentId}
           documentName={dialogs.pendingUpload.documentName}
           existingVersionNotes={dialogs.pendingUpload.existingVersionNotes}
-          documentCreatedAt={dialogs.pendingUpload.documentCreatedAt}
           canEditReceivedDate={userRole === "admin"}
           onSuccess={closeAllDialogs}
         />

@@ -374,7 +374,6 @@ export function DocumentHistoryDialog({
                                   canEdit
                                   value={editingReceivedDate}
                                   onChange={setEditingReceivedDate}
-                                  createdAt={timing.createdAt}
                                   disabled={isSavingReceivedDate}
                                   id={`history-received-date-${doc._id}`}
                                 />

@@ -2772,8 +2772,8 @@
     "notReceived": "Ainda não recebido",
     "noAttachment": "Versão sem anexo",
     "editReceivedDate": "Editar data de recebimento",
-    "receivedDateHint": "Apenas administradores podem ajustar a data real de recebimento.",
-    "receivedDateInvalid": "Informe uma data válida entre a criação desta versão e hoje.",
+    "receivedDateHint": "Apenas administradores podem ajustar a data real de recebimento para qualquer data válida.",
+    "receivedDateInvalid": "Informe uma data válida.",
     "receivedDateSaved": "Data de recebimento atualizada com sucesso",
     "receivedDateError": "Erro ao atualizar a data de recebimento"
   },
