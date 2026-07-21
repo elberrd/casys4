@@ -2,7 +2,7 @@
 
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { GoogleGenAI } from "@google/genai";
@@ -302,7 +302,10 @@ function parsePassportExtraction(raw: string): PassportExtraction | null {
  * read the file bytes from Convex storage.
  */
 export const extractPassport = action({
-  args: { storageId: v.id("_storage") },
+  args: {
+    storageId: v.id("_storage"),
+    recordForPersonCreation: v.optional(v.boolean()),
+  },
   returns: v.object({
     extracted: passportExtractionValidator,
     nationalityId: v.union(v.id("countries"), v.null()),
@@ -311,7 +314,10 @@ export const extractPassport = action({
     passportExists: passportExistsValidator,
     error: v.union(v.literal("invalid_response"), v.null()),
   }),
-  handler: async (ctx, { storageId }): Promise<ExtractPassportResult> => {
+  handler: async (
+    ctx,
+    { storageId, recordForPersonCreation },
+  ): Promise<ExtractPassportResult> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Authentication required");
 
@@ -353,6 +359,13 @@ export const extractPassport = action({
     const parsed = parsePassportExtraction(raw);
 
     if (!parsed) {
+      if (recordForPersonCreation) {
+        await ctx.runMutation(internal.personPassportOcrVerifications.record, {
+          storageId,
+          passportNumber: null,
+          verifiedBy: userId,
+        });
+      }
       return {
         extracted: EMPTY_EXTRACTION,
         nationalityId: null,
@@ -406,6 +419,14 @@ export const extractPassport = action({
           passportNumber,
         })
       : null;
+
+    if (recordForPersonCreation) {
+      await ctx.runMutation(internal.personPassportOcrVerifications.record, {
+        storageId,
+        passportNumber,
+        verifiedBy: userId,
+      });
+    }
 
     return {
       extracted: parsed,

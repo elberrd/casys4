@@ -51,6 +51,7 @@ import type * as lib_documentReceiptTiming from "../lib/documentReceiptTiming.js
 import type * as lib_documentValidity from "../lib/documentValidity.js";
 import type * as lib_passportDocumentSync from "../lib/passportDocumentSync.js";
 import type * as lib_personOwnership from "../lib/personOwnership.js";
+import type * as lib_personPassportAttachment from "../lib/personPassportAttachment.js";
 import type * as lib_processHistory from "../lib/processHistory.js";
 import type * as lib_requirementsChecklist from "../lib/requirementsChecklist.js";
 import type * as lib_statusCalculation from "../lib/statusCalculation.js";
@@ -101,6 +102,8 @@ import type * as passportUpload from "../passportUpload.js";
 import type * as passports from "../passports.js";
 import type * as people from "../people.js";
 import type * as peopleCompanies from "../peopleCompanies.js";
+import type * as personPassportAttachments from "../personPassportAttachments.js";
+import type * as personPassportOcrVerifications from "../personPassportOcrVerifications.js";
 import type * as processHistory from "../processHistory.js";
 import type * as processRequestMessages from "../processRequestMessages.js";
 import type * as processRequests from "../processRequests.js";
@@ -174,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "lib/documentValidity": typeof lib_documentValidity;
   "lib/passportDocumentSync": typeof lib_passportDocumentSync;
   "lib/personOwnership": typeof lib_personOwnership;
+  "lib/personPassportAttachment": typeof lib_personPassportAttachment;
   "lib/processHistory": typeof lib_processHistory;
   "lib/requirementsChecklist": typeof lib_requirementsChecklist;
   "lib/statusCalculation": typeof lib_statusCalculation;
@@ -224,6 +228,8 @@ declare const fullApi: ApiFromModules<{
   passports: typeof passports;
   people: typeof people;
   peopleCompanies: typeof peopleCompanies;
+  personPassportAttachments: typeof personPassportAttachments;
+  personPassportOcrVerifications: typeof personPassportOcrVerifications;
   processHistory: typeof processHistory;
   processRequestMessages: typeof processRequestMessages;
   processRequests: typeof processRequests;

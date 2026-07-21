@@ -569,6 +569,7 @@ erDiagram
 
     %% Support data
     people ||--o{ passports : "owns"
+    people ||--o| personPassportAttachments : "has registration source"
     people }o--o{ companies : "works at"
     cities ||--o{ companies : "located in"
     cities ||--o{ people : "lives in"
@@ -664,6 +665,36 @@ Individuals (candidates) being processed for immigration services.
 **Access Control**:
 - Admin users: Full CRUD access to all people
 - Client users: Read-only access to people associated with their company (via `peopleCompanies` junction table)
+
+##### personPassportAttachments
+
+Single source document used to populate a Person during registration. This is
+not a formal passport record and is not a process document.
+
+```typescript
+{
+  personId: Id<"people">               // One attachment per Person
+  storageId: Id<"_storage">            // PNG, JPEG, WebP, or PDF in Convex Storage
+  fileName: string                      // Original file name
+  mimeType: string                      // Server-validated MIME type
+  fileSize: number                      // Server-validated size (maximum 10 MB)
+  createdAt: number                     // Initial attachment timestamp
+  updatedAt: number                     // Replacement timestamp
+  createdBy: Id<"users">               // Administrator who attached it
+}
+```
+
+**Behavior**:
+- Every new upload in the full Person form is read with the existing passport OCR flow so its passport number can be checked. Only the first upload applies valid personal fields automatically.
+- Replacing or removing this file never changes Person fields. A replacement is checked for duplicate ownership without applying its personal data; applying those fields requires a separate, explicit confirmation.
+- The 1:1 relation is independent from `passports` and `documentsDelivered`; it does not create a passport number, active status, or process attachment.
+- Person creation and its initial attachment are committed in the same mutation. Later file replacement/removal uses narrow attachment mutations.
+- OCR records an internal, storage-bound verification. `people.create` consumes that verification and rechecks `passports.by_passportNumber` in the same transaction. If the passport already has a linked Person, creation is blocked and the UI links to that existing Person.
+
+**Access Control**:
+- Admin users: create, view, replace, and remove the attachment.
+- Client users: read only when they already have company-scoped access to the Person.
+- MIME type and size are validated from Convex Storage metadata on the server; browser metadata is not trusted.
 
 #### Process Management Tables
 

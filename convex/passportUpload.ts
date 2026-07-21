@@ -11,6 +11,7 @@ import { logActivitySafely } from "./lib/activityLogger";
  */
 export const generateUploadUrl = mutation({
   args: {},
+  returns: v.string(),
   handler: async (ctx) => {
     await getCurrentUserProfile(ctx);
     return await ctx.storage.generateUploadUrl();

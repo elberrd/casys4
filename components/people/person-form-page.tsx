@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "convex/react"
@@ -25,15 +25,63 @@ import { Separator } from "@/components/ui/separator"
 import { PassportsSubtable } from "@/components/people/passports-subtable"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
 import { Plus } from "lucide-react"
-import { useTranslations } from "next-intl"
-import { personSchema, PersonFormData, maritalStatusOptions, sexOptions } from "@/lib/validations/people"
+import { useLocale, useTranslations } from "next-intl"
+import {
+  personSchema,
+  type PersonFormData,
+  maritalStatusOptions,
+  maritalStatusTranslationKeys,
+  sexOptions,
+  sexTranslationKeys,
+} from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
 import { CpfValidationFeedback } from "@/components/ui/cpf-validation-feedback"
 import { useCountryTranslation } from "@/lib/i18n/countries"
+import {
+  PersonPassportAiAttachmentField,
+  type PersonPassportAttachmentValue,
+  type PersonPassportDuplicateWarning,
+  type PersonPassportVerification,
+} from "@/components/people/person-passport-ai-attachment-field"
+import type { PersonPassportOcrFields } from "@/lib/validations/passport-ocr"
 
+type PassportCreationError =
+  | { code: "PASSPORT_VERIFICATION_REQUIRED" }
+  | {
+      code: "PASSPORT_ALREADY_LINKED"
+      passportNumber: string
+      personId: Id<"people">
+      personName: string
+    }
+
+function parsePassportCreationError(error: unknown): PassportCreationError | null {
+  if (!error || typeof error !== "object" || !("data" in error)) return null
+  const data = (error as { data?: unknown }).data
+  if (!data || typeof data !== "object" || !("code" in data)) return null
+
+  const code = (data as { code?: unknown }).code
+  if (code === "PASSPORT_VERIFICATION_REQUIRED") return { code }
+  if (code !== "PASSPORT_ALREADY_LINKED") return null
+
+  const conflict = data as Record<string, unknown>
+  if (
+    typeof conflict.passportNumber !== "string" ||
+    typeof conflict.personId !== "string" ||
+    typeof conflict.personName !== "string"
+  ) {
+    return null
+  }
+
+  return {
+    code,
+    passportNumber: conflict.passportNumber,
+    personId: conflict.personId as Id<"people">,
+    personName: conflict.personName,
+  }
+}
 
 interface PersonFormPageProps {
   personId?: Id<"people">
@@ -48,18 +96,41 @@ export function PersonFormPage({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
   const router = useRouter()
+  const locale = useLocale()
   const [quickCityDialogOpen, setQuickCityDialogOpen] = useState(false)
+  const [passportAttachment, setPassportAttachment] =
+    useState<PersonPassportAttachmentValue | null>(null)
+  const [passportDuplicateWarning, setPassportDuplicateWarning] =
+    useState<PersonPassportDuplicateWarning | null>(null)
+  const [passportVerification, setPassportVerification] =
+    useState<PersonPassportVerification | null>(null)
+  const [isPassportBusy, setIsPassportBusy] = useState(false)
+  const passportAttachmentRef =
+    useRef<PersonPassportAttachmentValue | null>(null)
   const getCountryName = useCountryTranslation()
 
   const person = useQuery(
     api.people.get,
     personId ? { id: personId } : "skip"
   )
+  const savedPassportAttachment = useQuery(
+    api.personPassportAttachments.getByPerson,
+    personId ? { personId } : "skip"
+  )
 
   const cities = useQuery(api.cities.listWithRelations, {}) ?? []
   const countries = useQuery(api.countries.list, {}) ?? []
   const createPerson = useMutation(api.people.create)
   const updatePerson = useMutation(api.people.update)
+  const replacePassportAttachment = useMutation(
+    api.personPassportAttachments.replace
+  )
+  const removePassportAttachment = useMutation(
+    api.personPassportAttachments.remove
+  )
+  const discardUnlinkedPassportUpload = useMutation(
+    api.personPassportAttachments.discardUnlinkedUpload
+  )
 
   const form = useForm<PersonFormData>({
     resolver: zodResolver(personSchema),
@@ -123,8 +194,196 @@ export function PersonFormPage({
     }
   }, [person, form])
 
+  useEffect(() => {
+    if (!personId || savedPassportAttachment === undefined) return
+    setPassportAttachment(
+      savedPassportAttachment
+        ? {
+            storageId: savedPassportAttachment.storageId,
+            fileName: savedPassportAttachment.fileName,
+            mimeType: savedPassportAttachment.mimeType,
+            fileSize: savedPassportAttachment.fileSize,
+            url: savedPassportAttachment.url,
+            persisted: true,
+          }
+        : null
+    )
+  }, [personId, savedPassportAttachment])
+
+  useEffect(() => {
+    passportAttachmentRef.current = passportAttachment
+  }, [passportAttachment])
+
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (
+        form.formState.isDirty ||
+        (passportAttachment && !passportAttachment.persisted) ||
+        isPassportBusy
+      ) {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload)
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload)
+  }, [form.formState.isDirty, isPassportBusy, passportAttachment])
+
+  useEffect(() => {
+    return () => {
+      const pendingAttachment = passportAttachmentRef.current
+      if (pendingAttachment && !pendingAttachment.persisted) {
+        void discardUnlinkedPassportUpload({
+          storageId: pendingAttachment.storageId,
+        })
+      }
+    }
+  }, [discardUnlinkedPassportUpload])
+
+  const handleApplyPassportFields = (fields: PersonPassportOcrFields) => {
+    if (fields.givenNames) {
+      form.setValue("givenNames", fields.givenNames, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.middleName) {
+      form.setValue("middleName", fields.middleName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.surname) {
+      form.setValue("surname", fields.surname, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.birthDate) {
+      form.setValue("birthDate", fields.birthDate, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.sex) {
+      form.setValue("sex", fields.sex, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.nationalityId) {
+      form.setValue("nationalityId", fields.nationalityId, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.motherName) {
+      form.setValue("motherName", fields.motherName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.fatherName) {
+      form.setValue("fatherName", fields.fatherName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+  }
+
+  const handlePassportAttachmentChange = async (
+    nextAttachment: PersonPassportAttachmentValue
+  ) => {
+    const previousAttachment = passportAttachment
+
+    if (personId) {
+      await replacePassportAttachment({
+        personId,
+        storageId: nextAttachment.storageId,
+        fileName: nextAttachment.fileName,
+      })
+      const persistedAttachment = { ...nextAttachment, persisted: true }
+      passportAttachmentRef.current = persistedAttachment
+      setPassportAttachment(persistedAttachment)
+    } else {
+      passportAttachmentRef.current = nextAttachment
+      setPassportAttachment(nextAttachment)
+      if (
+        previousAttachment &&
+        !previousAttachment.persisted &&
+        previousAttachment.storageId !== nextAttachment.storageId
+      ) {
+        try {
+          await discardUnlinkedPassportUpload({
+            storageId: previousAttachment.storageId,
+          })
+        } catch {
+          // The new attachment is already selected; cleanup can be retried by
+          // the idempotent backend mutation without reverting the form state.
+        }
+      }
+    }
+  }
+
+  const handlePassportAttachmentRemove = async (
+    attachment: PersonPassportAttachmentValue
+  ) => {
+    if (personId && attachment.persisted) {
+      await removePassportAttachment({ personId })
+    } else if (!attachment.persisted) {
+      await discardUnlinkedPassportUpload({ storageId: attachment.storageId })
+    }
+    passportAttachmentRef.current = null
+    setPassportAttachment(null)
+    setPassportDuplicateWarning(null)
+    setPassportVerification(null)
+  }
+
   const onSubmit = async (data: PersonFormData) => {
     try {
+      if (
+        passportDuplicateWarning?.passportOwner?.personId &&
+        passportDuplicateWarning.passportOwner.personId !== personId
+      ) {
+        toast({
+          title: t("passportDuplicateTitle"),
+          description: t("passportDuplicateDescription", {
+            passportNumber:
+              passportDuplicateWarning.passportOwner.passportNumber,
+            personName: passportDuplicateWarning.passportOwner.personName,
+          }),
+          variant: "destructive",
+        })
+        return
+      }
+      if (passportDuplicateWarning?.matches.length) {
+        toast({
+          title: t("personNameMatchTitle"),
+          description: t("personNameMatchReview"),
+          variant: "destructive",
+        })
+        return
+      }
+      if (
+        !personId &&
+        passportAttachment &&
+        passportVerification?.storageId !== passportAttachment.storageId
+      ) {
+        toast({
+          title: t("passportVerificationTitle"),
+          description: t("passportVerificationRequired"),
+          variant: "destructive",
+        })
+        return
+      }
+
       // Check if CPF validation is in progress
       if (isChecking) {
         toast({
@@ -165,16 +424,31 @@ export function PersonFormPage({
         notes: data.notes || undefined,
       }
 
-      let savedPersonId: Id<"people">
-
       if (personId) {
         await updatePerson({ id: personId, ...submitData })
-        savedPersonId = personId
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        savedPersonId = await createPerson(submitData)
+        await createPerson({
+          ...submitData,
+          ...(passportAttachment
+            ? {
+                passportAttachment: {
+                  storageId: passportAttachment.storageId,
+                  fileName: passportAttachment.fileName,
+                },
+              }
+            : {}),
+        })
+        if (passportAttachment) {
+          const persistedAttachment = {
+            ...passportAttachment,
+            persisted: true,
+          }
+          passportAttachmentRef.current = persistedAttachment
+          setPassportAttachment(persistedAttachment)
+        }
         toast({
           title: t('createdSuccess'),
         })
@@ -184,9 +458,38 @@ export function PersonFormPage({
       if (onSuccess) {
         onSuccess()
       } else {
-        router.push('/people')
+        router.push(`/${locale}/people`)
       }
     } catch (error) {
+      const passportError = parsePassportCreationError(error)
+      if (passportError?.code === "PASSPORT_ALREADY_LINKED") {
+        setPassportDuplicateWarning({
+          passportOwner: {
+            personId: passportError.personId,
+            personName: passportError.personName,
+            passportNumber: passportError.passportNumber,
+          },
+          matches: [],
+        })
+        toast({
+          title: t("passportDuplicateTitle"),
+          description: t("passportDuplicateDescription", {
+            passportNumber: passportError.passportNumber,
+            personName: passportError.personName,
+          }),
+          variant: "destructive",
+        })
+        return
+      }
+      if (passportError?.code === "PASSPORT_VERIFICATION_REQUIRED") {
+        setPassportVerification(null)
+        toast({
+          title: t("passportVerificationTitle"),
+          description: t("passportVerificationRequired"),
+          variant: "destructive",
+        })
+        return
+      }
       toast({
         title: personId ? t('errorUpdate') : t('errorCreate'),
         description: error instanceof Error ? error.message : String(error),
@@ -195,8 +498,22 @@ export function PersonFormPage({
     }
   }
 
-  const handleCancel = () => {
-    router.push('/people')
+  const handleCancel = async () => {
+    if (isPassportBusy) return
+    try {
+      if (passportAttachment && !passportAttachment.persisted) {
+        await discardUnlinkedPassportUpload({
+          storageId: passportAttachment.storageId,
+        })
+      }
+      passportAttachmentRef.current = null
+      router.push(`/${locale}/people`)
+    } catch {
+      toast({
+        title: t("passportAttachmentRemoveError"),
+        variant: "destructive",
+      })
+    }
   }
 
   const cityOptions = cities.map((city) => ({
@@ -220,7 +537,7 @@ export function PersonFormPage({
         </h2>
         <p className="text-sm text-muted-foreground">
           {personId
-            ? "Edit the person information below"
+            ? t("editDescription")
             : t('createDescription')
           }
         </p>
@@ -228,6 +545,31 @@ export function PersonFormPage({
       <div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <PersonPassportAiAttachmentField
+              attachment={passportAttachment}
+              duplicateWarning={passportDuplicateWarning}
+              requiresCreationVerification={!personId}
+              currentFields={{
+                givenNames: form.watch("givenNames"),
+                middleName: form.watch("middleName") ?? "",
+                surname: form.watch("surname") ?? "",
+                birthDate: form.watch("birthDate") ?? "",
+                sex: form.watch("sex") ?? "",
+                nationalityId: form.watch("nationalityId") ?? "",
+                motherName: form.watch("motherName") ?? "",
+                fatherName: form.watch("fatherName") ?? "",
+              }}
+              disabled={form.formState.isSubmitting || isChecking}
+              onAttachmentChange={handlePassportAttachmentChange}
+              onAttachmentRemove={handlePassportAttachmentRemove}
+              onApplyExtractedPersonFields={handleApplyPassportFields}
+              onDuplicateWarningChange={setPassportDuplicateWarning}
+              onVerificationChange={setPassportVerification}
+              onProcessingChange={setIsPassportBusy}
+            />
+
+            <Separator />
+
             {/* Personal Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">{t('personalInfo')}</h3>
@@ -399,7 +741,7 @@ export function PersonFormPage({
                       <Combobox
                         options={maritalStatusOptions.map((option) => ({
                           value: option.value,
-                          label: t(`maritalStatus${option.value}` as any),
+                          label: t(maritalStatusTranslationKeys[option.value]),
                         }))}
                         value={field.value}
                         onValueChange={field.onChange}
@@ -422,7 +764,7 @@ export function PersonFormPage({
                       <Combobox
                         options={sexOptions.map((option) => ({
                           value: option.value,
-                          label: t(`sex${option.value}` as any),
+                          label: t(sexTranslationKeys[option.value]),
                         }))}
                         value={field.value}
                         onValueChange={field.onChange}
@@ -592,11 +934,28 @@ export function PersonFormPage({
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleCancel}
+                onClick={() => void handleCancel()}
+                disabled={isPassportBusy || form.formState.isSubmitting}
               >
                 {tCommon('cancel')}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={
+                  form.formState.isSubmitting ||
+                  isPassportBusy ||
+                  isChecking ||
+                  isAvailable === false ||
+                  Boolean(
+                    passportDuplicateWarning?.passportOwner?.personId,
+                  ) ||
+                  Boolean(passportDuplicateWarning?.matches.length) ||
+                  (!personId &&
+                    passportAttachment !== null &&
+                    passportVerification?.storageId !==
+                      passportAttachment.storageId)
+                }
+              >
                 {form.formState.isSubmitting ? tCommon('loading') : tCommon('save')}
               </Button>
             </div>

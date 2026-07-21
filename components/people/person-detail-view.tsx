@@ -26,6 +26,7 @@ import {
   FileText,
   Building2,
   Edit,
+  ExternalLink,
 } from "lucide-react";
 import { formatDate } from "@/lib/format-field-value";
 import { getFullName } from "@/lib/utils/person-names";
@@ -48,6 +49,10 @@ export function PersonDetailView({
   const locale = useLocale();
 
   const person = useQuery(api.people.get, { id: personId });
+  const passportAttachment = useQuery(
+    api.personPassportAttachments.getByPerson,
+    { personId },
+  );
 
   if (!person) {
     return (
@@ -187,6 +192,47 @@ export function PersonDetailView({
                 )}
               </CardContent>
             </Card>
+
+            {passportAttachment && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="h-5 w-5" />
+                    {t("passportAttachmentSourceTitle")}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t("passportAttachmentSourceDescription")}
+                  </p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {passportAttachment.fileName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {passportAttachment.mimeType} ·{" "}
+                      {(passportAttachment.fileSize / 1024 / 1024).toLocaleString(
+                        locale,
+                        { maximumFractionDigits: 1 },
+                      )}{" "}
+                      MB
+                    </p>
+                  </div>
+                  {passportAttachment.url && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a
+                        href={passportAttachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink />
+                        {t("passportAttachmentView")}
+                      </a>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Birth Information */}
             {(person.birthCity || person.birthState) && (

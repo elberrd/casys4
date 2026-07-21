@@ -35,7 +35,14 @@ import { Separator } from "@/components/ui/separator"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { personSchema, PersonFormData, maritalStatusOptions, sexOptions } from "@/lib/validations/people"
+import {
+  personSchema,
+  type PersonFormData,
+  maritalStatusOptions,
+  maritalStatusTranslationKeys,
+  sexOptions,
+  sexTranslationKeys,
+} from "@/lib/validations/people"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { useCpfValidation } from "@/hooks/use-cpf-validation"
@@ -45,6 +52,12 @@ import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator"
 import {
   TooltipProvider,
 } from "@/components/ui/tooltip"
+import {
+  PersonPassportAiAttachmentField,
+  type PersonPassportAttachmentValue,
+  type PersonPassportDuplicateWarning,
+} from "@/components/people/person-passport-ai-attachment-field"
+import type { PersonPassportOcrFields } from "@/lib/validations/passport-ocr"
 
 
 interface PersonFormDialogProps {
@@ -66,17 +79,32 @@ export function PersonFormDialog({
   const tCommon = useTranslations('Common')
   const { toast } = useToast()
   const [quickCityDialogOpen, setQuickCityDialogOpen] = useState(false)
+  const [passportAttachment, setPassportAttachment] =
+    useState<PersonPassportAttachmentValue | null>(null)
+  const [passportDuplicateWarning, setPassportDuplicateWarning] =
+    useState<PersonPassportDuplicateWarning | null>(null)
+  const [isPassportBusy, setIsPassportBusy] = useState(false)
   const getCountryName = useCountryTranslation()
 
   const person = useQuery(
     api.people.get,
     personId ? { id: personId } : "skip"
   )
+  const savedPassportAttachment = useQuery(
+    api.personPassportAttachments.getByPerson,
+    open && personId ? { personId } : "skip"
+  )
 
   const cities = useQuery(api.cities.listWithRelations, {}) ?? []
   const countries = useQuery(api.countries.list, {}) ?? []
   const createPerson = useMutation(api.people.create)
   const updatePerson = useMutation(api.people.update)
+  const replacePassportAttachment = useMutation(
+    api.personPassportAttachments.replace
+  )
+  const removePassportAttachment = useMutation(
+    api.personPassportAttachments.remove
+  )
 
   const form = useForm<PersonFormData>({
     resolver: zodResolver(personSchema),
@@ -113,6 +141,7 @@ export function PersonFormDialog({
     formState: form.formState,
     onConfirmedClose: () => {
       form.reset()
+      setPassportDuplicateWarning(null)
       onOpenChange(false)
     },
     isSubmitting: form.formState.isSubmitting,
@@ -177,8 +206,126 @@ export function PersonFormDialog({
     }
   }, [person, personId, form])
 
+  useEffect(() => {
+    if (!open || !personId || savedPassportAttachment === undefined) return
+    setPassportAttachment(
+      savedPassportAttachment
+        ? {
+            storageId: savedPassportAttachment.storageId,
+            fileName: savedPassportAttachment.fileName,
+            mimeType: savedPassportAttachment.mimeType,
+            fileSize: savedPassportAttachment.fileSize,
+            url: savedPassportAttachment.url,
+            persisted: true,
+          }
+        : null
+    )
+  }, [open, personId, savedPassportAttachment])
+
+  const handleApplyPassportFields = (fields: PersonPassportOcrFields) => {
+    if (fields.givenNames) {
+      form.setValue("givenNames", fields.givenNames, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.middleName) {
+      form.setValue("middleName", fields.middleName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.surname) {
+      form.setValue("surname", fields.surname, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.birthDate) {
+      form.setValue("birthDate", fields.birthDate, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.sex) {
+      form.setValue("sex", fields.sex, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.nationalityId) {
+      form.setValue("nationalityId", fields.nationalityId, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.motherName) {
+      form.setValue("motherName", fields.motherName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+    if (fields.fatherName) {
+      form.setValue("fatherName", fields.fatherName, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+    }
+  }
+
+  const handlePassportAttachmentChange = async (
+    nextAttachment: PersonPassportAttachmentValue
+  ) => {
+    if (!personId) return
+    await replacePassportAttachment({
+      personId,
+      storageId: nextAttachment.storageId,
+      fileName: nextAttachment.fileName,
+    })
+    setPassportAttachment({ ...nextAttachment, persisted: true })
+  }
+
+  const handlePassportAttachmentRemove = async () => {
+    if (!personId) return
+    await removePassportAttachment({ personId })
+    setPassportAttachment(null)
+    setPassportDuplicateWarning(null)
+  }
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isPassportBusy) {
+      toast({ title: t("passportOperationCloseBlocked") })
+      return
+    }
+    handleOpenChange(nextOpen)
+  }
+
   const onSubmit = async (data: PersonFormData) => {
     try {
+      if (
+        passportDuplicateWarning?.passportOwner?.personId &&
+        passportDuplicateWarning.passportOwner.personId !== personId
+      ) {
+        toast({
+          title: t("passportDuplicateTitle"),
+          description: t("passportDuplicateDescription", {
+            passportNumber:
+              passportDuplicateWarning.passportOwner.passportNumber,
+            personName: passportDuplicateWarning.passportOwner.personName,
+          }),
+          variant: "destructive",
+        })
+        return
+      }
+
       // Check if CPF validation is in progress
       if (isChecking) {
         toast({
@@ -219,16 +366,13 @@ export function PersonFormDialog({
         notes: data.notes || undefined,
       }
 
-      let savedPersonId: Id<"people">
-
       if (personId) {
         await updatePerson({ id: personId, ...submitData })
-        savedPersonId = personId
         toast({
           title: t('updatedSuccess'),
         })
       } else {
-        savedPersonId = await createPerson(submitData)
+        await createPerson(submitData)
         toast({
           title: t('createdSuccess'),
         })
@@ -268,7 +412,7 @@ export function PersonFormDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="max-h-[90vh] overflow-y-auto max-w-2xl"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -281,14 +425,40 @@ export function PersonFormDialog({
           </DialogTitle>
           <DialogDescription>
             {personId
-              ? "Edit the person information below"
-              : "Fill in the information to create a new person"
+              ? t("editDescription")
+              : t("createDescription")
             }
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {personId && (
+              <>
+                <PersonPassportAiAttachmentField
+                  attachment={passportAttachment}
+                  duplicateWarning={passportDuplicateWarning}
+                  currentFields={{
+                    givenNames: form.watch("givenNames"),
+                    middleName: form.watch("middleName") ?? "",
+                    surname: form.watch("surname") ?? "",
+                    birthDate: form.watch("birthDate") ?? "",
+                    sex: form.watch("sex") ?? "",
+                    nationalityId: form.watch("nationalityId") ?? "",
+                    motherName: form.watch("motherName") ?? "",
+                    fatherName: form.watch("fatherName") ?? "",
+                  }}
+                  disabled={form.formState.isSubmitting || isChecking}
+                  onAttachmentChange={handlePassportAttachmentChange}
+                  onAttachmentRemove={handlePassportAttachmentRemove}
+                  onApplyExtractedPersonFields={handleApplyPassportFields}
+                  onDuplicateWarningChange={setPassportDuplicateWarning}
+                  onProcessingChange={setIsPassportBusy}
+                />
+                <Separator />
+              </>
+            )}
+
             {/* Personal Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">{t('personalInfo')}</h3>
@@ -460,7 +630,7 @@ export function PersonFormDialog({
                       <Combobox
                         options={sexOptions.map((option) => ({
                           value: option.value,
-                          label: t(`sex${option.value}` as any),
+                          label: t(sexTranslationKeys[option.value]),
                         }))}
                         value={field.value}
                         onValueChange={field.onChange}
@@ -483,7 +653,7 @@ export function PersonFormDialog({
                       <Combobox
                         options={maritalStatusOptions.map((option) => ({
                           value: option.value,
-                          label: t(`maritalStatus${option.value}` as any),
+                          label: t(maritalStatusTranslationKeys[option.value]),
                         }))}
                         value={field.value}
                         onValueChange={field.onChange}
@@ -662,11 +832,20 @@ export function PersonFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogOpenChange(false)}
+                disabled={isPassportBusy || form.formState.isSubmitting}
               >
                 {tCommon('cancel')}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={
+                  form.formState.isSubmitting ||
+                  isPassportBusy ||
+                  isChecking ||
+                  isAvailable === false
+                }
+              >
                 {form.formState.isSubmitting ? tCommon('loading') : tCommon('save')}
               </Button>
             </DialogFooter>

@@ -59,6 +59,11 @@ export const sexOptions = [
   { value: "Female", label: "Female" },
 ] as const;
 
+export const sexTranslationKeys = {
+  Male: "sexMale",
+  Female: "sexFemale",
+} as const;
+
 // Marital status options for form selects
 export const maritalStatusOptions = [
   { value: "Single", label: "Single" },
@@ -66,3 +71,10 @@ export const maritalStatusOptions = [
   { value: "Divorced", label: "Divorced" },
   { value: "Widowed", label: "Widowed" },
 ] as const;
+
+export const maritalStatusTranslationKeys = {
+  Single: "maritalStatusSingle",
+  Married: "maritalStatusMarried",
+  Divorced: "maritalStatusDivorced",
+  Widowed: "maritalStatusWidowed",
+} as const;

@@ -1,4 +1,152 @@
-# TODO ATIVO: Data de recebimento do anexo exclusiva do administrador
+# TODO ATIVO: Leitura de passaporte por IA e anexo exclusivo da Pessoa
+
+## Contexto
+
+Na criação de Pessoa em `/[locale]/people/new`, o administrador deve poder arrastar ou selecionar um único passaporte (PNG, JPEG, WebP ou PDF de até 10 MB), reutilizar a leitura por IA já existente e preencher os campos pessoais encontrados no documento. O próprio arquivo usado na leitura deve permanecer visível como um anexo singular do cadastro da Pessoa. Remover ou substituir esse anexo nunca pode apagar, restaurar nem alterar os valores já preenchidos no formulário; uma nova leitura dos dados só acontece por ação explícita do administrador.
+
+## Decisões de implementação
+
+- Preservar o RBAC atual: `people.create/update` continuam administrativos. A feature não transforma usuários `client` em editores de Pessoa.
+- Reutilizar `api.passportUpload.generateUploadUrl`, `api.passportOcr.extractPassport`, `runPassportOcrWithRetries`, resolução de países e limites/tipos já usados em `PassportUploadStep`; não criar outro provedor, modelo, prompt ou fluxo de retry.
+- Não reutilizar `PassportUploadStep` como composição direta, pois ele cria/reutiliza imediatamente uma Pessoa e um registro formal em `passports`. Extrair/reaproveitar somente o comportamento de upload/OCR e aplicar o resultado ao `react-hook-form` atual, mantendo **Salvar** como única confirmação do cadastro.
+- Tratar o arquivo como um anexo de origem singular e exclusivo da Pessoa, separado de `passports` e `documentsDelivered`. Ele não cria passaporte formal, não dispara anexo em processo e não participa da regra de passaporte ativo.
+- Persistir o anexo em uma relação 1:1 dedicada `personPassportAttachments`, indexada por `personId` e `storageId`, para não expor o `storageId` nos spreads atuais de `people.list/search/get` e para garantir que operações de arquivo não substituam a linha da Pessoa.
+- Armazenar `personId`, `storageId`, nome original, MIME, tamanho e timestamps. MIME/tamanho devem ser revalidados no backend a partir do metadata do Convex Storage; não confiar nesses valores enviados pelo browser.
+- No primeiro drop/seleção, fazer upload e leitura, conservar o arquivo à vista e aplicar somente campos pessoais válidos: `givenNames`, `middleName`, `surname`, `birthDate`, `sex`, `nationalityId`, `motherName` e `fatherName`. Campos ausentes da IA não apagam valores existentes; e-mail, CPF, cidades, profissão, contato e demais campos nunca são tocados pelo OCR.
+- Selecionar/arrastar outro arquivo substitui apenas o anexo e preserva todos os valores atuais. Para aplicar os dados do novo arquivo, exigir a ação explícita **Ler novamente com IA** e confirmação antes de sobrescrever campos pessoais já preenchidos.
+- Remover o anexo limpa somente a referência/arquivo. Em cadastro ainda não salvo, limpar somente o estado local e descartar com segurança o upload temporário; em Pessoa persistida, usar mutation dedicada que não receba nem altere campos pessoais.
+- Criar Pessoa e seu anexo inicial na mesma mutation/transação. Depois de salva, substituição e remoção usam mutations estreitas, idempotentes, com `requireAdmin`, `args`/`returns`, validação de pertencimento e auditoria.
+- Manter o anexo gerenciável e visível também na edição/detalhe da Pessoa; isso permite cumprir exclusão/substituição depois do primeiro salvamento sem misturá-lo à subtabela de passaportes formais.
+- Reaproveitar o retorno de duplicidade já fornecido pelo OCR para alertar sobre Pessoa/passaporte possivelmente existente antes de criar outra Pessoa; nunca trocar silenciosamente o cadastro em edição.
+- Não criar testes automatizados para este MVP. Validar com codegen, TypeScript, lint focado, build e browser autenticado em pt/en.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar PRD, cadastro de Pessoa e implementações atuais de OCR/anexo.
+  - Confirmado em `app/[locale]/(dashboard)/prd.md`, `components/people/person-form-page.tsx`, `components/people/person-form-dialog.tsx`, `components/people/person-detail-view.tsx`, `convex/people.ts`, `convex/schema.ts`, `components/process-requests/passport-upload-step.tsx`, `components/passports/passport-ai-upload-field.tsx`, `convex/passportOcr.ts`, `convex/passportUpload.ts` e `lib/validations/passport-ocr.ts`.
+  - Confirmado: `/people/new` usa `PersonFormPage`; criação/edição persistem somente dados pessoais; `PassportUploadStep` já possui dropzone, retry, revisão e deduplicação, mas sua confirmação grava Pessoa+passaporte imediatamente e portanto não pode ser montada sem adaptação no formulário completo.
+- [x] 0.2: Delimitar os arquivos previstos e preservar o worktree existente.
+  - Criar: `convex/personPassportAttachments.ts` e `components/people/person-passport-ai-attachment-field.tsx`.
+  - Modificar: `convex/schema.ts`, `convex/people.ts`, `components/people/person-form-page.tsx`, `components/people/person-form-dialog.tsx`, `components/people/person-detail-view.tsx`, `lib/validations/passport-ocr.ts`, `messages/pt.json`, `messages/en.json` e `app/[locale]/(dashboard)/prd.md`.
+  - Reutilizar sem duplicar: `convex/passportOcr.ts`, `convex/passportUpload.ts`, `lib/passport-ocr-retry.ts` e componentes de `components/ui/`. Atualizar `convex/_generated/` somente por `pnpm exec convex codegen`.
+  - Não tocar na alteração local não relacionada já existente em `components/process-types/process-type-form-dialog.tsx`.
+
+### 1. Modelar o anexo singular sem acoplar os dados pessoais
+
+- [x] 1.1: Adicionar `personPassportAttachments` em `convex/schema.ts`.
+  - Campos: `personId`, `storageId`, `fileName`, `mimeType`, `fileSize`, `createdAt`, `updatedAt` e `createdBy`; índices `by_person` e `by_storageId`.
+  - Aplicar unicidade 1:1 no código: somente uma linha latest/ativa pode existir por Pessoa; substituir deve atualizar a relação existente, nunca acumular anexos invisíveis.
+  - Validação: o schema de `people` e a tabela formal `passports` permanecem inalterados; registros antigos de Pessoa continuam válidos e não exigem migração/backfill.
+- [x] 1.2: Criar `convex/personPassportAttachments.ts` com contratos públicos tipados e administrativos.
+  - `getByPerson`: validar acesso à Pessoa, devolver metadados e URL resolvida, sem expor anexo de outra Pessoa/empresa.
+  - `replace`: `requireAdmin`, validar Pessoa, `storageId`, tipo e tamanho pelo metadata real do Storage; inserir ou substituir a única relação, auditar antes/depois e remover o blob anterior somente depois de confirmar que ele é o anexo dedicado substituído.
+  - `remove`: `requireAdmin`, carregar a relação por `by_person`, excluir somente relação/blob e registrar auditoria; não aceitar nem executar patch em `people`.
+  - `discardUnlinkedUpload`: permitir limpeza administrativa segura de upload temporário somente quando `by_storageId` comprovar que ele não está persistido; tornar repetição/no-op idempotente.
+  - Validação: todas as funções possuem `args`/`returns`; nenhuma query usa `.filter()` no Convex; IDs usam `Id<"...">`; arquivo inválido/forjado é recusado no backend.
+- [x] 1.3: Integrar o anexo opcional à criação e à exclusão da Pessoa em `convex/people.ts`.
+  - Ampliar `people.create` com objeto opcional `{storageId, fileName}` e, na mesma transação, validar/inserir a Pessoa e a relação 1:1; falha no anexo não pode deixar Pessoa criada parcialmente.
+  - Adicionar validator explícito de retorno na função tocada e manter CPF duplicado, `requireAdmin`, timestamps e activity log atuais.
+  - Em `people.remove`, consultar `personPassportAttachments` por índice e remover o anexo dedicado junto da Pessoa somente depois dos bloqueios atuais de processos, passaportes formais e empresas; não interferir em `passports.storageId` nem em documentos de processo.
+  - Validação: criar sem anexo permanece retrocompatível; remover/substituir anexo isoladamente nunca muda `updatedAt` ou qualquer campo pessoal da Pessoa.
+
+### 2. Criar um campo profissional de drag-and-drop e leitura por IA
+
+- [x] 2.1: Criar `components/people/person-passport-ai-attachment-field.tsx` como componente controlado e estritamente tipado.
+  - Aceitar um arquivo PNG/JPEG/WebP/PDF de até 10 MB via clique, teclado ou drag-and-drop; destacar drag active, bloquear drop global que navegaria a página e usar input acessível oculto.
+  - Reutilizar `api.passportUpload.generateUploadUrl` e `api.passportOcr.extractPassport` na sequência upload único -> até três tentativas visíveis -> validação Zod -> callback de aplicação.
+  - Expor callbacks distintos para `onAttachmentChange`, `onApplyExtractedPersonFields`, `onProcessingChange` e limpeza; não chamar `people.create`, `passportUpload.applyCandidate` ou mutations de `passports` dentro do componente.
+  - Validação: timeout, erro, resposta inválida e desmontagem sempre encerram loading; retry reutiliza o mesmo `storageId`; clique/drop concorrente não dispara upload ou aplicação duplicada.
+- [x] 2.2: Manter o anexo sempre visível e independente dos valores extraídos.
+  - Após upload ou OCR com erro, renderizar card com nome, tipo/tamanho, status, ação de visualizar quando houver URL, **Substituir**, **Remover** e **Ler novamente com IA**.
+  - Remover/substituir chama somente callbacks de arquivo e nunca callbacks de campos. Um novo arquivo substitui o anterior sem iniciar OCR automaticamente quando já existe anexo.
+  - Antes de reler/substituir dados pessoais já preenchidos, abrir `AlertDialog` localizado; cancelar conserva arquivo e formulário. Resultado ausente jamais limpa campo existente.
+  - Validação: o arquivo usado pela primeira leitura permanece no card; remover o card não limpa nem reseta o formulário; nova seleção não altera dados até confirmação explícita da releitura.
+- [x] 2.3: Ampliar `lib/validations/passport-ocr.ts` para o subconjunto de Pessoa.
+  - Validar/normalizar nomes, filiação, nascimento, sexo e `nationalityId`, aceitando ausência sem `any` ou cast irrestrito.
+  - Preservar o schema administrativo de passaporte atual e compartilhar os tipos inferidos com o novo componente.
+  - Validação: sexo/código de país fora do contrato, data não ISO ou resposta malformada geram erro controlado e não aplicam estado parcial corrompido.
+- [x] 2.4: Exibir alertas de duplicidade sem criar ou trocar Pessoa silenciosamente.
+  - Consumir `passportExists` e `matches` já retornados por `extractPassport`; destacar proprietário de passaporte existente e matches por nome com informação mínima autorizada.
+  - Bloquear a criação quando o número extraído já pertencer inequivocamente a outra Pessoa, oferecendo abrir/editar o cadastro existente; para match apenas por nome, exigir decisão consciente para continuar com uma nova Pessoa.
+  - Validação: o aviso não revela PII fora do retorno autorizado e trocar/remover o arquivo elimina somente o alerta correspondente, sem apagar campos revisados.
+
+### 3. Integrar ao formulário de Pessoa sem persistência prematura
+
+- [x] 3.1: Integrar o campo no topo de `components/people/person-form-page.tsx` para `/[locale]/people/new`.
+  - Posicionar antes de **Informações Pessoais**, com instrução breve de que a IA preenche o formulário e o administrador revisa antes de salvar.
+  - Mapear apenas `givenNames`, `middleName`, `surname`, `birthDate`, `sex`, `nationalityId`, `motherName` e `fatherName` com `form.setValue(..., {shouldDirty: true, shouldTouch: true, shouldValidate: true})`.
+  - Guardar attachment/storage em estado separado do formulário e incluir `{storageId, fileName}` somente no submit de criação; nenhum registro de Pessoa/anexo é criado ao soltar, ler, substituir ou remover antes de **Salvar**.
+  - Validação: editar manualmente depois do OCR prevalece; ausência da IA não apaga valor; cancelar/voltar limpa upload temporário com segurança e não grava Pessoa.
+- [x] 3.2: Coordenar submit, cancelamento e mudanças não salvas.
+  - Desabilitar **Salvar** durante upload/OCR, deduplicação ou validação de CPF; impedir navegação conflitante enquanto houver operação ativa.
+  - Considerar arquivo selecionado/removido e valores aplicados pela IA na proteção de mudanças não salvas.
+  - Após sucesso atômico, limpar estado temporário e navegar como hoje; em erro, manter arquivo e valores revisados para nova tentativa.
+  - Validação: clique duplo não cria duas Pessoas/relações; falha na mutation não descarta o formulário nem deixa anexo persistido sem Pessoa.
+- [x] 3.3: Disponibilizar o mesmo anexo na edição sem misturá-lo à subtabela formal de Passaportes.
+  - Em `components/people/person-form-dialog.tsx`, consultar `getByPerson` e renderizar o componente com arquivo persistido; substituição/remoção usam mutations dedicadas e mantêm todos os campos pessoais exatamente como estavam.
+  - Releitura na edição continua opcional e só atualiza campos após confirmação; salvar campos pessoais não substitui nem remove o anexo por omissão.
+  - Preservar `individualProcessId`, indicadores de documentos vinculados, `CompaniesSubtable` e proteção de alterações não salvas existentes.
+  - Validação: editar apenas a Pessoa não toca o anexo; editar apenas o anexo não chama `people.update`; remover anexo não remove registro de `passports` nem documentos.
+- [x] 3.4: Mostrar o anexo em `components/people/person-detail-view.tsx`.
+  - Adicionar card localizado com metadados e ação acessível de visualizar; manter ações de substituir/remover somente no formulário administrativo de edição.
+  - Não confundir o card com `PassportsSubtable`: a UI deve explicar que é o documento usado como fonte no cadastro, enquanto passaportes formais continuam na seção existente.
+
+### 4. Internacionalização, PRD e qualidade
+
+- [x] 4.1: Adicionar mensagens equivalentes em `messages/pt.json` e `messages/en.json`.
+  - Cobrir título/hint da leitura, dropzone, formatos/limite, drag active, leitura/tentativa, anexo atual, visualizar, substituir, remover, reler, confirmação de sobrescrita, duplicidade, loading, sucesso e erros/aria-labels.
+  - Reutilizar `Common` e mensagens de passaporte quando semanticamente idênticas; manter paridade de chaves e nenhum texto novo hardcoded.
+- [x] 4.2: Atualizar `app/[locale]/(dashboard)/prd.md`.
+  - Documentar a relação 1:1 `personPassportAttachments`, seu objetivo de origem do cadastro, separação de `passports`/`documentsDelivered`, formatos, RBAC e a regra de que operações do arquivo nunca alteram os dados pessoais extraídos.
+- [x] 4.3: Executar quality gates proporcionais ao escopo.
+  - Rodar `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado nos arquivos criados/modificados, `pnpm lint` e `pnpm run build`, separando débitos globais preexistentes.
+  - Confirmar TypeScript strict sem `any` novo, Zod na resposta OCR, validators de `args`/`returns`, queries indexadas, `requireAdmin`, i18n pt/en e ausência de edição manual em `convex/_generated/`.
+  - Validado: `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado, `pnpm run build`, paridade das 112 chaves de `People` em pt/en e `git diff --check` passaram. O lint focado mantém apenas o aviso preexistente de `<img>` em `person-detail-view.tsx`; `pnpm lint` continua falhando por débitos globais preexistentes fora do escopo. O build mantém o aviso CSS preexistente do seletor `.group-[.online]`.
+- [x] 4.4: Validar no browser autenticado em `/pt/people/new` e `/en/people/new`, desktop e mobile.
+  - Drop e clique com PNG/JPEG/WebP/PDF válidos; tipo inválido e arquivo acima de 10 MB; tentativas/timeout/erro e retry sem upload duplicado.
+  - Confirmar preenchimento e revisão de nomes, nascimento, sexo, nacionalidade e filiação; campos ausentes e valores editados manualmente permanecem intactos.
+  - Confirmar que o anexo fica visível após leitura, remover não limpa dados, substituir não muda dados, e somente **Ler novamente com IA** confirmado reaplica valores.
+  - Salvar com/sem anexo, abrir detalhe/edição, visualizar, substituir e excluir; conferir que nenhuma operação altera `passports`, documentos de processo ou campos pessoais indevidos.
+  - Cobrir match de Pessoa/passaporte existente, cancelar/navegar, duplo clique, teclado/foco, `aria-live`, console/network e ausência de overflow em `sm`, `md` e `lg`.
+  - Validado no navegador autenticado: dropzone e textos em pt/en, layout desktop/mobile sem overflow e console sem erros. Em execução funcional isolada, tipo inválido e PNG acima de 10 MB foram recusados; o PNG fornecido foi enviado e permaneceu visível; cancelar a confirmação da IA preservou o nome manual; substituir não releu nem alterou o campo; remover apagou somente o anexo. Os uploads temporários foram removidos e nenhuma Pessoa foi criada.
+  - Limite consciente: não havia fixture segura de passaporte no projeto, então o caminho de OCR com extração bem-sucedida e a persistência de uma Pessoa de teste não foram executados contra dados reais; o contrato reutilizado, retry, transformação Zod e mutation atômica foram cobertos pelos quality gates e revisão de código.
+
+### 5. Correção: bloquear Pessoa duplicada pelo número do passaporte
+
+- [x] 5.1: Vincular o resultado do OCR ao upload no servidor.
+  - Criada verificação interna por `storageId`, número extraído e usuário autenticado; somente a action de OCR pode gravá-la e descartes de uploads temporários também a removem.
+- [x] 5.2: Tornar o bloqueio atômico em `people.create`.
+  - A mutation exige a verificação emitida para o mesmo arquivo/administrador e consulta novamente `passports.by_passportNumber`. Passaporte já vinculado lança erro estruturado com `personId`, nome e número antes de inserir a Pessoa.
+- [x] 5.3: Impedir bypass por substituição e oferecer acesso à Pessoa existente.
+  - Todo arquivo novo é verificado automaticamente; substituições não aplicam campos pessoais, mas não podem limpar o bloqueio sem nova leitura. O aviso controlado desabilita **Salvar** e o nome da Pessoa aparece no link para abrir seu cadastro.
+- [x] 5.4: Reexecutar codegen, TypeScript, lint, build e browser após a correção.
+  - `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado, paridade das 115 chaves de `People`, `git diff --check` e `pnpm run build` passaram. `/pt/people/new` e `/en/people/new` carregaram autenticados com o campo acessível e sem regressão visual; a duplicidade real continua dependente de uma fixture segura com número já cadastrado.
+
+## Riscos e mitigações
+
+- **Duplicar o domínio de Passaporte:** nomear e apresentar como anexo de origem da Pessoa; não criar número/status nem participar da subtabela `passports`.
+- **`people.update` apagar o anexo:** manter a relação em tabela própria e mutations de arquivo estreitas, sem `replace()` da Pessoa.
+- **Novo arquivo sobrescrever dados revisados:** separar callbacks de arquivo e OCR; substituição nunca chama aplicação de campos automaticamente.
+- **Upload órfão após cancelar/substituir:** indexar por `storageId` e oferecer descarte idempotente apenas para blob ainda não vinculado.
+- **Vazamento de documento sensível:** não incluir o anexo em spreads de `people.list/search/get`; devolver URL somente pela query dedicada após auth/escopo.
+- **Pessoa/passaporte duplicado:** reutilizar matches/duplicate check do OCR e exigir resolução explícita antes de criar.
+- **Resposta atrasada aplicar dados no formulário errado:** invalidar a execução ativa ao trocar/remover arquivo, cancelar ou desmontar e ignorar resultado antigo.
+
+## Definition of Done
+
+- [x] `/people/new` oferece dropzone profissional e leitura por IA reutilizando a infraestrutura existente.
+- [x] A IA preenche somente campos pessoais válidos e o administrador pode revisar/editar tudo antes de salvar.
+- [x] O arquivo usado fica persistido e visível como único anexo de origem da Pessoa, separado de passaportes formais e documentos de processo.
+- [x] Remover ou substituir o anexo nunca apaga nem altera dados pessoais; releitura exige ação e confirmação explícitas.
+- [x] Criação com anexo é atômica; edição/remoção do arquivo usa mutations administrativas estreitas, auditadas e sem vazamento de Storage/RBAC.
+- [x] Duplicidade, falha, timeout, cancelamento e clique concorrente terminam em estado seguro sem Pessoa/anexo parcial.
+- [x] PRD, i18n pt/en, TypeScript strict, Zod/validators Convex, responsividade, acessibilidade, lint/build e validação browser passam sem regressão nova.
+
+---
+
+# TODO ANTERIOR: Data de recebimento do anexo exclusiva do administrador
 
 ## Contexto
 

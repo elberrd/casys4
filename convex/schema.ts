@@ -130,6 +130,30 @@ export default defineSchema({
     .index("by_nationality", ["nationalityId"])
     .index("by_currentCity", ["currentCityId"]),
 
+  // Single source document used while registering a person. This attachment
+  // is intentionally separate from formal passport records and process docs.
+  personPassportAttachments: defineTable({
+    personId: v.id("people"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.string(),
+    fileSize: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_person", ["personId"])
+    .index("by_storageId", ["storageId"]),
+
+  // Server-issued proof that a specific temporary upload was read by the
+  // passport OCR before it can be used while creating a Person.
+  personPassportOcrVerifications: defineTable({
+    storageId: v.id("_storage"),
+    passportNumber: v.union(v.string(), v.null()),
+    verifiedBy: v.id("users"),
+    verifiedAt: v.number(),
+  }).index("by_storageId", ["storageId"]),
+
   // Companies - Has many-to-many relationship with Economic Activities via companiesEconomicActivities junction table
   companies: defineTable({
     name: v.string(),

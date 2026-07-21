@@ -66,7 +66,7 @@ export function ProcessTypeFormDialog({
   const currentLegalFrameworks = useQuery(
     api.processTypes.getLegalFrameworks,
     processTypeId ? { processTypeId } : "skip"
-  ) || []
+  )
 
   const createProcessType = useMutation(api.processTypes.create)
   const updateProcessType = useMutation(api.processTypes.update)
@@ -81,6 +81,7 @@ export function ProcessTypeFormDialog({
       legalFrameworkIds: [] as Id<"legalFrameworks">[],
     },
   })
+  const { reset } = form
 
   // Unsaved changes protection
   const {
@@ -92,7 +93,7 @@ export function ProcessTypeFormDialog({
   } = useUnsavedChanges({
     formState: form.formState,
     onConfirmedClose: () => {
-      form.reset()
+      reset()
       onOpenChange(false)
     },
     isSubmitting: form.formState.isSubmitting,
@@ -100,8 +101,21 @@ export function ProcessTypeFormDialog({
 
   // Reset form when process type data loads
   useEffect(() => {
+    if (!open) return
+
+    if (!processTypeId) {
+      reset({
+        name: "",
+        description: "",
+        estimatedDays: 30,
+        isActive: true,
+        legalFrameworkIds: [],
+      })
+      return
+    }
+
     if (processType && currentLegalFrameworks) {
-      form.reset({
+      reset({
         name: processType.name,
         description: processType.description,
         estimatedDays: processType.estimatedDays,
@@ -110,16 +124,8 @@ export function ProcessTypeFormDialog({
           .filter((lf): lf is NonNullable<typeof lf> => lf !== null)
           .map((lf) => lf._id),
       })
-    } else if (!processTypeId && open) {
-      form.reset({
-        name: "",
-        description: "",
-        estimatedDays: 30,
-        isActive: true,
-        legalFrameworkIds: [],
-      })
     }
-  }, [processType, currentLegalFrameworks, processTypeId, open, form.reset])
+  }, [processType, currentLegalFrameworks, processTypeId, open, reset])
 
   const onSubmit = async (data: ProcessTypeFormData) => {
     try {
@@ -134,7 +140,7 @@ export function ProcessTypeFormDialog({
           title: t('createdSuccess'),
         })
       }
-      form.reset()
+      reset()
       onSuccess?.()
     } catch (error) {
       toast({

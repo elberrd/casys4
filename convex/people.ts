@@ -1,11 +1,15 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
 import { createCachedGet } from "./lib/cachedGet";
+import {
+  normalizePersonPassportFileName,
+  validatePersonPassportUpload,
+} from "./lib/personPassportAttachment";
 
 /** Constructs full display name from person name parts */
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -122,7 +126,6 @@ export const search = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    const queryLower = args.query.toLowerCase();
     let people = await ctx.db.query("people").collect();
 
     // Apply role-based access control
@@ -218,7 +221,7 @@ export const checkCpfDuplicate = query({
   },
   handler: async (ctx, args) => {
     // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
+    await getCurrentUserProfile(ctx);
 
     // Return available if CPF is empty or undefined
     if (!args.cpf || args.cpf.trim() === "") {
@@ -362,7 +365,14 @@ export const create = mutation({
     residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
+    passportAttachment: v.optional(
+      v.object({
+        storageId: v.id("_storage"),
+        fileName: v.string(),
+      }),
+    ),
   },
+  returns: v.id("people"),
   handler: async (ctx, args) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -385,13 +395,93 @@ export const create = mutation({
       }
     }
 
+    const { passportAttachment, ...personData } = args;
+    const attachmentMetadata = passportAttachment
+      ? await validatePersonPassportUpload(ctx, passportAttachment.storageId)
+      : null;
+    const attachmentFileName = passportAttachment
+      ? normalizePersonPassportFileName(passportAttachment.fileName)
+      : null;
+    if (passportAttachment && !adminProfile.userId) {
+      throw new Error("Administrator profile is not activated");
+    }
+    const passportVerification = passportAttachment
+      ? await ctx.db
+          .query("personPassportOcrVerifications")
+          .withIndex("by_storageId", (q) =>
+            q.eq("storageId", passportAttachment.storageId),
+          )
+          .first()
+      : null;
+    if (
+      passportAttachment &&
+      (!passportVerification ||
+        !adminProfile.userId ||
+        passportVerification.verifiedBy !== adminProfile.userId ||
+        !passportVerification.passportNumber)
+    ) {
+      throw new ConvexError({ code: "PASSPORT_VERIFICATION_REQUIRED" });
+    }
+    const verifiedPassportNumber = passportVerification?.passportNumber;
+    if (verifiedPassportNumber) {
+      const existingPassport = await ctx.db
+        .query("passports")
+        .withIndex("by_passportNumber", (q) =>
+          q.eq("passportNumber", verifiedPassportNumber),
+        )
+        .first();
+      if (existingPassport?.personId) {
+        const existingPerson = await ctx.db.get(existingPassport.personId);
+        throw new ConvexError({
+          code: "PASSPORT_ALREADY_LINKED",
+          passportNumber: existingPassport.passportNumber,
+          personId: existingPassport.personId,
+          personName: existingPerson
+            ? getFullName(existingPerson)
+            : "Pessoa existente",
+        });
+      }
+    }
+    if (passportAttachment) {
+      const storageOwner = await ctx.db
+        .query("personPassportAttachments")
+        .withIndex("by_storageId", (q) =>
+          q.eq("storageId", passportAttachment.storageId),
+        )
+        .first();
+      if (storageOwner) {
+        throw new Error("Uploaded passport is already attached to a person");
+      }
+    }
+
     const now = Date.now();
 
     const personId = await ctx.db.insert("people", {
-      ...args,
+      ...personData,
       createdAt: now,
       updatedAt: now,
     });
+
+    if (
+      passportAttachment &&
+      attachmentMetadata &&
+      attachmentFileName &&
+      adminProfile.userId
+    ) {
+      await ctx.db.insert("personPassportAttachments", {
+        personId,
+        storageId: passportAttachment.storageId,
+        fileName: attachmentFileName,
+        mimeType: attachmentMetadata.mimeType,
+        fileSize: attachmentMetadata.fileSize,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: adminProfile.userId,
+      });
+      if (passportVerification) {
+        await ctx.db.delete(passportVerification._id);
+      }
+    }
 
     await logActivitySafely(ctx, {
       userId: adminProfile.userId,
@@ -399,9 +489,10 @@ export const create = mutation({
       entityType: "person",
       entityId: personId,
       details: {
-        fullName: getFullName(args),
-        cpf: args.cpf,
-        email: args.email,
+        fullName: getFullName(personData),
+        cpf: personData.cpf,
+        email: personData.email,
+        passportAttachment: attachmentFileName ?? undefined,
       },
     });
 
@@ -507,6 +598,7 @@ export const update = mutation({
     photoUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
+  returns: v.id("people"),
   handler: async (ctx, args) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -538,36 +630,33 @@ export const update = mutation({
       throw new Error("Person not found");
     }
 
-    // Build replacement document - only include optional fields if they have values
-    // To remove an optional field in Convex, don't include it in replace()
-    const replacement: any = {
-      _id: current._id,
-      _creationTime: current._creationTime,
+    // Build a typed replacement. Optional values omitted here are removed,
+    // while immutable creation ownership is preserved.
+    const replacement: Omit<Doc<"people">, "_id" | "_creationTime"> = {
       createdAt: current.createdAt,
       givenNames: data.givenNames,
       updatedAt: Date.now(),
+      ...(current.createdBy ? { createdBy: current.createdBy } : {}),
+      ...(data.middleName ? { middleName: data.middleName } : {}),
+      ...(data.surname ? { surname: data.surname } : {}),
+      ...(data.email ? { email: data.email } : {}),
+      ...(data.cpf ? { cpf: data.cpf } : {}),
+      ...(data.birthDate ? { birthDate: data.birthDate } : {}),
+      ...(data.birthCityId ? { birthCityId: data.birthCityId } : {}),
+      ...(data.nationalityId ? { nationalityId: data.nationalityId } : {}),
+      ...(data.sex ? { sex: data.sex } : {}),
+      ...(data.maritalStatus ? { maritalStatus: data.maritalStatus } : {}),
+      ...(data.profession ? { profession: data.profession } : {}),
+      ...(data.cargo ? { cargo: data.cargo } : {}),
+      ...(data.motherName ? { motherName: data.motherName } : {}),
+      ...(data.fatherName ? { fatherName: data.fatherName } : {}),
+      ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
+      ...(data.address ? { address: data.address } : {}),
+      ...(data.currentCityId ? { currentCityId: data.currentCityId } : {}),
+      ...(data.residenceSince ? { residenceSince: data.residenceSince } : {}),
+      ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
+      ...(data.notes ? { notes: data.notes } : {}),
     };
-
-    // Only include optional fields if they have non-empty values
-    if (data.middleName) replacement.middleName = data.middleName;
-    if (data.surname) replacement.surname = data.surname;
-    if (data.email) replacement.email = data.email;
-    if (data.cpf && data.cpf !== "") replacement.cpf = data.cpf;
-    if (data.birthDate) replacement.birthDate = data.birthDate;
-    if (data.birthCityId) replacement.birthCityId = data.birthCityId;
-    if (data.nationalityId) replacement.nationalityId = data.nationalityId;
-    if (data.sex) replacement.sex = data.sex;
-    if (data.maritalStatus) replacement.maritalStatus = data.maritalStatus;
-    if (data.profession) replacement.profession = data.profession;
-    if (data.cargo) replacement.cargo = data.cargo;
-    if (data.motherName) replacement.motherName = data.motherName;
-    if (data.fatherName) replacement.fatherName = data.fatherName;
-    if (data.phoneNumber) replacement.phoneNumber = data.phoneNumber;
-    if (data.address) replacement.address = data.address;
-    if (data.currentCityId) replacement.currentCityId = data.currentCityId;
-    if (data.residenceSince) replacement.residenceSince = data.residenceSince;
-    if (data.photoUrl) replacement.photoUrl = data.photoUrl;
-    if (data.notes) replacement.notes = data.notes;
 
     await ctx.db.replace(id, replacement);
 
@@ -616,6 +705,7 @@ export const update = mutation({
  */
 export const remove = mutation({
   args: { id: v.id("people") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -656,6 +746,16 @@ export const remove = mutation({
       throw new Error("Cannot delete person with associated employment history");
     }
 
+    const passportAttachment = await ctx.db
+      .query("personPassportAttachments")
+      .withIndex("by_person", (q) => q.eq("personId", id))
+      .first();
+
+    if (passportAttachment) {
+      await ctx.db.delete(passportAttachment._id);
+      await ctx.storage.delete(passportAttachment.storageId);
+    }
+
     await ctx.db.delete(id);
 
     await logActivitySafely(ctx, {
@@ -667,8 +767,10 @@ export const remove = mutation({
         fullName: getFullName(person),
         cpf: person.cpf,
         email: person.email,
+        passportAttachment: passportAttachment?.fileName,
       },
     });
+    return null;
   },
 });
 
