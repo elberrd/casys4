@@ -67,6 +67,7 @@ export async function generateDocumentChecklist(
   // Create documentsDelivered records for each requirement
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
   const createdAt = Date.now();
+  const waitingStartedAt = individualProcess.createdAt;
 
   // Get current user to set as uploader (will be admin who created the process)
   const userId = actingUserId ?? (await getAuthUserId(ctx));
@@ -110,6 +111,7 @@ export async function generateDocumentChecklist(
       uploadedBy: userId,
       uploadedAt: createdAt,
       createdAt,
+      waitingStartedAt,
       version: 1,
       isLatest: true,
       excludedFromReport: documentType?.excludeFromReportByDefault || undefined,
@@ -178,6 +180,7 @@ export async function generateDocumentChecklistByLegalFramework(
   // repeated preparation idempotent without one process-wide read per rule.
   const createdDocumentIds: Id<"documentsDelivered">[] = [];
   const createdAt = Date.now();
+  const waitingStartedAt = individualProcess.createdAt;
   const existingDocs = await ctx.db
     .query("documentsDelivered")
     .withIndex("by_individualProcess", (q) =>
@@ -218,6 +221,7 @@ export async function generateDocumentChecklistByLegalFramework(
       uploadedBy: userId,
       uploadedAt: createdAt,
       createdAt,
+      waitingStartedAt,
       version: 1,
       isLatest: true,
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,

@@ -20,16 +20,19 @@ export function DocumentWaitTimeBadge({
   const t = useTranslations("DocumentTiming");
   const locale = useLocale();
   const timing = getDocumentWaitTime(document);
-  const createdDate = formatDocumentTimingDate(timing.createdAt, locale);
+  const waitingStartDate = formatDocumentTimingDate(
+    timing.waitingStartedAt,
+    locale,
+  );
 
   const title = timing.state === "received" && timing.receivedAt !== undefined
-    ? t("receivedDetails", {
-        createdDate,
+      ? t("receivedDetails", {
+        waitingStartDate,
         receivedDate: formatDocumentTimingDate(timing.receivedAt, locale),
       })
     : timing.state === "superseded"
-      ? t("supersededDetails", { createdDate })
-      : t("pendingDetails", { createdDate });
+      ? t("supersededDetails", { waitingStartDate })
+      : t("pendingDetails", { waitingStartDate });
 
   return (
     <Badge

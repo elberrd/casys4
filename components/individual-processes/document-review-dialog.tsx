@@ -73,6 +73,7 @@ import { LinkedFieldInput } from "./linked-field-input"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
 import { DocumentReceivedDateField } from "./document-received-date-field"
+import { DocumentWaitingStartDateField } from "./document-waiting-start-date-field"
 import {
   formatDocumentTimingDate,
   getDocumentWaitTime,
@@ -120,6 +121,9 @@ export function DocumentReviewDialog({
   const [isEditingReceivedDate, setIsEditingReceivedDate] = useState(false)
   const [editingReceivedDate, setEditingReceivedDate] = useState("")
   const [isSavingReceivedDate, setIsSavingReceivedDate] = useState(false)
+  const [isEditingWaitingStartDate, setIsEditingWaitingStartDate] = useState(false)
+  const [editingWaitingStartDate, setEditingWaitingStartDate] = useState("")
+  const [isSavingWaitingStartDate, setIsSavingWaitingStartDate] = useState(false)
 
   const document = useQuery(
     api.documentsDelivered.get,
@@ -181,6 +185,7 @@ export function DocumentReviewDialog({
   const updateVersionNotes = useMutation(api.documentsDelivered.updateVersionNotes)
   const updateIssueDate = useMutation(api.documentsDelivered.updateIssueDate)
   const updateReceivedAt = useMutation(api.documentsDelivered.updateReceivedAt)
+  const updateWaitingStartedAt = useMutation(api.documentsDelivered.updateWaitingStartedAt)
   const toggleBypassConditions = useMutation(api.documentsDelivered.toggleBypassConditions)
 
   const isManuallyAdded = document
@@ -251,6 +256,8 @@ export function DocumentReviewDialog({
       setEditingIssueDate(undefined)
       setIsEditingReceivedDate(false)
       setEditingReceivedDate("")
+      setIsEditingWaitingStartDate(false)
+      setEditingWaitingStartDate("")
     }
   }, [open])
 
@@ -269,6 +276,8 @@ export function DocumentReviewDialog({
     setEditingIssueDate(undefined)
     setIsEditingReceivedDate(false)
     setEditingReceivedDate("")
+    setIsEditingWaitingStartDate(false)
+    setEditingWaitingStartDate("")
   }, [displayDocument?._id])
 
   const handleSaveIssueDate = async () => {
@@ -306,6 +315,25 @@ export function DocumentReviewDialog({
       toast.error(tTiming("receivedDateError"))
     } finally {
       setIsSavingReceivedDate(false)
+    }
+  }
+
+  const handleSaveWaitingStartDate = async () => {
+    if (!displayDocument?._id || !editingWaitingStartDate) return
+
+    try {
+      setIsSavingWaitingStartDate(true)
+      await updateWaitingStartedAt({
+        documentId: displayDocument._id,
+        waitingStartDate: editingWaitingStartDate,
+      })
+      toast.success(tTiming("waitingStartDateSaved"))
+      setIsEditingWaitingStartDate(false)
+    } catch (error) {
+      console.error("Error updating document waiting start date:", error)
+      toast.error(tTiming("waitingStartDateError"))
+    } finally {
+      setIsSavingWaitingStartDate(false)
     }
   }
 
@@ -1196,15 +1224,70 @@ export function DocumentReviewDialog({
                   : displayDocument?.uploadedByUser?.email || t("unknown")}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{tTiming("createdDate")}:</span>
-              <span className="font-medium">
-                {displayTiming
-                  ? formatDocumentTimingDate(displayTiming.createdAt, locale)
-                  : t("unknown")}
-              </span>
-            </div>
+            {userRole === "admin" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">{tTiming("waitingStartDate")}:</span>
+                <span className="font-medium">
+                  {displayTiming
+                    ? formatDocumentTimingDate(displayTiming.waitingStartedAt, locale)
+                    : t("unknown")}
+                </span>
+                {displayTiming && !isEditingWaitingStartDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEditingWaitingStartDate(
+                        timestampToIsoDate(displayTiming.waitingStartedAt),
+                      )
+                      setIsEditingWaitingStartDate(true)
+                    }}
+                  >
+                    <Pencil className="mr-1 h-3 w-3" />
+                    {tTiming("editWaitingStartDate")}
+                  </Button>
+                )}
+              </div>
+            )}
+            {userRole === "admin" && isEditingWaitingStartDate && displayTiming && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <DocumentWaitingStartDateField
+                  canEdit
+                  value={editingWaitingStartDate}
+                  defaultDate={timestampToIsoDate(displayTiming.waitingStartedAt)}
+                  onChange={setEditingWaitingStartDate}
+                  disabled={isSavingWaitingStartDate}
+                  id={`review-waiting-start-date-${displayDocument?._id ?? "document"}`}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingWaitingStartDate(false)}
+                    disabled={isSavingWaitingStartDate}
+                  >
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveWaitingStartDate}
+                    disabled={isSavingWaitingStartDate || !editingWaitingStartDate}
+                  >
+                    {isSavingWaitingStartDate ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Save className="mr-1 h-3 w-3" />
+                    )}
+                    {tCommon("save")}
+                  </Button>
+                </div>
+              </div>
+            )}
             {userRole === "admin" && (
               <div className="flex flex-wrap items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />

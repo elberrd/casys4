@@ -4,6 +4,7 @@ const BUSINESS_TIME_ZONE = "America/Sao_Paulo";
 export interface DocumentTimingLike {
   _creationTime: number;
   createdAt?: number;
+  waitingStartedAt?: number;
   receivedAt?: number;
   uploadedAt?: number;
   waitingEndedAt?: number;
@@ -17,7 +18,7 @@ export interface DocumentTimingLike {
 export type DocumentWaitTime = {
   state: "pending" | "received" | "superseded";
   days: number;
-  createdAt: number;
+  waitingStartedAt: number;
   receivedAt?: number;
   waitingEndedAt?: number;
 };
@@ -55,13 +56,17 @@ export function getDocumentWaitTime(
   document: DocumentTimingLike,
   now = Date.now(),
 ): DocumentWaitTime {
-  const createdAt = document.createdAt ?? document._creationTime;
+  const waitingStartedAt =
+    document.waitingStartedAt ?? document.createdAt ?? document._creationTime;
   const hasContent = hasDocumentContentForTiming(document);
   const receivedAt =
     document.receivedAt ?? (hasContent ? document.uploadedAt : undefined);
   const waitingEndedAt = receivedAt === undefined ? document.waitingEndedAt : undefined;
   const endAt = receivedAt ?? waitingEndedAt ?? now;
-  const days = Math.max(0, getCalendarDay(endAt) - getCalendarDay(createdAt));
+  const days = Math.max(
+    0,
+    getCalendarDay(endAt) - getCalendarDay(waitingStartedAt),
+  );
 
   return {
     state: receivedAt !== undefined
@@ -70,7 +75,7 @@ export function getDocumentWaitTime(
         ? "superseded"
         : "pending",
     days,
-    createdAt,
+    waitingStartedAt,
     receivedAt,
     waitingEndedAt,
   };

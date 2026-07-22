@@ -953,6 +953,7 @@ export const createFromExisting = mutation({
           uploadedBy: doc.uploadedBy,
           uploadedAt: doc.uploadedAt,
           createdAt: now,
+          waitingStartedAt: now,
           receivedAt: hasDocumentContent(doc) ? now : undefined,
           reviewedBy: doc.reviewedBy,
           reviewedAt: doc.reviewedAt,

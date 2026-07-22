@@ -28,10 +28,15 @@ import {
   getDefaultReceivedDate,
   getReceivedDateOverride,
 } from "./document-received-date-field";
+import {
+  DocumentWaitingStartDateField,
+  useDocumentWaitingStartDate,
+} from "./document-waiting-start-date-field";
 
 interface PendingDocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  individualProcessId: Id<"individualProcesses">;
   documentId: Id<"documentsDelivered">;
   documentName: string;
   existingVersionNotes?: string;
@@ -43,6 +48,7 @@ interface PendingDocumentUploadDialogProps {
 export function PendingDocumentUploadDialog({
   open,
   onOpenChange,
+  individualProcessId,
   documentId,
   documentName,
   existingVersionNotes,
@@ -61,6 +67,19 @@ export function PendingDocumentUploadDialog({
   const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
   const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    waitingStartDate,
+    setWaitingStartDate,
+    defaultWaitingStartDate,
+    isWaitingStartDateLoading,
+    isWaitingStartDateValid,
+    waitingStartDateOverride,
+  } = useDocumentWaitingStartDate({
+    open,
+    canEdit: canEditReceivedDate,
+    individualProcessId,
+    documentId,
+  });
 
   // Pre-populate versionNotes when dialog opens with existing notes
   useEffect(() => {
@@ -148,6 +167,7 @@ export function PendingDocumentUploadDialog({
           expiryDate: expiryDate || undefined,
           versionNotes: versionNotes || undefined,
           autoApprove: autoApprove || undefined,
+          waitingStartDate: waitingStartDateOverride,
           receivedDate: canEditReceivedDate
             ? getReceivedDateOverride(receivedDate)
             : undefined,
@@ -259,6 +279,16 @@ export function PendingDocumentUploadDialog({
             </div>
           )}
 
+          <DocumentWaitingStartDateField
+            canEdit={canEditReceivedDate}
+            value={waitingStartDate}
+            defaultDate={defaultWaitingStartDate}
+            onChange={setWaitingStartDate}
+            disabled={isUploading}
+            loading={isWaitingStartDateLoading}
+            id="pending-document-waiting-start-date"
+          />
+
           <DocumentReceivedDateField
             canEdit={canEditReceivedDate}
             value={receivedDate}
@@ -315,7 +345,11 @@ export function PendingDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={(!selectedFile && !versionNotes.trim()) || isUploading}
+            disabled={
+              (!selectedFile && !versionNotes.trim()) ||
+              isUploading ||
+              (canEditReceivedDate && !isWaitingStartDateValid)
+            }
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedFile ? t("upload") : t("saveWithoutFile")}

@@ -7,7 +7,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { timestampToIsoDate } from "@/lib/document-wait-time";
 
-const receivedDateSchema = z.string().refine((value) => {
+export const documentTimingDateSchema = z.string().refine((value) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
 
@@ -39,7 +39,7 @@ export function DocumentReceivedDateField({
   const t = useTranslations("DocumentTiming");
   if (!canEdit) return null;
 
-  const validation = receivedDateSchema.safeParse(value);
+  const validation = documentTimingDateSchema.safeParse(value);
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
 

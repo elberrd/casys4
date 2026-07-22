@@ -1734,6 +1734,7 @@ export function DocumentChecklistCard({
           onOpenChange={(open) => {
             if (!open) closeAllDialogs()
           }}
+          individualProcessId={individualProcessId}
           documentId={dialogs.pendingUpload.documentId}
           documentName={dialogs.pendingUpload.documentName}
           existingVersionNotes={dialogs.pendingUpload.existingVersionNotes}

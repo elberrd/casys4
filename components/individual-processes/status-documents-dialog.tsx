@@ -644,6 +644,7 @@ export function StatusDocumentsDialog({
         <PendingDocumentUploadDialog
           open
           onOpenChange={(val) => { if (!val) closeSubDialog(); }}
+          individualProcessId={individualProcessId}
           documentId={pendingUploadDoc.documentId}
           documentName={pendingUploadDoc.documentName}
           existingVersionNotes={pendingUploadDoc.existingVersionNotes}

@@ -67,6 +67,7 @@ import type * as migrations_addOrderNumberToCaseStatuses from "../migrations/add
 import type * as migrations_addProcessTypesLegalFrameworksJunction from "../migrations/addProcessTypesLegalFrameworksJunction.js";
 import type * as migrations_addRnmProtocolToFillableFields from "../migrations/addRnmProtocolToFillableFields.js";
 import type * as migrations_backfillDocumentReceiptTiming from "../migrations/backfillDocumentReceiptTiming.js";
+import type * as migrations_backfillDocumentWaitingStartedAt from "../migrations/backfillDocumentWaitingStartedAt.js";
 import type * as migrations_backfillExigenciaDates from "../migrations/backfillExigenciaDates.js";
 import type * as migrations_backfillPlaceholderVersionZero from "../migrations/backfillPlaceholderVersionZero.js";
 import type * as migrations_backfillUserApplicantCompanyId from "../migrations/backfillUserApplicantCompanyId.js";
@@ -193,6 +194,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/addProcessTypesLegalFrameworksJunction": typeof migrations_addProcessTypesLegalFrameworksJunction;
   "migrations/addRnmProtocolToFillableFields": typeof migrations_addRnmProtocolToFillableFields;
   "migrations/backfillDocumentReceiptTiming": typeof migrations_backfillDocumentReceiptTiming;
+  "migrations/backfillDocumentWaitingStartedAt": typeof migrations_backfillDocumentWaitingStartedAt;
   "migrations/backfillExigenciaDates": typeof migrations_backfillExigenciaDates;
   "migrations/backfillPlaceholderVersionZero": typeof migrations_backfillPlaceholderVersionZero;
   "migrations/backfillUserApplicantCompanyId": typeof migrations_backfillUserApplicantCompanyId;

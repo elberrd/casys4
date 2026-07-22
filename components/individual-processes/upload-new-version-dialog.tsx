@@ -35,6 +35,10 @@ import {
   getDefaultReceivedDate,
   getReceivedDateOverride,
 } from "./document-received-date-field"
+import {
+  DocumentWaitingStartDateField,
+  useDocumentWaitingStartDate,
+} from "./document-waiting-start-date-field"
 
 interface UploadNewVersionDialogProps {
   open: boolean
@@ -79,6 +83,18 @@ export function UploadNewVersionDialog({
   const [autoApprove, setAutoApprove] = useState(false)
   const [bypassConditions, setBypassConditions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const {
+    waitingStartDate,
+    setWaitingStartDate,
+    defaultWaitingStartDate,
+    isWaitingStartDateLoading,
+    isWaitingStartDateValid,
+    waitingStartDateOverride,
+  } = useDocumentWaitingStartDate({
+    open,
+    canEdit: canEditReceivedDate,
+    individualProcessId,
+  })
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
   const uploadDocument = useMutation(api.documentsDelivered.upload)
@@ -157,6 +173,7 @@ export function UploadNewVersionDialog({
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
         bypassConditions: bypassConditions || undefined,
+        waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
           ? getReceivedDateOverride(receivedDate)
           : undefined,
@@ -264,6 +281,16 @@ export function UploadNewVersionDialog({
               </label>
             </div>
           )}
+
+          <DocumentWaitingStartDateField
+            canEdit={canEditReceivedDate}
+            value={waitingStartDate}
+            defaultDate={defaultWaitingStartDate}
+            onChange={setWaitingStartDate}
+            disabled={isUploading}
+            loading={isWaitingStartDateLoading}
+            id="new-version-waiting-start-date"
+          />
 
           <DocumentReceivedDateField
             canEdit={canEditReceivedDate}
@@ -451,7 +478,12 @@ export function UploadNewVersionDialog({
             type="button"
             variant={isIllegible ? "destructive" : "default"}
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading || isAutoApproveBlocked}
+            disabled={
+              !selectedFile ||
+              isUploading ||
+              isAutoApproveBlocked ||
+              (canEditReceivedDate && !isWaitingStartDateValid)
+            }
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isIllegible ? t("uploadAsIllegible") : t("upload")}

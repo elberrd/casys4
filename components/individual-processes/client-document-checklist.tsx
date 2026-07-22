@@ -522,6 +522,7 @@ export function ClientDocumentChecklist({
           onOpenChange={(open) => {
             if (!open) closeDialog();
           }}
+          individualProcessId={individualProcessId}
           documentId={uploadDialog.documentId}
           documentName={uploadDialog.documentName}
           existingVersionNotes={uploadDialog.existingVersionNotes}

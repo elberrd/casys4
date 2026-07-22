@@ -779,6 +779,10 @@ export default defineSchema({
     // Lifecycle timestamps for this exact version. Optional during rollout so
     // legacy rows can be backfilled without blocking schema deployment.
     createdAt: v.optional(v.number()),
+    // Business date used as the start of the document waiting-time counter.
+    // Kept separate from createdAt because the technical creation timestamp
+    // also participates in client document visibility rules.
+    waitingStartedAt: v.optional(v.number()),
     receivedAt: v.optional(v.number()),
     reviewedBy: v.optional(v.id("users")),
     reviewedAt: v.optional(v.number()),

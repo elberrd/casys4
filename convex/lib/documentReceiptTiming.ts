@@ -9,7 +9,11 @@ type DocumentContentFields = Pick<
 
 type DocumentTimingFields = Pick<
   Doc<"documentsDelivered">,
-  "_creationTime" | "createdAt" | "receivedAt" | "uploadedAt"
+  | "_creationTime"
+  | "createdAt"
+  | "waitingStartedAt"
+  | "receivedAt"
+  | "uploadedAt"
 > &
   DocumentContentFields;
 
@@ -42,11 +46,59 @@ export function getDocumentCreatedAt(document: DocumentTimingFields): number {
   return document.createdAt ?? document._creationTime;
 }
 
+export function getDocumentWaitingStartedAt(
+  document: DocumentTimingFields,
+): number {
+  return (
+    document.waitingStartedAt ??
+    document.createdAt ??
+    document._creationTime
+  );
+}
+
 export function getDocumentReceivedAt(
   document: DocumentTimingFields,
 ): number | undefined {
   if (document.receivedAt !== undefined) return document.receivedAt;
   return hasDocumentContent(document) ? document.uploadedAt : undefined;
+}
+
+function isoDateToTimestamp(date: string): number {
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year, month - 1, day, 12);
+}
+
+/**
+ * Resolves the business start of the waiting-time counter. The process
+ * creation timestamp is authoritative unless an administrator explicitly
+ * supplies a valid calendar-date override.
+ */
+export function resolveDocumentWaitingStartedAt({
+  requestedDate,
+  userRole,
+  processCreatedAt,
+}: {
+  requestedDate?: string;
+  userRole: "admin" | "client";
+  processCreatedAt: number;
+}): number {
+  if (!requestedDate) return processCreatedAt;
+
+  if (userRole !== "admin") {
+    throw new ConvexError({
+      code: "WAITING_START_DATE_ADMIN_ONLY",
+      message: "Only administrators can set the document waiting start date",
+    });
+  }
+
+  if (!isValidIsoDate(requestedDate)) {
+    throw new ConvexError({
+      code: "INVALID_WAITING_START_DATE",
+      message: "Waiting start date must be a valid date in YYYY-MM-DD format",
+    });
+  }
+
+  return isoDateToTimestamp(requestedDate);
 }
 
 /**
@@ -78,6 +130,5 @@ export function resolveDocumentReceivedAt({
     });
   }
 
-  const [year, month, day] = requestedDate.split("-").map(Number);
-  return Date.UTC(year, month - 1, day, 12);
+  return isoDateToTimestamp(requestedDate);
 }

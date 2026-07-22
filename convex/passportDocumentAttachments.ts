@@ -335,6 +335,7 @@ export const attach = mutation({
         uploadedBy: adminProfile.userId,
         uploadedAt,
         createdAt: uploadedAt,
+        waitingStartedAt: individualProcess.createdAt,
         receivedAt: uploadedAt,
         reviewedBy: adminProfile.userId,
         reviewedAt: uploadedAt,
@@ -365,6 +366,8 @@ export const attach = mutation({
         uploadedBy: adminProfile.userId,
         uploadedAt: receivedAt,
         createdAt,
+        waitingStartedAt:
+          targetDocument.waitingStartedAt ?? individualProcess.createdAt,
         receivedAt,
         reviewedBy: adminProfile.userId,
         reviewedAt: uploadedAt,

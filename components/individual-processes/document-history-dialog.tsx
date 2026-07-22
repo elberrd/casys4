@@ -46,6 +46,7 @@ import { UploadNewVersionDialog } from "./upload-new-version-dialog"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
 import { DocumentReceivedDateField } from "./document-received-date-field"
+import { DocumentWaitingStartDateField } from "./document-waiting-start-date-field"
 import {
   formatDocumentTimingDate,
   getDocumentWaitTime,
@@ -81,6 +82,9 @@ export function DocumentHistoryDialog({
   const [editingReceivedDocumentId, setEditingReceivedDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
   const [editingReceivedDate, setEditingReceivedDate] = useState("")
   const [isSavingReceivedDate, setIsSavingReceivedDate] = useState(false)
+  const [editingWaitingStartDocumentId, setEditingWaitingStartDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
+  const [editingWaitingStartDate, setEditingWaitingStartDate] = useState("")
+  const [isSavingWaitingStartDate, setIsSavingWaitingStartDate] = useState(false)
 
   const documentHistory = useQuery(
     api.documentsDelivered.getVersionHistory,
@@ -93,6 +97,7 @@ export function DocumentHistoryDialog({
 
   const restoreVersionMutation = useMutation(api.documentsDelivered.restoreVersion)
   const updateReceivedAt = useMutation(api.documentsDelivered.updateReceivedAt)
+  const updateWaitingStartedAt = useMutation(api.documentsDelivered.updateWaitingStartedAt)
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -175,6 +180,26 @@ export function DocumentHistoryDialog({
       toast.error(tTiming("receivedDateError"))
     } finally {
       setIsSavingReceivedDate(false)
+    }
+  }
+
+  const handleSaveWaitingStartDate = async () => {
+    if (!editingWaitingStartDocumentId || !editingWaitingStartDate) return
+
+    try {
+      setIsSavingWaitingStartDate(true)
+      await updateWaitingStartedAt({
+        documentId: editingWaitingStartDocumentId,
+        waitingStartDate: editingWaitingStartDate,
+      })
+      toast.success(tTiming("waitingStartDateSaved"))
+      setEditingWaitingStartDocumentId(null)
+      setEditingWaitingStartDate("")
+    } catch (error) {
+      console.error("Error updating document waiting start date:", error)
+      toast.error(tTiming("waitingStartDateError"))
+    } finally {
+      setIsSavingWaitingStartDate(false)
     }
   }
 
@@ -334,10 +359,12 @@ export function DocumentHistoryDialog({
                           {/* Creation/receipt and uploader info */}
                           <div className="space-y-2 text-xs text-muted-foreground">
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {tTiming("createdDate")}: {formatDocumentTimingDate(timing.createdAt, locale)}
-                              </span>
+                              {userRole === "admin" && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {tTiming("waitingStartDate")}: {formatDocumentTimingDate(timing.waitingStartedAt, locale)}
+                                </span>
+                              )}
                               {userRole === "admin" && (
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
@@ -352,6 +379,22 @@ export function DocumentHistoryDialog({
                               <User className="h-3 w-3" />
                               {uploaderName}
                             </span>
+                              {userRole === "admin" && editingWaitingStartDocumentId !== doc._id && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => {
+                                    setEditingWaitingStartDocumentId(doc._id)
+                                    setEditingWaitingStartDate(timestampToIsoDate(timing.waitingStartedAt))
+                                    setEditingReceivedDocumentId(null)
+                                  }}
+                                >
+                                  <Pencil className="mr-1 h-3 w-3" />
+                                  {tTiming("editWaitingStartDate")}
+                                </Button>
+                              )}
                               {userRole === "admin" && timing.receivedAt !== undefined && editingReceivedDocumentId !== doc._id && (
                                 <Button
                                   type="button"
@@ -361,6 +404,7 @@ export function DocumentHistoryDialog({
                                   onClick={() => {
                                     setEditingReceivedDocumentId(doc._id)
                                     setEditingReceivedDate(timestampToIsoDate(timing.receivedAt!))
+                                    setEditingWaitingStartDocumentId(null)
                                   }}
                                 >
                                   <Pencil className="mr-1 h-3 w-3" />
@@ -368,6 +412,42 @@ export function DocumentHistoryDialog({
                                 </Button>
                               )}
                             </div>
+                            {userRole === "admin" && editingWaitingStartDocumentId === doc._id && (
+                              <div className="space-y-2 rounded-md border bg-background p-3">
+                                <DocumentWaitingStartDateField
+                                  canEdit
+                                  value={editingWaitingStartDate}
+                                  defaultDate={timestampToIsoDate(timing.waitingStartedAt)}
+                                  onChange={setEditingWaitingStartDate}
+                                  disabled={isSavingWaitingStartDate}
+                                  id={`history-waiting-start-date-${doc._id}`}
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEditingWaitingStartDocumentId(null)}
+                                    disabled={isSavingWaitingStartDate}
+                                  >
+                                    {tCommon("cancel")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveWaitingStartDate}
+                                    disabled={isSavingWaitingStartDate || !editingWaitingStartDate}
+                                  >
+                                    {isSavingWaitingStartDate ? (
+                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Save className="mr-1 h-3 w-3" />
+                                    )}
+                                    {tCommon("save")}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                             {userRole === "admin" && editingReceivedDocumentId === doc._id && (
                               <div className="space-y-2 rounded-md border bg-background p-3">
                                 <DocumentReceivedDateField

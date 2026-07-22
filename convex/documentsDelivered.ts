@@ -9,9 +9,11 @@ import { createCachedGet } from "./lib/cachedGet";
 import {
   getDocumentCreatedAt,
   getDocumentReceivedAt,
+  getDocumentWaitingStartedAt,
   hasDocumentContent,
   isValidIsoDate,
   resolveDocumentReceivedAt,
+  resolveDocumentWaitingStartedAt,
 } from "./lib/documentReceiptTiming";
 import {
   canAccessDocument,
@@ -26,11 +28,16 @@ function getFullName(person: { givenNames: string; middleName?: string; surname?
 
 type ClientVisibleDocument = Omit<
   Doc<"documentsDelivered">,
-  "receivedAt" | "reviewedAt" | "uploadedAt"
+  "waitingStartedAt" | "receivedAt" | "reviewedAt" | "uploadedAt"
 > & {
+  waitingStartedAt?: undefined;
   receivedAt?: undefined;
   reviewedAt?: undefined;
   uploadedAt?: undefined;
+};
+
+type AdminVisibleDocument = Doc<"documentsDelivered"> & {
+  waitingStartedAt: number;
 };
 
 /**
@@ -40,16 +47,23 @@ type ClientVisibleDocument = Omit<
 function projectDocumentForViewer(
   document: Doc<"documentsDelivered">,
   viewerRole: "admin" | "client",
-): Doc<"documentsDelivered"> | ClientVisibleDocument {
-  if (viewerRole === "admin") return document;
+): AdminVisibleDocument | ClientVisibleDocument {
+  if (viewerRole === "admin") {
+    return {
+      ...document,
+      waitingStartedAt: getDocumentWaitingStartedAt(document),
+    };
+  }
 
   const {
+    waitingStartedAt: restrictedWaitingStartedAt,
     receivedAt: restrictedReceivedAt,
     reviewedAt: restrictedReviewedAt,
     uploadedAt: restrictedUploadedAt,
     ...clientVisibleDocument
   } = document;
 
+  void restrictedWaitingStartedAt;
   void restrictedReceivedAt;
   void restrictedReviewedAt;
   void restrictedUploadedAt;
@@ -79,6 +93,7 @@ const documentVersionByProgressValidator = v.object({
   status: v.string(),
   uploadedAt: v.number(),
   createdAt: v.number(),
+  waitingStartedAt: v.number(),
   receivedAt: v.number(),
   version: v.number(),
   isLatest: v.boolean(),
@@ -254,6 +269,7 @@ export const listVersionsByProgress = query({
           status: document.status,
           uploadedAt: document.uploadedAt,
           createdAt: getDocumentCreatedAt(document),
+          waitingStartedAt: getDocumentWaitingStartedAt(document),
           receivedAt: getDocumentReceivedAt(document) ?? document.uploadedAt,
           version: document.version,
           isLatest: document.isLatest,
@@ -424,6 +440,53 @@ export const get = query({
 });
 
 /**
+ * Returns the authoritative waiting-start default for an administrative
+ * document insertion UI. Existing placeholders resolve their current value;
+ * new rows resolve the original process creation timestamp.
+ */
+export const getWaitingStartDefaults = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    documentId: v.optional(v.id("documentsDelivered")),
+  },
+  returns: v.object({
+    processCreatedAt: v.number(),
+    waitingStartedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const individualProcess = await ctx.db.get(args.individualProcessId);
+    if (!individualProcess) {
+      throw new ConvexError({
+        code: "INDIVIDUAL_PROCESS_NOT_FOUND",
+        message: "Individual process not found",
+      });
+    }
+
+    let waitingStartedAt = individualProcess.createdAt;
+    if (args.documentId) {
+      const document = await ctx.db.get(args.documentId);
+      if (
+        !document ||
+        document.individualProcessId !== args.individualProcessId
+      ) {
+        throw new ConvexError({
+          code: "DOCUMENT_NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+      waitingStartedAt = getDocumentWaitingStartedAt(document);
+    }
+
+    return {
+      processCreatedAt: individualProcess.createdAt,
+      waitingStartedAt,
+    };
+  },
+});
+
+/**
  * Mutation to upload a document
  * Creates a new version if replacing an existing document
  */
@@ -446,6 +509,7 @@ export const upload = mutation({
     rejectionReason: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
     bypassConditions: v.optional(v.boolean()),
+    waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
@@ -537,6 +601,13 @@ export const upload = mutation({
     const createdAt = fillsPendingVersion
       ? getDocumentCreatedAt(currentLatest)
       : now;
+    const waitingStartedAt = resolveDocumentWaitingStartedAt({
+      requestedDate: args.waitingStartDate,
+      userRole: userProfile.role,
+      processCreatedAt: fillsPendingVersion
+        ? currentLatest.waitingStartedAt ?? individualProcess.createdAt
+        : individualProcess.createdAt,
+    });
     const receivedAt = resolveDocumentReceivedAt({
       requestedDate: args.receivedDate,
       userRole: userProfile.role,
@@ -558,6 +629,7 @@ export const upload = mutation({
         uploadedBy: uploaderUserId,
         uploadedAt,
         createdAt,
+        waitingStartedAt,
         receivedAt,
         reviewedBy: (canAutoApprove || isIllegible) ? uploaderUserId : undefined,
         reviewedAt: (canAutoApprove || isIllegible) ? uploadedAt : undefined,
@@ -592,6 +664,7 @@ export const upload = mutation({
         uploadedBy: uploaderUserId,
         uploadedAt,
         createdAt,
+        waitingStartedAt,
         receivedAt,
         reviewedBy: (canAutoApprove || isIllegible) ? uploaderUserId : undefined,
         reviewedAt: (canAutoApprove || isIllegible) ? uploadedAt : undefined,
@@ -1064,7 +1137,7 @@ export const getVersionHistory = query({
                 receivedAt: getDocumentReceivedAt(doc),
                 waitingEndedAt:
                   !hasContent && successor
-                    ? getDocumentCreatedAt(successor)
+                    ? getDocumentWaitingStartedAt(successor)
                     : undefined,
               }
             : {}),
@@ -1169,6 +1242,7 @@ export const restoreVersion = mutation({
       uploadedBy: adminProfile.userId,
       uploadedAt,
       createdAt,
+      waitingStartedAt: individualProcess.createdAt,
       receivedAt: uploadedAt,
       expiryDate: oldDocument.expiryDate,
       version: newVersion,
@@ -1466,6 +1540,73 @@ export const updateIssueDate = mutation({
             issueDate: {
               before: document.issueDate ?? null,
               after: issueDate ?? null,
+            },
+          },
+        },
+      });
+    }
+
+    return document._id;
+  },
+});
+
+/**
+ * Corrects the business date that starts the waiting-time counter (admin only).
+ * Technical creation, receipt, file, status and version metadata are preserved.
+ */
+export const updateWaitingStartedAt = mutation({
+  args: {
+    documentId: v.id("documentsDelivered"),
+    waitingStartDate: v.string(),
+  },
+  returns: v.id("documentsDelivered"),
+  handler: async (ctx, args) => {
+    const adminProfile = await requireAdmin(ctx);
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new ConvexError({
+        code: "DOCUMENT_NOT_FOUND",
+        message: "Document not found",
+      });
+    }
+
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new ConvexError({
+        code: "INDIVIDUAL_PROCESS_NOT_FOUND",
+        message: "Individual process not found",
+      });
+    }
+
+    const previousWaitingStartedAt = getDocumentWaitingStartedAt(document);
+    const waitingStartedAt = resolveDocumentWaitingStartedAt({
+      requestedDate: args.waitingStartDate,
+      userRole: "admin",
+      processCreatedAt: individualProcess.createdAt,
+    });
+
+    if (
+      previousWaitingStartedAt === waitingStartedAt &&
+      document.waitingStartedAt !== undefined
+    ) {
+      return document._id;
+    }
+
+    await ctx.db.patch(document._id, { waitingStartedAt });
+
+    if (adminProfile.userId) {
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: adminProfile.userId,
+        action: "waiting_start_date_updated",
+        entityType: "document",
+        entityId: document._id,
+        details: {
+          fileName: document.fileName,
+          version: document.version,
+          changes: {
+            waitingStartedAt: {
+              before: previousWaitingStartedAt,
+              after: waitingStartedAt,
             },
           },
         },
@@ -1980,6 +2121,7 @@ export const uploadLoose = mutation({
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
     documentName: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
+    waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
@@ -2040,6 +2182,11 @@ export const uploadLoose = mutation({
     const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
     const initialVersion = 1;
     const createdAt = Date.now();
+    const waitingStartedAt = resolveDocumentWaitingStartedAt({
+      requestedDate: args.waitingStartDate,
+      userRole: userProfile.role,
+      processCreatedAt: individualProcess.createdAt,
+    });
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
           requestedDate: args.receivedDate,
@@ -2066,6 +2213,7 @@ export const uploadLoose = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt,
       createdAt,
+      waitingStartedAt,
       receivedAt,
       ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
       expiryDate: args.expiryDate,
@@ -2139,6 +2287,7 @@ export const uploadWithType = mutation({
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
     autoApprove: v.optional(v.boolean()),
     bypassConditions: v.optional(v.boolean()),
+    waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
@@ -2277,6 +2426,11 @@ export const uploadWithType = mutation({
 
     const status = canAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
     const createdAt = Date.now();
+    const waitingStartedAt = resolveDocumentWaitingStartedAt({
+      requestedDate: args.waitingStartDate,
+      userRole: userProfile.role,
+      processCreatedAt: individualProcess.createdAt,
+    });
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
           requestedDate: args.receivedDate,
@@ -2303,6 +2457,7 @@ export const uploadWithType = mutation({
       uploadedBy: uploaderUserId,
       uploadedAt,
       createdAt,
+      waitingStartedAt,
       receivedAt,
       ...(canAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
       bypassConditions: args.bypassConditions || undefined,
@@ -2488,6 +2643,7 @@ export const uploadForPending = mutation({
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
+    waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
@@ -2580,6 +2736,13 @@ export const uploadForPending = mutation({
     const createdAt = isRejectedResubmission
       ? now
       : getDocumentCreatedAt(document);
+    const waitingStartedAt = resolveDocumentWaitingStartedAt({
+      requestedDate: args.waitingStartDate,
+      userRole: userProfile.role,
+      processCreatedAt: isRejectedResubmission
+        ? individualProcess.createdAt
+        : document.waitingStartedAt ?? individualProcess.createdAt,
+    });
     const receivedAt = resolveDocumentReceivedAt({
       requestedDate: args.receivedDate,
       userRole: userProfile.role,
@@ -2623,6 +2786,7 @@ export const uploadForPending = mutation({
         uploadedBy: uploaderUserId,
         uploadedAt,
         createdAt,
+        waitingStartedAt,
         receivedAt,
         ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
         expiryDate: args.expiryDate,
@@ -2648,6 +2812,7 @@ export const uploadForPending = mutation({
         uploadedBy: uploaderUserId,
         uploadedAt,
         createdAt,
+        waitingStartedAt,
         receivedAt,
         ...(shouldAutoApprove ? { reviewedBy: uploaderUserId, reviewedAt: uploadedAt } : {}),
         expiryDate: args.expiryDate,
@@ -3435,6 +3600,8 @@ export const reuseCompanyDocument = mutation({
       uploadedBy: userProfile.userId!,
       uploadedAt,
       createdAt: getDocumentCreatedAt(targetDoc),
+      waitingStartedAt:
+        targetDoc.waitingStartedAt ?? targetProcess.createdAt,
       receivedAt: uploadedAt,
       reviewedBy: userProfile.userId!,
       reviewedAt: uploadedAt,
@@ -3591,6 +3758,7 @@ export const bulkReuseCompanyDocuments = mutation({
         uploadedBy: userProfile.userId!,
         uploadedAt,
         createdAt: getDocumentCreatedAt(targetDoc),
+        waitingStartedAt: targetDoc.waitingStartedAt ?? process.createdAt,
         receivedAt: uploadedAt,
         reviewedBy: userProfile.userId!,
         reviewedAt: uploadedAt,
@@ -3720,6 +3888,7 @@ export const addMissingDocument = mutation({
       uploadedBy: adminProfile.userId,
       uploadedAt: createdAt,
       createdAt,
+      waitingStartedAt: individualProcess.createdAt,
       version: 1,
       isLatest: true,
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,
@@ -3818,6 +3987,7 @@ export const syncMissingDocuments = mutation({
         uploadedBy: adminProfile.userId,
         uploadedAt: createdAt,
         createdAt,
+        waitingStartedAt: individualProcess.createdAt,
         version: 1,
         isLatest: true,
         excludedFromReport: documentType.excludeFromReportByDefault || undefined,
@@ -4014,6 +4184,8 @@ export const submitInformationFields = mutation({
         uploadedBy: existingDoc.uploadedBy ?? userProfile.userId,
         uploadedAt: receivedAt,
         createdAt,
+        waitingStartedAt:
+          existingDoc.waitingStartedAt ?? process.createdAt,
         receivedAt,
         reviewedBy: userProfile.userId,
         reviewedAt: now,
@@ -4049,6 +4221,7 @@ export const submitInformationFields = mutation({
       uploadedBy: userProfile.userId,
       uploadedAt: now,
       createdAt: now,
+      waitingStartedAt: process.createdAt,
       receivedAt: now,
       reviewedBy: userProfile.userId,
       reviewedAt: now,
@@ -4363,6 +4536,10 @@ export const linkToStatusAndReject = mutation({
     }
 
     const previousStatus = document.status;
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
 
     // Link to status + reject + mark as not latest
     await ctx.db.patch(documentId, {
@@ -4407,6 +4584,7 @@ export const linkToStatusAndReject = mutation({
       uploadedBy: adminProfile.userId!,
       uploadedAt: createdAt,
       createdAt,
+      waitingStartedAt: individualProcess.createdAt,
       version: document.version + 1,
       isLatest: true,
       excludedFromReport: document.excludedFromReport,

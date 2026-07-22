@@ -1,4 +1,118 @@
-# TODO ATIVO: Leitura de passaporte por IA e anexo exclusivo da Pessoa
+# TODO ATIVO: Data de início da espera dos documentos baseada na criação do processo
+
+## Contexto
+
+No fluxo administrativo de documentos do Processo Individual, a data que inicia o contador de **Aguardando há N dias** precisa ficar visível e editável. O valor padrão de todo documento inserido deve ser sempre a data original de criação do `individualProcesses`, mesmo quando o documento ou uma nova versão forem adicionados depois. Hoje o contador usa `documentsDelivered.createdAt` (com fallback para `_creationTime`), e vários fluxos de inserção gravam `Date.now()`, por isso o administrador não tem um parâmetro de negócio claro nem consegue corrigi-lo.
+
+## Decisões de implementação
+
+- Adicionar `waitingStartedAt?: number` em `documentsDelivered` como a data de negócio que inicia a espera. Não reutilizar nem sobrescrever `createdAt`: ele continua sendo o timestamp técnico e imutável da linha/versão, também usado pela política de visibilidade de documentos para clientes.
+- Manter `receivedAt` separado como a data real de recebimento. O cálculo passa a ser `waitingStartedAt -> receivedAt`, `waitingEndedAt` ou horário atual; `uploadedAt` continua apenas como compatibilidade de recebimento.
+- Todo novo registro/versão de `documentsDelivered` recebe por padrão `waitingStartedAt = individualProcess.createdAt`, inclusive checklists automáticos, documentos tipados/avulsos sem arquivo, restauração, rejeição/reenvio, documento informativo e cópia de processo. Preencher um placeholder existente preserva a data já definida.
+- Permitir override apenas a `admin`, com uma data de calendário ISO válida. Payload forjado por `client` deve ser rejeitado no backend, e a experiência do cliente não deve renderizar nem receber esse campo operacional.
+- Exibir o rótulo localizado **Data de início da espera** / **Waiting start date**, deixando explícito que essa é a base do contador. Não chamar o campo de **Data de criação**, para não confundir a data de negócio editável com `createdAt`.
+- Nas inserções administrativas, carregar a criação original do processo como default visível, mas fazer o servidor resolver novamente o processo e aplicar o default autoritativo. Em versões já existentes, permitir correção posterior por mutation dedicada, sem alterar arquivo, status, `createdAt` ou `receivedAt`.
+- Fazer backfill idempotente dos registros existentes com a criação do respectivo processo; durante a transição, os helpers mantêm fallback seguro para `createdAt ?? _creationTime`. Não editar `convex/_generated/` manualmente.
+- Não criar testes automatizados para este MVP. Validar contratos, TypeScript, lint/build e o fluxo autenticado em pt/en.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar PRD, modelo, cálculo e todos os caminhos relevantes de criação/edição de documentos.
+  - Confirmado em `app/[locale]/(dashboard)/prd.md`, `convex/schema.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentReceiptTiming.ts`, `convex/lib/documentChecklist.ts`, `convex/individualProcesses.ts`, `lib/document-wait-time.ts`, `components/individual-processes/document-wait-time-badge.tsx`, `document-review-dialog.tsx`, `document-history-dialog.tsx` e dialogs de upload.
+  - Confirmado: `getDocumentWaitTime` inicia em `document.createdAt ?? document._creationTime`; `generateDocumentChecklist*`, `uploadLoose`, `uploadWithType`, `addMissingDocument`, `syncMissingDocuments` e novas versões usam a criação da própria linha; o admin vê a data técnica somente em revisão/histórico e consegue editar apenas `receivedAt`.
+  - Confirmado: `convex/lib/clientDocumentVisibility.ts` compara `createdAt` com `userProfiles.createdAt`; por isso transformar `createdAt` em data de negócio editável poderia expor ou esconder documentos incorretamente para clientes.
+- [x] 0.2: Delimitar os arquivos exatos e preservar o histórico já concluído deste `todo`.
+  - Criar: `convex/migrations/backfillDocumentWaitingStartedAt.ts` e `components/individual-processes/document-waiting-start-date-field.tsx`.
+  - Modificar no backend: `convex/schema.ts`, `convex/documentsDelivered.ts`, `convex/lib/documentReceiptTiming.ts`, `convex/lib/documentChecklist.ts` e `convex/individualProcesses.ts`.
+  - Modificar no frontend: `lib/document-wait-time.ts`, `components/individual-processes/document-wait-time-badge.tsx`, `document-review-dialog.tsx`, `document-history-dialog.tsx`, `document-upload-dialog.tsx`, `pending-document-upload-dialog.tsx`, `upload-new-version-dialog.tsx`, `loose-document-upload-dialog.tsx` e `typed-document-upload-dialog.tsx`.
+  - Documentação/i18n: `app/[locale]/(dashboard)/prd.md`, `messages/pt.json` e `messages/en.json`. Reavaliar `components/individual-processes/document-checklist-card.tsx` e `status-documents-dialog.tsx` somente se precisarem propagar o default/capacidade administrativa aos dialogs.
+
+### 1. Modelar a data de início sem alterar a criação técnica
+
+- [x] 1.1: Adicionar `waitingStartedAt` opcional a `documentsDelivered` e centralizar a semântica em `convex/lib/documentReceiptTiming.ts`.
+  - Criar helpers tipados para obter `waitingStartedAt ?? createdAt ?? _creationTime` e resolver um override `YYYY-MM-DD` somente para admin, usando a mesma normalização de calendário já aplicada a `receivedAt`.
+  - Manter `getDocumentCreatedAt` para a criação técnica e `getDocumentReceivedAt` para o recebimento; não reutilizar um helper com semânticas diferentes.
+  - Validação: data inválida gera `ConvexError` controlado; nenhuma edição do início toca `createdAt`, `_creationTime`, `receivedAt`, `uploadedAt`, status, arquivo ou versão.
+- [x] 1.2: Aplicar o default do processo em todos os inserts e transições de versão.
+  - Em `convex/lib/documentChecklist.ts`, usar `individualProcess.createdAt` em `generateDocumentChecklist` e `generateDocumentChecklistByLegalFramework`.
+  - Em `convex/documentsDelivered.ts`, cobrir `upload`, `uploadLoose`, `uploadWithType`, `uploadForPending`, `restoreVersion`, `addMissingDocument`, `syncMissingDocuments`, o fallback de `submitInformationFields` e `linkToStatusAndReject`, além de qualquer outro `insert("documentsDelivered")` encontrado na revisão final.
+  - Em `convex/individualProcesses.ts`, inicializar documentos copiados por `createFromExisting` com a criação do novo processo, não com a data do documento-fonte.
+  - Preservar `waitingStartedAt` quando uma linha pendente é preenchida por patch; quando uma nova linha/versão é criada, usar a criação original do processo salvo no banco, salvo override administrativo explícito.
+  - Validação: nenhum caminho usa data enviada pelo browser como default; criação do documento e resolução do processo acontecem na mesma mutation e mantêm os auth checks atuais.
+- [x] 1.3: Criar e executar backfill idempotente em `convex/migrations/backfillDocumentWaitingStartedAt.ts`.
+  - Paginar `documentsDelivered`, carregar o `individualProcesses` correspondente e preencher somente linhas ainda sem `waitingStartedAt` com `process.createdAt`; reportar atualizados, ausentes e cursor de continuação.
+  - Não reescrever overrides já existentes nem `createdAt`; tratar documento órfão como skip auditável, sem interromper o lote inteiro.
+  - Validação: executar primeiro em dev até `isDone`, conferir amostras de documento criado junto e depois do processo e registrar o comando seguro com `pnpm exec convex run`; produção fica para o fluxo de deploy autorizado.
+  - Executado no Convex de desenvolvimento em 22/07/2026: `updated: 94`, `missingProcess: 0`, `skipped: 0`, `isDone: true`. Produção não foi alterada.
+
+### 2. Autorizar edição e usar a data correta no contador
+
+- [x] 2.1: Adicionar contratos administrativos em `convex/documentsDelivered.ts`.
+  - Aceitar `waitingStartDate?: string` nos fluxos que criam documento/versão e recusar o argumento quando `userProfile.role !== "admin"`, mesmo que o cliente forje o payload.
+  - Criar `updateWaitingStartedAt({documentId, waitingStartDate})` com `requireAdmin`, `args`/`returns`, validação de existência e activity log de antes/depois; a mutation altera somente `waitingStartedAt`.
+  - Garantir que queries administrativas (`list`, `get`, histórico, agrupamentos e versões por andamento) devolvam o valor resolvido; remover `waitingStartedAt` na projeção destinada a `client`, assim como já ocorre com datas operacionais de recebimento.
+  - Validação: queries continuam indexadas, IDs usam `Id<"documentsDelivered">`, e a data técnica usada em `convex/lib/clientDocumentVisibility.ts` permanece `createdAt`.
+- [x] 2.2: Atualizar `lib/document-wait-time.ts` e `document-wait-time-badge.tsx` para usar exclusivamente o início de espera resolvido.
+  - Calcular dias de calendário em `America/Sao_Paulo` desde `waitingStartedAt` até `receivedAt`, `waitingEndedAt` ou agora, mantendo os estados `pending`, `received` e `superseded` e nunca exibindo duração negativa.
+  - Renomear no tipo/retorno interno o valor exibido para `waitingStartedAt`; eliminar textos que ainda indiquem que a criação técnica da versão é a base do contador.
+  - Validação: alterar a data e receber a atualização Convex recalcula imediatamente badge, tooltip, revisão e histórico; editar `receivedAt` continua mudando apenas o fim do intervalo.
+
+### 3. Tornar o parâmetro visível e editável para o administrador
+
+- [x] 3.1: Criar `document-waiting-start-date-field.tsx` reutilizável, acessível e localizado.
+  - Reutilizar `DatePicker`, `Label` e Zod; aceitar valor controlado, default resolvido do processo, loading/disabled e mensagem de erro, sem duplicar o componente de **Data de recebimento**.
+  - Exibir somente quando a capacidade administrativa for verdadeira; explicar no hint que a criação original do processo é o default e que o contador usa essa data.
+  - Validação: abertura/reset de dialog restaura o default do processo, não o dia atual; teclado, label, descrição e erro possuem associação acessível.
+- [x] 3.2: Integrar o campo aos dialogs que podem inserir uma linha ou nova versão.
+  - Em `loose-document-upload-dialog.tsx` e `typed-document-upload-dialog.tsx`, mostrar sempre a data de início ao admin, inclusive ao salvar documento pendente sem arquivo, e enviar override apenas quando divergir da criação do processo.
+  - Em `document-upload-dialog.tsx`, `pending-document-upload-dialog.tsx` e `upload-new-version-dialog.tsx`, mostrar a data resolvida da linha existente ou o default do processo conforme a mutation fizer patch ou insert; manter **Data de recebimento** como campo separado quando houver arquivo.
+  - Buscar o default por contrato autorizado e pequeno ou propagá-lo de `document-checklist-card.tsx`/`status-documents-dialog.tsx`; não confiar em uma data montada apenas no cliente.
+  - Validação: client não vê label, input, hint, espaço vazio nem envia `waitingStartDate`; admin nunca confunde início da espera com recebimento.
+- [x] 3.3: Permitir visualizar e corrigir o início em `document-review-dialog.tsx` e `document-history-dialog.tsx`.
+  - Substituir o rótulo administrativo genérico **Data de criação** pela data de início da espera e adicionar ação **Editar**, usando `updateWaitingStartedAt`; se necessário, manter a criação técnica apenas como metadado não editável claramente separado.
+  - Mostrar o valor em cada versão do histórico e manter a edição limitada à versão selecionada, com toast de sucesso/erro e estado de salvamento.
+  - Validação: salvar reflete no contador sem fechar/reabrir; cancelar não altera nada; versões anteriores não são modificadas ao editar a atual.
+
+### 4. PRD, i18n e quality gates
+
+- [x] 4.1: Atualizar `app/[locale]/(dashboard)/prd.md` e as mensagens pt/en.
+  - Documentar `createdAt` técnico, `waitingStartedAt` editável/admin-only, default em `individualProcesses.createdAt`, `receivedAt` e a fórmula do contador.
+  - Adicionar chaves equivalentes para rótulo, hint, editar, salvar, sucesso, erro, detalhes do badge e validação; manter paridade e nenhum texto novo hardcoded.
+- [x] 4.2: Executar quality gates proporcionais ao escopo.
+  - Rodar `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado, `pnpm lint`, `pnpm run build` e `git diff --check`, separando débitos globais preexistentes.
+  - Confirmar TypeScript strict sem `any` novo, Zod no campo, validators Convex de `args`/`returns`, `requireAdmin`, queries com índices, i18n pt/en e ausência de edição manual em `convex/_generated/`.
+  - Em 22/07/2026: `pnpm exec convex codegen`, `pnpm exec tsc --noEmit` e `pnpm run build` passaram; lint do núcleo novo/alterado, JSON pt/en e verificação de whitespace passaram.
+  - `pnpm lint` global continua não-zero por débitos preexistentes espalhados no repositório (`no-explicit-any`, imports e hooks), sem erro novo nos helpers/componentes centrais desta entrega.
+- [x] 4.3: Validar no browser autenticado em pt/en, desktop e mobile.
+  - Criar processo e confirmar que os documentos automáticos mostram exatamente sua data de criação como início; adicionar documento dias depois e confirmar o mesmo default antes e depois de salvar.
+  - Alterar o início para outra data e validar recálculo de **Aguardando há N dias**; enviar o arquivo e validar o intervalo início -> recebimento; conferir revisão e histórico por versão.
+  - Cobrir documento tipado, avulso, sem arquivo, placeholder, nova versão/rejeição e informação-only; verificar que `createdAt` e visibilidade do cliente não mudam.
+  - Como client, confirmar ausência completa do campo e rejeição servidor-side de `waitingStartDate`; verificar responsividade, foco, console e network sem regressão.
+  - Validado como admin em pt/en: processo criado em 20/07/2026 exibiu `waitingStartedAt` 20/07/2026 no badge e no upload em 22/07/2026; o input aceitou edição e foi cancelado sem persistir.
+  - Em processo com versões existentes, revisão e histórico mostraram o início 11/03/2026, ações de edição por versão e contadores pendente/recebido/encerrado coerentes. Em 390x844, o dialog ficou sem overflow horizontal (`scrollWidth = viewportWidth = 390`).
+  - A projeção e o resolver backend foram conferidos para cliente sem credencial client disponível para uma segunda sessão autenticada. O console apontou apenas a chave preexistente ausente `ActivityLogs.actions.uploaded_from_passport`, fora deste escopo.
+
+## Riscos e mitigações
+
+- **Quebrar a visibilidade por data do cliente:** manter `createdAt` técnico e `clientDocumentVisibility.ts` intactos; usar `waitingStartedAt` somente no domínio do contador.
+- **Confundir início e recebimento:** rótulos distintos, dois campos separados quando houver upload e helpers/mutations com nomes específicos.
+- **Defaults divergentes entre UI e servidor:** a UI apenas apresenta a criação do processo; a mutation recarrega `individualProcesses.createdAt` e é a fonte autoritativa.
+- **Nova versão perder correção anterior:** patch de placeholder preserva o valor; insert recebe explicitamente o default/override conforme a regra, nunca por spread acidental.
+- **Contagem histórica mudar silenciosamente:** migration idempotente, fallback durante rollout, amostragem antes/depois e activity log para edições manuais.
+
+## Definition of Done
+
+- [x] Todo documento/versão novo inicia por padrão na data original de criação do Processo Individual, inclusive quando inserido posteriormente.
+- [x] O administrador vê e edita **Data de início da espera** na inserção, revisão e histórico; o cliente não vê nem consegue forjar o campo.
+- [x] **Aguardando/Recebido em N dias** usa `waitingStartedAt` como início e `receivedAt`/encerramento/agora como fim.
+- [x] `createdAt` técnico, `receivedAt`, arquivo, status, versão e política de visibilidade permanecem semanticamente independentes.
+- [x] Registros existentes recebem backfill seguro; PRD/i18n, TypeScript strict, Convex auth/validators, lint/build e validação pt/en desktop/mobile não apresentam regressão nova.
+
+---
+
+# TODO ANTERIOR: Leitura de passaporte por IA e anexo exclusivo da Pessoa
 
 ## Contexto
 

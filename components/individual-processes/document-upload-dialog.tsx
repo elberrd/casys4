@@ -34,6 +34,10 @@ import {
   getDefaultReceivedDate,
   getReceivedDateOverride,
 } from "./document-received-date-field"
+import {
+  DocumentWaitingStartDateField,
+  useDocumentWaitingStartDate,
+} from "./document-waiting-start-date-field"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -95,6 +99,19 @@ export function DocumentUploadDialog({
   const [autoApprove, setAutoApprove] = useState(false)
   const [bypassConditions, setBypassConditions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const {
+    waitingStartDate,
+    setWaitingStartDate,
+    defaultWaitingStartDate,
+    isWaitingStartDateLoading,
+    isWaitingStartDateValid,
+    waitingStartDateOverride,
+  } = useDocumentWaitingStartDate({
+    open,
+    canEdit: canEditReceivedDate,
+    individualProcessId,
+    documentId: existingDocumentId,
+  })
 
   // Pre-populate versionNotes when dialog opens with existing notes
   useEffect(() => {
@@ -271,6 +288,7 @@ export function DocumentUploadDialog({
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
         bypassConditions: bypassConditions || undefined,
+        waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
           ? getReceivedDateOverride(receivedDate)
           : undefined,
@@ -415,6 +433,16 @@ export function DocumentUploadDialog({
               </label>
             </div>
           )}
+
+          <DocumentWaitingStartDateField
+            canEdit={canEditReceivedDate}
+            value={waitingStartDate}
+            defaultDate={defaultWaitingStartDate}
+            onChange={setWaitingStartDate}
+            disabled={isUploading}
+            loading={isWaitingStartDateLoading}
+            id="document-upload-waiting-start-date"
+          />
 
           <DocumentReceivedDateField
             canEdit={canEditReceivedDate}
@@ -621,7 +649,11 @@ export function DocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={(!selectedFile && (!existingDocumentId || !versionNotes.trim())) || isUploading}
+            disabled={
+              (!selectedFile && (!existingDocumentId || !versionNotes.trim())) ||
+              isUploading ||
+              (canEditReceivedDate && !isWaitingStartDateValid)
+            }
             variant={isIllegible ? "destructive" : "default"}
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

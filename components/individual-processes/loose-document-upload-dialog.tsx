@@ -30,6 +30,10 @@ import {
   getDefaultReceivedDate,
   getReceivedDateOverride,
 } from "./document-received-date-field";
+import {
+  DocumentWaitingStartDateField,
+  useDocumentWaitingStartDate,
+} from "./document-waiting-start-date-field";
 
 interface LooseDocumentUploadDialogProps {
   open: boolean;
@@ -61,6 +65,18 @@ export function LooseDocumentUploadDialog({
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    waitingStartDate,
+    setWaitingStartDate,
+    defaultWaitingStartDate,
+    isWaitingStartDateLoading,
+    isWaitingStartDateValid,
+    waitingStartDateOverride,
+  } = useDocumentWaitingStartDate({
+    open,
+    canEdit: canEditReceivedDate,
+    individualProcessId,
+  });
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadLoose = useMutation(api.documentsDelivered.uploadLoose);
@@ -173,6 +189,7 @@ export function LooseDocumentUploadDialog({
           : undefined,
         documentName: documentName.trim() || undefined,
         autoApprove: autoApprove || undefined,
+        waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
           ? getReceivedDateOverride(receivedDate)
           : undefined,
@@ -307,6 +324,16 @@ export function LooseDocumentUploadDialog({
             </div>
           )}
 
+          <DocumentWaitingStartDateField
+            canEdit={canEditReceivedDate}
+            value={waitingStartDate}
+            defaultDate={defaultWaitingStartDate}
+            onChange={setWaitingStartDate}
+            disabled={isUploading}
+            loading={isWaitingStartDateLoading}
+            id="loose-document-waiting-start-date"
+          />
+
           <DocumentReceivedDateField
             canEdit={canEditReceivedDate}
             value={receivedDate}
@@ -363,7 +390,11 @@ export function LooseDocumentUploadDialog({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!canSave || isUploading}
+            disabled={
+              !canSave ||
+              isUploading ||
+              (canEditReceivedDate && !isWaitingStartDateValid)
+            }
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedFile ? t("upload") : t("saveWithoutFile")}

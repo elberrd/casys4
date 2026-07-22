@@ -868,6 +868,7 @@ Actual documents uploaded by users.
   uploadedBy: Id<"users">              // Who uploaded
   uploadedAt: number                   // Legacy compatibility timestamp; mirrors receivedAt for received content
   createdAt?: number                   // Creation of this row/version; immutable after creation
+  waitingStartedAt?: number            // Business start of the waiting counter; defaults to the process creation date
   receivedAt?: number                  // Business receipt date; absent until content is received
   reviewedBy?: Id<"users">             // Who reviewed
   reviewedAt?: number                  // Review timestamp
@@ -878,10 +879,13 @@ Actual documents uploaded by users.
 }
 ```
 
-**Access Control**:
-- Admin users: Full CRUD access to all documents; can view, set during upload, and later correct `receivedAt` to any valid calendar date, including dates before the version's `createdAt` and future dates
-- Client users: Can upload documents for processes in their company, but cannot send an override or read `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
-- The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original `createdAt`; a new version receives a new `createdAt`
+**Access Control and timing**:
+- Admin users: Full CRUD access to all documents; can view, set during upload, and later correct both `waitingStartedAt` and `receivedAt` to valid calendar dates
+- Client users: Can upload documents for processes in their company, but cannot send an override or read `waitingStartedAt`, `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
+- Every document or version starts with `waitingStartedAt = individualProcesses.createdAt`, even when it is added later. An explicit administrative override can change only this business date
+- The waiting counter is calculated from `waitingStartedAt` to `receivedAt`, the version closing timestamp, or the current time. Calendar-day differences use the configured business timezone and never display a negative duration
+- The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original timing fields; a new version receives a new immutable technical `createdAt`
+- `createdAt` remains independent from the editable business dates because it identifies the technical creation of the row/version and is also used by the client document visibility policy
 
 #### Tracking and History Tables
 
