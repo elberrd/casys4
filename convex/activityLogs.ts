@@ -2,21 +2,31 @@ import { v } from "convex/values";
 import { query, action, internalMutation, QueryCtx } from "./_generated/server";
 import { Id, DataModel } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { createCachedGet } from "./lib/cachedGet";
 
-function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: {
+  givenNames: string;
+  middleName?: string;
+  surname?: string;
+}): string {
+  return [person.givenNames, person.middleName, person.surname]
+    .filter(Boolean)
+    .join(" ");
 }
 
 // Mapping of ID fields to their table and display name resolver
-const ID_FIELD_RESOLVERS: Record<string, {
-  table: keyof DataModel;
-  resolve: (doc: any) => string;
-  // If the display name requires a nested lookup (e.g., consulate → city)
-  nestedLookup?: (ctx: QueryCtx, doc: any) => Promise<string | null>;
-}> = {
+const ID_FIELD_RESOLVERS: Record<
+  string,
+  {
+    table: keyof DataModel;
+    resolve: (doc: any) => string;
+    // If the display name requires a nested lookup (e.g., consulate → city)
+    nestedLookup?: (ctx: QueryCtx, doc: any) => Promise<string | null>;
+  }
+> = {
   cboId: {
     table: "cboCodes",
-    resolve: (doc) => doc.code ? `${doc.code} - ${doc.title}` : doc.title,
+    resolve: (doc) => (doc.code ? `${doc.code} - ${doc.title}` : doc.title),
   },
   consulateId: {
     table: "consulates",
@@ -92,7 +102,7 @@ const ID_FIELD_RESOLVERS: Record<string, {
 async function resolveIdValue(
   ctx: QueryCtx,
   fieldName: string,
-  value: unknown
+  value: unknown,
 ): Promise<string | null> {
   if (!value || typeof value !== "string") return null;
   const resolver = ID_FIELD_RESOLVERS[fieldName];
@@ -114,16 +124,14 @@ async function resolveIdValue(
 /**
  * Process activity log changes to resolve ID fields to display names
  */
-async function resolveChangesIds(
-  ctx: QueryCtx,
-  details: any
-): Promise<any> {
+async function resolveChangesIds(ctx: QueryCtx, details: any): Promise<any> {
   if (!details?.changes || typeof details.changes !== "object") return details;
 
   const resolvedChanges = { ...details.changes };
 
   for (const [field, change] of Object.entries(resolvedChanges)) {
-    if (!ID_FIELD_RESOLVERS[field] || !change || typeof change !== "object") continue;
+    if (!ID_FIELD_RESOLVERS[field] || !change || typeof change !== "object")
+      continue;
     const { before, after } = change as { before: unknown; after: unknown };
 
     const [resolvedBefore, resolvedAfter] = await Promise.all([
@@ -143,7 +151,10 @@ async function resolveChangesIds(
 const ENTITY_TYPE_GROUPS: Record<string, string[]> = {
   collectiveprocess: ["collectiveProcess", "collectiveProcesses"],
   individualprocess: ["individualProcess", "individualProcesses"],
-  individualprocessstatus: ["individualProcessStatus", "individualProcessStatuses"],
+  individualprocessstatus: [
+    "individualProcessStatus",
+    "individualProcessStatuses",
+  ],
   document: ["document", "documents", "documentsDelivered"],
   task: ["task", "tasks"],
   userprofile: ["userProfile", "userProfiles"],
@@ -172,7 +183,10 @@ const ENTITY_TYPE_CANONICAL = new Map<string, string>();
 for (const aliases of Object.values(ENTITY_TYPE_GROUPS)) {
   const canonical = aliases[0];
   for (const alias of aliases) {
-    ENTITY_TYPE_CANONICAL.set(alias.replace(/[^a-z0-9]/gi, "").toLowerCase(), canonical);
+    ENTITY_TYPE_CANONICAL.set(
+      alias.replace(/[^a-z0-9]/gi, "").toLowerCase(),
+      canonical,
+    );
   }
 }
 
@@ -193,6 +207,42 @@ type LogUserInfo = {
   fullName: string;
   email: string;
 } | null;
+
+type IndividualProcessLogContext = {
+  candidateName: string | null;
+  processReference: string | null;
+};
+
+const activityLogListItemValidator = v.object({
+  _id: v.id("activityLogs"),
+  _creationTime: v.number(),
+  userId: v.id("users"),
+  action: v.string(),
+  entityType: v.string(),
+  entityId: v.string(),
+  details: v.optional(v.any()),
+  ipAddress: v.optional(v.string()),
+  userAgent: v.optional(v.string()),
+  createdAt: v.number(),
+  user: v.union(
+    v.object({
+      _id: v.id("userProfiles"),
+      fullName: v.string(),
+      email: v.string(),
+    }),
+    v.null(),
+  ),
+  candidateName: v.union(v.string(), v.null()),
+  processReference: v.union(v.string(), v.null()),
+});
+
+function getStringDetail(details: unknown, key: string): string | null {
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return null;
+
+  const value = (details as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
 
 /**
  * Per-execution memoized user enrichment: activity logs repeat the same few
@@ -228,11 +278,76 @@ function createLogUserEnricher(ctx: QueryCtx) {
   };
 
   return async function enrichLogUser<T extends { userId: Id<"users"> }>(
-    log: T
+    log: T,
   ): Promise<T & { user: LogUserInfo }> {
     return {
       ...log,
       user: await resolveUser(log.userId),
+    };
+  };
+}
+
+/**
+ * Adds process reference and candidate name only to individual-process logs.
+ * Values captured when the log was created take precedence, while current
+ * records fill gaps in older logs. Other entity types intentionally stay blank.
+ */
+function createIndividualProcessLogEnricher(ctx: QueryCtx) {
+  const cachedGet = createCachedGet(ctx.db);
+  const cache = new Map<string, Promise<IndividualProcessLogContext>>();
+
+  const resolveProcess = (
+    processId: Id<"individualProcesses">,
+  ): Promise<IndividualProcessLogContext> => {
+    let hit = cache.get(processId);
+    if (!hit) {
+      hit = (async () => {
+        const process = await cachedGet(processId);
+        if (!process) {
+          return { candidateName: null, processReference: null };
+        }
+
+        const [person, collectiveProcess] = await Promise.all([
+          cachedGet(process.personId),
+          process.collectiveProcessId
+            ? cachedGet(process.collectiveProcessId)
+            : Promise.resolve(null),
+        ]);
+
+        return {
+          candidateName: person ? getFullName(person) : null,
+          processReference: collectiveProcess?.referenceNumber ?? null,
+        };
+      })();
+      cache.set(processId, hit);
+    }
+    return hit;
+  };
+
+  return async function enrichIndividualProcessLog<
+    T extends { entityType: string; entityId: string; details?: unknown },
+  >(log: T): Promise<T & IndividualProcessLogContext> {
+    if (normalizeEntityType(log.entityType) !== "individualProcess") {
+      return { ...log, candidateName: null, processReference: null };
+    }
+
+    const candidateNameAtLogTime = getStringDetail(log.details, "personName");
+    const processReferenceAtLogTime = getStringDetail(
+      log.details,
+      "collectiveProcessReference",
+    );
+    const processId = ctx.db.normalizeId("individualProcesses", log.entityId);
+    const currentContext = processId
+      ? await resolveProcess(processId)
+      : { candidateName: null, processReference: null };
+
+    return {
+      ...log,
+      candidateName: candidateNameAtLogTime ?? currentContext.candidateName,
+      processReference:
+        processReferenceAtLogTime ??
+        currentContext.processReference ??
+        processId,
     };
   };
 }
@@ -283,7 +398,10 @@ export const get = query({
     }
 
     // Non-admin users can only see their own activity
-    if (userProfile.role !== "admin" && activityLog.userId !== userProfile.userId) {
+    if (
+      userProfile.role !== "admin" &&
+      activityLog.userId !== userProfile.userId
+    ) {
       return null;
     }
 
@@ -306,6 +424,11 @@ export const getActivityLogs = query({
     limit: v.optional(v.number()),
     offset: v.optional(v.number()),
   },
+  returns: v.object({
+    logs: v.array(activityLogListItemValidator),
+    total: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
     const limit = args.limit ?? 100;
@@ -326,7 +449,9 @@ export const getActivityLogs = query({
 
     if (args.entityType) {
       const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
-      results = results.filter((log) => entityTypeCandidates.includes(log.entityType));
+      results = results.filter((log) =>
+        entityTypeCandidates.includes(log.entityType),
+      );
     }
 
     if (args.entityId) {
@@ -349,7 +474,12 @@ export const getActivityLogs = query({
     const paginatedResults = results.slice(offset, offset + limit);
 
     const enrichLogUser = createLogUserEnricher(ctx);
-    const enrichedResults = await Promise.all(paginatedResults.map((log) => enrichLogUser(log)));
+    const enrichIndividualProcessLog = createIndividualProcessLogEnricher(ctx);
+    const enrichedResults = await Promise.all(
+      paginatedResults.map(async (log) =>
+        enrichIndividualProcessLog(await enrichLogUser(log)),
+      ),
+    );
 
     return {
       logs: enrichedResults,
@@ -377,11 +507,11 @@ export const getEntityHistory = query({
         ctx.db
           .query("activityLogs")
           .withIndex("by_entity_createdAt", (q) =>
-            q.eq("entityType", entityType).eq("entityId", args.entityId)
+            q.eq("entityType", entityType).eq("entityId", args.entityId),
           )
           .order("desc")
-          .collect()
-      )
+          .collect(),
+      ),
     );
 
     const logs = logsByType.flat().sort((a, b) => b.createdAt - a.createdAt);
@@ -394,7 +524,7 @@ export const getEntityHistory = query({
           enriched.details = await resolveChangesIds(ctx, enriched.details);
         }
         return enriched;
-      })
+      }),
     );
 
     return enrichedLogs;
@@ -440,7 +570,7 @@ export const getFilterOptions = query({
           fullName: profile?.fullName ?? "Usuário removido",
           email: profile?.email,
         };
-      })
+      }),
     );
 
     users.sort((a, b) => {
@@ -483,7 +613,9 @@ export const getAuditSummary = query({
 
     if (args.entityType) {
       const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
-      logs = logs.filter((log) => entityTypeCandidates.includes(log.entityType));
+      logs = logs.filter((log) =>
+        entityTypeCandidates.includes(log.entityType),
+      );
     }
 
     if (args.action) {
@@ -501,7 +633,9 @@ export const getAuditSummary = query({
     }
 
     const uniqueUsers = new Set(logs.map((log) => log.userId));
-    const uniqueEntities = new Set(logs.map((log) => `${log.entityType}:${log.entityId}`));
+    const uniqueEntities = new Set(
+      logs.map((log) => `${log.entityType}:${log.entityId}`),
+    );
 
     const actionCounts = logs.reduce(
       (acc, log) => {
@@ -510,7 +644,7 @@ export const getAuditSummary = query({
         if (log.action === "deleted") acc.deleted += 1;
         return acc;
       },
-      { created: 0, updated: 0, deleted: 0 }
+      { created: 0, updated: 0, deleted: 0 },
     );
 
     const uniqueUserArray = Array.from(uniqueUsers);
@@ -523,10 +657,11 @@ export const getAuditSummary = query({
               .withIndex("by_userId", (q) => q.eq("userId", user._id))
               .first()
           : null;
-      })
+      }),
     );
 
-    const logsWithoutProfile = uniqueUserArray.length - userProfiles.filter(Boolean).length;
+    const logsWithoutProfile =
+      uniqueUserArray.length - userProfiles.filter(Boolean).length;
 
     return {
       total: logs.length,
@@ -595,6 +730,8 @@ export const exportActivityLogs = action({
       "Action",
       "Entity Type",
       "Entity ID",
+      "Process",
+      "Candidate",
       "IP Address",
     ];
 
@@ -605,12 +742,16 @@ export const exportActivityLogs = action({
       log.action,
       log.entityType,
       log.entityId,
+      log.processReference || "",
+      log.candidateName || "",
       log.ipAddress || "N/A",
     ]);
 
     const csvContent = [
       headers.join(","),
-      ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(",")),
+      ...rows.map((row: string[]) =>
+        row.map((cell: string) => `"${cell}"`).join(","),
+      ),
     ].join("\n");
 
     return {
@@ -640,33 +781,41 @@ export const getIndividualProcessFullHistory = query({
         ctx.db
           .query("activityLogs")
           .withIndex("by_entity_createdAt", (q) =>
-            q.eq("entityType", et).eq("entityId", processId)
+            q.eq("entityType", et).eq("entityId", processId),
           )
           .order("desc")
-          .collect()
-      )
+          .collect(),
+      ),
     );
 
     // 2. Fetch related entity IDs in parallel
     const [noteIds, taskIds, documentIds, statusIds] = await Promise.all([
       ctx.db
         .query("notes")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", processId),
+        )
         .collect()
         .then((notes) => notes.map((n) => n._id as string)),
       ctx.db
         .query("tasks")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", processId),
+        )
         .collect()
         .then((tasks) => tasks.map((t) => t._id as string)),
       ctx.db
         .query("documentsDelivered")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", processId),
+        )
         .collect()
         .then((docs) => docs.map((d) => d._id as string)),
       ctx.db
         .query("individualProcessStatuses")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", processId))
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", processId),
+        )
         .collect()
         .then((statuses) => statuses.map((s) => s._id as string)),
     ]);
@@ -679,10 +828,10 @@ export const getIndividualProcessFullHistory = query({
           ctx.db
             .query("documentDeliveredConditions")
             .withIndex("by_documentDelivered", (q) =>
-              q.eq("documentsDeliveredId", docId as Id<"documentsDelivered">)
+              q.eq("documentsDeliveredId", docId as Id<"documentsDelivered">),
             )
-            .collect()
-        )
+            .collect(),
+        ),
       );
       for (const conditions of conditionResults) {
         for (const c of conditions) {
@@ -694,7 +843,7 @@ export const getIndividualProcessFullHistory = query({
     // 3. Fetch logs for each entity type in parallel
     const fetchLogsForIds = async (
       entityTypeCandidates: string[],
-      ids: string[]
+      ids: string[],
     ) => {
       if (ids.length === 0) return [];
       const allLogs = await Promise.all(
@@ -703,11 +852,11 @@ export const getIndividualProcessFullHistory = query({
             ctx.db
               .query("activityLogs")
               .withIndex("by_entity_createdAt", (q) =>
-                q.eq("entityType", et).eq("entityId", id)
+                q.eq("entityType", et).eq("entityId", id),
               )
-              .collect()
-          )
-        )
+              .collect(),
+          ),
+        ),
       );
       return allLogs.flat();
     };
@@ -715,18 +864,26 @@ export const getIndividualProcessFullHistory = query({
     const noteEntityTypes = getEntityTypeCandidates("note");
     const taskEntityTypes = getEntityTypeCandidates("task");
     const documentEntityTypes = getEntityTypeCandidates("document");
-    const statusEntityTypes = getEntityTypeCandidates("individualProcessStatus");
+    const statusEntityTypes = getEntityTypeCandidates(
+      "individualProcessStatus",
+    );
     const conditionEntityTypes = ["documentCondition"];
 
-    const [processLogs, noteLogs, taskLogs, documentLogs, statusLogs, conditionLogs] =
-      await Promise.all([
-        processLogsPromise.then((results) => results.flat()),
-        fetchLogsForIds(noteEntityTypes, noteIds),
-        fetchLogsForIds(taskEntityTypes, taskIds),
-        fetchLogsForIds(documentEntityTypes, documentIds),
-        fetchLogsForIds(statusEntityTypes, statusIds),
-        fetchLogsForIds(conditionEntityTypes, conditionIds),
-      ]);
+    const [
+      processLogs,
+      noteLogs,
+      taskLogs,
+      documentLogs,
+      statusLogs,
+      conditionLogs,
+    ] = await Promise.all([
+      processLogsPromise.then((results) => results.flat()),
+      fetchLogsForIds(noteEntityTypes, noteIds),
+      fetchLogsForIds(taskEntityTypes, taskIds),
+      fetchLogsForIds(documentEntityTypes, documentIds),
+      fetchLogsForIds(statusEntityTypes, statusIds),
+      fetchLogsForIds(conditionEntityTypes, conditionIds),
+    ]);
 
     // 4. Merge, deduplicate, and sort
     const allLogsMap = new Map<string, (typeof processLogs)[0]>();
@@ -741,19 +898,28 @@ export const getIndividualProcessFullHistory = query({
       allLogsMap.set(log._id as string, log);
     }
     const allLogs = Array.from(allLogsMap.values()).sort(
-      (a, b) => b.createdAt - a.createdAt
+      (a, b) => b.createdAt - a.createdAt,
     );
 
     // 5. Determine sub-entity type for each log and enrich
-    const getSubEntityType = (
-      entityType: string
-    ): string | null => {
+    const getSubEntityType = (entityType: string): string | null => {
       const normalized = normalizeEntityType(entityType);
-      if (processEntityTypes.includes(entityType) || normalized === "individualProcess") return null;
-      if (noteEntityTypes.includes(entityType) || normalized === "note") return "note";
-      if (taskEntityTypes.includes(entityType) || normalized === "task") return "task";
-      if (documentEntityTypes.includes(entityType) || normalized === "document") return "document";
-      if (statusEntityTypes.includes(entityType) || normalized === "individualProcessStatus") return "status";
+      if (
+        processEntityTypes.includes(entityType) ||
+        normalized === "individualProcess"
+      )
+        return null;
+      if (noteEntityTypes.includes(entityType) || normalized === "note")
+        return "note";
+      if (taskEntityTypes.includes(entityType) || normalized === "task")
+        return "task";
+      if (documentEntityTypes.includes(entityType) || normalized === "document")
+        return "document";
+      if (
+        statusEntityTypes.includes(entityType) ||
+        normalized === "individualProcessStatus"
+      )
+        return "status";
       if (entityType === "documentCondition") return "condition";
       return null;
     };
@@ -789,7 +955,7 @@ export const getIndividualProcessFullHistory = query({
           subEntityType,
           subEntityLabel,
         };
-      })
+      }),
     );
 
     return enrichedLogs;
