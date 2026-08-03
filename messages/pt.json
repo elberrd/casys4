@@ -2256,6 +2256,8 @@
     "fileUrl": "URL do Arquivo do Documento",
     "fileUpload": "Arquivo do Documento",
     "uploadHint": "PDF ou imagem (máx. {maxSize}MB)",
+    "uploadDropzone": "Arraste e solte o passaporte aqui ou clique para selecionar",
+    "uploadAutoReadHint": "PNG, JPEG, WebP ou PDF · máximo de {maxSize} MB · leitura automática por IA",
     "invalidFileType": "Envie um arquivo PNG, JPEG, WebP ou PDF",
     "viewCurrentFile": "Ver arquivo enviado",
     "removeFile": "Remover arquivo",

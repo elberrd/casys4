@@ -2231,6 +2231,8 @@
     "fileUrl": "Document File URL",
     "fileUpload": "Document File",
     "uploadHint": "PDF or image (max {maxSize}MB)",
+    "uploadDropzone": "Drag and drop the passport here or click to select",
+    "uploadAutoReadHint": "PNG, JPEG, WebP, or PDF · up to {maxSize} MB · automatic AI reading",
     "invalidFileType": "Upload a PNG, JPEG, WebP, or PDF file",
     "viewCurrentFile": "View uploaded file",
     "removeFile": "Remove file",

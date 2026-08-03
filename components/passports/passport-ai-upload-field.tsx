@@ -1,8 +1,15 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { useAction, useMutation } from "convex/react"
-import { Clock3, File as FileIcon, Loader2, Sparkles, X } from "lucide-react"
+import {
+  Clock3,
+  File as FileIcon,
+  Loader2,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 
@@ -22,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import {
   adminPassportOcrSchema,
   passportUploadResponseSchema,
@@ -100,11 +108,14 @@ export function PassportAiUploadField({
   const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl)
   const extractPassport = useAction(api.passportOcr.extractPassport)
 
+  const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const aiInputRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(true)
   const processingRef = useRef(false)
+  const dragDepthRef = useRef(0)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [ocrAttempt, setOcrAttempt] = useState<number | null>(null)
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false)
 
@@ -124,33 +135,39 @@ export function PassportAiUploadField({
   const resetSelectedFile = () => {
     onSelectedFileChange(null)
     onStorageIdChange(undefined)
+    setIsDragging(false)
     setOcrAttempt(null)
     setConfirmationDialogOpen(false)
     if (inputRef.current) inputRef.current.value = ""
     if (aiInputRef.current) aiInputRef.current.value = ""
   }
 
-  const handleFileSelect = (
-    event: React.ChangeEvent<HTMLInputElement>
+  const validateAndSelectFile = (
+    file: File,
+    input?: HTMLInputElement
   ): File | null => {
-    const file = event.target.files?.[0]
-    if (!file) return null
-
     if (!ACCEPTED_FILE_TYPES.some((type) => type === file.type)) {
       toast.error(t("invalidFileType"))
-      event.target.value = ""
+      if (input) input.value = ""
       return null
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
       toast.error(t("errorFileSize", { maxSize: MAX_FILE_SIZE_MB }))
-      event.target.value = ""
+      if (input) input.value = ""
       return null
     }
 
     onStorageIdChange(undefined)
     onSelectedFileChange(file)
     return file
+  }
+
+  const handleFileSelect = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): File | null => {
+    const file = event.target.files?.[0]
+    return file ? validateAndSelectFile(file, event.target) : null
   }
 
   const processWithAi = async (fileOverride?: File) => {
@@ -246,6 +263,62 @@ export function PassportAiUploadField({
     }
   }
 
+  const automaticallyReadFile = async (file: File) => {
+    if (hasExistingTargetValues) {
+      setConfirmationDialogOpen(true)
+      return
+    }
+
+    await processWithAi(file)
+  }
+
+  const handleAutomaticFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = handleFileSelect(event)
+    if (file) await automaticallyReadFile(file)
+  }
+
+  const handleDragEnter = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (controlsDisabled) return
+
+    dragDepthRef.current += 1
+    setIsDragging(true)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!controlsDisabled) event.dataTransfer.dropEffect = "copy"
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (controlsDisabled) return
+
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDragging(false)
+  }
+
+  const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+    if (controlsDisabled) return
+
+    const file = event.dataTransfer.files[0]
+    if (!file) return
+
+    const selectedPassportFile = validateAndSelectFile(file)
+    if (selectedPassportFile) {
+      await automaticallyReadFile(selectedPassportFile)
+    }
+  }
+
   const handleAiClick = () => {
     if (controlsDisabled) return
     setConfirmationDialogOpen(true)
@@ -303,19 +376,59 @@ export function PassportAiUploadField({
       </Button>
 
       <div className="space-y-2">
-        <Label htmlFor="passport-document-file">{t("fileUpload")}</Label>
+        <Label htmlFor={inputId}>{t("fileUpload")}</Label>
+        <label
+          htmlFor={inputId}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={(event) => void handleDrop(event)}
+          aria-disabled={controlsDisabled}
+          aria-busy={isProcessing}
+          className={cn(
+            "flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-5 text-center transition-colors",
+            controlsDisabled
+              ? "cursor-not-allowed opacity-60"
+              : "cursor-pointer border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/[0.03]",
+            isDragging && "border-primary bg-primary/10"
+          )}
+        >
+          {isProcessing ? (
+            <Loader2 className="size-8 animate-spin text-primary" />
+          ) : (
+            <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Upload className="size-5" />
+            </div>
+          )}
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              {isProcessing ? t("aiReadingButton") : t("uploadDropzone")}
+            </p>
+            <p
+              className="text-xs text-muted-foreground"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {isProcessing && ocrAttempt
+                ? t("aiAttempt", {
+                    attempt: ocrAttempt,
+                    max: PASSPORT_OCR_MAX_ATTEMPTS,
+                  })
+                : t("uploadAutoReadHint", {
+                    maxSize: MAX_FILE_SIZE_MB,
+                  })}
+            </p>
+          </div>
+        </label>
         <Input
-          id="passport-document-file"
+          id={inputId}
           type="file"
           ref={inputRef}
           accept={ACCEPTED_FILE_TYPES.join(",")}
-          onChange={handleFileSelect}
+          onChange={(event) => void handleAutomaticFileSelect(event)}
           disabled={controlsDisabled}
-          className="cursor-pointer"
+          className="sr-only"
         />
-        <p className="text-xs text-muted-foreground">
-          {t("uploadHint", { maxSize: MAX_FILE_SIZE_MB })}
-        </p>
       </div>
 
       {selectedFile ? (
