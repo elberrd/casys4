@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -32,6 +32,7 @@ import {
   getOrderedFilledFieldEntries,
 } from "@/lib/individual-process-fields";
 import { formatFieldValue } from "@/lib/format-field-value";
+import { ExigenciaDocumentsBadge } from "./exigencia-documents-badge";
 
 interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
@@ -82,6 +83,22 @@ export function IndividualProcessStatusesSubtable({
   const statuses = useQuery(api.individualProcessStatuses.getStatusHistory, {
     individualProcessId,
   });
+
+  const exigenciaDocumentGroups = useQuery(
+    api.documentsDelivered.listExigenciaDocumentSummariesByProcess,
+    { individualProcessId },
+  );
+
+  const exigenciaDocumentsByStatus = useMemo(
+    () =>
+      new Map(
+        exigenciaDocumentGroups?.map((group) => [
+          group.individualProcessStatusId,
+          group.documents,
+        ]) ?? [],
+      ),
+    [exigenciaDocumentGroups],
+  );
 
   // Query active case statuses
   const caseStatuses = useQuery(api.caseStatuses.listActive);
@@ -434,6 +451,12 @@ export function IndividualProcessStatusesSubtable({
 
                           // Exigência date display
                           const isExigencia = status.caseStatus?.code === "exigencia";
+                          const exigenciaDocuments = isExigencia
+                            ? exigenciaDocumentsByStatus.get(status._id) ?? []
+                            : [];
+                          const exigenciaDocumentsBadge = isExigencia ? (
+                            <ExigenciaDocumentsBadge documents={exigenciaDocuments} />
+                          ) : null;
                           const exigenciaDatesEl = isExigencia && (status.clientDeadlineDate || status.maxDeliveryDate) ? (
                             <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                               {status.clientDeadlineDate && (
@@ -459,6 +482,7 @@ export function IndividualProcessStatusesSubtable({
                           if (tooltipContent) {
                             return (
                               <div>
+                                <div className="flex items-center gap-1.5">
                                 <TooltipProvider>
                                   <Tooltip delayDuration={200}>
                                     <TooltipTrigger asChild>
@@ -495,6 +519,8 @@ export function IndividualProcessStatusesSubtable({
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
+                                {exigenciaDocumentsBadge}
+                                </div>
                                 {exigenciaDatesEl}
                               </div>
                             );
@@ -503,7 +529,10 @@ export function IndividualProcessStatusesSubtable({
                           // No tooltip content, return badge + optional exigência dates
                           return (
                             <div>
-                              {badgeElement}
+                              <div className="flex items-center gap-1.5">
+                                {badgeElement}
+                                {exigenciaDocumentsBadge}
+                              </div>
                               {exigenciaDatesEl}
                             </div>
                           );

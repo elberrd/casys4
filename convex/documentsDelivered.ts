@@ -113,6 +113,19 @@ const documentVersionByProgressValidator = v.object({
   ),
 });
 
+const exigenciaDocumentSummaryValidator = v.object({
+  _id: v.id("documentsDelivered"),
+  fileName: v.string(),
+  documentName: v.optional(v.string()),
+  documentTypeName: v.optional(v.string()),
+  status: v.string(),
+});
+
+const exigenciaDocumentsByStatusValidator = v.object({
+  individualProcessStatusId: v.id("individualProcessStatuses"),
+  documents: v.array(exigenciaDocumentSummaryValidator),
+});
+
 /**
  * Query to list documents delivered for an individual process
  * Access control: admin sees all, client sees their company's docs
@@ -370,6 +383,88 @@ export const listByStatus = query({
       documents: enrichedDocuments,
       companyApplicantId: individualProcess.companyApplicantId,
     };
+  },
+});
+
+/**
+ * Lists compact document summaries grouped by each exigencia occurrence in a
+ * process. The result follows the same per-viewer visibility policy used by
+ * the full status document query.
+ */
+export const listExigenciaDocumentSummariesByProcess = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+  },
+  returns: v.array(exigenciaDocumentsByStatusValidator),
+  handler: async (ctx, { individualProcessId }) => {
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+
+    const userProfile = await getCurrentUserProfile(ctx);
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    const visibility = await resolveClientDocumentVisibility(
+      ctx,
+      userProfile,
+      individualProcess,
+    );
+    const cachedGet = createCachedGet(ctx.db);
+
+    const statuses = await ctx.db
+      .query("individualProcessStatuses")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", individualProcessId),
+      )
+      .collect();
+
+    const exigenciaStatusIds = (
+      await Promise.all(
+        statuses.map(async (status) => {
+          const caseStatus = await cachedGet(status.caseStatusId);
+          return caseStatus?.code === "exigencia" ? status._id : null;
+        }),
+      )
+    ).filter(
+      (statusId): statusId is Id<"individualProcessStatuses"> =>
+        statusId !== null,
+    );
+
+    return await Promise.all(
+      exigenciaStatusIds.map(async (individualProcessStatusId) => {
+        const linkedDocuments = await ctx.db
+          .query("documentsDelivered")
+          .withIndex("by_individualProcessStatus", (q) =>
+            q.eq("individualProcessStatusId", individualProcessStatusId),
+          )
+          .collect();
+        const visibleLatestDocuments = filterAccessibleDocuments(
+          linkedDocuments.filter((document) => document.isLatest),
+          visibility,
+        );
+
+        const documents = await Promise.all(
+          visibleLatestDocuments.map(async (document) => {
+            const documentType = document.documentTypeId
+              ? await cachedGet(document.documentTypeId)
+              : null;
+
+            return {
+              _id: document._id,
+              fileName: document.fileName,
+              documentName: document.documentName,
+              documentTypeName: documentType?.name,
+              status: document.status,
+            };
+          }),
+        );
+
+        return {
+          individualProcessStatusId,
+          documents,
+        };
+      }),
+    );
   },
 });
 

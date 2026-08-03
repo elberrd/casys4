@@ -394,6 +394,10 @@ END as passport_status
 ### 7.2 Individual Process Detail
 
 - Timeline view of status changes
+- Requirement rows in the status history show a compact document count beside
+  the status badge. Hover or keyboard focus lists the latest documents linked
+  to that exact status occurrence, respecting the current user's document
+  visibility scope.
 - Document checklist with upload interface
 - Task list with deadlines
 - Communication history

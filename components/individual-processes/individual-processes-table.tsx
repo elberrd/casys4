@@ -52,7 +52,6 @@ import {
   X,
   StickyNote,
   FileWarning,
-  Paperclip,
 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
@@ -88,6 +87,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
+import { ExigenciaDocumentsBadge } from "./exigencia-documents-badge";
 import { toast } from "sonner";
 import type {
   ExcelColumnConfig,
@@ -1319,50 +1319,7 @@ export function IndividualProcessesTable({
           const exigenciaDocs = row.original.exigenciaDocs;
           const exigenciaDocsChip =
             isExigencia && exigenciaDocs && exigenciaDocs.length > 0 ? (
-              <TooltipProvider>
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <span
-                      className="inline-flex items-center gap-0.5 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 shadow-sm cursor-help ring-1 ring-amber-600/40 hover:bg-amber-600 transition-colors"
-                      aria-label={t("exigenciaDocsBadgeAriaLabel", {
-                        count: exigenciaDocs.length,
-                      })}
-                    >
-                      <Paperclip className="h-2.5 w-2.5" aria-hidden="true" />
-                      {exigenciaDocs.length}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    align="start"
-                    className="max-w-sm bg-popover text-popover-foreground border shadow-md"
-                  >
-                    <div className="space-y-1.5 text-sm">
-                      <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-1">
-                        {t("exigenciaDocsBadgeTooltip")}
-                      </div>
-                      <ul className="space-y-1">
-                        {exigenciaDocs.map((d) => (
-                          <li
-                            key={d._id}
-                            className="flex items-start gap-1.5 text-foreground"
-                          >
-                            <Paperclip
-                              className="h-3 w-3 mt-0.5 shrink-0 text-amber-600"
-                              aria-hidden="true"
-                            />
-                            <span>
-                              {d.documentTypeName ||
-                                d.documentName ||
-                                d.fileName}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <ExigenciaDocumentsBadge documents={exigenciaDocs} />
             ) : null;
 
           const badgeElement = (
