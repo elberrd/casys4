@@ -323,10 +323,13 @@ export function IndividualProcessDetailClient({
                 <div className="text-sm font-medium">{t('deadlineDate')}</div>
                 <div className="text-sm">
                   {(() => {
-                    const process = individualProcess as any;
-                    if (process.deadlineQuantity && process.deadlineUnit) {
-                      const quantity = process.deadlineQuantity;
-                      const unit = process.deadlineUnit;
+                    if (individualProcess.deadlineUnit === 'indeterminate') {
+                      return t('deadlineUnits.indeterminate');
+                    }
+
+                    if (individualProcess.deadlineQuantity && individualProcess.deadlineUnit) {
+                      const quantity = individualProcess.deadlineQuantity;
+                      const unit = individualProcess.deadlineUnit;
                       const unitLabel = unit === 'years'
                         ? (quantity === 1 ? (locale === 'en' ? 'year' : 'ano') : (locale === 'en' ? 'years' : 'anos'))
                         : unit === 'months'
