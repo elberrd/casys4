@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, ClipboardCheck } from "lucide-react"
+import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, ClipboardCheck, Ban } from "lucide-react"
 import { formatFileSize } from "@/lib/validations/documents-delivered"
 import {
   DocumentReceivedDateField,
@@ -39,6 +39,7 @@ import {
   DocumentWaitingStartDateField,
   useDocumentWaitingStartDate,
 } from "./document-waiting-start-date-field"
+import { orderDocumentUploadConditions } from "@/lib/document-upload-conditions"
 
 interface UploadNewVersionDialogProps {
   open: boolean
@@ -103,6 +104,10 @@ export function UploadNewVersionDialog({
   const conditions = useQuery(
     api.documentTypeConditions.listActiveByDocumentType,
     { documentTypeId }
+  )
+  const displayedConditions = useMemo(
+    () => orderDocumentUploadConditions(conditions ?? []),
+    [conditions]
   )
 
   const hasUnfulfilledRequiredConditions = useMemo(() => {
@@ -356,33 +361,52 @@ export function UploadNewVersionDialog({
                 <Label>{t("conditions")}</Label>
               </div>
               <div className={cn("space-y-2 rounded-lg border p-3", isAutoApproveBlocked && "border-red-500 border-2")}>
-                {conditions.map((condition) => (
+                {displayedConditions.map((condition) => (
                   <div key={condition._id} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`condition-${condition._id}`}
-                      checked={bypassConditions || fulfilledConditionIds.has(condition._id)}
-                      onCheckedChange={(checked) => {
-                        setFulfilledConditionIds((prev) => {
-                          const next = new Set(prev)
-                          if (checked) {
-                            next.add(condition._id)
-                          } else {
-                            next.delete(condition._id)
-                          }
-                          return next
-                        })
-                      }}
-                      disabled={isUploading || bypassConditions}
-                    />
+                    {bypassConditions ? (
+                      <span
+                        role="img"
+                        aria-label={t("conditionBypassed")}
+                        title={t("conditionBypassed")}
+                        className="flex size-4 shrink-0 items-center justify-center rounded-sm border border-destructive/50 bg-destructive/10 text-destructive"
+                      >
+                        <Ban className="size-3" aria-hidden="true" />
+                      </span>
+                    ) : (
+                      <Checkbox
+                        id={`condition-${condition._id}`}
+                        checked={fulfilledConditionIds.has(condition._id)}
+                        onCheckedChange={(checked) => {
+                          setFulfilledConditionIds((prev) => {
+                            const next = new Set(prev)
+                            if (checked) {
+                              next.add(condition._id)
+                            } else {
+                              next.delete(condition._id)
+                            }
+                            return next
+                          })
+                        }}
+                        disabled={isUploading}
+                      />
+                    )}
                     <div className="grid gap-0.5 leading-none">
                       <label
-                        htmlFor={`condition-${condition._id}`}
-                        className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        htmlFor={bypassConditions ? undefined : `condition-${condition._id}`}
+                        className={cn(
+                          "text-sm font-medium leading-none",
+                          bypassConditions ? "text-muted-foreground line-through" : "cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        )}
                       >
                         {condition.name}
                         {condition.isRequired && (
                           <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
                             {t("conditionRequired")}
+                          </Badge>
+                        )}
+                        {bypassConditions && (
+                          <Badge variant="outline" className="ml-2 border-destructive/40 px-1.5 py-0 text-[10px] text-destructive">
+                            {t("conditionBypassed")}
                           </Badge>
                         )}
                       </label>
@@ -395,7 +419,7 @@ export function UploadNewVersionDialog({
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t("conditionsHint")}
+                  {t(bypassConditions ? "conditionsBypassedHint" : "conditionsHint")}
                 </p>
                 {isAutoApproveBlocked && (
                   <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">

@@ -2758,7 +2758,9 @@
     "validityWarningMaxAge": "Document was issued {days} days ago, exceeding the maximum allowed of {max} days",
     "conditions": "Conditions",
     "conditionRequired": "Required",
+    "conditionBypassed": "Bypassed",
     "conditionsHint": "Check the conditions already satisfied when uploading this document",
+    "conditionsBypassedHint": "These conditions were bypassed and are not marked as fulfilled",
     "linkedStatus": "Linked Status",
     "selectStatus": "Select a status entry",
     "searchStatus": "Search status entry...",
@@ -2775,7 +2777,7 @@
     "autoApprove": "Auto-approve on save",
     "conditionsRequiredForAutoApprove": "To auto-approve, all required conditions must be fulfilled",
     "bypassConditions": "Bypass conditions (admin override)",
-    "bypassConditionsHint": "When enabled, all conditions are treated as fulfilled regardless of their actual status"
+    "bypassConditionsHint": "When enabled, conditions are bypassed without being marked as fulfilled"
   },
   "DocumentTiming": {
     "pending": "{count, plural, =0 {Waiting today} one {Waiting for # day} other {Waiting for # days}}",

@@ -2783,7 +2783,9 @@
     "validityWarningMaxAge": "O documento foi emitido há {days} dias, excedendo o máximo permitido de {max} dias",
     "conditions": "Condições",
     "conditionRequired": "Obrigatório",
+    "conditionBypassed": "Dispensada",
     "conditionsHint": "Marque as condições já satisfeitas ao enviar o documento",
+    "conditionsBypassedHint": "Estas condições foram dispensadas e não estão marcadas como cumpridas",
     "linkedStatus": "Andamento Vinculado",
     "selectStatus": "Selecione um andamento",
     "searchStatus": "Buscar andamento...",
@@ -2800,7 +2802,7 @@
     "autoApprove": "Aprovar automaticamente ao salvar",
     "conditionsRequiredForAutoApprove": "Para aprovar automaticamente, todas as condições obrigatórias devem estar cumpridas",
     "bypassConditions": "Dispensar condições (admin)",
-    "bypassConditionsHint": "Quando ativado, todas as condições são tratadas como cumpridas independente do status real"
+    "bypassConditionsHint": "Quando ativado, as condições são dispensadas sem serem marcadas como cumpridas"
   },
   "DocumentTiming": {
     "pending": "{count, plural, =0 {Aguardando hoje} one {Aguardando há # dia} other {Aguardando há # dias}}",
