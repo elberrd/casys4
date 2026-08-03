@@ -49,6 +49,7 @@ import type * as lib_documentChecklist from "../lib/documentChecklist.js";
 import type * as lib_documentProgressSnapshot from "../lib/documentProgressSnapshot.js";
 import type * as lib_documentReceiptTiming from "../lib/documentReceiptTiming.js";
 import type * as lib_documentValidity from "../lib/documentValidity.js";
+import type * as lib_individualProcessTiming from "../lib/individualProcessTiming.js";
 import type * as lib_passportDocumentSync from "../lib/passportDocumentSync.js";
 import type * as lib_personOwnership from "../lib/personOwnership.js";
 import type * as lib_personPassportAttachment from "../lib/personPassportAttachment.js";
@@ -176,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "lib/documentProgressSnapshot": typeof lib_documentProgressSnapshot;
   "lib/documentReceiptTiming": typeof lib_documentReceiptTiming;
   "lib/documentValidity": typeof lib_documentValidity;
+  "lib/individualProcessTiming": typeof lib_individualProcessTiming;
   "lib/passportDocumentSync": typeof lib_passportDocumentSync;
   "lib/personOwnership": typeof lib_personOwnership;
   "lib/personPassportAttachment": typeof lib_personPassportAttachment;

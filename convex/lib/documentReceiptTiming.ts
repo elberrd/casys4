@@ -50,10 +50,32 @@ export function getDocumentWaitingStartedAt(
   document: DocumentTimingFields,
 ): number {
   return (
-    document.waitingStartedAt ??
-    document.createdAt ??
-    document._creationTime
+    document.waitingStartedAt ?? document.createdAt ?? document._creationTime
   );
+}
+
+/**
+ * Preserves an explicit administrative override, but upgrades technical
+ * process-row defaults (and missing legacy values) to the business creation
+ * instant recorded by the process's first status.
+ */
+export function getDefaultDocumentWaitingStartedAt({
+  documentWaitingStartedAt,
+  technicalProcessCreatedAt,
+  businessProcessCreatedAt,
+}: {
+  documentWaitingStartedAt?: number;
+  technicalProcessCreatedAt: number;
+  businessProcessCreatedAt: number;
+}): number {
+  if (
+    documentWaitingStartedAt !== undefined &&
+    documentWaitingStartedAt !== technicalProcessCreatedAt
+  ) {
+    return documentWaitingStartedAt;
+  }
+
+  return businessProcessCreatedAt;
 }
 
 export function getDocumentReceivedAt(

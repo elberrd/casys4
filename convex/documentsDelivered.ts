@@ -7,6 +7,7 @@ import { checkDocumentValidity } from "./lib/documentValidity";
 import { getProcessStatusAtUpload } from "./lib/documentProgressSnapshot";
 import { createCachedGet } from "./lib/cachedGet";
 import {
+  getDefaultDocumentWaitingStartedAt,
   getDocumentCreatedAt,
   getDocumentReceivedAt,
   getDocumentWaitingStartedAt,
@@ -15,6 +16,9 @@ import {
   resolveDocumentReceivedAt,
   resolveDocumentWaitingStartedAt,
 } from "./lib/documentReceiptTiming";
+import {
+  getIndividualProcessCreationTimestamp,
+} from "./lib/individualProcessTiming";
 import {
   canAccessDocument,
   filterAccessibleDocuments,
@@ -464,7 +468,11 @@ export const getWaitingStartDefaults = query({
       });
     }
 
-    let waitingStartedAt = individualProcess.createdAt;
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
+    let waitingStartedAt = processCreatedAt;
     if (args.documentId) {
       const document = await ctx.db.get(args.documentId);
       if (
@@ -476,11 +484,15 @@ export const getWaitingStartDefaults = query({
           message: "Document not found",
         });
       }
-      waitingStartedAt = getDocumentWaitingStartedAt(document);
+      waitingStartedAt = getDefaultDocumentWaitingStartedAt({
+        documentWaitingStartedAt: document.waitingStartedAt,
+        technicalProcessCreatedAt: individualProcess.createdAt,
+        businessProcessCreatedAt: processCreatedAt,
+      });
     }
 
     return {
-      processCreatedAt: individualProcess.createdAt,
+      processCreatedAt,
       waitingStartedAt,
     };
   },
@@ -601,12 +613,20 @@ export const upload = mutation({
     const createdAt = fillsPendingVersion
       ? getDocumentCreatedAt(currentLatest)
       : now;
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
     const waitingStartedAt = resolveDocumentWaitingStartedAt({
       requestedDate: args.waitingStartDate,
       userRole: userProfile.role,
       processCreatedAt: fillsPendingVersion
-        ? currentLatest.waitingStartedAt ?? individualProcess.createdAt
-        : individualProcess.createdAt,
+        ? getDefaultDocumentWaitingStartedAt({
+            documentWaitingStartedAt: currentLatest.waitingStartedAt,
+            technicalProcessCreatedAt: individualProcess.createdAt,
+            businessProcessCreatedAt: processCreatedAt,
+          })
+        : processCreatedAt,
     });
     const receivedAt = resolveDocumentReceivedAt({
       requestedDate: args.receivedDate,
@@ -1579,10 +1599,14 @@ export const updateWaitingStartedAt = mutation({
     }
 
     const previousWaitingStartedAt = getDocumentWaitingStartedAt(document);
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
     const waitingStartedAt = resolveDocumentWaitingStartedAt({
       requestedDate: args.waitingStartDate,
       userRole: "admin",
-      processCreatedAt: individualProcess.createdAt,
+      processCreatedAt,
     });
 
     if (
@@ -2182,10 +2206,14 @@ export const uploadLoose = mutation({
     const status = shouldAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
     const initialVersion = 1;
     const createdAt = Date.now();
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
     const waitingStartedAt = resolveDocumentWaitingStartedAt({
       requestedDate: args.waitingStartDate,
       userRole: userProfile.role,
-      processCreatedAt: individualProcess.createdAt,
+      processCreatedAt,
     });
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
@@ -2426,10 +2454,14 @@ export const uploadWithType = mutation({
 
     const status = canAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
     const createdAt = Date.now();
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
     const waitingStartedAt = resolveDocumentWaitingStartedAt({
       requestedDate: args.waitingStartDate,
       userRole: userProfile.role,
-      processCreatedAt: individualProcess.createdAt,
+      processCreatedAt,
     });
     const receivedAt = hasFile
       ? resolveDocumentReceivedAt({
@@ -2736,12 +2768,20 @@ export const uploadForPending = mutation({
     const createdAt = isRejectedResubmission
       ? now
       : getDocumentCreatedAt(document);
+    const processCreatedAt = await getIndividualProcessCreationTimestamp(
+      ctx,
+      individualProcess,
+    );
     const waitingStartedAt = resolveDocumentWaitingStartedAt({
       requestedDate: args.waitingStartDate,
       userRole: userProfile.role,
       processCreatedAt: isRejectedResubmission
-        ? individualProcess.createdAt
-        : document.waitingStartedAt ?? individualProcess.createdAt,
+        ? processCreatedAt
+        : getDefaultDocumentWaitingStartedAt({
+            documentWaitingStartedAt: document.waitingStartedAt,
+            technicalProcessCreatedAt: individualProcess.createdAt,
+            businessProcessCreatedAt: processCreatedAt,
+          }),
     });
     const receivedAt = resolveDocumentReceivedAt({
       requestedDate: args.receivedDate,
