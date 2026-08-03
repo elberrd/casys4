@@ -9,7 +9,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
 import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist"
@@ -158,6 +158,9 @@ export function IndividualProcessDetailClient({
 
   const isAdmin = currentUser?.role === "admin"
   const isUrgent = optimisticUrgent ?? individualProcess.urgent === true
+  const hasPassportFile = Boolean(
+    individualProcess.passport?.storageId || individualProcess.passport?.fileUrl
+  )
 
   const handleUrgentToggle = async () => {
     if (!isAdmin || isUpdatingUrgent) return
@@ -638,6 +641,23 @@ export function IndividualProcessDetailClient({
                   <div className="text-sm">
                     <Badge variant={individualProcess.passport.isActive ? "default" : "destructive"}>
                       {individualProcess.passport.isActive ? tPassports('active') : tPassports('expired')}
+                    </Badge>
+                  </div>
+
+                  <div className="text-sm font-medium">{t('passportFile')}</div>
+                  <div className="text-sm">
+                    <Badge
+                      variant={hasPassportFile ? "success" : "warning"}
+                      className="gap-1"
+                    >
+                      {hasPassportFile ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      {hasPassportFile
+                        ? t('passportFileUploaded')
+                        : t('passportFileNotUploaded')}
                     </Badge>
                   </div>
                 </div>
