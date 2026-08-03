@@ -72,7 +72,10 @@ import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 import { useGroupKeyboardShortcuts } from "@/lib/hooks/use-group-keyboard-shortcuts";
 import { IndividualProcessNotesModal } from "./individual-process-notes-modal";
-import { getFieldMetadata } from "@/lib/individual-process-fields";
+import {
+  getFieldMetadata,
+  getOrderedFilledFieldEntries,
+} from "@/lib/individual-process-fields";
 import { formatFieldValue, truncateString } from "@/lib/format-field-value";
 import {
   DropdownMenu,
@@ -1238,8 +1241,9 @@ export function IndividualProcessesTable({
 
           let tooltipContent = null;
           if (hasFilledFields) {
-            const entries = Object.entries(filledFieldsData).filter(([key]) =>
-              fillableFields.includes(key),
+            const entries = getOrderedFilledFieldEntries(
+              filledFieldsData,
+              fillableFields,
             );
 
             if (entries.length > 0) {
@@ -1493,8 +1497,9 @@ export function IndividualProcessesTable({
           }
 
           // Get field metadata for the filled fields
-          const entries = Object.entries(filledFieldsData).filter(([key]) =>
-            fillableFields.includes(key),
+          const entries = getOrderedFilledFieldEntries(
+            filledFieldsData,
+            fillableFields,
           );
 
           if (entries.length === 0) {
@@ -1997,8 +2002,9 @@ export function IndividualProcessesTable({
         return t("noFieldsFilled");
       }
 
-      const entries = Object.entries(filledFieldsData).filter(([key]) =>
-        fillableFields.includes(key),
+      const entries = getOrderedFilledFieldEntries(
+        filledFieldsData,
+        fillableFields,
       );
 
       if (entries.length === 0) return t("noFieldsFilled");

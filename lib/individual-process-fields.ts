@@ -24,6 +24,12 @@ export interface FieldMetadata {
   referenceQuery?: string;
 }
 
+const DOU_FIELD_DISPLAY_ORDER = new Map<string, number>([
+  ["douNumber", 0],
+  ["douSection", 1],
+  ["douPage", 2],
+]);
+
 /**
  * All fillable fields from individualProcesses table
  * These fields can be selected by admins to be fillable from a specific status
@@ -156,4 +162,28 @@ export function getFieldsMetadata(fieldNames: string[]): FieldMetadata[] {
 
   console.log('[getFieldsMetadata] Result:', result);
   return result;
+}
+
+/**
+ * Returns filled fields in their display order without changing persisted data.
+ * DOU publication fields are kept together in the business-defined order.
+ */
+export function getOrderedFilledFieldEntries<T>(
+  filledFieldsData: Record<string, T>,
+  fillableFields: readonly string[],
+): Array<[string, T]> {
+  return Object.entries(filledFieldsData)
+    .filter(([fieldName]) => fillableFields.includes(fieldName))
+    .sort(([firstFieldName], [secondFieldName]) => {
+      const firstOrder = DOU_FIELD_DISPLAY_ORDER.get(firstFieldName);
+      const secondOrder = DOU_FIELD_DISPLAY_ORDER.get(secondFieldName);
+
+      if (firstOrder !== undefined && secondOrder !== undefined) {
+        return firstOrder - secondOrder;
+      }
+
+      if (firstOrder !== undefined) return -1;
+      if (secondOrder !== undefined) return 1;
+      return 0;
+    });
 }

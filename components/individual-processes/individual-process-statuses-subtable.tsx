@@ -27,7 +27,10 @@ import { FillFieldsModal } from "./fill-fields-modal";
 import { StatusDocumentsDialog } from "./status-documents-dialog";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getFieldMetadata } from "@/lib/individual-process-fields";
+import {
+  getFieldMetadata,
+  getOrderedFilledFieldEntries,
+} from "@/lib/individual-process-fields";
 import { formatFieldValue } from "@/lib/format-field-value";
 
 interface IndividualProcessStatusesSubtableProps {
@@ -238,7 +241,7 @@ export function IndividualProcessStatusesSubtable({
       return null;
     }
 
-    const entries = Object.entries(filledFieldsData).filter(([key]) => fillableFields.includes(key));
+    const entries = getOrderedFilledFieldEntries(filledFieldsData, fillableFields);
 
     if (entries.length === 0) {
       return null;
