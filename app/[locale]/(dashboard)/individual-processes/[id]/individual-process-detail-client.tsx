@@ -1,46 +1,78 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardPageHeader } from "@/components/dashboard-page-header"
-import { useTranslations } from "next-intl"
-import { useMutation, useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { AlertTriangle, CheckCircle2, Edit, RefreshCcw, ArrowLeft, Paperclip } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card"
-import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist"
+import { useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { useTranslations } from "next-intl";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Edit,
+  RefreshCcw,
+  ArrowLeft,
+  Paperclip,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { DocumentChecklistCard } from "@/components/individual-processes/document-checklist-card";
+import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { StatusUpdateDialog } from "@/components/collective-processes/status-update-dialog"
-import { EntityHistory } from "@/components/activity-logs/entity-history"
-import { Skeleton } from "@/components/ui/skeleton"
-import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable"
-import { ProcessNotesSection } from "@/components/notes/process-notes-section"
-import { ProcessTasksSection } from "@/components/tasks/process-tasks-section"
-import { PersonFormDialog } from "@/components/people/person-form-dialog"
-import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog"
-import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog"
-import { formatDate, calculateAge } from "@/lib/format-field-value"
-import { formatCPF } from "@/lib/utils/document-masks"
-import { translateCountryName } from "@/lib/utils/country-translations"
-import { formatRelativeDate } from "@/lib/utils/date-utils"
-import { formatResidenceDuration } from "@/lib/utils/residence-duration"
-import { getFullName } from "@/lib/utils/person-names"
-import { toast } from "sonner"
+} from "@/components/ui/tooltip";
+import { ProcessStatusUpdateDialog } from "@/components/individual-processes/process-status-update-dialog";
+import { EntityHistory } from "@/components/activity-logs/entity-history";
+import { Skeleton } from "@/components/ui/skeleton";
+import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
+import { ProcessNotesSection } from "@/components/notes/process-notes-section";
+import { ProcessTasksSection } from "@/components/tasks/process-tasks-section";
+import { PersonFormDialog } from "@/components/people/person-form-dialog";
+import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog";
+import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog";
+import { formatDate, calculateAge } from "@/lib/format-field-value";
+import { formatCPF } from "@/lib/utils/document-masks";
+import { translateCountryName } from "@/lib/utils/country-translations";
+import { formatRelativeDate } from "@/lib/utils/date-utils";
+import { formatResidenceDuration } from "@/lib/utils/residence-duration";
+import { getFullName } from "@/lib/utils/person-names";
+import {
+  getPassportValidityStatus,
+  hasFileAttachment,
+  hasPassportFile,
+  type PassportValidityStatus,
+} from "@/lib/passport";
+import { toast } from "sonner";
+
+function getPassportStatusVariant(status: PassportValidityStatus | null) {
+  switch (status) {
+    case "Valid":
+      return "success" as const;
+    case "Expiring Soon":
+      return "warning" as const;
+    case "Expired":
+      return "destructive" as const;
+    default:
+      return "secondary" as const;
+  }
+}
 
 interface IndividualProcessDetailClientProps {
-  processId: Id<"individualProcesses">
-  locale: string
-  collectiveProcessId?: Id<"collectiveProcesses">
-  fromTaskId?: string
+  processId: Id<"individualProcesses">;
+  locale: string;
+  collectiveProcessId?: Id<"collectiveProcesses">;
+  fromTaskId?: string;
 }
 
 export function IndividualProcessDetailClient({
@@ -49,77 +81,123 @@ export function IndividualProcessDetailClient({
   collectiveProcessId,
   fromTaskId,
 }: IndividualProcessDetailClientProps) {
-  const t = useTranslations('IndividualProcesses')
-  const tCommon = useTranslations('Common')
-  const tBreadcrumbs = useTranslations('Breadcrumbs')
-  const tPeople = useTranslations('People')
-  const tPassports = useTranslations('Passports')
-  const router = useRouter()
+  const t = useTranslations("IndividualProcesses");
+  const tCommon = useTranslations("Common");
+  const tBreadcrumbs = useTranslations("Breadcrumbs");
+  const tPeople = useTranslations("People");
+  const tPassports = useTranslations("Passports");
+  const router = useRouter();
 
-  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
-  const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false)
-  const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] = useState(false)
-  const [reviewDocumentId, setReviewDocumentId] = useState<Id<"documentsDelivered"> | null>(null)
-  const [optimisticUrgent, setOptimisticUrgent] = useState<boolean | null>(null)
-  const [isUpdatingUrgent, setIsUpdatingUrgent] = useState(false)
+  const [isProcessStatusDialogOpen, setIsProcessStatusDialogOpen] =
+    useState(false);
+  const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false);
+  const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] =
+    useState(false);
+  const [reviewDocumentId, setReviewDocumentId] =
+    useState<Id<"documentsDelivered"> | null>(null);
+  const [optimisticUrgent, setOptimisticUrgent] = useState<boolean | null>(
+    null,
+  );
+  const [isUpdatingUrgent, setIsUpdatingUrgent] = useState(false);
 
-  const individualProcess = useQuery(api.individualProcesses.get, { id: processId })
-  const currentUser = useQuery(api.userProfiles.getCurrentUser)
+  const individualProcess = useQuery(api.individualProcesses.get, {
+    id: processId,
+  });
+  const currentUser = useQuery(api.userProfiles.getCurrentUser);
+  const deliveredDocuments = useQuery(
+    api.documentsDelivered.list,
+    individualProcess ? { individualProcessId: processId } : "skip",
+  );
   const updateUrgentForCollectiveGroup = useMutation(
-    api.individualProcesses.updateUrgentForCollectiveGroup
-  )
+    api.individualProcesses.updateUrgentForCollectiveGroup,
+  );
 
   // Fetch collective process data when coming from collective process context
   const collectiveProcess = useQuery(
     api.collectiveProcesses.get,
-    collectiveProcessId ? { id: collectiveProcessId } : "skip"
-  )
+    collectiveProcessId ? { id: collectiveProcessId } : "skip",
+  );
 
   // Fetch linked fields map for paperclip indicators
   const linkedFieldsMap = useQuery(
     api.documentTypeFieldMappings.getLinkedFieldsMap,
-    { individualProcessId: processId }
-  )
+    { individualProcessId: processId },
+  );
 
   // Helper: small tooltip icon showing linked document types (clickable to open document)
-  function LinkedDocIcon({ entityType, fieldPath }: { entityType: string; fieldPath: string }) {
-    const key = `${entityType}:${fieldPath}`
-    const links = linkedFieldsMap?.[key]
-    if (!links?.length) return null
-    const firstWithDoc = links.find(l => l.deliveredDocumentId)
+  function LinkedDocIcon({
+    entityType,
+    fieldPath,
+  }: {
+    entityType: string;
+    fieldPath: string;
+  }) {
+    const key = `${entityType}:${fieldPath}`;
+    const links = linkedFieldsMap?.[key];
+    if (!links?.length) return null;
+    const firstWithDoc = links.find((l) => l.deliveredDocumentId);
     return (
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             className="inline-flex items-center"
-            onClick={firstWithDoc ? () => setReviewDocumentId(firstWithDoc.deliveredDocumentId as Id<"documentsDelivered">) : undefined}
+            onClick={
+              firstWithDoc
+                ? () =>
+                    setReviewDocumentId(
+                      firstWithDoc.deliveredDocumentId as Id<"documentsDelivered">,
+                    )
+                : undefined
+            }
           >
-            <Paperclip className={`h-3 w-3 inline-block ${firstWithDoc ? "text-primary cursor-pointer" : "text-muted-foreground"}`} />
+            <Paperclip
+              className={`h-3 w-3 inline-block ${firstWithDoc ? "text-primary cursor-pointer" : "text-muted-foreground"}`}
+            />
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          {t('linkedToDocument', { documents: links.map(l => l.documentTypeName).join(", ") })}
+          {t("linkedToDocument", {
+            documents: links.map((l) => l.documentTypeName).join(", "),
+          })}
         </TooltipContent>
       </Tooltip>
-    )
+    );
   }
 
   // Build breadcrumbs based on context
-  const breadcrumbs = collectiveProcessId && collectiveProcess
-    ? [
-        { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
-        { label: tBreadcrumbs('processManagement') },
-        { label: tBreadcrumbs('collectiveProcesses'), href: '/collective-processes' },
-        { label: collectiveProcess.referenceNumber || '...', href: `/collective-processes/${collectiveProcessId}` },
-        { label: individualProcess?.person ? getFullName(individualProcess.person) : t('details') }
-      ]
-    : [
-        { label: tBreadcrumbs('dashboard'), href: '/dashboard' },
-        { label: tBreadcrumbs('processManagement') },
-        { label: tBreadcrumbs('individualProcesses'), href: '/individual-processes' },
-        { label: individualProcess?.person ? getFullName(individualProcess.person) : t('details') }
-      ]
+  const breadcrumbs =
+    collectiveProcessId && collectiveProcess
+      ? [
+          { label: tBreadcrumbs("dashboard"), href: "/dashboard" },
+          { label: tBreadcrumbs("processManagement") },
+          {
+            label: tBreadcrumbs("collectiveProcesses"),
+            href: "/collective-processes",
+          },
+          {
+            label: collectiveProcess.referenceNumber || "...",
+            href: `/collective-processes/${collectiveProcessId}`,
+          },
+          {
+            label: individualProcess?.person
+              ? getFullName(individualProcess.person)
+              : t("details"),
+          },
+        ]
+      : [
+          { label: tBreadcrumbs("dashboard"), href: "/dashboard" },
+          { label: tBreadcrumbs("processManagement") },
+          {
+            label: tBreadcrumbs("individualProcesses"),
+            href: "/individual-processes",
+          },
+          {
+            label: individualProcess?.person
+              ? getFullName(individualProcess.person)
+              : t("details"),
+          },
+        ];
 
   if (individualProcess === undefined) {
     return (
@@ -133,7 +211,7 @@ export function IndividualProcessDetailClient({
           <Skeleton className="h-64 w-full" />
         </div>
       </>
-    )
+    );
   }
 
   if (individualProcess === null) {
@@ -142,54 +220,60 @@ export function IndividualProcessDetailClient({
         <DashboardPageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="text-center py-12">
-            <h2 className="text-2xl font-semibold">{t('notFound')}</h2>
-            <p className="text-muted-foreground mt-2">{t('notFoundDescription')}</p>
+            <h2 className="text-2xl font-semibold">{t("notFound")}</h2>
+            <p className="text-muted-foreground mt-2">
+              {t("notFoundDescription")}
+            </p>
             <Button
-              onClick={() => router.push('/individual-processes')}
+              onClick={() => router.push("/individual-processes")}
               className="mt-4"
             >
-              {t('backToList')}
+              {t("backToList")}
             </Button>
           </div>
         </div>
       </>
-    )
+    );
   }
 
-  const isAdmin = currentUser?.role === "admin"
-  const isUrgent = optimisticUrgent ?? individualProcess.urgent === true
-  const hasPassportFile = Boolean(
-    individualProcess.passport?.storageId || individualProcess.passport?.fileUrl
-  )
+  const isAdmin = currentUser?.role === "admin";
+  const isUrgent = optimisticUrgent ?? individualProcess.urgent === true;
+  const processStatus =
+    individualProcess.processStatus ??
+    (individualProcess.isActive === false ? "Anterior" : "Atual");
+  const passportValidityStatus = getPassportValidityStatus(
+    individualProcess.passport?.expiryDate,
+  );
+  const passportFileUploaded = hasPassportFile(
+    individualProcess.passport,
+    deliveredDocuments,
+  );
+  const passportFileStatusLoading =
+    !hasFileAttachment(individualProcess.passport) &&
+    deliveredDocuments === undefined;
 
   const handleUrgentToggle = async () => {
-    if (!isAdmin || isUpdatingUrgent) return
+    if (!isAdmin || isUpdatingUrgent) return;
 
-    const newUrgentValue = !isUrgent
-    setOptimisticUrgent(newUrgentValue)
-    setIsUpdatingUrgent(true)
+    const newUrgentValue = !isUrgent;
+    setOptimisticUrgent(newUrgentValue);
+    setIsUpdatingUrgent(true);
 
     try {
       await updateUrgentForCollectiveGroup({
         id: processId,
         urgent: newUrgentValue,
-      })
-      setOptimisticUrgent(null)
+      });
+      setOptimisticUrgent(null);
     } catch (error) {
-      setOptimisticUrgent(null)
-      toast.error(t('urgentToggleError'), {
+      setOptimisticUrgent(null);
+      toast.error(t("urgentToggleError"), {
         description: error instanceof Error ? error.message : undefined,
-      })
+      });
     } finally {
-      setIsUpdatingUrgent(false)
+      setIsUpdatingUrgent(false);
     }
-  }
-
-  const statusVariant = individualProcess.status === "completed"
-    ? "default"
-    : individualProcess.status === "in_progress"
-    ? "secondary"
-    : "outline"
+  };
 
   return (
     <TooltipProvider>
@@ -204,7 +288,7 @@ export function IndividualProcessDetailClient({
             onClick={() => router.push(`/tasks?highlight=${fromTaskId}`)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {t('backToTask') || 'Voltar para Tarefa'}
+            {t("backToTask") || "Voltar para Tarefa"}
           </Button>
         )}
 
@@ -212,7 +296,9 @@ export function IndividualProcessDetailClient({
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="min-w-0 break-words text-2xl font-bold">
-                {individualProcess.person ? getFullName(individualProcess.person) : t('details')}
+                {individualProcess.person
+                  ? getFullName(individualProcess.person)
+                  : t("details")}
               </h1>
               {isAdmin && (
                 <Tooltip>
@@ -221,7 +307,9 @@ export function IndividualProcessDetailClient({
                       type="button"
                       onClick={handleUrgentToggle}
                       disabled={isUpdatingUrgent}
-                      aria-label={isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}
+                      aria-label={
+                        isUrgent ? t("unmarkAsUrgent") : t("markAsUrgent")
+                      }
                       aria-pressed={isUrgent}
                       className="shrink-0 rounded p-1 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
                     >
@@ -236,31 +324,54 @@ export function IndividualProcessDetailClient({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{isUrgent ? t('unmarkAsUrgent') : t('markAsUrgent')}</p>
+                    <p>{isUrgent ? t("unmarkAsUrgent") : t("markAsUrgent")}</p>
                   </TooltipContent>
                 </Tooltip>
               )}
             </div>
             <p className="break-all text-muted-foreground sm:break-normal">
-              {t('referenceNumber')}: {individualProcess.collectiveProcess?.referenceNumber || '-'}
+              {t("referenceNumber")}:{" "}
+              {individualProcess.collectiveProcess?.referenceNumber || "-"}
             </p>
           </div>
           {isAdmin && (
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <div
+                className="flex h-10 w-full items-center justify-between gap-3 rounded-md bg-muted/60 px-3 sm:w-auto sm:justify-start"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <span className="text-sm text-muted-foreground">
+                  {t("processStatus")}
+                </span>
+                <Badge
+                  variant={processStatus === "Atual" ? "default" : "secondary"}
+                  className="shrink-0"
+                >
+                  {processStatus === "Atual"
+                    ? t("processStatusCurrent")
+                    : t("processStatusPrevious")}
+                </Badge>
+              </div>
               <Button
-                onClick={() => setIsStatusDialogOpen(true)}
+                onClick={() => setIsProcessStatusDialogOpen(true)}
                 variant="outline"
                 className="flex-1 sm:flex-none"
               >
                 <RefreshCcw className="mr-2 h-4 w-4" />
-                {t('updateStatus')}
+                {t("updateProcessStatus")}
               </Button>
               <Button
-                onClick={() => router.push(`/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ''}`)}
+                onClick={() =>
+                  router.push(
+                    `/individual-processes/${processId}/edit${collectiveProcessId ? `?collectiveProcessId=${collectiveProcessId}` : ""}`,
+                  )
+                }
                 className="flex-1 sm:flex-none"
               >
                 <Edit className="mr-2 h-4 w-4" />
-                {tCommon('edit')}
+                {tCommon("edit")}
               </Button>
             </div>
           )}
@@ -270,153 +381,215 @@ export function IndividualProcessDetailClient({
           {/* Process Information Card */}
           <Card>
             <CardHeader>
-              <CardTitle>{t('processInformation')}</CardTitle>
-              <CardDescription>{t('processInformationDescription')}</CardDescription>
+              <CardTitle>{t("processInformation")}</CardTitle>
+              <CardDescription>
+                {t("processInformationDescription")}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
-                <div className="text-sm font-medium">{t('dateProcess')}</div>
+                <div className="text-sm font-medium">{t("dateProcess")}</div>
                 <div className="text-sm">
                   {individualProcess.dateProcess
                     ? formatDate(individualProcess.dateProcess, locale)
-                    : '-'}
+                    : "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('userApplicant')}</div>
+                <div className="text-sm font-medium">{t("userApplicant")}</div>
                 <div className="text-sm">
                   {individualProcess.userApplicant
                     ? individualProcess.userApplicant.company
                       ? `${getFullName(individualProcess.userApplicant)} - ${individualProcess.userApplicant.company.name}`
                       : getFullName(individualProcess.userApplicant)
-                    : '-'}
+                    : "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('cbo')}</div>
+                <div className="text-sm font-medium">{t("cbo")}</div>
                 <div className="text-sm">
                   {individualProcess.cbo
                     ? `${individualProcess.cbo.code} - ${individualProcess.cbo.title}`
-                    : '-'}
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {t('funcao')}
-                  <LinkedDocIcon entityType="individualProcess" fieldPath="funcao" />
+                  {t("funcao")}
+                  <LinkedDocIcon
+                    entityType="individualProcess"
+                    fieldPath="funcao"
+                  />
                 </div>
-                <div className="text-sm">{individualProcess.funcao || '-'}</div>
+                <div className="text-sm">{individualProcess.funcao || "-"}</div>
 
-                <div className="text-sm font-medium">{t('processType')}</div>
-                <div className="text-sm">{individualProcess.processType?.name || '-'}</div>
-
-                <div className="text-sm font-medium">{t('legalFramework')}</div>
-                <div className="text-sm">{individualProcess.legalFramework?.name || '-'}</div>
-
-                <div className="text-sm font-medium">{t('companyApplicant')}</div>
+                <div className="text-sm font-medium">{t("processType")}</div>
                 <div className="text-sm">
-                  {individualProcess.companyApplicant?.name || '-'}
+                  {individualProcess.processType?.name || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('consulate')}</div>
+                <div className="text-sm font-medium">{t("legalFramework")}</div>
                 <div className="text-sm">
-                  {individualProcess.consulate?.city?.name || '-'}
+                  {individualProcess.legalFramework?.name || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('deadlineDate')}</div>
+                <div className="text-sm font-medium">
+                  {t("companyApplicant")}
+                </div>
+                <div className="text-sm">
+                  {individualProcess.companyApplicant?.name || "-"}
+                </div>
+
+                <div className="text-sm font-medium">{t("consulate")}</div>
+                <div className="text-sm">
+                  {individualProcess.consulate?.city?.name || "-"}
+                </div>
+
+                <div className="text-sm font-medium">{t("deadlineDate")}</div>
                 <div className="text-sm">
                   {(() => {
-                    if (individualProcess.deadlineUnit === 'indeterminate') {
-                      return t('deadlineUnits.indeterminate');
+                    if (individualProcess.deadlineUnit === "indeterminate") {
+                      return t("deadlineUnits.indeterminate");
                     }
 
-                    if (individualProcess.deadlineQuantity && individualProcess.deadlineUnit) {
+                    if (
+                      individualProcess.deadlineQuantity &&
+                      individualProcess.deadlineUnit
+                    ) {
                       const quantity = individualProcess.deadlineQuantity;
                       const unit = individualProcess.deadlineUnit;
-                      const unitLabel = unit === 'years'
-                        ? (quantity === 1 ? (locale === 'en' ? 'year' : 'ano') : (locale === 'en' ? 'years' : 'anos'))
-                        : unit === 'months'
-                        ? (quantity === 1 ? (locale === 'en' ? 'month' : 'mês') : (locale === 'en' ? 'months' : 'meses'))
-                        : (quantity === 1 ? (locale === 'en' ? 'day' : 'dia') : (locale === 'en' ? 'days' : 'dias'));
+                      const unitLabel =
+                        unit === "years"
+                          ? quantity === 1
+                            ? locale === "en"
+                              ? "year"
+                              : "ano"
+                            : locale === "en"
+                              ? "years"
+                              : "anos"
+                          : unit === "months"
+                            ? quantity === 1
+                              ? locale === "en"
+                                ? "month"
+                                : "mês"
+                              : locale === "en"
+                                ? "months"
+                                : "meses"
+                            : quantity === 1
+                              ? locale === "en"
+                                ? "day"
+                                : "dia"
+                              : locale === "en"
+                                ? "days"
+                                : "dias";
                       return `${quantity} ${unitLabel}`;
                     }
-                    return individualProcess.deadlineDate || '-';
+                    return individualProcess.deadlineDate || "-";
                   })()}
                 </div>
 
-                <div className="text-sm font-medium">{t('protocolNumber')}</div>
-                <div className="text-sm font-mono">{individualProcess.protocolNumber || '-'}</div>
+                <div className="text-sm font-medium">{t("protocolNumber")}</div>
+                <div className="text-sm font-mono">
+                  {individualProcess.protocolNumber || "-"}
+                </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {t('qualification')}
-                  <LinkedDocIcon entityType="individualProcess" fieldPath="qualification" />
+                  {t("qualification")}
+                  <LinkedDocIcon
+                    entityType="individualProcess"
+                    fieldPath="qualification"
+                  />
                 </div>
                 <div className="text-sm">
                   {individualProcess.qualification
-                    ? t(`qualificationOptions.${individualProcess.qualification}`)
-                    : '-'}
+                    ? t(
+                        `qualificationOptions.${individualProcess.qualification}`,
+                      )
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {t('professionalExperienceSince')}
-                  <LinkedDocIcon entityType="individualProcess" fieldPath="professionalExperienceSince" />
+                  {t("professionalExperienceSince")}
+                  <LinkedDocIcon
+                    entityType="individualProcess"
+                    fieldPath="professionalExperienceSince"
+                  />
                 </div>
                 <div className="text-sm">
                   {individualProcess.professionalExperienceSince
                     ? (() => {
-                        const exactDate = formatDate(individualProcess.professionalExperienceSince, locale);
-                        const relativeDate = formatRelativeDate(individualProcess.professionalExperienceSince, {
-                          year: t("relativeDate.year"),
-                          years: t("relativeDate.years"),
-                          month: t("relativeDate.month"),
-                          months: t("relativeDate.months"),
-                          day: t("relativeDate.day"),
-                          days: t("relativeDate.days"),
-                        });
-                        return relativeDate ? `${exactDate} (${relativeDate})` : exactDate;
+                        const exactDate = formatDate(
+                          individualProcess.professionalExperienceSince,
+                          locale,
+                        );
+                        const relativeDate = formatRelativeDate(
+                          individualProcess.professionalExperienceSince,
+                          {
+                            year: t("relativeDate.year"),
+                            years: t("relativeDate.years"),
+                            month: t("relativeDate.month"),
+                            months: t("relativeDate.months"),
+                            day: t("relativeDate.day"),
+                            days: t("relativeDate.days"),
+                          },
+                        );
+                        return relativeDate
+                          ? `${exactDate} (${relativeDate})`
+                          : exactDate;
                       })()
-                    : '-'}
+                    : "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('visaReceiptLocation')}</div>
+                <div className="text-sm font-medium">
+                  {t("visaReceiptLocation")}
+                </div>
                 <div className="text-sm">
                   {individualProcess.visaReceiptLocation
-                    ? t(`visaReceiptLocationOptions.${individualProcess.visaReceiptLocation}`)
-                    : '-'}
+                    ? t(
+                        `visaReceiptLocationOptions.${individualProcess.visaReceiptLocation}`,
+                      )
+                    : "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('residence')}</div>
+                <div className="text-sm font-medium">{t("residence")}</div>
                 <div className="text-sm">
-                  {individualProcess.visaReceiptLocation === 'abroad' &&
-                  (individualProcess.residenceCountryName || individualProcess.residenceCity)
+                  {individualProcess.visaReceiptLocation === "abroad" &&
+                  (individualProcess.residenceCountryName ||
+                    individualProcess.residenceCity)
                     ? (() => {
                         const place = [
                           individualProcess.residenceCity,
                           individualProcess.residenceCountryName,
                         ]
                           .filter(Boolean)
-                          .join(', ');
+                          .join(", ");
                         const duration = individualProcess.residenceSince
                           ? formatResidenceDuration(
                               individualProcess.residenceSince,
                               (key, vars) => t(key as never, vars as never),
                             )
-                          : '';
-                        return duration ? `${place} (${duration})` : place || '-';
+                          : "";
+                        return duration
+                          ? `${place} (${duration})`
+                          : place || "-";
                       })()
-                    : '-'}
+                    : "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('consularPost')}</div>
+                <div className="text-sm font-medium">{t("consularPost")}</div>
                 <div className="text-sm">
-                  {individualProcess.consularPost || '-'}
+                  {individualProcess.consularPost || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('residenceAddressAbroad')}</div>
+                <div className="text-sm font-medium">
+                  {t("residenceAddressAbroad")}
+                </div>
                 <div className="text-sm whitespace-pre-line">
-                  {individualProcess.residenceAddressAbroad || '-'}
+                  {individualProcess.residenceAddressAbroad || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t('professionalExperience')}</div>
+                <div className="text-sm font-medium">
+                  {t("professionalExperience")}
+                </div>
                 <div className="text-sm whitespace-pre-line">
-                  {individualProcess.professionalExperience || '-'}
+                  {individualProcess.professionalExperience || "-"}
                 </div>
               </div>
             </CardContent>
@@ -426,8 +599,10 @@ export function IndividualProcessDetailClient({
           <Card>
             <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
               <div className="space-y-1.5">
-                <CardTitle>{t('personInformation')}</CardTitle>
-                <CardDescription>{t('personInformationDescription')}</CardDescription>
+                <CardTitle>{t("personInformation")}</CardTitle>
+                <CardDescription>
+                  {t("personInformationDescription")}
+                </CardDescription>
               </div>
               {isAdmin && (
                 <Button
@@ -437,117 +612,168 @@ export function IndividualProcessDetailClient({
                   className="self-start"
                 >
                   <Edit className="h-4 w-4 mr-1" />
-                  {tCommon('edit')}
+                  {tCommon("edit")}
                 </Button>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('cpf')}
+                  {tPeople("cpf")}
                   <LinkedDocIcon entityType="person" fieldPath="cpf" />
                 </div>
-                <div className="text-sm">{individualProcess.person?.cpf ? formatCPF(individualProcess.person.cpf) : '-'}</div>
-
-                <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('nationality')}
-                  <LinkedDocIcon entityType="person" fieldPath="nationalityId" />
+                <div className="text-sm">
+                  {individualProcess.person?.cpf
+                    ? formatCPF(individualProcess.person.cpf)
+                    : "-"}
                 </div>
-                <div className="text-sm">{(individualProcess.person as any)?.nationality?.name ? translateCountryName((individualProcess.person as any).nationality.name, locale) : '-'}</div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('sex')}
+                  {tPeople("nationality")}
+                  <LinkedDocIcon
+                    entityType="person"
+                    fieldPath="nationalityId"
+                  />
+                </div>
+                <div className="text-sm">
+                  {individualProcess.person?.nationality?.name
+                    ? translateCountryName(
+                        individualProcess.person.nationality.name,
+                        locale,
+                      )
+                    : "-"}
+                </div>
+
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {tPeople("sex")}
                   <LinkedDocIcon entityType="person" fieldPath="sex" />
                 </div>
                 <div className="text-sm">
                   {individualProcess.person?.sex
-                    ? tPeople(`sex${individualProcess.person.sex.charAt(0).toUpperCase() + individualProcess.person.sex.slice(1)}` as any)
-                    : '-'}
+                    ? tPeople(
+                        `sex${individualProcess.person.sex.charAt(0).toUpperCase() + individualProcess.person.sex.slice(1)}`,
+                      )
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('maritalStatus')}
-                  <LinkedDocIcon entityType="person" fieldPath="maritalStatus" />
+                  {tPeople("maritalStatus")}
+                  <LinkedDocIcon
+                    entityType="person"
+                    fieldPath="maritalStatus"
+                  />
                 </div>
                 <div className="text-sm">
                   {individualProcess.person?.maritalStatus
-                    ? tPeople(`maritalStatus${individualProcess.person.maritalStatus.charAt(0).toUpperCase() + individualProcess.person.maritalStatus.slice(1)}`)
-                    : '-'}
+                    ? tPeople(
+                        `maritalStatus${individualProcess.person.maritalStatus.charAt(0).toUpperCase() + individualProcess.person.maritalStatus.slice(1)}`,
+                      )
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('birthDate')}
+                  {tPeople("birthDate")}
                   <LinkedDocIcon entityType="person" fieldPath="birthDate" />
                 </div>
                 <div className="text-sm">
                   {individualProcess.person?.birthDate
                     ? (() => {
-                        const formatted = formatDate(individualProcess.person.birthDate, locale);
-                        const age = calculateAge(individualProcess.person.birthDate);
+                        const formatted = formatDate(
+                          individualProcess.person.birthDate,
+                          locale,
+                        );
+                        const age = calculateAge(
+                          individualProcess.person.birthDate,
+                        );
                         return age !== null
-                          ? `${formatted} - ${tPeople('yearsOld', { age })}`
+                          ? `${formatted} - ${tPeople("yearsOld", { age })}`
                           : formatted;
                       })()
-                    : '-'}
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('birthCity')}
+                  {tPeople("birthCity")}
                   <LinkedDocIcon entityType="person" fieldPath="birthCityId" />
                 </div>
                 <div className="text-sm">
-                  {(individualProcess.person as any)?.birthCity?.name
-                    ? `${(individualProcess.person as any).birthCity.name}${(individualProcess.person as any).birthCity.state?.code ? ` - ${(individualProcess.person as any).birthCity.state.code}` : ''}`
-                    : '-'}
+                  {individualProcess.person?.birthCity?.name
+                    ? `${individualProcess.person.birthCity.name}${individualProcess.person.birthCity.state?.code ? ` - ${individualProcess.person.birthCity.state.code}` : ""}`
+                    : "-"}
                 </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('fatherName')}
+                  {tPeople("fatherName")}
                   <LinkedDocIcon entityType="person" fieldPath="fatherName" />
                 </div>
-                <div className="text-sm">{individualProcess.person?.fatherName || '-'}</div>
+                <div className="text-sm">
+                  {individualProcess.person?.fatherName || "-"}
+                </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('motherName')}
+                  {tPeople("motherName")}
                   <LinkedDocIcon entityType="person" fieldPath="motherName" />
                 </div>
-                <div className="text-sm">{individualProcess.person?.motherName || '-'}</div>
+                <div className="text-sm">
+                  {individualProcess.person?.motherName || "-"}
+                </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('email')}
+                  {tPeople("email")}
                   <LinkedDocIcon entityType="person" fieldPath="email" />
                 </div>
-                <div className="text-sm break-all">{individualProcess.person?.email || '-'}</div>
+                <div className="text-sm break-all">
+                  {individualProcess.person?.email || "-"}
+                </div>
 
                 <div className="text-sm font-medium flex items-center gap-1">
-                  {tPeople('profession')}
+                  {tPeople("profession")}
                   <LinkedDocIcon entityType="person" fieldPath="profession" />
                 </div>
-                <div className="text-sm">{individualProcess.person?.profession || '-'}</div>
+                <div className="text-sm">
+                  {individualProcess.person?.profession || "-"}
+                </div>
 
                 {individualProcess.lastSalaryAmount && (
                   <>
-                    <div className="text-sm font-medium">{t('lastSalaryAmount')}</div>
+                    <div className="text-sm font-medium">
+                      {t("lastSalaryAmount")}
+                    </div>
                     <div className="text-sm">
-                      {individualProcess.lastSalaryCurrency} {individualProcess.lastSalaryAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {individualProcess.lastSalaryCurrency}{" "}
+                      {individualProcess.lastSalaryAmount.toLocaleString(
+                        "pt-BR",
+                        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                      )}
                     </div>
                   </>
                 )}
 
                 {individualProcess.exchangeRateToBRL && (
                   <>
-                    <div className="text-sm font-medium">{t('exchangeRateToBRL')}</div>
+                    <div className="text-sm font-medium">
+                      {t("exchangeRateToBRL")}
+                    </div>
                     <div className="text-sm">
-                      {individualProcess.exchangeRateToBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {individualProcess.exchangeRateToBRL.toLocaleString(
+                        "pt-BR",
+                        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                      )}
                     </div>
                   </>
                 )}
 
                 {individualProcess.salaryInBRL && (
                   <>
-                    <div className="text-sm font-medium">{t('salaryInBRL')}</div>
+                    <div className="text-sm font-medium">
+                      {t("salaryInBRL")}
+                    </div>
                     <div className="text-sm">
-                      R$ {individualProcess.salaryInBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R${" "}
+                      {individualProcess.salaryInBRL.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                   </>
                 )}
@@ -555,11 +781,18 @@ export function IndividualProcessDetailClient({
                 {individualProcess.monthlyAmountToReceive && (
                   <>
                     <div className="text-sm font-medium flex items-center gap-1">
-                      {t('monthlyAmountToReceive')}
-                      <LinkedDocIcon entityType="individualProcess" fieldPath="monthlyAmountToReceive" />
+                      {t("monthlyAmountToReceive")}
+                      <LinkedDocIcon
+                        entityType="individualProcess"
+                        fieldPath="monthlyAmountToReceive"
+                      />
                     </div>
                     <div className="text-sm">
-                      R$ {individualProcess.monthlyAmountToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R${" "}
+                      {individualProcess.monthlyAmountToReceive.toLocaleString(
+                        "pt-BR",
+                        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                      )}
                     </div>
                   </>
                 )}
@@ -586,8 +819,10 @@ export function IndividualProcessDetailClient({
           <Card>
             <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
               <div className="space-y-1.5">
-                <CardTitle>{t('passportInformation')}</CardTitle>
-                <CardDescription>{t('passportInformationDescription')}</CardDescription>
+                <CardTitle>{t("passportInformation")}</CardTitle>
+                <CardDescription>
+                  {t("passportInformationDescription")}
+                </CardDescription>
               </div>
               {isAdmin && individualProcess.personId && (
                 <Button
@@ -597,7 +832,7 @@ export function IndividualProcessDetailClient({
                   className="self-start"
                 >
                   <Edit className="h-4 w-4 mr-1" />
-                  {tCommon('edit')}
+                  {tCommon("edit")}
                 </Button>
               )}
             </CardHeader>
@@ -605,68 +840,108 @@ export function IndividualProcessDetailClient({
               {individualProcess.passport ? (
                 <div className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 sm:gap-2">
                   <div className="text-sm font-medium flex items-center gap-1">
-                    {tPassports('passportNumber')}
-                    <LinkedDocIcon entityType="passport" fieldPath="passportNumber" />
+                    {tPassports("passportNumber")}
+                    <LinkedDocIcon
+                      entityType="passport"
+                      fieldPath="passportNumber"
+                    />
                   </div>
-                  <div className="text-sm font-mono">{individualProcess.passport.passportNumber || '-'}</div>
+                  <div className="text-sm font-mono">
+                    {individualProcess.passport.passportNumber || "-"}
+                  </div>
 
                   <div className="text-sm font-medium flex items-center gap-1">
-                    {tPassports('issuingCountry')}
-                    <LinkedDocIcon entityType="passport" fieldPath="issuingCountryId" />
+                    {tPassports("issuingCountry")}
+                    <LinkedDocIcon
+                      entityType="passport"
+                      fieldPath="issuingCountryId"
+                    />
                   </div>
                   <div className="text-sm">
-                    {(individualProcess.passport as any).issuingCountry?.name
-                      ? translateCountryName((individualProcess.passport as any).issuingCountry.name, locale)
-                      : '-'}
+                    {individualProcess.passport.issuingCountry?.name
+                      ? translateCountryName(
+                          individualProcess.passport.issuingCountry.name,
+                          locale,
+                        )
+                      : "-"}
                   </div>
 
                   <div className="text-sm font-medium flex items-center gap-1">
-                    {tPassports('issueDate')}
-                    <LinkedDocIcon entityType="passport" fieldPath="issueDate" />
+                    {tPassports("issueDate")}
+                    <LinkedDocIcon
+                      entityType="passport"
+                      fieldPath="issueDate"
+                    />
                   </div>
                   <div className="text-sm">
                     {individualProcess.passport.issueDate
                       ? formatDate(individualProcess.passport.issueDate, locale)
-                      : '-'}
+                      : "-"}
                   </div>
 
                   <div className="text-sm font-medium flex items-center gap-1">
-                    {tPassports('expiryDate')}
-                    <LinkedDocIcon entityType="passport" fieldPath="expiryDate" />
+                    {tPassports("expiryDate")}
+                    <LinkedDocIcon
+                      entityType="passport"
+                      fieldPath="expiryDate"
+                    />
                   </div>
                   <div className="text-sm">
                     {individualProcess.passport.expiryDate
-                      ? formatDate(individualProcess.passport.expiryDate, locale)
-                      : '-'}
+                      ? formatDate(
+                          individualProcess.passport.expiryDate,
+                          locale,
+                        )
+                      : "-"}
                   </div>
 
-                  <div className="text-sm font-medium">{tPassports('status')}</div>
-                  <div className="text-sm">
-                    <Badge variant={individualProcess.passport.isActive ? "default" : "destructive"}>
-                      {individualProcess.passport.isActive ? tPassports('active') : tPassports('expired')}
-                    </Badge>
+                  <div className="text-sm font-medium">
+                    {tPassports("status")}
                   </div>
-
-                  <div className="text-sm font-medium">{t('passportFile')}</div>
                   <div className="text-sm">
                     <Badge
-                      variant={hasPassportFile ? "success" : "warning"}
-                      className="gap-1"
+                      variant={getPassportStatusVariant(passportValidityStatus)}
                     >
-                      {hasPassportFile ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      {hasPassportFile
-                        ? t('passportFileUploaded')
-                        : t('passportFileNotUploaded')}
+                      {passportValidityStatus
+                        ? tPassports(
+                            `status${passportValidityStatus.replace(" ", "")}`,
+                          )
+                        : tCommon("unknown")}
                     </Badge>
+                  </div>
+
+                  <div className="text-sm font-medium">{t("passportFile")}</div>
+                  <div className="text-sm">
+                    {passportFileStatusLoading ? (
+                      <Skeleton className="h-6 w-32 rounded-full" />
+                    ) : (
+                      <Badge
+                        variant={passportFileUploaded ? "success" : "warning"}
+                        className="gap-1"
+                      >
+                        {passportFileUploaded ? (
+                          <CheckCircle2
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <AlertTriangle
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {passportFileUploaded
+                          ? t("passportFileUploaded")
+                          : t("passportFileNotUploaded")}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{t('noPassportLinked')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t("noPassportLinked")}
+                  </p>
                   {isAdmin && individualProcess.personId && (
                     <Button
                       type="button"
@@ -675,7 +950,7 @@ export function IndividualProcessDetailClient({
                       onClick={() => setIsPassportLinkDialogOpen(true)}
                     >
                       <Edit className="h-4 w-4 mr-1" />
-                      {tPassports('addPassport')}
+                      {tPassports("addPassport")}
                     </Button>
                   )}
                 </div>
@@ -690,11 +965,14 @@ export function IndividualProcessDetailClient({
             individualProcessId={processId}
             userRole={currentUser?.role}
             processInfo={{
-              personFullName: individualProcess.person ? getFullName(individualProcess.person) : undefined,
+              personFullName: individualProcess.person
+                ? getFullName(individualProcess.person)
+                : undefined,
               legalFrameworkName: individualProcess.legalFramework?.name,
               processTypeName: individualProcess.processType?.name,
               companyApplicantName: individualProcess.companyApplicant?.name,
-              referenceNumber: individualProcess.collectiveProcess?.referenceNumber,
+              referenceNumber:
+                individualProcess.collectiveProcess?.referenceNumber,
               protocolNumber: individualProcess.protocolNumber,
               dateProcess: individualProcess.dateProcess,
             }}
@@ -726,23 +1004,20 @@ export function IndividualProcessDetailClient({
           <EntityHistory
             entityType="individualProcess"
             entityId={processId}
-            title={t('activityHistory')}
+            title={t("activityHistory")}
             fullProcessHistory
             defaultCollapsed
           />
         )}
       </div>
 
-      {/* Status Update Dialog (admin only) */}
+      {/* Process Status Update Dialog (admin only) */}
       {isAdmin && (
-        <StatusUpdateDialog
-          open={isStatusDialogOpen}
-          onOpenChange={setIsStatusDialogOpen}
+        <ProcessStatusUpdateDialog
+          open={isProcessStatusDialogOpen}
+          onOpenChange={setIsProcessStatusDialogOpen}
           individualProcessId={processId}
-          currentStatus={individualProcess.activeStatus?.statusName || individualProcess.status || ""}
-          onSuccess={() => {
-            // Dialog will close automatically, data will refresh via Convex
-          }}
+          currentStatus={processStatus}
         />
       )}
 
@@ -754,7 +1029,7 @@ export function IndividualProcessDetailClient({
           personId={individualProcess.personId}
           individualProcessId={processId}
           onSuccess={() => {
-            setIsPersonEditDialogOpen(false)
+            setIsPersonEditDialogOpen(false);
           }}
         />
       )}
@@ -775,7 +1050,7 @@ export function IndividualProcessDetailClient({
         <DocumentReviewDialog
           open={!!reviewDocumentId}
           onOpenChange={(open) => {
-            if (!open) setReviewDocumentId(null)
+            if (!open) setReviewDocumentId(null);
           }}
           documentId={reviewDocumentId}
           userRole={currentUser?.role}
@@ -783,5 +1058,5 @@ export function IndividualProcessDetailClient({
         />
       )}
     </TooltipProvider>
-  )
+  );
 }

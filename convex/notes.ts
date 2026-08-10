@@ -1,12 +1,128 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+const noteFieldsValidator = {
+  _id: v.id("notes"),
+  _creationTime: v.number(),
+  content: v.string(),
+  date: v.string(),
+  requestedByPersonId: v.optional(v.id("people")),
+  communicationChannel: v.optional(v.string()),
+  subject: v.optional(v.string()),
+  alarmDate: v.optional(v.string()),
+  alarmNotifiedAt: v.optional(v.number()),
+  attachmentCount: v.optional(v.number()),
+  individualProcessId: v.optional(v.id("individualProcesses")),
+  collectiveProcessId: v.optional(v.id("collectiveProcesses")),
+  createdBy: v.id("users"),
+  isActive: v.boolean(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+};
+
+const createdByUserValidator = v.union(
+  v.object({
+    _id: v.id("userProfiles"),
+    userId: v.optional(v.id("users")),
+    fullName: v.string(),
+    email: v.string(),
+  }),
+  v.null(),
+);
+
+const requestedByPersonValidator = v.union(
+  v.object({
+    _id: v.id("people"),
+    fullName: v.string(),
+  }),
+  v.null(),
+);
+
+const processNoteValidator = v.object({
+  ...noteFieldsValidator,
+  createdByUser: createdByUserValidator,
+  requestedByPerson: requestedByPersonValidator,
+});
+
+const allNotesValidator = v.object({
+  ...noteFieldsValidator,
+  candidateName: v.union(v.string(), v.null()),
+  processReference: v.union(v.string(), v.null()),
+  individualProcess: v.union(
+    v.object({
+      _id: v.id("individualProcesses"),
+      collectiveProcessId: v.optional(v.id("collectiveProcesses")),
+      personId: v.optional(v.id("people")),
+      status: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  collectiveProcess: v.union(
+    v.object({
+      _id: v.id("collectiveProcesses"),
+      reference: v.string(),
+      processTypeId: v.optional(v.id("processTypes")),
+      companyId: v.optional(v.id("companies")),
+    }),
+    v.null(),
+  ),
+  createdByUser: createdByUserValidator,
+  requestedByPerson: requestedByPersonValidator,
+});
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function getDateInSaoPaulo(timestamp = Date.now()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(timestamp);
+}
+
+function validateAlarmDate(alarmDate: string): void {
+  if (!DATE_ONLY_PATTERN.test(alarmDate)) {
+    throw new Error("Alarm date must use YYYY-MM-DD format");
+  }
+  const parsed = Date.parse(`${alarmDate}T03:00:00.000Z`);
+  if (!Number.isFinite(parsed)) throw new Error("Alarm date is invalid");
+  if (new Date(parsed).toISOString().slice(0, 10) !== alarmDate) {
+    throw new Error("Alarm date is invalid");
+  }
+  if (alarmDate < getDateInSaoPaulo()) {
+    throw new Error("Alarm date cannot be in the past");
+  }
+}
+
+function normalizeCommunicationChannel(communicationChannel: string): string {
+  const normalized = communicationChannel.trim();
+  if (!normalized) throw new Error("Communication channel is required");
+  if (normalized.length > 100) {
+    throw new Error("Communication channel is too long");
+  }
+  return normalized;
+}
+
+async function scheduleNoteAlarm(
+  ctx: MutationCtx,
+  noteId: Id<"notes">,
+  alarmDate: string,
+) {
+  const alarmTimestamp = Date.parse(`${alarmDate}T03:00:00.000Z`);
+  await ctx.scheduler.runAt(
+    Math.max(alarmTimestamp, Date.now()),
+    internal.noteReminders.sendNoteAlarm,
+    { noteId, expectedAlarmDate: alarmDate },
+  );
 }
 
 /**
@@ -16,6 +132,7 @@ function getFullName(person: { givenNames: string; middleName?: string; surname?
  */
 export const listAll = query({
   args: {},
+  returns: v.array(allNotesValidator),
   handler: async (ctx) => {
     const userProfile = await getCurrentUserProfile(ctx);
     // Deduped document reads across enriched rows
@@ -81,6 +198,9 @@ export const listAll = query({
         let processReference: string | null = null;
         let individualProcess = null;
         let collectiveProcess = null;
+        const requestedByPerson = note.requestedByPersonId
+          ? await cachedGet(note.requestedByPersonId)
+          : null;
 
         // Get individual process and candidate info
         if (note.individualProcessId) {
@@ -142,6 +262,12 @@ export const listAll = query({
                 email: createdByProfile.email,
               }
             : null,
+          requestedByPerson: requestedByPerson
+            ? {
+                _id: requestedByPerson._id,
+                fullName: getFullName(requestedByPerson),
+              }
+            : null,
         };
       })
     );
@@ -160,6 +286,7 @@ export const list = query({
     individualProcessId: v.optional(v.id("individualProcesses")),
     collectiveProcessId: v.optional(v.id("collectiveProcesses")),
   },
+  returns: v.array(processNoteValidator),
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
     // Deduped document reads across enriched rows
@@ -239,6 +366,9 @@ export const list = query({
           .query("userProfiles")
           .withIndex("by_userId", (q) => q.eq("userId", note.createdBy))
           .first();
+        const requestedByPerson = note.requestedByPersonId
+          ? await cachedGet(note.requestedByPersonId)
+          : null;
 
         return {
           ...note,
@@ -248,6 +378,12 @@ export const list = query({
                 userId: createdByProfile.userId,
                 fullName: createdByProfile.fullName,
                 email: createdByProfile.email,
+              }
+            : null,
+          requestedByPerson: requestedByPerson
+            ? {
+                _id: requestedByPerson._id,
+                fullName: getFullName(requestedByPerson),
               }
             : null,
         };
@@ -269,6 +405,7 @@ export const countByIndividualProcess = query({
   args: {
     individualProcessId: v.id("individualProcesses"),
   },
+  returns: v.number(),
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
 
@@ -312,6 +449,7 @@ export const countByIndividualProcess = query({
  */
 export const get = query({
   args: { id: v.id("notes") },
+  returns: v.union(processNoteValidator, v.null()),
   handler: async (ctx, { id }) => {
     const userProfile = await getCurrentUserProfile(ctx);
     const note = await ctx.db.get(id);
@@ -365,6 +503,9 @@ export const get = query({
           .withIndex("by_userId", (q) => q.eq("userId", createdByUser._id))
           .first()
       : null;
+    const requestedByPerson = note.requestedByPersonId
+      ? await ctx.db.get(note.requestedByPersonId)
+      : null;
 
     return {
       ...note,
@@ -374,6 +515,12 @@ export const get = query({
             userId: createdByProfile.userId,
             fullName: createdByProfile.fullName,
             email: createdByProfile.email,
+          }
+        : null,
+      requestedByPerson: requestedByPerson
+        ? {
+            _id: requestedByPerson._id,
+            fullName: getFullName(requestedByPerson),
           }
         : null,
     };
@@ -387,9 +534,14 @@ export const get = query({
 export const create = mutation({
   args: {
     content: v.string(),
+    requestedByPersonId: v.id("people"),
+    communicationChannel: v.string(),
+    subject: v.string(),
+    alarmDate: v.optional(v.string()),
     individualProcessId: v.optional(v.id("individualProcesses")),
     collectiveProcessId: v.optional(v.id("collectiveProcesses")),
   },
+  returns: v.id("notes"),
   handler: async (ctx, args) => {
     const userProfile = await requireActiveUserProfile(ctx);
 
@@ -410,6 +562,15 @@ export const create = mutation({
     if (!args.content || args.content.trim().length === 0) {
       throw new Error("Note content is required");
     }
+    const subject = args.subject.trim();
+    if (!subject) throw new Error("Note subject is required");
+    if (subject.length > 200) throw new Error("Note subject is too long");
+    const requestedByPerson = await ctx.db.get(args.requestedByPersonId);
+    if (!requestedByPerson) throw new Error("Requested-by person not found");
+    const communicationChannel = normalizeCommunicationChannel(
+      args.communicationChannel,
+    );
+    if (args.alarmDate) validateAlarmDate(args.alarmDate);
 
     // Apply role-based access control for client users
     if (userProfile.role === "client") {
@@ -468,11 +629,16 @@ export const create = mutation({
     }
 
     const now = Date.now();
-    const today = new Date().toISOString().split("T")[0];
+    const today = getDateInSaoPaulo();
 
     const noteId = await ctx.db.insert("notes", {
       content: args.content,
       date: today,
+      requestedByPersonId: args.requestedByPersonId,
+      communicationChannel,
+      subject,
+      alarmDate: args.alarmDate,
+      attachmentCount: 0,
       individualProcessId: args.individualProcessId,
       collectiveProcessId: args.collectiveProcessId,
       createdBy: userProfile.userId,
@@ -480,6 +646,10 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    if (args.alarmDate) {
+      await scheduleNoteAlarm(ctx, noteId, args.alarmDate);
+    }
 
     // Log activity (non-blocking)
     try {
@@ -509,7 +679,13 @@ export const update = mutation({
   args: {
     id: v.id("notes"),
     content: v.optional(v.string()),
+    requestedByPersonId: v.optional(v.id("people")),
+    communicationChannel: v.optional(v.string()),
+    subject: v.optional(v.string()),
+    alarmDate: v.optional(v.string()),
+    clearAlarm: v.optional(v.boolean()),
   },
+  returns: v.id("notes"),
   handler: async (ctx, args) => {
     const userProfile = await requireActiveUserProfile(ctx);
 
@@ -529,17 +705,58 @@ export const update = mutation({
         throw new Error("Note content is required");
       }
     }
+    if (args.requestedByPersonId !== undefined) {
+      const requestedByPerson = await ctx.db.get(args.requestedByPersonId);
+      if (!requestedByPerson) throw new Error("Requested-by person not found");
+    }
+    const communicationChannel =
+      args.communicationChannel === undefined
+        ? undefined
+        : normalizeCommunicationChannel(args.communicationChannel);
+    const subject = args.subject?.trim();
+    if (args.subject !== undefined && !subject) {
+      throw new Error("Note subject is required");
+    }
+    if (subject && subject.length > 200) {
+      throw new Error("Note subject is too long");
+    }
+    if (args.alarmDate !== undefined) validateAlarmDate(args.alarmDate);
+
+    const nextAlarmDate = args.clearAlarm
+      ? undefined
+      : (args.alarmDate ?? note.alarmDate);
+    const alarmChanged = nextAlarmDate !== note.alarmDate;
 
     const updateData: {
       content?: string;
+      requestedByPersonId?: Id<"people">;
+      communicationChannel?: string;
+      subject?: string;
+      alarmDate?: string;
+      alarmNotifiedAt?: number;
       updatedAt: number;
     } = {
       updatedAt: Date.now(),
     };
 
     if (args.content !== undefined) updateData.content = args.content;
+    if (args.requestedByPersonId !== undefined) {
+      updateData.requestedByPersonId = args.requestedByPersonId;
+    }
+    if (communicationChannel !== undefined) {
+      updateData.communicationChannel = communicationChannel;
+    }
+    if (subject !== undefined) updateData.subject = subject;
+    if (alarmChanged) {
+      updateData.alarmDate = nextAlarmDate;
+      updateData.alarmNotifiedAt = undefined;
+    }
 
     await ctx.db.patch(args.id, updateData);
+
+    if (alarmChanged && nextAlarmDate) {
+      await scheduleNoteAlarm(ctx, args.id, nextAlarmDate);
+    }
 
     // Log activity (non-blocking)
     try {
@@ -573,6 +790,7 @@ export const update = mutation({
  */
 export const remove = mutation({
   args: { id: v.id("notes") },
+  returns: v.id("notes"),
   handler: async (ctx, { id }) => {
     const userProfile = await requireActiveUserProfile(ctx);
 
@@ -591,6 +809,15 @@ export const remove = mutation({
       isActive: false,
       updatedAt: Date.now(),
     });
+
+    const attachments = await ctx.db
+      .query("noteAttachments")
+      .withIndex("by_note", (q) => q.eq("noteId", id))
+      .collect();
+    for (const attachment of attachments) {
+      await ctx.db.delete(attachment._id);
+      await ctx.storage.delete(attachment.storageId);
+    }
 
     // Log activity (non-blocking)
     try {

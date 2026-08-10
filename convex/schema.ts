@@ -940,6 +940,12 @@ export default defineSchema({
   notes: defineTable({
     content: v.string(), // Rich text content (stored as HTML)
     date: v.string(), // ISO date format YYYY-MM-DD (auto-populated with current date)
+    requestedByPersonId: v.optional(v.id("people")), // Person who requested the note action (may differ from the process requester)
+    communicationChannel: v.optional(v.string()),
+    subject: v.optional(v.string()),
+    alarmDate: v.optional(v.string()), // Date-only reminder in YYYY-MM-DD format
+    alarmNotifiedAt: v.optional(v.number()),
+    attachmentCount: v.optional(v.number()),
     individualProcessId: v.optional(v.id("individualProcesses")), // Link to individual process
     collectiveProcessId: v.optional(v.id("collectiveProcesses")), // Link to collective process
     createdBy: v.id("users"), // User who created the note
@@ -951,11 +957,26 @@ export default defineSchema({
     .index("by_collectiveProcess", ["collectiveProcessId"])
     .index("by_createdBy", ["createdBy"])
     .index("by_date", ["date"])
+    .index("by_alarmDate_notified", ["alarmDate", "alarmNotifiedAt"])
     .index("by_active", ["isActive"])
     .index("by_individualProcess_date", ["individualProcessId", "date"])
     .index("by_collectiveProcess_date", ["collectiveProcessId", "date"])
     .index("by_individualProcess_active", ["individualProcessId", "isActive"])
     .index("by_collectiveProcess_active", ["collectiveProcessId", "isActive"]),
+
+  // General-purpose note attachments. These intentionally do not participate
+  // in document requirements, review, versioning, or document-type workflows.
+  noteAttachments: defineTable({
+    noteId: v.id("notes"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.string(),
+    fileSize: v.number(),
+    uploadedBy: v.id("users"),
+    uploadedAt: v.number(),
+  })
+    .index("by_note", ["noteId"])
+    .index("by_storageId", ["storageId"]),
 
   // Saved filter presets for users
   savedFilters: defineTable({

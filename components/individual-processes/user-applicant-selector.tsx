@@ -4,12 +4,12 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useTranslations } from "next-intl"
 import { Combobox, ComboboxOption } from "@/components/ui/combobox"
-import { Id } from "@/convex/_generated/dataModel"
 
 interface UserApplicantSelectorProps {
   value: string
   onChange: (value: string, companyId?: string) => void
   disabled?: boolean
+  isolateListScroll?: boolean
 }
 
 /**
@@ -28,6 +28,7 @@ export function UserApplicantSelector({
   value,
   onChange,
   disabled = false,
+  isolateListScroll = false,
 }: UserApplicantSelectorProps) {
   const t = useTranslations("IndividualProcesses")
 
@@ -49,9 +50,10 @@ export function UserApplicantSelector({
         onChange(newValue || "", selected?.companyId)
       }}
       placeholder={t("selectUserApplicant")}
-      searchPlaceholder={t("selectUserApplicant")}
-      emptyText={t("noApplicantsFound")}
+      searchPlaceholder={t("searchUserApplicant")}
+      emptyText={t("noUserApplicantsFound")}
       disabled={disabled}
+      isolateListScroll={isolateListScroll}
       showClearButton={true}
       clearButtonAriaLabel={t("clearUserApplicant")}
     />

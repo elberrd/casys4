@@ -11,7 +11,10 @@ import {
 } from "@/components/individual-processes/individual-processes-table"
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
 import { FillFieldsModal } from "@/components/individual-processes/fill-fields-modal"
-import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
+import {
+  CreateFromExistingDialog,
+  type CreateFromExistingSelection,
+} from "@/components/individual-processes/create-from-existing-dialog"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Button } from "@/components/ui/button"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
@@ -949,21 +952,26 @@ export function IndividualProcessesClient() {
     }
   }
 
-  const handleConfirmCreateFromExisting = async (
-    userApplicantId?: Id<"people">,
-    userApplicantCompanyId?: Id<"companies">,
-  ) => {
+  const handleConfirmCreateFromExisting = async ({
+    processTypeId,
+    legalFrameworkId,
+    userApplicantId,
+    userApplicantCompanyId,
+  }: CreateFromExistingSelection) => {
     if (!sourceProcessId) return
 
     setIsCreatingFromExisting(true)
     try {
       const newProcessId = await createFromExisting({
         sourceProcessId,
+        processTypeId,
+        legalFrameworkId,
         userApplicantId,
         userApplicantCompanyId,
       })
       setCreateFromDialogOpen(false)
       setSourceProcessId(undefined)
+      toast.success(t("createFromExistingSuccess"))
 
       // Open the newly created process in edit mode
       if (newProcessId) {
@@ -971,6 +979,7 @@ export function IndividualProcessesClient() {
       }
     } catch (error) {
       console.error("Error creating process from existing:", error)
+      toast.error(t("createFromExistingError"))
       // Keep dialog open on error so user can try again
     } finally {
       setIsCreatingFromExisting(false)

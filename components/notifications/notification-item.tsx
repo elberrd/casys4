@@ -1,10 +1,9 @@
 "use client"
 
-import { useTranslations } from "next-intl"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, ptBR } from "date-fns/locale"
 import { useLocale } from "next-intl"
-import { Bell, CheckCircle, FileCheck, ListTodo, AlertCircle } from "lucide-react"
+import { AlarmClock, Bell, CheckCircle, FileCheck, ListTodo, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -32,11 +31,11 @@ const notificationIcons = {
   document_rejected: AlertCircle,
   task_assigned: ListTodo,
   process_milestone: Bell,
+  note_alarm: AlarmClock,
   default: Bell,
 }
 
 export function NotificationItem({ notification, compact = false, onClick }: NotificationItemProps) {
-  const t = useTranslations("Notifications")
   const locale = useLocale()
   const router = useRouter()
   const markAsRead = useMutation(api.notifications.markAsRead)

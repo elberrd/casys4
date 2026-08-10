@@ -96,6 +96,8 @@ import type * as migrations_setIsCurrentOnPeopleCompanies from "../migrations/se
 import type * as migrations_updateCaseStatusesOrderNumbers from "../migrations/updateCaseStatusesOrderNumbers.js";
 import type * as migrations_verifyImport from "../migrations/verifyImport.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as noteAttachments from "../noteAttachments.js";
+import type * as noteReminders from "../noteReminders.js";
 import type * as notes from "../notes.js";
 import type * as notifications from "../notifications.js";
 import type * as passportDocumentAttachments from "../passportDocumentAttachments.js";
@@ -224,6 +226,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/updateCaseStatusesOrderNumbers": typeof migrations_updateCaseStatusesOrderNumbers;
   "migrations/verifyImport": typeof migrations_verifyImport;
   myFunctions: typeof myFunctions;
+  noteAttachments: typeof noteAttachments;
+  noteReminders: typeof noteReminders;
   notes: typeof notes;
   notifications: typeof notifications;
   passportDocumentAttachments: typeof passportDocumentAttachments;

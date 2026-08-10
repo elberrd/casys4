@@ -1,19 +1,19 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { useTranslations } from "next-intl"
-import { useCountryTranslation } from "@/lib/i18n/countries"
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useTranslations } from "next-intl";
+import { useCountryTranslation } from "@/lib/i18n/countries";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -21,63 +21,50 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Combobox } from "@/components/ui/combobox"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { DatePicker } from "@/components/ui/date-picker"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   passportSchema,
   type PassportFormData,
-} from "@/lib/validations/passports"
-import { toast } from "sonner"
-import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
-import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation"
-import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback"
-import { passportUploadResponseSchema } from "@/lib/validations/passport-ocr"
+} from "@/lib/validations/passports";
+import { toast } from "sonner";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation";
+import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback";
+import { passportUploadResponseSchema } from "@/lib/validations/passport-ocr";
 import {
   PassportAiUploadField,
   type ExtractedAdminPassportFields,
-} from "@/components/passports/passport-ai-upload-field"
-import { PassportDocumentAttachmentDialog } from "@/components/passports/passport-document-attachment-dialog"
+} from "@/components/passports/passport-ai-upload-field";
+import { PassportDocumentAttachmentDialog } from "@/components/passports/passport-document-attachment-dialog";
+import {
+  getPassportValidityStatus,
+  type PassportValidityStatus,
+} from "@/lib/passport";
 
 interface PassportFormDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  passportId?: Id<"passports">
-  personId?: Id<"people">
-  individualProcessId?: Id<"individualProcesses">
-  onSuccess?: (passportId?: Id<"passports">) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  passportId?: Id<"passports">;
+  personId?: Id<"people">;
+  individualProcessId?: Id<"individualProcesses">;
+  onSuccess?: (passportId?: Id<"passports">) => void;
 }
 
-function calculateStatus(
-  expiryDate: string,
-): "Valid" | "Expiring Soon" | "Expired" {
-  const today = new Date()
-  const expiry = new Date(expiryDate)
-  const sixMonthsFromNow = new Date()
-  sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6)
-
-  if (expiry < today) {
-    return "Expired"
-  } else if (expiry < sixMonthsFromNow) {
-    return "Expiring Soon"
-  } else {
-    return "Valid"
-  }
-}
-
-function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
+function getStatusVariant(status: PassportValidityStatus) {
   switch (status) {
     case "Valid":
-      return "success"
+      return "success";
     case "Expiring Soon":
-      return "warning"
+      return "warning";
     case "Expired":
-      return "destructive"
+      return "destructive";
   }
 }
 
@@ -89,29 +76,29 @@ export function PassportFormDialog({
   individualProcessId,
   onSuccess,
 }: PassportFormDialogProps) {
-  const t = useTranslations("Passports")
-  const tCommon = useTranslations("Common")
-  const getCountryName = useCountryTranslation()
+  const t = useTranslations("Passports");
+  const tCommon = useTranslations("Common");
+  const getCountryName = useCountryTranslation();
 
   const passport = useQuery(
     api.passports.get,
     passportId ? { id: passportId } : "skip",
-  )
-  const people = useQuery(api.people.list, {}) ?? []
-  const countries = useQuery(api.countries.list, {}) ?? []
+  );
+  const people = useQuery(api.people.list, {}) ?? [];
+  const countries = useQuery(api.countries.list, {}) ?? [];
 
-  const createPassport = useMutation(api.passports.create)
-  const updatePassport = useMutation(api.passports.update)
-  const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl)
+  const createPassport = useMutation(api.passports.create);
+  const updatePassport = useMutation(api.passports.update);
+  const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preparedStorageId, setPreparedStorageId] = useState<
     Id<"_storage"> | undefined
-  >()
-  const [isUploading, setIsUploading] = useState(false)
-  const [isAiProcessing, setIsAiProcessing] = useState(false)
+  >();
+  const [isUploading, setIsUploading] = useState(false);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [pendingPassportAttachmentId, setPendingPassportAttachmentId] =
-    useState<Id<"passports"> | undefined>()
+    useState<Id<"passports"> | undefined>();
 
   const form = useForm<PassportFormData>({
     resolver: zodResolver(passportSchema),
@@ -124,7 +111,7 @@ export function PassportFormDialog({
       fileUrl: "",
       isActive: true,
     },
-  })
+  });
 
   // Unsaved changes protection
   const {
@@ -136,16 +123,16 @@ export function PassportFormDialog({
   } = useUnsavedChanges({
     formState: form.formState,
     onConfirmedClose: () => {
-      form.reset()
-      onOpenChange(false)
+      form.reset();
+      onOpenChange(false);
     },
     isSubmitting: form.formState.isSubmitting,
-  })
+  });
 
-  const watchedPassportNumber = form.watch("passportNumber")
-  const watchedIssuingCountryId = form.watch("issuingCountryId")
-  const watchedIssueDate = form.watch("issueDate")
-  const watchedPersonId = form.watch("personId")
+  const watchedPassportNumber = form.watch("passportNumber");
+  const watchedIssuingCountryId = form.watch("issuingCountryId");
+  const watchedIssueDate = form.watch("issueDate");
+  const watchedPersonId = form.watch("personId");
   const {
     isChecking: isPassportChecking,
     isAvailable: isPassportAvailable,
@@ -154,10 +141,10 @@ export function PassportFormDialog({
     passportNumber: watchedPassportNumber,
     passportId: passportId,
     enabled: open,
-  })
+  });
 
-  const expiryDate = form.watch("expiryDate")
-  const status = expiryDate ? calculateStatus(expiryDate) : null
+  const expiryDate = form.watch("expiryDate");
+  const status = getPassportValidityStatus(expiryDate);
 
   useEffect(() => {
     if (passport) {
@@ -169,108 +156,108 @@ export function PassportFormDialog({
         expiryDate: passport.expiryDate,
         fileUrl: passport.fileUrl ?? "",
         isActive: passport.isActive,
-      })
+      });
     } else if (personId) {
-      form.setValue("personId", personId)
+      form.setValue("personId", personId);
     }
-  }, [passport, personId, form])
+  }, [passport, personId, form]);
 
   // Clear the picked file whenever the dialog closes so it doesn't linger.
   useEffect(() => {
     if (!open) {
-      setSelectedFile(null)
-      setPreparedStorageId(undefined)
-      setIsUploading(false)
-      setIsAiProcessing(false)
-      setPendingPassportAttachmentId(undefined)
+      setSelectedFile(null);
+      setPreparedStorageId(undefined);
+      setIsUploading(false);
+      setIsAiProcessing(false);
+      setPendingPassportAttachmentId(undefined);
     }
-  }, [open])
+  }, [open]);
 
-  const currentFileUrl = form.watch("fileUrl")
+  const currentFileUrl = form.watch("fileUrl");
 
   const handleRemoveCurrentFile = () => {
-    form.setValue("fileUrl", "", { shouldDirty: true })
-  }
+    form.setValue("fileUrl", "", { shouldDirty: true });
+  };
 
   const handleApplyExtractedFields = (fields: ExtractedAdminPassportFields) => {
     form.setValue("passportNumber", fields.passportNumber, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("issuingCountryId", fields.issuingCountryId, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("issueDate", fields.issueDate, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("expiryDate", fields.expiryDate, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
-  }
+    });
+  };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
     if (
       !nextOpen &&
       (isAiProcessing || pendingPassportAttachmentId !== undefined)
     ) {
-      return
+      return;
     }
-    handleOpenChange(nextOpen)
-  }
+    handleOpenChange(nextOpen);
+  };
 
   const finishPassportSave = useCallback(
     (savedPassportId: Id<"passports">) => {
-      setPendingPassportAttachmentId(undefined)
-      setSelectedFile(null)
-      setPreparedStorageId(undefined)
+      setPendingPassportAttachmentId(undefined);
+      setSelectedFile(null);
+      setPreparedStorageId(undefined);
       if (onSuccess) {
-        onSuccess(savedPassportId)
+        onSuccess(savedPassportId);
       } else {
-        onOpenChange(false)
+        onOpenChange(false);
       }
     },
     [onOpenChange, onSuccess],
-  )
+  );
 
   const completePassportSave = useCallback(() => {
-    if (!pendingPassportAttachmentId) return
-    finishPassportSave(pendingPassportAttachmentId)
-  }, [finishPassportSave, pendingPassportAttachmentId])
+    if (!pendingPassportAttachmentId) return;
+    finishPassportSave(pendingPassportAttachmentId);
+  }, [finishPassportSave, pendingPassportAttachmentId]);
 
   const onSubmit = async (data: PassportFormData) => {
     if (isPassportChecking) {
-      toast.error(t("passportNumberValidationInProgress"))
-      return
+      toast.error(t("passportNumberValidationInProgress"));
+      return;
     }
     if (isPassportAvailable === false) {
-      toast.error(t("passportNumberDuplicateError"))
-      return
+      toast.error(t("passportNumberDuplicateError"));
+      return;
     }
 
     try {
       // Upload the picked document to Convex storage first (if any).
-      let storageId = preparedStorageId
+      let storageId = preparedStorageId;
       if (selectedFile && !storageId) {
-        setIsUploading(true)
-        const uploadUrl = await generateUploadUrl()
+        setIsUploading(true);
+        const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": selectedFile.type },
           body: selectedFile,
-        })
-        if (!result.ok) throw new Error("Failed to upload file")
+        });
+        if (!result.ok) throw new Error("Failed to upload file");
         const uploadResult = passportUploadResponseSchema.parse(
           await result.json(),
-        )
-        storageId = uploadResult.storageId
-        setIsUploading(false)
+        );
+        storageId = uploadResult.storageId;
+        setIsUploading(false);
       }
 
       if (passportId) {
@@ -285,12 +272,12 @@ export function PassportFormDialog({
           // unchanged file is preserved and a removed one ("") is cleared.
           ...(storageId ? { storageId } : { fileUrl: data.fileUrl ?? "" }),
           isActive: data.isActive,
-        })
-        toast.success(t("updatedSuccess"))
+        });
+        toast.success(t("updatedSuccess"));
         if (storageId) {
-          setPendingPassportAttachmentId(passportId)
+          setPendingPassportAttachmentId(passportId);
         } else {
-          finishPassportSave(passportId)
+          finishPassportSave(passportId);
         }
       } else {
         const newPassportId = await createPassport({
@@ -301,19 +288,19 @@ export function PassportFormDialog({
           expiryDate: data.expiryDate,
           ...(storageId ? { storageId } : {}),
           isActive: data.isActive,
-        })
-        toast.success(t("createdSuccess"))
+        });
+        toast.success(t("createdSuccess"));
         if (storageId) {
-          setPendingPassportAttachmentId(newPassportId)
+          setPendingPassportAttachmentId(newPassportId);
         } else {
-          finishPassportSave(newPassportId)
+          finishPassportSave(newPassportId);
         }
       }
     } catch {
-      setIsUploading(false)
-      toast.error(passportId ? t("errorUpdate") : t("errorCreate"))
+      setIsUploading(false);
+      toast.error(passportId ? t("errorUpdate") : t("errorCreate"));
     }
-  }
+  };
 
   return (
     <>
@@ -425,11 +412,11 @@ export function PassportFormDialog({
                           onValueChange={(value) => field.onChange(value || "")}
                           options={countries.map((country) => {
                             const translatedName =
-                              getCountryName(country.code) || country.name
+                              getCountryName(country.code) || country.name;
                             return {
                               value: country._id,
                               label: translatedName,
-                            }
+                            };
                           })}
                           placeholder={t("selectCountry")}
                           searchPlaceholder={tCommon("search")}
@@ -560,5 +547,5 @@ export function PassportFormDialog({
         onCancel={handleCancelClose}
       />
     </>
-  )
+  );
 }

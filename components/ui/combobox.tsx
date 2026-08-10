@@ -38,6 +38,8 @@ export interface ComboboxProps<T = string> {
   value?: T;
   defaultValue?: T;
   onValueChange?: (value: T | undefined) => void;
+  /** Accessible name announced for the combobox trigger. */
+  ariaLabel?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
@@ -59,6 +61,14 @@ export interface ComboboxProps<T = string> {
    * @default false
    */
   popoverModal?: boolean;
+  /**
+   * Handles wheel/trackpad scrolling directly on the options list. Use this
+   * for a portalled combobox inside a Dialog: the Dialog keeps the page locked,
+   * while the list remains continuously scrollable without nesting another
+   * modal Popover scroll lock.
+   * @default false
+   */
+  isolateListScroll?: boolean;
   /**
    * Enable multiple selection mode
    */
@@ -119,6 +129,7 @@ function ComboboxSingle<T extends string = string>({
   value,
   defaultValue,
   onValueChange,
+  ariaLabel,
   placeholder = "Select...",
   searchPlaceholder = "Search...",
   emptyText = "No results found.",
@@ -129,6 +140,7 @@ function ComboboxSingle<T extends string = string>({
   triggerClassName,
   contentClassName,
   popoverModal = false,
+  isolateListScroll = false,
   showClearButton = true,
   clearButtonAriaLabel = "Clear selection",
   onCreateNew,
@@ -140,6 +152,33 @@ function ComboboxSingle<T extends string = string>({
   );
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
+  const commandListRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const list = commandListRef.current;
+    if (!open || !isolateListScroll || !list) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0) return;
+
+      const deltaMultiplier =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? list.clientHeight
+            : 1;
+
+      list.scrollTop += event.deltaY * deltaMultiplier;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    // React delegates wheel handlers as passive listeners. A native non-passive
+    // listener lets this portalled list consume the gesture before Dialog's
+    // document-level scroll lock sees it.
+    list.addEventListener("wheel", handleWheel, { passive: false });
+    return () => list.removeEventListener("wheel", handleWheel);
+  }, [isolateListScroll, open]);
 
   // Use controlled value if provided, otherwise use internal state
   const selectedValue = value !== undefined ? value : internalValue;
@@ -180,7 +219,7 @@ function ComboboxSingle<T extends string = string>({
     setOpen(false);
   };
 
-  const handleClear = (e: React.MouseEvent) => {
+  const handleClear = (e: { stopPropagation: () => void }) => {
     e.stopPropagation(); // Prevent opening popover
 
     if (value === undefined) {
@@ -225,6 +264,7 @@ function ComboboxSingle<T extends string = string>({
         <Button
           variant="outline"
           role="combobox"
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-busy={loading}
           disabled={disabled || loading}
@@ -255,7 +295,7 @@ function ComboboxSingle<T extends string = string>({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  handleClear(e as any);
+                  handleClear(e);
                 }
               }}
               className="ml-auto mr-2 p-1 h-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity rounded-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer"
@@ -305,7 +345,13 @@ function ComboboxSingle<T extends string = string>({
             placeholder={searchPlaceholder}
             onValueChange={setSearchQuery}
           />
-          <CommandList>
+          <CommandList
+            ref={commandListRef}
+            className={cn(
+              isolateListScroll &&
+                "overflow-y-scroll overscroll-contain [scrollbar-gutter:stable]",
+            )}
+          >
             <CommandEmpty>
               {onCreateNew && searchQuery.trim() ? (
                 <div className="flex flex-col items-center gap-2 p-4">
@@ -522,7 +568,7 @@ function ComboboxMultiple<T extends string = string>({
     onValueChange?.(newValues);
   };
 
-  const handleClearAll = (e: React.MouseEvent) => {
+  const handleClearAll = (e: { stopPropagation: () => void }) => {
     e.stopPropagation(); // Prevent opening popover
 
     const newValues: T[] = [];
@@ -618,7 +664,7 @@ function ComboboxMultiple<T extends string = string>({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  handleClearAll(e as any);
+                  handleClearAll(e);
                 }
               }}
               className="ml-auto mr-2 p-1 h-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity rounded-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer"

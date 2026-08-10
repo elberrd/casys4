@@ -15,6 +15,7 @@ import {
 } from "@/lib/entity-view-helpers";
 import { FileText, User, Globe, Calendar, File } from "lucide-react";
 import { formatDate } from "@/lib/format-field-value";
+import { getPassportValidityStatus } from "@/lib/passport";
 
 interface PassportViewModalProps {
   passportId: Id<"passports">;
@@ -49,28 +50,18 @@ export function PassportViewModal({
     );
   }
 
-  // Calculate expiry status
-  const now = new Date();
-  const expiryDate = passport.expiryDate ? new Date(passport.expiryDate) : null;
-  const daysUntilExpiry = expiryDate
-    ? Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
-
-  let expiryStatus = tCommon("unknown");
-  let expiryVariant: "default" | "secondary" | "destructive" = "secondary";
-
-  if (daysUntilExpiry !== null) {
-    if (daysUntilExpiry < 0) {
-      expiryStatus = t("expired");
-      expiryVariant = "destructive";
-    } else if (daysUntilExpiry <= 90) {
-      expiryStatus = t("expiringSoon");
-      expiryVariant = "destructive";
-    } else {
-      expiryStatus = t("valid");
-      expiryVariant = "default";
-    }
-  }
+  const validityStatus = getPassportValidityStatus(passport.expiryDate);
+  const expiryStatus = validityStatus
+    ? t(`status${validityStatus.replace(" ", "")}`)
+    : tCommon("unknown");
+  const expiryVariant =
+    validityStatus === "Valid"
+      ? "success"
+      : validityStatus === "Expiring Soon"
+        ? "warning"
+        : validityStatus === "Expired"
+          ? "destructive"
+          : "secondary";
 
   const sections: ViewSection[] = [
     {

@@ -399,13 +399,15 @@ export function IndividualProcessFormDialog({
       }
 
       if (individualProcessId) {
-        // Remove personId, userApplicantId, userApplicantCompanyId from submit data when updating (immutable after creation)
+        // Identidade e status do processo têm fluxos dedicados e não são editados por este formulário.
         const {
           personId,
           userApplicantId,
           userApplicantCompanyId,
+          processStatus,
           ...updateData
         } = submitData
+        void [personId, userApplicantId, userApplicantCompanyId, processStatus]
         await updateIndividualProcess({
           id: individualProcessId,
           ...updateData,
@@ -1327,37 +1329,40 @@ export function IndividualProcessFormDialog({
                   </div>
                 )}
 
-                {/* Process Status */}
-                <FormField
-                  control={form.control}
-                  name="processStatus"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("processStatus")}</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={t("selectProcessStatus")}
-                            />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Atual">
-                            {t("processStatusCurrent")}
-                          </SelectItem>
-                          <SelectItem value="Anterior">
-                            {t("processStatusPrevious")}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Initial process status is only chosen during creation.
+                    Existing processes use the dedicated conflict-aware dialog. */}
+                {!individualProcessId && (
+                  <FormField
+                    control={form.control}
+                    name="processStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("processStatus")}</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={t("selectProcessStatus")}
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Atual">
+                              {t("processStatusCurrent")}
+                            </SelectItem>
+                            <SelectItem value="Anterior">
+                              {t("processStatusPrevious")}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <DialogFooter>
                   <Button

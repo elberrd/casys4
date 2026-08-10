@@ -4,6 +4,10 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
+import {
+  getPassportValidityStatus,
+  type PassportValidityStatus,
+} from "../lib/passport";
 
 function getFullName(person: {
   givenNames: string;
@@ -16,21 +20,8 @@ function getFullName(person: {
 }
 
 // Helper function to calculate passport status
-function calculateStatus(
-  expiryDate: string,
-): "Valid" | "Expiring Soon" | "Expired" {
-  const today = new Date();
-  const expiry = new Date(expiryDate);
-  const sixMonthsFromNow = new Date();
-  sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-
-  if (expiry < today) {
-    return "Expired";
-  } else if (expiry < sixMonthsFromNow) {
-    return "Expiring Soon";
-  } else {
-    return "Valid";
-  }
+function calculateStatus(expiryDate: string): PassportValidityStatus {
+  return getPassportValidityStatus(expiryDate) ?? "Expired";
 }
 
 /**

@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import {
@@ -21,6 +21,94 @@ import { hasDocumentContent } from "./lib/documentReceiptTiming";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+type ProcessStatus = "Atual" | "Anterior";
+
+const processStatusConflictValidator = v.object({
+  id: v.id("individualProcesses"),
+  referenceNumber: v.optional(v.string()),
+  processTypeName: v.optional(v.string()),
+  legalFrameworkName: v.optional(v.string()),
+});
+
+const processStatusUpdateResultValidator = v.union(
+  v.object({ status: v.literal("updated") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({
+    status: v.literal("conflict"),
+    conflictingProcess: processStatusConflictValidator,
+  }),
+);
+
+function getEffectiveProcessStatus(
+  individualProcess: Doc<"individualProcesses">,
+): ProcessStatus {
+  return individualProcess.processStatus ??
+    (individualProcess.isActive === false ? "Anterior" : "Atual");
+}
+
+async function getOtherCurrentProcesses(
+  ctx: MutationCtx,
+  individualProcess: Doc<"individualProcesses">,
+): Promise<Doc<"individualProcesses">[]> {
+  return await getCurrentProcessesForPerson(
+    ctx,
+    individualProcess.personId,
+    individualProcess._id,
+  );
+}
+
+async function getCurrentProcessesForPerson(
+  ctx: MutationCtx,
+  personId: Id<"people">,
+  excludedProcessId?: Id<"individualProcesses">,
+): Promise<Doc<"individualProcesses">[]> {
+  const personProcesses = await ctx.db
+    .query("individualProcesses")
+    .withIndex("by_person", (q) => q.eq("personId", personId))
+    .collect();
+
+  const currentProcesses: Doc<"individualProcesses">[] = [];
+  for (const candidateProcess of personProcesses) {
+    if (
+      candidateProcess._id !== excludedProcessId &&
+      candidateProcess.requestStatus !== "draft" &&
+      getEffectiveProcessStatus(candidateProcess) === "Atual"
+    ) {
+      currentProcesses.push(candidateProcess);
+    }
+  }
+
+  return currentProcesses;
+}
+
+async function describeConflictingProcess(
+  ctx: MutationCtx,
+  conflictingProcess: Doc<"individualProcesses">,
+) {
+  const [collectiveProcess, processType, legalFramework] = await Promise.all([
+    conflictingProcess.collectiveProcessId
+      ? ctx.db.get(conflictingProcess.collectiveProcessId)
+      : null,
+    conflictingProcess.processTypeId
+      ? ctx.db.get(conflictingProcess.processTypeId)
+      : null,
+    conflictingProcess.legalFrameworkId
+      ? ctx.db.get(conflictingProcess.legalFrameworkId)
+      : null,
+  ]);
+
+  return {
+    id: conflictingProcess._id,
+    ...(collectiveProcess?.referenceNumber
+      ? { referenceNumber: collectiveProcess.referenceNumber }
+      : {}),
+    ...(processType?.name ? { processTypeName: processType.name } : {}),
+    ...(legalFramework?.name
+      ? { legalFrameworkName: legalFramework.name }
+      : {}),
+  };
 }
 
 /**
@@ -696,6 +784,20 @@ export const create = mutation({
     // For backward compatibility, derive status string from case status if not provided
     const statusString = args.status || caseStatus.code;
 
+    const desiredProcessStatus = args.processStatus ?? "Atual";
+    if (desiredProcessStatus === "Atual") {
+      const currentProcessConflicts = await getCurrentProcessesForPerson(
+        ctx,
+        args.personId,
+      );
+      if (currentProcessConflicts.length > 0) {
+        throw new ConvexError({
+          code: "CURRENT_PROCESS_CONFLICT",
+          conflictingProcessId: currentProcessConflicts[0]._id,
+        });
+      }
+    }
+
     const processId = await ctx.db.insert("individualProcesses", {
       collectiveProcessId: args.collectiveProcessId,
       dateProcess: args.dateProcess, // Process date (ISO format YYYY-MM-DD)
@@ -733,7 +835,7 @@ export const create = mutation({
       salaryInBRL: args.salaryInBRL,
       monthlyAmountToReceive: args.monthlyAmountToReceive,
       isActive: args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
-      processStatus: args.processStatus ?? "Atual", // Default to "Atual" for new processes
+      processStatus: desiredProcessStatus, // Default to "Atual" for new processes
       urgent: args.urgent,
       createdAt: now,
       updatedAt: now,
@@ -835,9 +937,12 @@ export const create = mutation({
 export const createFromExisting = mutation({
   args: {
     sourceProcessId: v.id("individualProcesses"),
+    processTypeId: v.id("processTypes"),
+    legalFrameworkId: v.id("legalFrameworks"),
     userApplicantId: v.optional(v.id("people")),
     userApplicantCompanyId: v.optional(v.id("companies")),
   },
+  returns: v.id("individualProcesses"),
   handler: async (ctx, args) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
@@ -856,10 +961,53 @@ export const createFromExisting = mutation({
       throw new Error("Source process not found");
     }
 
+    const [selectedProcessType, selectedLegalFramework] = await Promise.all([
+      ctx.db.get(args.processTypeId),
+      ctx.db.get(args.legalFrameworkId),
+    ]);
+
+    if (!selectedProcessType) {
+      throw new ConvexError({ code: "PROCESS_TYPE_NOT_FOUND" });
+    }
+    if (!selectedLegalFramework) {
+      throw new ConvexError({ code: "LEGAL_FRAMEWORK_NOT_FOUND" });
+    }
+
+    const hasSameDocumentConfiguration =
+      sourceProcess.processTypeId === args.processTypeId &&
+      sourceProcess.legalFrameworkId === args.legalFrameworkId;
+
+    // A legacy process may still reference an inactive or unlinked combination.
+    // Preserve today's exact-copy behavior for that unchanged combination, but
+    // validate every newly selected combination before creating the process.
+    if (!hasSameDocumentConfiguration) {
+      if (selectedProcessType.isActive === false) {
+        throw new ConvexError({ code: "PROCESS_TYPE_INACTIVE" });
+      }
+      if (selectedLegalFramework.isActive === false) {
+        throw new ConvexError({ code: "LEGAL_FRAMEWORK_INACTIVE" });
+      }
+
+      const selectedCombination = await ctx.db
+        .query("processTypesLegalFrameworks")
+        .withIndex("by_processType_legalFramework", (q) =>
+          q
+            .eq("processTypeId", args.processTypeId)
+            .eq("legalFrameworkId", args.legalFrameworkId),
+        )
+        .first();
+
+      if (!selectedCombination) {
+        throw new ConvexError({
+          code: "LEGAL_FRAMEWORK_NOT_AVAILABLE_FOR_PROCESS_TYPE",
+        });
+      }
+    }
+
     // Get the "Em Preparação" case status for the new process
     const emPreparacaoStatus = await ctx.db
       .query("caseStatuses")
-      .filter((q) => q.eq(q.field("code"), "em_preparacao"))
+      .withIndex("by_code", (q) => q.eq("code", "em_preparacao"))
       .first();
 
     if (!emPreparacaoStatus) {
@@ -876,8 +1024,8 @@ export const createFromExisting = mutation({
       companyApplicantId: sourceProcess.companyApplicantId, // Empresa Requerente
       userApplicantId: args.userApplicantId ?? sourceProcess.userApplicantId, // Solicitante (override or copy)
       userApplicantCompanyId: args.userApplicantCompanyId ?? sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
-      processTypeId: sourceProcess.processTypeId, // Tipo de Autorização
-      legalFrameworkId: sourceProcess.legalFrameworkId, // Amparo Legal
+      processTypeId: args.processTypeId, // Tipo de Autorização selecionado
+      legalFrameworkId: args.legalFrameworkId, // Amparo Legal selecionado
       consulateId: sourceProcess.consulateId, // Consulado
       passportId: sourceProcess.passportId, // Passaporte
       cboId: sourceProcess.cboId, // CBO
@@ -932,13 +1080,17 @@ export const createFromExisting = mutation({
       console.error("Failed to log initial status to history:", error);
     }
 
-    // Copy all documents from source process (instead of auto-generating checklist)
-    try {
-      const sourceDocuments = await ctx.db
-        .query("documentsDelivered")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", args.sourceProcessId))
-        .collect();
+    const sourceDocuments = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", args.sourceProcessId),
+      )
+      .collect();
+    let copiedDocumentsCount = 0;
 
+    if (hasSameDocumentConfiguration) {
+      // Unchanged type + legal framework: preserve the exact copy behavior,
+      // including empty checklist rows and document versions.
       for (const doc of sourceDocuments) {
         // Copy all fields except system fields and individualProcessStatusId
         const newDocId = await ctx.db.insert("documentsDelivered", {
@@ -995,9 +1147,123 @@ export const createFromExisting = mutation({
             createdAt: now,
           });
         }
+
+        copiedDocumentsCount += 1;
       }
-    } catch (error) {
-      console.error("Failed to copy documents from source process:", error);
+    } else {
+      // Build the checklist from the newly selected combination first. Only a
+      // filled source document whose stable documentTypeId exists in this new
+      // checklist is reused; loose, empty, or no-longer-applicable rows are
+      // intentionally ignored.
+      await reconcileDocumentChecklistForLegalFramework(
+        ctx,
+        newProcessId,
+        userId,
+      );
+
+      const targetDocuments = await ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", newProcessId),
+        )
+        .collect();
+      const targetDocumentByType = new Map<
+        string,
+        Doc<"documentsDelivered">
+      >();
+
+      for (const targetDocument of targetDocuments) {
+        if (
+          targetDocument.documentTypeId &&
+          targetDocument.isLatest &&
+          !targetDocument.individualProcessStatusId
+        ) {
+          targetDocumentByType.set(
+            targetDocument.documentTypeId.toString(),
+            targetDocument,
+          );
+        }
+      }
+
+      const reusableSourceDocumentByType = new Map<
+        string,
+        Doc<"documentsDelivered">
+      >();
+      for (const sourceDocument of sourceDocuments) {
+        if (
+          !sourceDocument.documentTypeId ||
+          sourceDocument.individualProcessStatusId ||
+          !hasDocumentContent(sourceDocument)
+        ) {
+          continue;
+        }
+
+        const key = sourceDocument.documentTypeId.toString();
+        const current = reusableSourceDocumentByType.get(key);
+        if (
+          !current ||
+          (sourceDocument.isLatest && !current.isLatest) ||
+          (sourceDocument.isLatest === current.isLatest &&
+            (sourceDocument.version > current.version ||
+              (sourceDocument.version === current.version &&
+                sourceDocument.uploadedAt > current.uploadedAt)))
+        ) {
+          reusableSourceDocumentByType.set(key, sourceDocument);
+        }
+      }
+
+      for (const [documentTypeId, sourceDocument] of
+        reusableSourceDocumentByType) {
+        const targetDocument = targetDocumentByType.get(documentTypeId);
+        if (!targetDocument) continue;
+
+        await ctx.db.patch(targetDocument._id, {
+          storageId: sourceDocument.storageId,
+          fileName: sourceDocument.fileName,
+          fileUrl: sourceDocument.fileUrl,
+          fileSize: sourceDocument.fileSize,
+          mimeType: sourceDocument.mimeType,
+          status: sourceDocument.status,
+          uploadedBy: sourceDocument.uploadedBy,
+          uploadedAt: sourceDocument.uploadedAt,
+          receivedAt: now,
+          reviewedBy: sourceDocument.reviewedBy,
+          reviewedAt: sourceDocument.reviewedAt,
+          rejectionReason: sourceDocument.rejectionReason,
+          expiryDate: sourceDocument.expiryDate,
+          issueDate: sourceDocument.issueDate,
+          version: sourceDocument.version,
+          isLatest: true,
+          versionNotes: sourceDocument.versionNotes,
+          reusedFromDocumentId: sourceDocument._id,
+          processStatusAtUpload: sourceDocument.processStatusAtUpload,
+          documentName: sourceDocument.documentName,
+          isIllegible: sourceDocument.isIllegible,
+          excludedFromReport: sourceDocument.excludedFromReport,
+        });
+
+        const conditions = await ctx.db
+          .query("documentDeliveredConditions")
+          .withIndex("by_documentDelivered", (q) =>
+            q.eq("documentsDeliveredId", sourceDocument._id),
+          )
+          .collect();
+
+        for (const condition of conditions) {
+          await ctx.db.insert("documentDeliveredConditions", {
+            documentsDeliveredId: targetDocument._id,
+            documentTypeConditionId: condition.documentTypeConditionId,
+            isFulfilled: condition.isFulfilled,
+            fulfilledAt: condition.fulfilledAt,
+            fulfilledBy: condition.fulfilledBy,
+            expiresAt: condition.expiresAt,
+            notes: condition.notes,
+            createdAt: now,
+          });
+        }
+
+        copiedDocumentsCount += 1;
+      }
     }
 
     // Update source process to mark it as "Anterior"
@@ -1021,6 +1287,10 @@ export const createFromExisting = mutation({
           sourceProcessId: args.sourceProcessId,
           caseStatusName: emPreparacaoStatus.name,
           caseStatusId: emPreparacaoStatus._id,
+          processTypeId: args.processTypeId,
+          legalFrameworkId: args.legalFrameworkId,
+          copiedDocumentsCount,
+          documentConfigurationChanged: !hasSameDocumentConfiguration,
         },
       });
     } catch (error) {
@@ -1113,6 +1383,19 @@ export const update = mutation({
     const process = await ctx.db.get(id);
     if (!process) {
       throw new Error("Individual process not found");
+    }
+
+    if (
+      args.processStatus === "Atual" &&
+      getEffectiveProcessStatus(process) !== "Atual"
+    ) {
+      const currentProcessConflicts = await getOtherCurrentProcesses(ctx, process);
+      if (currentProcessConflicts.length > 0) {
+        throw new ConvexError({
+          code: "CURRENT_PROCESS_CONFLICT",
+          conflictingProcessId: currentProcessConflicts[0]._id,
+        });
+      }
     }
 
     if (args.legalFrameworkId !== undefined) {
@@ -1384,6 +1667,105 @@ export const update = mutation({
     }
 
     return id;
+  },
+});
+
+/**
+ * Changes the current/previous state while guaranteeing that a candidate has
+ * at most one current process. A confirmed replacement is performed in the
+ * same transaction as the promotion of the selected process.
+ */
+export const updateProcessStatus = mutation({
+  args: {
+    id: v.id("individualProcesses"),
+    processStatus: v.union(v.literal("Atual"), v.literal("Anterior")),
+    replaceExistingCurrent: v.optional(v.boolean()),
+  },
+  returns: processStatusUpdateResultValidator,
+  handler: async (
+    ctx,
+    { id, processStatus, replaceExistingCurrent = false },
+  ) => {
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new ConvexError({ code: "USER_NOT_ACTIVATED" });
+    }
+
+    const individualProcess = await ctx.db.get(id);
+    if (!individualProcess) {
+      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+    }
+
+    if (getEffectiveProcessStatus(individualProcess) === processStatus) {
+      return { status: "unchanged" as const };
+    }
+
+    const currentProcessConflicts =
+      processStatus === "Atual"
+        ? await getOtherCurrentProcesses(ctx, individualProcess)
+        : [];
+
+    if (currentProcessConflicts.length > 0 && !replaceExistingCurrent) {
+      return {
+        status: "conflict" as const,
+        conflictingProcess: await describeConflictingProcess(
+          ctx,
+          currentProcessConflicts[0],
+        ),
+      };
+    }
+
+    const now = Date.now();
+    for (const conflictingProcess of currentProcessConflicts) {
+      await ctx.db.patch(conflictingProcess._id, {
+        processStatus: "Anterior",
+        isActive: false,
+        updatedAt: now,
+      });
+    }
+
+    await ctx.db.patch(id, {
+      processStatus,
+      isActive: processStatus === "Atual",
+      updatedAt: now,
+    });
+
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "process_status_changed",
+        entityType: "individualProcess",
+        entityId: id,
+        details: {
+          personName: person ? getFullName(person) : undefined,
+          before: getEffectiveProcessStatus(individualProcess),
+          after: processStatus,
+          replacedProcessIds: currentProcessConflicts.map(
+            (conflictingProcess) => conflictingProcess._id,
+          ),
+        },
+      });
+
+      for (const conflictingProcess of currentProcessConflicts) {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId: userProfile.userId,
+          action: "process_status_changed",
+          entityType: "individualProcess",
+          entityId: conflictingProcess._id,
+          details: {
+            personName: person ? getFullName(person) : undefined,
+            before: getEffectiveProcessStatus(conflictingProcess),
+            after: "Anterior",
+            replacedByProcessId: id,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to log process status change:", error);
+    }
+
+    return { status: "updated" as const };
   },
 });
 

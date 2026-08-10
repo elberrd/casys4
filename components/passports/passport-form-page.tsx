@@ -1,13 +1,13 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { useLocale, useTranslations } from "next-intl"
-import { useCountryTranslation } from "@/lib/i18n/countries"
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useLocale, useTranslations } from "next-intl";
+import { useCountryTranslation } from "@/lib/i18n/countries";
 import {
   Form,
   FormControl,
@@ -15,54 +15,46 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Combobox } from "@/components/ui/combobox"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { DatePicker } from "@/components/ui/date-picker"
-import { passportSchema, type PassportFormData } from "@/lib/validations/passports"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
-import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation"
-import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback"
-import { passportUploadResponseSchema } from "@/lib/validations/passport-ocr"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/ui/date-picker";
+import {
+  passportSchema,
+  type PassportFormData,
+} from "@/lib/validations/passports";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { usePassportNumberValidation } from "@/hooks/use-passport-number-validation";
+import { PassportNumberValidationFeedback } from "@/components/ui/passport-number-validation-feedback";
+import { passportUploadResponseSchema } from "@/lib/validations/passport-ocr";
 import {
   PassportAiUploadField,
   type ExtractedAdminPassportFields,
-} from "@/components/passports/passport-ai-upload-field"
-import { PassportDocumentAttachmentDialog } from "@/components/passports/passport-document-attachment-dialog"
+} from "@/components/passports/passport-ai-upload-field";
+import { PassportDocumentAttachmentDialog } from "@/components/passports/passport-document-attachment-dialog";
+import {
+  getPassportValidityStatus,
+  type PassportValidityStatus,
+} from "@/lib/passport";
 
 interface PassportFormPageProps {
-  passportId?: Id<"passports">
-  personId?: Id<"people">
-  onSuccess?: () => void
+  passportId?: Id<"passports">;
+  personId?: Id<"people">;
+  onSuccess?: () => void;
 }
 
-function calculateStatus(expiryDate: string): "Valid" | "Expiring Soon" | "Expired" {
-  const today = new Date()
-  const expiry = new Date(expiryDate)
-  const sixMonthsFromNow = new Date()
-  sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6)
-
-  if (expiry < today) {
-    return "Expired"
-  } else if (expiry < sixMonthsFromNow) {
-    return "Expiring Soon"
-  } else {
-    return "Valid"
-  }
-}
-
-function getStatusVariant(status: "Valid" | "Expiring Soon" | "Expired") {
+function getStatusVariant(status: PassportValidityStatus) {
   switch (status) {
     case "Valid":
-      return "success"
+      return "success";
     case "Expiring Soon":
-      return "warning"
+      return "warning";
     case "Expired":
-      return "destructive"
+      return "destructive";
   }
 }
 
@@ -71,32 +63,32 @@ export function PassportFormPage({
   personId,
   onSuccess,
 }: PassportFormPageProps) {
-  const t = useTranslations("Passports")
-  const tCommon = useTranslations("Common")
-  const { toast } = useToast()
-  const router = useRouter()
-  const locale = useLocale()
-  const getCountryName = useCountryTranslation()
+  const t = useTranslations("Passports");
+  const tCommon = useTranslations("Common");
+  const { toast } = useToast();
+  const router = useRouter();
+  const locale = useLocale();
+  const getCountryName = useCountryTranslation();
 
   const passport = useQuery(
     api.passports.get,
-    passportId ? { id: passportId } : "skip"
-  )
-  const people = useQuery(api.people.list, {}) ?? []
-  const countries = useQuery(api.countries.list, {}) ?? []
+    passportId ? { id: passportId } : "skip",
+  );
+  const people = useQuery(api.people.list, {}) ?? [];
+  const countries = useQuery(api.countries.list, {}) ?? [];
 
-  const createPassport = useMutation(api.passports.create)
-  const updatePassport = useMutation(api.passports.update)
-  const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl)
+  const createPassport = useMutation(api.passports.create);
+  const updatePassport = useMutation(api.passports.update);
+  const generateUploadUrl = useMutation(api.passportUpload.generateUploadUrl);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preparedStorageId, setPreparedStorageId] = useState<
     Id<"_storage"> | undefined
-  >()
-  const [isUploading, setIsUploading] = useState(false)
-  const [isAiProcessing, setIsAiProcessing] = useState(false)
+  >();
+  const [isUploading, setIsUploading] = useState(false);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [pendingPassportAttachmentId, setPendingPassportAttachmentId] =
-    useState<Id<"passports"> | undefined>()
+    useState<Id<"passports"> | undefined>();
 
   const form = useForm<PassportFormData>({
     resolver: zodResolver(passportSchema),
@@ -109,19 +101,23 @@ export function PassportFormPage({
       fileUrl: "",
       isActive: true,
     },
-  })
+  });
 
-  const watchedPassportNumber = form.watch("passportNumber")
-  const watchedIssuingCountryId = form.watch("issuingCountryId")
-  const watchedIssueDate = form.watch("issueDate")
-  const watchedPersonId = form.watch("personId")
-  const { isChecking: isPassportChecking, isAvailable: isPassportAvailable, existingPassport } = usePassportNumberValidation({
+  const watchedPassportNumber = form.watch("passportNumber");
+  const watchedIssuingCountryId = form.watch("issuingCountryId");
+  const watchedIssueDate = form.watch("issueDate");
+  const watchedPersonId = form.watch("personId");
+  const {
+    isChecking: isPassportChecking,
+    isAvailable: isPassportAvailable,
+    existingPassport,
+  } = usePassportNumberValidation({
     passportNumber: watchedPassportNumber,
     passportId: passportId,
-  })
+  });
 
-  const expiryDate = form.watch("expiryDate")
-  const status = expiryDate ? calculateStatus(expiryDate) : null
+  const expiryDate = form.watch("expiryDate");
+  const status = getPassportValidityStatus(expiryDate);
 
   useEffect(() => {
     if (passport) {
@@ -133,91 +129,89 @@ export function PassportFormPage({
         expiryDate: passport.expiryDate,
         fileUrl: passport.fileUrl ?? "",
         isActive: passport.isActive,
-      })
+      });
     } else if (personId) {
-      form.setValue("personId", personId)
+      form.setValue("personId", personId);
     }
-  }, [passport, personId, form])
+  }, [passport, personId, form]);
 
-  const currentFileUrl = form.watch("fileUrl")
+  const currentFileUrl = form.watch("fileUrl");
 
   const handleRemoveCurrentFile = () => {
-    form.setValue("fileUrl", "", { shouldDirty: true })
-  }
+    form.setValue("fileUrl", "", { shouldDirty: true });
+  };
 
-  const handleApplyExtractedFields = (
-    fields: ExtractedAdminPassportFields
-  ) => {
+  const handleApplyExtractedFields = (fields: ExtractedAdminPassportFields) => {
     form.setValue("passportNumber", fields.passportNumber, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("issuingCountryId", fields.issuingCountryId, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("issueDate", fields.issueDate, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
+    });
     form.setValue("expiryDate", fields.expiryDate, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
-    })
-  }
+    });
+  };
 
   const completePassportSave = useCallback(() => {
-    setPendingPassportAttachmentId(undefined)
-    setSelectedFile(null)
-    setPreparedStorageId(undefined)
+    setPendingPassportAttachmentId(undefined);
+    setSelectedFile(null);
+    setPreparedStorageId(undefined);
 
     if (onSuccess) {
-      onSuccess()
+      onSuccess();
     } else {
-      router.push(`/${locale}/passports`)
+      router.push(`/${locale}/passports`);
     }
-  }, [locale, onSuccess, router])
+  }, [locale, onSuccess, router]);
 
   const onSubmit = async (data: PassportFormData) => {
     if (isPassportChecking) {
       toast({
         title: t("passportNumberValidationInProgress"),
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
     if (isPassportAvailable === false) {
       toast({
         title: t("passportNumberDuplicateError"),
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     try {
       // Upload the picked document to Convex storage first (if any).
-      let storageId = preparedStorageId
+      let storageId = preparedStorageId;
       if (selectedFile && !storageId) {
-        setIsUploading(true)
-        const uploadUrl = await generateUploadUrl()
+        setIsUploading(true);
+        const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": selectedFile.type },
           body: selectedFile,
-        })
-        if (!result.ok) throw new Error("Failed to upload file")
+        });
+        if (!result.ok) throw new Error("Failed to upload file");
         const uploadResult = passportUploadResponseSchema.parse(
-          await result.json()
-        )
-        storageId = uploadResult.storageId
-        setIsUploading(false)
+          await result.json(),
+        );
+        storageId = uploadResult.storageId;
+        setIsUploading(false);
       }
 
-      let savedPassportId: Id<"passports">
+      let savedPassportId: Id<"passports">;
       if (passportId) {
         await updatePassport({
           id: passportId,
@@ -230,11 +224,11 @@ export function PassportFormPage({
           // file is preserved and a removed one ("") is cleared.
           ...(storageId ? { storageId } : { fileUrl: data.fileUrl ?? "" }),
           isActive: data.isActive,
-        })
+        });
         toast({
           title: t("updatedSuccess"),
-        })
-        savedPassportId = passportId
+        });
+        savedPassportId = passportId;
       } else {
         savedPassportId = await createPassport({
           personId: data.personId as Id<"people">,
@@ -244,32 +238,32 @@ export function PassportFormPage({
           expiryDate: data.expiryDate,
           ...(storageId ? { storageId } : {}),
           isActive: data.isActive,
-        })
+        });
         toast({
           title: t("createdSuccess"),
-        })
+        });
       }
 
       if (storageId) {
-        setPendingPassportAttachmentId(savedPassportId)
-        return
+        setPendingPassportAttachmentId(savedPassportId);
+        return;
       }
 
-      completePassportSave()
+      completePassportSave();
     } catch (error) {
-      setIsUploading(false)
+      setIsUploading(false);
       toast({
         title: passportId ? t("errorUpdate") : t("errorCreate"),
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleCancel = () => {
-    if (pendingPassportAttachmentId) return
-    router.push(`/${locale}/passports`)
-  }
+    if (pendingPassportAttachmentId) return;
+    router.push(`/${locale}/passports`);
+  };
 
   return (
     <div className="max-w-3xl">
@@ -308,7 +302,10 @@ export function PassportFormPage({
               />
 
               {!watchedPersonId && (
-                <p className="text-sm text-amber-700 dark:text-amber-300" role="status">
+                <p
+                  className="text-sm text-amber-700 dark:text-amber-300"
+                  role="status"
+                >
                   {t("selectPersonBeforePassport")}
                 </p>
               )}
@@ -373,11 +370,12 @@ export function PassportFormPage({
                         value={field.value}
                         onValueChange={field.onChange}
                         options={countries.map((country) => {
-                          const translatedName = getCountryName(country.code) || country.name
+                          const translatedName =
+                            getCountryName(country.code) || country.name;
                           return {
                             value: country._id,
                             label: translatedName,
-                          }
+                          };
                         })}
                         placeholder={t("selectCountry")}
                         searchPlaceholder={tCommon("search")}
@@ -427,7 +425,9 @@ export function PassportFormPage({
 
               {status && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{t("status")}:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t("status")}:
+                  </span>
                   <Badge variant={getStatusVariant(status)}>
                     {t(`status${status.replace(" ", "")}`)}
                   </Badge>
@@ -440,7 +440,9 @@ export function PassportFormPage({
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">{t("isActive")}</FormLabel>
+                      <FormLabel className="text-base">
+                        {t("isActive")}
+                      </FormLabel>
                     </div>
                     <FormControl>
                       <Switch
@@ -458,12 +460,30 @@ export function PassportFormPage({
                 type="button"
                 variant="outline"
                 onClick={handleCancel}
-                disabled={isAiProcessing || Boolean(pendingPassportAttachmentId)}
+                disabled={
+                  isAiProcessing || Boolean(pendingPassportAttachmentId)
+                }
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={!watchedPersonId || form.formState.isSubmitting || isUploading || isAiProcessing || Boolean(pendingPassportAttachmentId) || isPassportChecking || isPassportAvailable === false}>
-                {form.formState.isSubmitting || isUploading || isAiProcessing || pendingPassportAttachmentId ? tCommon("loading") : tCommon("save")}
+              <Button
+                type="submit"
+                disabled={
+                  !watchedPersonId ||
+                  form.formState.isSubmitting ||
+                  isUploading ||
+                  isAiProcessing ||
+                  Boolean(pendingPassportAttachmentId) ||
+                  isPassportChecking ||
+                  isPassportAvailable === false
+                }
+              >
+                {form.formState.isSubmitting ||
+                isUploading ||
+                isAiProcessing ||
+                pendingPassportAttachmentId
+                  ? tCommon("loading")
+                  : tCommon("save")}
               </Button>
             </div>
           </form>
@@ -475,5 +495,5 @@ export function PassportFormPage({
         onComplete={completePassportSave}
       />
     </div>
-  )
+  );
 }

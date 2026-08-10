@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -17,10 +17,10 @@ import { DataGridColumnHeader } from "@/components/ui/data-grid-column-header";
 import { DataGridRowActions } from "@/components/ui/data-grid-row-actions";
 import { DataGridFilter } from "@/components/ui/data-grid-filter";
 import { DataGridColumnVisibility } from "@/components/ui/data-grid-column-visibility";
-import { Edit, Trash2, Eye } from "lucide-react";
+import { Bell, Edit, Eye, Paperclip, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { stripHtmlTags } from "@/components/ui/rich-text-editor";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -32,6 +32,16 @@ interface Note {
   date: string;
   createdAt: number;
   createdBy: Id<"users">;
+  requestedByPersonId?: Id<"people">;
+  communicationChannel?: string;
+  subject?: string;
+  alarmDate?: string;
+  alarmNotifiedAt?: number;
+  attachmentCount?: number;
+  requestedByPerson?: {
+    _id: Id<"people">;
+    fullName: string;
+  } | null;
   candidateName?: string | null;
   processReference?: string | null;
   individualProcess?: {
@@ -65,6 +75,7 @@ interface NotesTableProps {
   isAdmin?: boolean;
   showSearch?: boolean;
   showColumnVisibility?: boolean;
+  showProcessColumns?: boolean;
 }
 
 export function NotesTable({
@@ -78,6 +89,7 @@ export function NotesTable({
   isAdmin = false,
   showSearch = false,
   showColumnVisibility = false,
+  showProcessColumns = true,
 }: NotesTableProps) {
   const t = useTranslations("Notes");
   const tCommon = useTranslations("Common");
@@ -94,13 +106,52 @@ export function NotesTable({
   });
 
   // Check if user can edit/delete a note
-  const canModify = (note: Note) => {
-    if (isAdmin) return true;
-    return currentUserId && note.createdBy === currentUserId;
-  };
+  const canModify = useCallback(
+    (note: Note) => {
+      if (isAdmin) return true;
+      return Boolean(currentUserId && note.createdBy === currentUserId);
+    },
+    [currentUserId, isAdmin],
+  );
 
   const columns = useMemo<ColumnDef<Note>[]>(
-    () => [
+    () => {
+      const processColumns: ColumnDef<Note>[] = showProcessColumns
+        ? [
+            {
+              accessorKey: "candidateName",
+              header: ({ column }) => (
+                <DataGridColumnHeader column={column} title={t("candidateName")} />
+              ),
+              cell: ({ row }) => {
+                const candidateName = row.getValue("candidateName") as string | null;
+                return (
+                  <span className="whitespace-nowrap">
+                    {candidateName || "-"}
+                  </span>
+                );
+              },
+              size: 200,
+            },
+            {
+              accessorKey: "processReference",
+              header: ({ column }) => (
+                <DataGridColumnHeader column={column} title={t("processReference")} />
+              ),
+              cell: ({ row }) => {
+                const processReference = row.getValue("processReference") as string | null;
+                return (
+                  <span className="whitespace-nowrap font-mono text-sm">
+                    {processReference || "-"}
+                  </span>
+                );
+              },
+              size: 180,
+            },
+          ]
+        : [];
+
+      return [
       {
         accessorKey: "date",
         header: ({ column }) => (
@@ -110,7 +161,7 @@ export function NotesTable({
           const date = row.getValue("date") as string;
           return (
             <span className="whitespace-nowrap">
-              {date ? format(new Date(date), "dd/MM/yyyy") : "-"}
+              {date ? format(parseISO(date), "dd/MM/yyyy") : "-"}
             </span>
           );
         },
@@ -118,59 +169,94 @@ export function NotesTable({
         enableGlobalFilter: false,
       },
       {
-        accessorKey: "candidateName",
+        accessorKey: "subject",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("candidateName")} />
+          <DataGridColumnHeader column={column} title={t("subject")} />
         ),
         cell: ({ row }) => {
-          const candidateName = row.getValue("candidateName") as string | null;
+          const plainText = stripHtmlTags(row.original.content);
           return (
-            <span className="whitespace-nowrap">
-              {candidateName || "-"}
-            </span>
+            <div className="min-w-0 py-1">
+              <p className="truncate font-medium" title={row.original.subject}>
+                {row.original.subject || t("noSubject")}
+              </p>
+              <p className="mt-1 line-clamp-1 text-sm text-muted-foreground" title={plainText}>
+                {plainText || "-"}
+              </p>
+            </div>
           );
         },
-        size: 200,
+        size: 320,
+        minSize: 240,
       },
       {
-        accessorKey: "processReference",
+        id: "requestedByPerson",
+        accessorFn: (note) => note.requestedByPerson?.fullName ?? "",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("processReference")} />
+          <DataGridColumnHeader column={column} title={t("requestedBy")} />
         ),
-        cell: ({ row }) => {
-          const processReference = row.getValue("processReference") as string | null;
-          return (
-            <span className="whitespace-nowrap font-mono text-sm">
-              {processReference || "-"}
-            </span>
-          );
-        },
-        size: 180,
+        cell: ({ row }) => (
+          <span className="block max-w-52 truncate" title={row.original.requestedByPerson?.fullName}>
+            {row.original.requestedByPerson?.fullName || "-"}
+          </span>
+        ),
+        size: 190,
       },
       {
-        accessorKey: "content",
+        accessorKey: "communicationChannel",
         header: ({ column }) => (
-          <DataGridColumnHeader column={column} title={t("noteContent")} />
+          <DataGridColumnHeader column={column} title={t("communicationChannel")} />
         ),
         cell: ({ row }) => {
-          const content = row.getValue("content") as string;
-          const plainText = stripHtmlTags(content);
-          const preview =
-            plainText.length > 200
-              ? plainText.substring(0, 200) + "..."
-              : plainText;
-          return (
-            <span
-              className="text-muted-foreground line-clamp-2"
-              title={plainText}
-            >
-              {preview || "-"}
-            </span>
-          );
+          const channel = row.original.communicationChannel;
+          const legacyLabels: Record<string, string> = {
+            email: t("communicationChannels.email"),
+            whatsapp: t("communicationChannels.whatsapp"),
+            phone: t("communicationChannels.phone"),
+            in_person: t("communicationChannels.inPerson"),
+            video_call: t("communicationChannels.videoCall"),
+            other: t("communicationChannels.other"),
+          };
+          const displayChannel = channel
+            ? (legacyLabels[channel] ?? channel)
+            : "-";
+          return <span className="whitespace-nowrap">{displayChannel}</span>;
         },
-        size: 350,
-        minSize: 300,
+        size: 150,
       },
+      {
+        accessorKey: "alarmDate",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("alarm")} />
+        ),
+        cell: ({ row }) => (
+          row.original.alarmDate ? (
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <Bell className="size-3.5 text-muted-foreground" />
+              <span>{format(parseISO(row.original.alarmDate), "dd/MM/yyyy")}</span>
+              {row.original.alarmNotifiedAt && (
+                <span className="sr-only">{t("alarmDelivered")}</span>
+              )}
+            </div>
+          ) : "-"
+        ),
+        size: 145,
+      },
+      {
+        accessorKey: "attachmentCount",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("attachmentCount")} />
+        ),
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2 tabular-nums">
+            <Paperclip className="size-3.5 text-muted-foreground" />
+            {row.original.attachmentCount ?? 0}
+          </span>
+        ),
+        size: 100,
+        enableGlobalFilter: false,
+      },
+      ...processColumns,
       {
         accessorKey: "createdByUser",
         header: ({ column }) => (
@@ -237,8 +323,9 @@ export function NotesTable({
         enableHiding: false,
         enableGlobalFilter: false,
       },
-    ],
-    [t, tCommon, onEdit, onDelete, onView, deleteConfirmation, currentUserId, isAdmin]
+      ];
+    },
+    [t, tCommon, onEdit, onDelete, onView, deleteConfirmation, canModify, showProcessColumns]
   );
 
   const table = useReactTable({
@@ -264,11 +351,19 @@ export function NotesTable({
       const content = stripHtmlTags(note.content).toLowerCase();
       const candidateName = (note.candidateName || "").toLowerCase();
       const processReference = (note.processReference || "").toLowerCase();
+      const subject = (note.subject || "").toLowerCase();
+      const requestedBy = (note.requestedByPerson?.fullName || "").toLowerCase();
+      const communicationChannel = (
+        note.communicationChannel || ""
+      ).toLowerCase();
 
       return (
         content.includes(searchValue) ||
         candidateName.includes(searchValue) ||
-        processReference.includes(searchValue)
+        processReference.includes(searchValue) ||
+        subject.includes(searchValue) ||
+        requestedBy.includes(searchValue) ||
+        communicationChannel.includes(searchValue)
       );
     },
   });

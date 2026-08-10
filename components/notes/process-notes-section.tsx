@@ -104,6 +104,7 @@ export function ProcessNotesSection({
               isLoading={isLoading}
               currentUserId={currentUserId}
               isAdmin={isAdmin}
+              showProcessColumns={false}
             />
           )}
         </CardContent>
