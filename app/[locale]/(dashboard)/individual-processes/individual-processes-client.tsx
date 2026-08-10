@@ -12,6 +12,7 @@ import {
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog"
 import { FillFieldsModal } from "@/components/individual-processes/fill-fields-modal"
 import { CreateFromExistingDialog } from "@/components/individual-processes/create-from-existing-dialog"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Button } from "@/components/ui/button"
 import { Filters, type Filter, type FilterFieldConfig } from "@/components/ui/filters"
 import { Plus, User, Building2, FileText, Scale, Activity, Calendar, Filter as FilterIcon, FileSpreadsheet, X, Check, Pencil, FileWarning } from "lucide-react"
@@ -63,6 +64,8 @@ export function IndividualProcessesClient() {
   const [createFromDialogOpen, setCreateFromDialogOpen] = useState(false)
   const [sourceProcessId, setSourceProcessId] = useState<Id<"individualProcesses"> | undefined>(undefined)
   const [isCreatingFromExisting, setIsCreatingFromExisting] = useState(false)
+  const [processToMarkAsPrevious, setProcessToMarkAsPrevious] = useState<Id<"individualProcesses"> | null>(null)
+  const [isMarkingAsPrevious, setIsMarkingAsPrevious] = useState(false)
   const [filters, setFilters] = useState<Filter<string>[]>(() => persisted?.advancedFilters ?? [])
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>(() => persisted?.selectedCandidates ?? [])
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>(() => persisted?.selectedApplicants ?? [])
@@ -128,6 +131,7 @@ export function IndividualProcessesClient() {
   const individualProcesses = useQuery(api.individualProcesses.list, {}) ?? []
   const deleteIndividualProcess = useMutation(api.individualProcesses.remove)
   const createFromExisting = useMutation(api.individualProcesses.createFromExisting)
+  const markAsPrevious = useMutation(api.individualProcesses.markAsPrevious)
   const updateSavedFilter = useMutation(api.savedFilters.update)
   const updateColumnVisibilityPreference = useMutation(
     api.userProfiles.updateIndividualProcessesColumnVisibility
@@ -929,6 +933,22 @@ export function IndividualProcessesClient() {
     setCreateFromDialogOpen(true)
   }
 
+  const handleConfirmMarkAsPrevious = async () => {
+    if (!processToMarkAsPrevious) return
+
+    setIsMarkingAsPrevious(true)
+    try {
+      await markAsPrevious({ id: processToMarkAsPrevious })
+      setProcessToMarkAsPrevious(null)
+      toast.success(t("markAsPreviousSuccess"))
+    } catch (error) {
+      console.error("Error marking process as previous:", error)
+      toast.error(t("markAsPreviousError"))
+    } finally {
+      setIsMarkingAsPrevious(false)
+    }
+  }
+
   const handleConfirmCreateFromExisting = async (
     userApplicantId?: Id<"people">,
     userApplicantCompanyId?: Id<"companies">,
@@ -1159,6 +1179,7 @@ export function IndividualProcessesClient() {
           onDelete={isClient ? undefined : handleDelete}
           onFillFields={isClient ? undefined : handleFillFields}
           onCreateFromExisting={isClient ? undefined : handleCreateFromExisting}
+          onMarkAsPrevious={isClient ? undefined : setProcessToMarkAsPrevious}
           onRowClick={handleView}
           onOpenProcessRequest={isAdmin ? handleOpenProcessRequest : undefined}
           {...(!isClient && {
@@ -1237,6 +1258,22 @@ export function IndividualProcessesClient() {
                 isLoading={isCreatingFromExisting}
               />
             )}
+
+            <ConfirmationDialog
+              open={processToMarkAsPrevious !== null}
+              onOpenChange={(open) => {
+                if (!open && !isMarkingAsPrevious) {
+                  setProcessToMarkAsPrevious(null)
+                }
+              }}
+              title={t("markAsPreviousTitle")}
+              description={t("markAsPreviousDescription")}
+              confirmText={t("markAsPreviousConfirm")}
+              cancelText={tCommon("cancel")}
+              loadingText={t("markAsPreviousConfirming")}
+              onConfirm={handleConfirmMarkAsPrevious}
+              isLoading={isMarkingAsPrevious}
+            />
 
             {/* Save Filter Sheet - only for creating new views */}
             <SaveFilterSheet

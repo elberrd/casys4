@@ -1,9 +1,26 @@
 import { MutationCtx } from "../_generated/server";
-import { Id } from "../_generated/dataModel";
+import { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getProcessStatusAtUpload } from "./documentProgressSnapshot";
-import { getDocumentCreatedAt } from "./documentReceiptTiming";
+import {
+  getDocumentCreatedAt,
+  hasDocumentContent,
+} from "./documentReceiptTiming";
+
+interface LegalFrameworkChecklistRule {
+  documentTypeId: Id<"documentTypes">;
+  documentRequirementId?: Id<"documentRequirements">;
+  documentTypeLegalFrameworkId?: Id<"documentTypesLegalFrameworks">;
+  isRequired: boolean;
+  excludeFromReportByDefault?: boolean;
+}
+
+export interface LegalFrameworkChecklistReconciliation {
+  archivedCount: number;
+  createdCount: number;
+  reusedFilledCount: number;
+}
 
 /**
  * Helper function to generate document checklist for an individual process
@@ -232,6 +249,219 @@ export async function generateDocumentChecklistByLegalFramework(
   }
 
   return createdDocumentIds;
+}
+
+/**
+ * Reconciles the main checklist after the process type or legal framework
+ * changes. The document type is the stable identity across frameworks:
+ * existing versions and files are preserved when the new framework asks for
+ * the same type, while requirements that no longer apply are removed from the
+ * current checklist without deleting their history or storage objects.
+ */
+export async function reconcileDocumentChecklistForLegalFramework(
+  ctx: MutationCtx,
+  individualProcessId: Id<"individualProcesses">,
+  actingUserId?: Id<"users">,
+): Promise<LegalFrameworkChecklistReconciliation> {
+  const individualProcess = await ctx.db.get(individualProcessId);
+  if (!individualProcess) {
+    throw new Error("Individual process not found");
+  }
+
+  const collectiveProcess = individualProcess.collectiveProcessId
+    ? await ctx.db.get(individualProcess.collectiveProcessId)
+    : null;
+  const processTypeId =
+    individualProcess.processTypeId ?? collectiveProcess?.processTypeId;
+
+  const [associations, templates] = await Promise.all([
+    individualProcess.legalFrameworkId
+      ? ctx.db
+          .query("documentTypesLegalFrameworks")
+          .withIndex("by_legalFramework", (q) =>
+            q.eq("legalFrameworkId", individualProcess.legalFrameworkId!),
+          )
+          .collect()
+      : Promise.resolve([]),
+    processTypeId
+      ? ctx.db
+          .query("documentTemplates")
+          .withIndex("by_processType", (q) =>
+            q.eq("processTypeId", processTypeId),
+          )
+          .collect()
+      : Promise.resolve([]),
+  ]);
+
+  const matchingTemplate = templates
+    .filter((template) => {
+      if (!template.isActive) return false;
+      if (!individualProcess.legalFrameworkId && !template.legalFrameworkId) {
+        return true;
+      }
+      return template.legalFrameworkId === individualProcess.legalFrameworkId;
+    })
+    .sort((a, b) => b.version - a.version)[0];
+
+  const requirements = matchingTemplate
+    ? await ctx.db
+        .query("documentRequirements")
+        .withIndex("by_template", (q) =>
+          q.eq("templateId", matchingTemplate._id),
+        )
+        .collect()
+    : [];
+
+  const rulesByDocumentType = new Map<
+    string,
+    LegalFrameworkChecklistRule
+  >();
+
+  for (const requirement of requirements) {
+    rulesByDocumentType.set(requirement.documentTypeId, {
+      documentTypeId: requirement.documentTypeId,
+      documentRequirementId: requirement._id,
+      isRequired: requirement.isRequired,
+    });
+  }
+
+  // Associations are the current source of truth and take precedence over a
+  // legacy template when both describe the same document type.
+  for (const association of associations) {
+    rulesByDocumentType.set(association.documentTypeId, {
+      documentTypeId: association.documentTypeId,
+      documentTypeLegalFrameworkId: association._id,
+      isRequired: association.isRequired,
+    });
+  }
+
+  const activeRules = new Map<string, LegalFrameworkChecklistRule>();
+  await Promise.all(
+    Array.from(rulesByDocumentType.values()).map(async (rule) => {
+      const documentType = await ctx.db.get(rule.documentTypeId);
+      if (!documentType || documentType.isActive === false) return;
+
+      activeRules.set(rule.documentTypeId, {
+        ...rule,
+        excludeFromReportByDefault:
+          documentType.excludeFromReportByDefault,
+      });
+    }),
+  );
+
+  const existingDocuments = await ctx.db
+    .query("documentsDelivered")
+    .withIndex("by_individualProcess", (q) =>
+      q.eq("individualProcessId", individualProcessId),
+    )
+    .collect();
+
+  // Documents attached to a particular progress/status occurrence (for
+  // example, an exigencia) are not part of the main legal-framework checklist.
+  const mainChecklistDocuments = existingDocuments.filter(
+    (document) => !document.individualProcessStatusId,
+  );
+  const documentsByType = new Map<
+    string,
+    Doc<"documentsDelivered">[]
+  >();
+
+  for (const document of mainChecklistDocuments) {
+    if (!document.documentTypeId) continue;
+    const key = document.documentTypeId.toString();
+    const current = documentsByType.get(key) ?? [];
+    current.push(document);
+    documentsByType.set(key, current);
+  }
+
+  let archivedCount = 0;
+  let reusedFilledCount = 0;
+
+  for (const document of mainChecklistDocuments) {
+    if (!document.documentTypeId || !document.isLatest) continue;
+
+    const isFrameworkManaged = Boolean(
+      document.documentRequirementId ||
+        document.documentTypeLegalFrameworkId,
+    );
+    if (
+      isFrameworkManaged &&
+      !activeRules.has(document.documentTypeId.toString())
+    ) {
+      await ctx.db.patch(document._id, { isLatest: false });
+      archivedCount += 1;
+    }
+  }
+
+  for (const [documentTypeId, rule] of activeRules) {
+    const matchingDocuments = documentsByType.get(documentTypeId) ?? [];
+    const currentDocuments = matchingDocuments.filter(
+      (document) => document.isLatest,
+    );
+
+    // A type archived during an earlier framework switch can become current
+    // again without losing its filled content or version chain.
+    if (currentDocuments.length === 0 && matchingDocuments.length > 0) {
+      const newestDocument = [...matchingDocuments].sort(
+        (a, b) => b.version - a.version || b.uploadedAt - a.uploadedAt,
+      )[0];
+      await ctx.db.patch(newestDocument._id, { isLatest: true });
+    }
+
+    if (matchingDocuments.some(hasDocumentContent)) {
+      reusedFilledCount += 1;
+    }
+
+    for (const document of matchingDocuments) {
+      await ctx.db.patch(document._id, {
+        documentRequirementId: rule.documentRequirementId,
+        documentTypeLegalFrameworkId:
+          rule.documentTypeLegalFrameworkId,
+        isRequired: rule.isRequired,
+      });
+    }
+  }
+
+  const userId = actingUserId ?? (await getAuthUserId(ctx));
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+
+  const now = Date.now();
+  let createdCount = 0;
+
+  for (const [documentTypeId, rule] of activeRules) {
+    const matchingDocuments = documentsByType.get(documentTypeId) ?? [];
+    if (matchingDocuments.length > 0) continue;
+
+    await ctx.db.insert("documentsDelivered", {
+      individualProcessId,
+      documentTypeId: rule.documentTypeId,
+      documentRequirementId: rule.documentRequirementId,
+      documentTypeLegalFrameworkId:
+        rule.documentTypeLegalFrameworkId,
+      isRequired: rule.isRequired,
+      personId: individualProcess.personId,
+      companyId:
+        individualProcess.companyApplicantId ?? collectiveProcess?.companyId,
+      fileName: "",
+      fileUrl: "",
+      fileSize: 0,
+      mimeType: "",
+      status: "not_started",
+      uploadedBy: userId,
+      uploadedAt: now,
+      createdAt: now,
+      waitingStartedAt: individualProcess.createdAt,
+      version: 1,
+      isLatest: true,
+      excludedFromReport:
+        rule.excludeFromReportByDefault || undefined,
+    });
+    createdCount += 1;
+  }
+
+  return { archivedCount, createdCount, reusedFilledCount };
 }
 
 /**

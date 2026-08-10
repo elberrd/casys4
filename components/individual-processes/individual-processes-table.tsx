@@ -205,6 +205,7 @@ interface IndividualProcessesTableProps {
     statusId: Id<"individualProcessStatuses">,
   ) => void;
   onCreateFromExisting?: (id: Id<"individualProcesses">) => void;
+  onMarkAsPrevious?: (id: Id<"individualProcesses">) => void;
   onBulkStatusUpdate?: (
     selected: Array<{
       _id: Id<"individualProcesses">;
@@ -290,6 +291,7 @@ export function IndividualProcessesTable({
   onDelete,
   onFillFields,
   onCreateFromExisting,
+  onMarkAsPrevious,
   onBulkStatusUpdate,
   onBulkCreateTask,
   onRowClick,
@@ -344,7 +346,6 @@ export function IndividualProcessesTable({
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
   const locale = useLocale();
-  const updateProcess = useMutation(api.individualProcesses.update);
   const updateUrgentForCollectiveGroup = useMutation(
     api.individualProcesses.updateUrgentForCollectiveGroup
   );
@@ -1794,6 +1795,19 @@ export function IndividualProcessesTable({
             });
           }
 
+          const processStatus =
+            row.original.processStatus ??
+            (row.original.isActive === false ? "Anterior" : "Atual");
+          if (onMarkAsPrevious && processStatus === "Atual") {
+            actions.push({
+              label: t("markAsPrevious"),
+              icon: <History className="h-4 w-4" />,
+              onClick: () => onMarkAsPrevious(row.original._id),
+              variant: "default" as const,
+              separator: Boolean(onDelete),
+            });
+          }
+
           if (onDelete) {
             actions.push({
               label: tCommon("delete"),
@@ -1818,6 +1832,7 @@ export function IndividualProcessesTable({
       onEdit,
       onFillFields,
       onCreateFromExisting,
+      onMarkAsPrevious,
       onDelete,
       confirmDelete,
       onOpenProcessRequest,

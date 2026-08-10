@@ -3,7 +3,12 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
-import { generateDocumentChecklist, generateDocumentChecklistByLegalFramework, autoReuseCompanyDocuments } from "./lib/documentChecklist";
+import {
+  autoReuseCompanyDocuments,
+  generateDocumentChecklist,
+  generateDocumentChecklistByLegalFramework,
+  reconcileDocumentChecklistForLegalFramework,
+} from "./lib/documentChecklist";
 import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
@@ -1100,6 +1105,7 @@ export const update = mutation({
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
     urgent: v.optional(v.boolean()),
   },
+  returns: v.id("individualProcesses"),
   handler: async (ctx, { id, ...args }) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
@@ -1107,6 +1113,13 @@ export const update = mutation({
     const process = await ctx.db.get(id);
     if (!process) {
       throw new Error("Individual process not found");
+    }
+
+    if (args.legalFrameworkId !== undefined) {
+      const legalFramework = await ctx.db.get(args.legalFrameworkId);
+      if (!legalFramework) {
+        throw new ConvexError({ code: "LEGAL_FRAMEWORK_NOT_FOUND" });
+      }
     }
 
     // Validate that new case status exists if provided
@@ -1215,6 +1228,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updates);
+
+    const shouldReconcileChecklist =
+      (args.legalFrameworkId !== undefined &&
+        args.legalFrameworkId !== process.legalFrameworkId) ||
+      (args.processTypeId !== undefined &&
+        args.processTypeId !== process.processTypeId);
+    const actingUserId = userProfile.userId ?? (await getAuthUserId(ctx));
+    if (!actingUserId) {
+      throw new ConvexError({ code: "USER_NOT_ACTIVATED" });
+    }
+    const checklistReconciliation = shouldReconcileChecklist
+      ? await reconcileDocumentChecklistForLegalFramework(
+          ctx,
+          id,
+          actingUserId,
+        )
+      : undefined;
 
     // Sync dateProcess changes to "em preparação" status
     if (args.dateProcess !== undefined) {
@@ -1345,6 +1375,7 @@ export const update = mutation({
             personName: person ? getFullName(person) : undefined,
             collectiveProcessReference: collectiveProcess?.referenceNumber,
             changes: changedFields,
+            checklistReconciliation,
           },
         });
       }
@@ -1353,6 +1384,56 @@ export const update = mutation({
     }
 
     return id;
+  },
+});
+
+/**
+ * Marks a current individual process as previous without creating a successor.
+ */
+export const markAsPrevious = mutation({
+  args: { id: v.id("individualProcesses") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new ConvexError({ code: "USER_NOT_ACTIVATED" });
+    }
+
+    const individualProcess = await ctx.db.get(id);
+    if (!individualProcess) {
+      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+    }
+
+    if (
+      individualProcess.processStatus === "Anterior" &&
+      individualProcess.isActive === false
+    ) {
+      return null;
+    }
+
+    await ctx.db.patch(id, {
+      processStatus: "Anterior",
+      isActive: false,
+      updatedAt: Date.now(),
+    });
+
+    try {
+      const person = await ctx.db.get(individualProcess.personId);
+      await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+        userId: userProfile.userId,
+        action: "marked_as_previous",
+        entityType: "individualProcess",
+        entityId: id,
+        details: {
+          personName: person ? getFullName(person) : undefined,
+          reason: "Process manually marked as previous",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log manual previous-process change:", error);
+    }
+
+    return null;
   },
 });
 

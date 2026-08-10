@@ -18,6 +18,7 @@ interface ConfirmationDialogProps {
   description: string;
   confirmText?: string;
   cancelText?: string;
+  loadingText?: string;
   onConfirm: () => void;
   variant?: "default" | "destructive";
   isLoading?: boolean;
@@ -30,6 +31,7 @@ export function ConfirmationDialog({
   description,
   confirmText = "Confirmar",
   cancelText = "Cancelar",
+  loadingText = "Processando...",
   onConfirm,
   variant = "default",
   isLoading = false,
@@ -58,7 +60,7 @@ export function ConfirmationDialog({
                 : ""
             }
           >
-            {isLoading ? "Processando..." : confirmText}
+            {isLoading ? loadingText : confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
