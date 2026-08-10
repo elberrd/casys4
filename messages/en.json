@@ -928,6 +928,11 @@
     "qualExpProfModeDisable": "Disable education and experience view: return to default columns",
     "exigenciasButton": "Requirements",
     "filtersDropdown": "Filters",
+    "sorting": {
+      "mostRecent": "Most recent",
+      "mostRecentTooltip": "Show the most recently added processes first",
+      "mostRecentAriaLabel": "Sort processes by most recently added"
+    },
     "legalSupport": "Legal Support",
     "rnmToday": "Expires today",
     "fieldLabelSeparator": ":",

@@ -928,6 +928,11 @@
     "qualExpProfModeDisable": "Desativar visualização de escolaridade e experiência: voltar às colunas padrão",
     "exigenciasButton": "Exigências",
     "filtersDropdown": "Filtros",
+    "sorting": {
+      "mostRecent": "Mais recentes",
+      "mostRecentTooltip": "Mostrar primeiro os últimos processos inseridos",
+      "mostRecentAriaLabel": "Ordenar processos pelos últimos inseridos"
+    },
     "legalSupport": "Amparo Legal",
     "rnmToday": "Vence hoje",
     "fieldLabelSeparator": ":",

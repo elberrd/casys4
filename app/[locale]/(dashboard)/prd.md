@@ -403,6 +403,14 @@ END as passport_status
 - Communication history
 - Government protocol tracking
 
+### 7.3 Individual Process List
+
+- The administrative list opens with the most recently created process first.
+- After applying a manual column sort, administrators can use **Most recent**
+  to restore the creation order without clearing search, filters, visible
+  columns, selected rows, or saved-view criteria.
+- RNM and requirement-focused modes keep their dedicated ordering behavior.
+
 ## 8. Success Metrics
 
 1. **Process Efficiency**

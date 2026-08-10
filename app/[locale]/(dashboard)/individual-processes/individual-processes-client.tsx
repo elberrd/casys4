@@ -1009,6 +1009,10 @@ export function IndividualProcessesClient() {
     })
   }, [])
 
+  const handleRestoreNewestFirst = useCallback(() => {
+    setSorting([])
+  }, [])
+
   return (
     <>
       {/* Fixed action buttons - only for admins */}
@@ -1202,6 +1206,7 @@ export function IndividualProcessesClient() {
           showColumnVisibility={!isClient}
           sorting={sorting}
           onSortingChange={setSorting}
+          onRestoreNewestFirst={isAdmin ? handleRestoreNewestFirst : undefined}
           onExportSnapshotChange={isClient ? undefined : handleExportSnapshotChange}
         />
 

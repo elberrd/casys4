@@ -1,3 +1,56 @@
+# TODO ATIVO: Restaurar ordenação pelos processos mais recentes
+
+## Contexto
+
+Na lista administrativa de Processos Individuais (`/[locale]/individual-processes`), a query já entrega os registros por `createdAt` decrescente, mas clicar no cabeçalho **Candidato** substitui essa ordem pela ordenação alfabética e a escolha fica persistida na sessão. O administrador precisa de uma ação simples e explícita para voltar a ver o último processo inserido em primeiro, sem limpar os demais filtros ou personalizações da tabela.
+
+## Decisões de implementação
+
+- Adicionar na toolbar administrativa uma ação localizada **Mais recentes** / **Most recent**, perceptível também por teclado e leitor de tela.
+- A ação restaura somente o `SortingState` da tabela para a ordem padrão; deve preservar pesquisa, filtros, modos de visualização, colunas visíveis e seleção de linhas.
+- Reutilizar o contrato existente de `individualProcesses.list`, que já ordena por `createdAt` decrescente. Não alterar schema, query, índices nem adicionar uma coluna de data visível.
+- Exibir/habilitar a ação quando houver uma ordenação manual substituível. Modos com ordenação própria, como RNM ou Exigências, devem conservar sua semântica e não apresentar estado visual contraditório.
+- A mudança é administrativa; o comportamento priorizado do portal `client` permanece inalterado.
+
+## Sequência de tarefas
+
+### 0. Análise e delimitação
+
+- [x] 0.1: Revisar o PRD e os padrões atuais em `app/[locale]/(dashboard)/prd.md`, `app/[locale]/(dashboard)/individual-processes/individual-processes-client.tsx`, `components/individual-processes/individual-processes-table.tsx`, `convex/individualProcesses.ts` e mensagens pt/en.
+  - Confirmado: `individualProcesses.list` finaliza com `createdAt` decrescente; a tabela usa sorting controlado, persiste ordenações não vazias na sessão e `setSorting([])` devolve a visualização padrão mais recente primeiro.
+
+### 1. Ação administrativa de ordenação
+
+- [x] 1.1: Adicionar à toolbar de `components/individual-processes/individual-processes-table.tsx` uma ação compacta **Mais recentes** que substitua a ordenação manual atual pela ordem padrão.
+  - Restringir ao admin, usar componente de `components/ui/`, manter foco/aria-label e adaptar o rótulo em telas estreitas sem depender apenas do ícone.
+  - Validação: após ordenar **Candidato** de A–Z ou Z–A, um clique volta a mostrar maior `createdAt` primeiro e retorna à primeira página, sem limpar busca, filtros, colunas ou seleção.
+  - Implementado como capacidade explícita do admin: a ação aparece somente quando há sorting manual, usa rótulo visível + tooltip/aria-label, chama `setSorting([])` e retorna a paginação para o início sem tocar nos demais estados da tabela.
+- [x] 1.2: Garantir que `individual-processes-client.tsx` persista a remoção da ordenação alfabética sem apagar os outros critérios ativos.
+  - Cobrir navegação ao detalhe e retorno à lista; a ordenação alfabética antiga não pode reaparecer depois de usar **Mais recentes**.
+  - Validar a convivência com RNM, Exigências e filtros salvos, preservando as regras de ordenação específicas desses modos.
+  - O callback administrativo limpa somente `sorting`; a persistência existente regrava os critérios restantes sem a ordenação ou remove a sessão quando ela era o único critério. A ação fica oculta em RNM/Exigências para não competir com as ordens dedicadas.
+
+### 2. i18n, documentação e validação
+
+- [x] 2.1: Adicionar chaves equivalentes em `messages/pt.json` e `messages/en.json` para rótulo, tooltip e nome acessível; documentar no PRD a restauração da ordem por inclusão.
+  - Chaves `IndividualProcesses.sorting.*` validadas com paridade pt/en; a seção 7.3 do PRD registra a ordem por criação e a preservação dos demais estados.
+- [x] 2.2: Executar `pnpm exec tsc --noEmit`, lint focado, `pnpm lint`, `pnpm run build` e `git diff --check`, separando débitos preexistentes.
+  - `pnpm exec tsc --noEmit`, `pnpm run build`, `git diff --check` e o detector Impeccable passaram; o build gerou 89 páginas e manteve somente o warning CSS preexistente do seletor gerado.
+  - O lint focado/global continua não-zero apenas pelos débitos preexistentes de `any`, imports e hooks, inclusive nas linhas antigas dos dois arquivos da listagem; nenhuma ocorrência aponta para a ação adicionada.
+- [x] 2.3: Validar no browser autenticado em `/pt/individual-processes` e `/en/individual-processes`, desktop e mobile.
+  - Cobrir ordem inicial, A–Z, Z–A, restauração, persistência após ida/volta, teclado/leitor de tela, filtros ativos e ausência da ação no fluxo client.
+  - Validado com admin autenticado: A–Z e Z–A exibem a ação e restauram exatamente a sequência inicial por criação; busca e seleção permanecem; reload e ida ao detalhe/retorno não recuperam o sorting antigo; pt/en e viewport 390×844 passaram sem overflow horizontal ou erros novos no console.
+  - RNM e Exigências ocultam a ação enquanto ativos e a reapresentam ao sair quando ainda há sorting manual. A ausência no fluxo client foi validada pelo contrato de props (`isAdmin`), pois o ambiente documenta apenas credencial administrativa.
+
+## Definition of Done
+
+- [x] O admin consegue voltar à ordem de processos mais recentemente inseridos com uma única ação clara.
+- [x] O maior `createdAt` aparece primeiro após a restauração, inclusive depois de navegar e retornar à lista.
+- [x] Busca, filtros, modos, colunas e seleção permanecem intactos; portal client e ordenações especiais não sofrem regressão.
+- [x] pt/en, responsividade, acessibilidade, TypeScript, lint, build, PRD e validação browser passam sem novos erros.
+
+---
+
 # TODO ATIVO: Contagem de documentos da exigência no Histórico do Andamento
 
 ## Contexto

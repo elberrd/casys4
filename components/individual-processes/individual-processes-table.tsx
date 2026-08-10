@@ -49,6 +49,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  History,
   X,
   StickyNote,
   FileWarning,
@@ -274,6 +275,8 @@ interface IndividualProcessesTableProps {
   // Sorting props (controlled mode)
   sorting?: SortingState;
   onSortingChange?: (sorting: SortingState) => void;
+  // Admin-only capability to restore the backend's newest-first default order
+  onRestoreNewestFirst?: () => void;
   // Export snapshot callback (current table view: filters/search/sorting/visible columns)
   onExportSnapshotChange?: (snapshot: IndividualProcessesExportSnapshot) => void;
   // Whether to show the column visibility toggle button
@@ -334,6 +337,7 @@ export function IndividualProcessesTable({
   onColumnVisibilityChange,
   sorting: controlledSorting,
   onSortingChange: onControlledSortingChange,
+  onRestoreNewestFirst,
   onExportSnapshotChange,
   showColumnVisibility = true,
 }: IndividualProcessesTableProps) {
@@ -2158,6 +2162,19 @@ export function IndividualProcessesTable({
     toast.success(t("groupedMode.allCollapsed") || "All groups collapsed");
   }, [isGroupedModeActive, t]);
 
+  const handleRestoreNewestFirst = useCallback(() => {
+    onRestoreNewestFirst?.();
+    setPagination((current) =>
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 },
+    );
+  }, [onRestoreNewestFirst]);
+
+  const showRestoreNewestFirst =
+    Boolean(onRestoreNewestFirst) &&
+    sorting.length > 0 &&
+    !isRnmModeActive &&
+    !isExigenciaModeActive;
+
   // Use keyboard shortcuts for expand/collapse
   useGroupKeyboardShortcuts({
     enabled: isGroupedModeActive,
@@ -2180,6 +2197,28 @@ export function IndividualProcessesTable({
         {/* First row: Search, filter modes dropdown, and column visibility */}
         <div className="flex flex-wrap items-center gap-2">
           <DataGridFilter table={table} className="flex-1 min-w-[200px] max-w-sm" />
+          {showRestoreNewestFirst && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-10 shrink-0 gap-2"
+                    onClick={handleRestoreNewestFirst}
+                    aria-label={t("sorting.mostRecentAriaLabel")}
+                  >
+                    <History className="h-4 w-4" aria-hidden="true" />
+                    <span>{t("sorting.mostRecent")}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t("sorting.mostRecentTooltip")}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           {(onRnmModeToggle || onUrgentModeToggle || onQualExpProfModeToggle || onExigenciaModeToggle) && (
             <div className="flex items-center gap-1 flex-shrink-0">
               <DropdownMenu open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
