@@ -28,18 +28,20 @@ export function DocumentReceivedDateField({
   value,
   onChange,
   disabled = false,
+  allowEmpty = false,
   id = "document-received-date",
 }: {
   canEdit: boolean;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  allowEmpty?: boolean;
   id?: string;
 }) {
   const t = useTranslations("DocumentTiming");
   if (!canEdit) return null;
 
-  const validation = documentTimingDateSchema.safeParse(value);
+  const isValid = (allowEmpty && !value) || documentTimingDateSchema.safeParse(value).success;
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
 
@@ -49,16 +51,18 @@ export function DocumentReceivedDateField({
       <DatePicker
         id={id}
         value={value}
-        onChange={(nextValue) => onChange(nextValue ?? getDefaultReceivedDate())}
+        onChange={(nextValue) =>
+          onChange(nextValue ?? (allowEmpty ? "" : getDefaultReceivedDate()))
+        }
         disabled={disabled}
         showYearMonthDropdowns
         ariaLabel={t("receivedDate")}
-        ariaDescribedBy={validation.success ? hintId : errorId}
+        ariaDescribedBy={isValid ? hintId : errorId}
       />
       <p id={hintId} className="text-xs text-muted-foreground">
         {t("receivedDateHint")}
       </p>
-      {!validation.success && (
+      {!isValid && (
         <p id={errorId} role="alert" className="text-xs text-destructive">
           {t("receivedDateInvalid")}
         </p>

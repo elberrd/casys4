@@ -60,7 +60,7 @@ export function LooseDocumentUploadDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [expiryDate, setExpiryDate] = useState<string>("");
   const [versionNotes, setVersionNotes] = useState<string>("");
-  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
+  const [receivedDate, setReceivedDate] = useState<string>("");
   const [documentName, setDocumentName] = useState<string>("");
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
@@ -113,6 +113,9 @@ export function LooseDocumentUploadDialog({
     }
 
     setSelectedFile(file);
+    if (canEditReceivedDate) {
+      setReceivedDate((currentDate) => currentDate || getDefaultReceivedDate());
+    }
     setAutoApprove(true);
   };
 
@@ -131,7 +134,7 @@ export function LooseDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
-      setReceivedDate(getDefaultReceivedDate());
+      setReceivedDate("");
       setDocumentName("");
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -208,7 +211,7 @@ export function LooseDocumentUploadDialog({
       handleRemoveFile();
       setExpiryDate("");
       setVersionNotes("");
-      setReceivedDate(getDefaultReceivedDate());
+      setReceivedDate("");
       setDocumentName("");
       setSelectedStatusId("");
       setAutoApprove(false);
@@ -235,18 +238,6 @@ export function LooseDocumentUploadDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Document name (for saving without file) */}
-          <div className="space-y-2">
-            <Label htmlFor="documentName">{t("documentName")}</Label>
-            <Input
-              id="documentName"
-              value={documentName}
-              onChange={(e) => setDocumentName(e.target.value)}
-              placeholder={t("documentNamePlaceholder")}
-              disabled={isUploading}
-            />
-          </div>
-
           {/* Status entry selector */}
           {statusOptions.length > 0 && (
             <div className="space-y-2">
@@ -263,6 +254,18 @@ export function LooseDocumentUploadDialog({
               />
             </div>
           )}
+
+          {/* Document name (for saving without file) */}
+          <div className="space-y-2">
+            <Label htmlFor="documentName">{t("documentName")}</Label>
+            <Input
+              id="documentName"
+              value={documentName}
+              onChange={(e) => setDocumentName(e.target.value)}
+              placeholder={t("documentNamePlaceholder")}
+              disabled={isUploading}
+            />
+          </div>
 
           {/* File requirements */}
           <div className="text-sm text-muted-foreground">
@@ -339,6 +342,7 @@ export function LooseDocumentUploadDialog({
             value={receivedDate}
             onChange={setReceivedDate}
             disabled={isUploading}
+            allowEmpty
             id="loose-document-received-date"
           />
 
