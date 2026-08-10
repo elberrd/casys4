@@ -24,15 +24,31 @@ export function DocumentWaitTimeBadge({
     timing.waitingStartedAt,
     locale,
   );
+  const receivedDate = timing.receivedAt === undefined
+    ? undefined
+    : formatDocumentTimingDate(timing.receivedAt, locale);
 
-  const title = timing.state === "received" && timing.receivedAt !== undefined
+  const title = timing.state === "received" && receivedDate !== undefined
       ? t("receivedDetails", {
         waitingStartDate,
-        receivedDate: formatDocumentTimingDate(timing.receivedAt, locale),
+        receivedDate,
       })
     : timing.state === "superseded"
       ? t("supersededDetails", { waitingStartDate })
       : t("pendingDetails", { waitingStartDate });
+
+  const label = timing.state === "received" && receivedDate !== undefined
+    ? t("received", {
+        count: timing.days,
+        waitingStartDate,
+        receivedDate,
+      })
+    : timing.state === "superseded"
+      ? t("superseded", { count: timing.days })
+      : t("pending", {
+          count: timing.days,
+          waitingStartDate,
+        });
 
   return (
     <Badge
@@ -50,7 +66,7 @@ export function DocumentWaitTimeBadge({
         className,
       )}
     >
-      {t(timing.state, { count: timing.days })}
+      {label}
     </Badge>
   );
 }

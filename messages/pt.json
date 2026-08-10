@@ -2805,8 +2805,8 @@
     "bypassConditionsHint": "Quando ativado, as condições são dispensadas sem serem marcadas como cumpridas"
   },
   "DocumentTiming": {
-    "pending": "{count, plural, =0 {Aguardando hoje} one {Aguardando há # dia} other {Aguardando há # dias}}",
-    "received": "{count, plural, =0 {Recebido no mesmo dia} one {Recebido em # dia} other {Recebido em # dias}}",
+    "pending": "{waitingStartDate} - {count, plural, =0 {0 dias} one {# dia} other {# dias}}",
+    "received": "{waitingStartDate} - {receivedDate} - ({count, plural, =0 {0 dias} one {# dia} other {# dias}})",
     "superseded": "{count, plural, =0 {Versão encerrada no mesmo dia} one {Aguardou # dia sem anexo} other {Aguardou # dias sem anexo}}",
     "pendingDetails": "A espera começou em {waitingStartDate}. Aguardando recebimento.",
     "receivedDetails": "A espera começou em {waitingStartDate}. Recebido em {receivedDate}.",
