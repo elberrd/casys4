@@ -740,12 +740,13 @@ export const create = mutation({
     monthlyAmountToReceive: v.optional(v.number()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
+    replaceExistingCurrent: v.optional(v.boolean()),
     urgent: v.optional(v.boolean()),
   },
   returns: v.id("individualProcesses"),
   handler: async (ctx, args) => {
     // Require admin role
-    const userProfile = await requireAdmin(ctx);
+    await requireAdmin(ctx);
 
     if (args.passportId) {
       const passport = await ctx.db.get(args.passportId);
@@ -785,17 +786,29 @@ export const create = mutation({
     const statusString = args.status || caseStatus.code;
 
     const desiredProcessStatus = args.processStatus ?? "Atual";
-    if (desiredProcessStatus === "Atual") {
-      const currentProcessConflicts = await getCurrentProcessesForPerson(
-        ctx,
-        args.personId,
-      );
-      if (currentProcessConflicts.length > 0) {
-        throw new ConvexError({
-          code: "CURRENT_PROCESS_CONFLICT",
-          conflictingProcessId: currentProcessConflicts[0]._id,
-        });
-      }
+    const currentProcessConflicts =
+      desiredProcessStatus === "Atual"
+        ? await getCurrentProcessesForPerson(ctx, args.personId)
+        : [];
+
+    if (
+      currentProcessConflicts.length > 0 &&
+      !args.replaceExistingCurrent
+    ) {
+      throw new ConvexError({
+        code: "CURRENT_PROCESS_CONFLICT",
+        conflictingProcessId: currentProcessConflicts[0]._id,
+      });
+    }
+
+    // A confirmed replacement is applied in the same mutation as creation,
+    // so the candidate can never be left with two current processes.
+    for (const conflictingProcess of currentProcessConflicts) {
+      await ctx.db.patch(conflictingProcess._id, {
+        processStatus: "Anterior",
+        isActive: false,
+        updatedAt: now,
+      });
     }
 
     const processId = await ctx.db.insert("individualProcesses", {
@@ -909,7 +922,7 @@ export const create = mutation({
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId!,
+        userId,
         action: "created",
         entityType: "individualProcess",
         entityId: processId,
@@ -919,8 +932,26 @@ export const create = mutation({
           caseStatusName: caseStatus.name, // Log case status name
           caseStatusId: caseStatus._id, // Log case status ID
           legalFrameworkId: args.legalFrameworkId,
+          replacedCurrentProcessIds: currentProcessConflicts.map(
+            (conflictingProcess) => conflictingProcess._id,
+          ),
         },
       });
+
+      for (const conflictingProcess of currentProcessConflicts) {
+        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
+          userId,
+          action: "process_status_changed",
+          entityType: "individualProcess",
+          entityId: conflictingProcess._id,
+          details: {
+            personName: person ? getFullName(person) : undefined,
+            before: getEffectiveProcessStatus(conflictingProcess),
+            after: "Anterior",
+            replacedByProcessId: processId,
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }

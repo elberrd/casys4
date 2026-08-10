@@ -32,6 +32,7 @@ interface WizardLayoutProps {
 export type WizardFinalizationPhase =
   | "idle"
   | "creating"
+  | "awaiting_current_process_replacement"
   | "creation_error"
   | "resolving_passports"
   | "complete"

@@ -2,11 +2,13 @@
 
 import { useCallback, useRef, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
+import { ConvexError } from "convex/values"
 import { api } from "@/convex/_generated/api"
 import { useRouter } from "next/navigation"
 import { useLocale, useTranslations } from "next-intl"
 import { useToast } from "@/hooks/use-toast"
 import { Id } from "@/convex/_generated/dataModel"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 import { useWizardState } from "./use-wizard-state"
 import { WizardLayout } from "./wizard-layout"
@@ -38,8 +40,26 @@ interface CreationAttempt {
   processIds: Array<Id<"individualProcesses"> | undefined>
 }
 
+interface PendingCurrentProcessConflict {
+  candidateIndex: number
+  candidateName: string
+}
+
+function isCurrentProcessConflict(error: unknown): boolean {
+  if (!(error instanceof ConvexError)) return false
+
+  const data: unknown = error.data
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "code" in data &&
+    data.code === "CURRENT_PROCESS_CONFLICT"
+  )
+}
+
 export function ProcessWizardPage() {
   const t = useTranslations("ProcessWizard")
+  const tCommon = useTranslations("Common")
   const router = useRouter()
   const locale = useLocale()
   const { toast } = useToast()
@@ -55,7 +75,10 @@ export function ProcessWizardPage() {
   >([])
   const [creationResult, setCreationResult] =
     useState<WizardCreationResult | null>(null)
+  const [pendingCurrentProcessConflict, setPendingCurrentProcessConflict] =
+    useState<PendingCurrentProcessConflict | null>(null)
   const creationAttemptRef = useRef<CreationAttempt | null>(null)
+  const replaceExistingCurrentIndexesRef = useRef(new Set<number>())
   const submitGuardRef = useRef(false)
 
   const createIndividualProcess = useMutation(api.individualProcesses.create)
@@ -73,7 +96,9 @@ export function ProcessWizardPage() {
       setFinalizationPhase("complete")
       setPassportQueue([])
       setCreationResult(null)
+      setPendingCurrentProcessConflict(null)
       creationAttemptRef.current = null
+      replaceExistingCurrentIndexesRef.current.clear()
       submitGuardRef.current = false
       reset()
 
@@ -112,6 +137,7 @@ export function ProcessWizardPage() {
     setIsSubmitting(true)
     setFinalizationPhase("creating")
     let awaitingPassportResolution = false
+    let currentCandidateIndex: number | undefined
 
     try {
       const attempt =
@@ -130,6 +156,8 @@ export function ProcessWizardPage() {
         for (const [index, candidate] of wizardData.candidates.entries()) {
           if (attempt.processIds[index]) continue
 
+          currentCandidateIndex = index
+
           const processId = await createIndividualProcess({
             dateProcess: candidate.requestDate,
             personId: candidate.personId as Id<"people">,
@@ -143,8 +171,11 @@ export function ProcessWizardPage() {
             deadlineUnit: wizardData.deadlineUnit || undefined,
             deadlineQuantity: wizardData.deadlineQuantity,
             deadlineSpecificDate: wizardData.deadlineSpecificDate || undefined,
+            replaceExistingCurrent:
+              replaceExistingCurrentIndexesRef.current.has(index) || undefined,
           })
           attempt.processIds[index] = processId
+          replaceExistingCurrentIndexesRef.current.delete(index)
         }
 
         const createdProcessIds = attempt.processIds.filter(
@@ -208,6 +239,8 @@ export function ProcessWizardPage() {
         for (const [index, candidate] of wizardData.candidates.entries()) {
           if (attempt.processIds[index]) continue
 
+          currentCandidateIndex = index
+
           attempt.processIds[index] = await createIndividualProcess({
             collectiveProcessId: attempt.collectiveProcessId,
             dateProcess: candidate.requestDate,
@@ -222,7 +255,10 @@ export function ProcessWizardPage() {
             deadlineUnit: wizardData.deadlineUnit || undefined,
             deadlineQuantity: wizardData.deadlineQuantity,
             deadlineSpecificDate: wizardData.deadlineSpecificDate || undefined,
+            replaceExistingCurrent:
+              replaceExistingCurrentIndexesRef.current.has(index) || undefined,
           })
+          replaceExistingCurrentIndexesRef.current.delete(index)
         }
 
         const result: WizardCreationResult = {
@@ -258,6 +294,25 @@ export function ProcessWizardPage() {
         }
       }
     } catch (error) {
+      if (
+        isCurrentProcessConflict(error) &&
+        currentCandidateIndex !== undefined
+      ) {
+        const candidate = wizardData.candidates[currentCandidateIndex]
+        const person = candidate
+          ? people.find((item) => item._id === candidate.personId)
+          : undefined
+
+        setPendingCurrentProcessConflict({
+          candidateIndex: currentCandidateIndex,
+          candidateName:
+            person?.fullName ??
+            t("candidateNumber", { number: currentCandidateIndex + 1 }),
+        })
+        setFinalizationPhase("awaiting_current_process_replacement")
+        return
+      }
+
       console.error("Error creating process:", error)
       setFinalizationPhase("creation_error")
       const attempt = creationAttemptRef.current
@@ -312,6 +367,45 @@ export function ProcessWizardPage() {
         open={finalizationPhase === "resolving_passports"}
         entries={passportQueue}
         onComplete={handlePassportQueueComplete}
+      />
+
+      <ConfirmationDialog
+        open={pendingCurrentProcessConflict !== null}
+        onOpenChange={(open) => {
+          if (open || submitGuardRef.current) return
+
+          setPendingCurrentProcessConflict(null)
+          const attempt = creationAttemptRef.current
+          const hasPartialCreation =
+            attempt?.collectiveProcessId !== undefined ||
+            attempt?.processIds.some((processId) => processId !== undefined)
+
+          if (hasPartialCreation) {
+            setFinalizationPhase("creation_error")
+          } else {
+            creationAttemptRef.current = null
+            setFinalizationPhase("idle")
+          }
+        }}
+        title={t("currentProcessConflictTitle")}
+        description={t("currentProcessConflictDescription", {
+          candidate:
+            pendingCurrentProcessConflict?.candidateName ??
+            t("candidateNumber", { number: 1 }),
+        })}
+        confirmText={t("currentProcessConflictConfirm")}
+        cancelText={tCommon("cancel")}
+        loadingText={t("currentProcessConflictConfirming")}
+        isLoading={isSubmitting}
+        onConfirm={() => {
+          if (!pendingCurrentProcessConflict) return
+
+          replaceExistingCurrentIndexesRef.current.add(
+            pendingCurrentProcessConflict.candidateIndex,
+          )
+          void handleSubmit()
+          setPendingCurrentProcessConflict(null)
+        }}
       />
     </>
   )
