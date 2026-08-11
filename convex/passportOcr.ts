@@ -6,6 +6,10 @@ import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { GoogleGenAI } from "@google/genai";
+import {
+  normalizePassportNameFields,
+  parsePassportMrz,
+} from "./lib/passportNameNormalization";
 
 type PassportExtraction = {
   givenNames: string | null;
@@ -116,7 +120,15 @@ const passportExistsValidator = v.union(
   v.null(),
 );
 
-const OCR_PROMPT = `Read the attached passport image or PDF and extract the requested passport fields. Preserve names and document numbers exactly as printed. Keep any separately printed middle name in middleName. Extract fatherName and motherName only when those names are explicitly printed on the document; never infer or invent parent names. Normalize dates to YYYY-MM-DD. Use the three-letter MRZ codes for nationalityCode and issuingCountryCode when available. If the document is not a passport, or a field is absent or unreadable, return null for that field.`;
+const OCR_PROMPT = `Read the attached passport image or PDF and extract the requested passport fields.
+
+For the passport holder's name, prefer the Latin spelling in the machine-readable zone (MRZ) when it is legible. Return each name component in title case (first letter uppercase and the remaining letters lowercase) and use basic Latin A-Z equivalents for Latin-script variants (for example, Ș becomes S). When neither the MRZ nor another Latin spelling is available for a complex non-Latin script, preserve the original script rather than inventing a transliteration. Keep any separately printed middle name in middleName.
+
+Extract fatherName and motherName only when those names are explicitly printed on the document; never infer or invent parent names. Apply the same casing and safe Latin-script normalization to those names, but do not derive them from the MRZ.
+
+Treat the MRZ as authoritative for country codes. nationality/nationalityCode identify the passport holder's nationality (the country-of-origin field; positions 11-13 of the second TD3 MRZ line). issuingCountry/issuingCountryCode identify the state that issued the passport (positions 3-5 of the first TD3 MRZ line). Never swap these fields, and never infer nationality from appearance, language, birthplace, or the issuing authority. Return the corresponding country names in English so they can be matched to the country registry.
+
+Preserve document numbers exactly as printed. Normalize dates to YYYY-MM-DD. Return the complete MRZ when legible. If the document is not a passport, or a field is absent or unreadable, return null for that field.`;
 
 const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -168,7 +180,8 @@ const PASSPORT_RESPONSE_SCHEMA = {
     },
     nationality: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      description: "Nationality as printed",
+      description:
+        "Passport holder nationality/country of origin in English, never the issuing country unless they are the same",
     },
     nationalityCode: {
       anyOf: [{ type: "string" }, { type: "null" }],
@@ -176,7 +189,7 @@ const PASSPORT_RESPONSE_SCHEMA = {
     },
     issuingCountry: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      description: "Issuing country or authority name",
+      description: "Country that issued the passport, in English",
     },
     issuingCountryCode: {
       anyOf: [{ type: "string" }, { type: "null" }],
@@ -356,9 +369,9 @@ export const extractPassport = action({
     });
 
     const raw = (response.text ?? "").trim();
-    const parsed = parsePassportExtraction(raw);
+    const rawExtraction = parsePassportExtraction(raw);
 
-    if (!parsed) {
+    if (!rawExtraction) {
       if (recordForPersonCreation) {
         await ctx.runMutation(internal.personPassportOcrVerifications.record, {
           storageId,
@@ -375,6 +388,17 @@ export const extractPassport = action({
         error: "invalid_response",
       };
     }
+
+    const mrzIdentity = parsePassportMrz(rawExtraction.mrz);
+    const parsed: PassportExtraction = {
+      ...rawExtraction,
+      ...normalizePassportNameFields(rawExtraction),
+      // Deterministic MRZ positions take precedence over model-inferred codes.
+      nationalityCode:
+        mrzIdentity?.nationalityCode ?? rawExtraction.nationalityCode,
+      issuingCountryCode:
+        mrzIdentity?.issuingCountryCode ?? rawExtraction.issuingCountryCode,
+    };
 
     const resolveCountryId = async (
       code: string | null,

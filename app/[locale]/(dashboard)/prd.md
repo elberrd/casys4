@@ -698,6 +698,8 @@ not a formal passport record and is not a process document.
 
 **Behavior**:
 - Every new upload in the full Person form is read with the existing passport OCR flow so its passport number can be checked. Only the first upload applies valid personal fields automatically.
+- OCR-populated person and parent names use title case. Latin-script variants are converted to basic A-Z equivalents, with the passport MRZ spelling taking precedence for the holder's name; complex non-Latin scripts remain unchanged when no Latin spelling is available.
+- Nationality (the holder's country of origin) and issuing country remain separate. Their TD3 MRZ positions are authoritative, and the model may not infer nationality from appearance, language, birthplace, or issuing authority.
 - Replacing or removing this file never changes Person fields. A replacement is checked for duplicate ownership without applying its personal data; applying those fields requires a separate, explicit confirmation.
 - The 1:1 relation is independent from `passports` and `documentsDelivered`; it does not create a passport number, active status, or process attachment.
 - Person creation and its initial attachment are committed in the same mutation. Later file replacement/removal uses narrow attachment mutations.
@@ -833,6 +835,7 @@ Admin-created templates defining required documents per process type.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all templates
 - Client users: Read-only access to view templates (for understanding requirements)
 
@@ -858,6 +861,7 @@ Specific document requirements within a template.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access
 - Client users: Read-only access
 
@@ -892,12 +896,17 @@ Actual documents uploaded by users.
 ```
 
 **Access Control and timing**:
+
 - Admin users: Full CRUD access to all documents; can view, set during upload, and later correct both `waitingStartedAt` and `receivedAt` to valid calendar dates
 - Client users: Can upload documents for processes in their company, but cannot send an override or read `waitingStartedAt`, `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
 - Every document or version starts with `waitingStartedAt = individualProcesses.createdAt`, even when it is added later. An explicit administrative override can change only this business date
 - The waiting counter is calculated from `waitingStartedAt` to `receivedAt`, the version closing timestamp, or the current time. Calendar-day differences use the configured business timezone and never display a negative duration
 - The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original timing fields; a new version receives a new immutable technical `createdAt`
 - `createdAt` remains independent from the editable business dates because it identifies the technical creation of the row/version and is also used by the client document visibility policy
+- In the individual process document list, ordinary documents keep a single current row selected by `isLatest`; its receipt badge therefore always uses the timing fields of that latest version
+- A submitted version whose immutable `processStatusAtUpload` identifies an **Exigência** is additionally preserved under that exact status occurrence. The list shows only the highest version of the same document inside each occurrence, includes the version number and uses that version's own timing fields
+- The same document may appear under multiple Exigência dates, and may also have a separate current row outside Exigência when a later version was submitted during another progress status. These historical occurrence rows are read-only and do not change current progress totals or current-document actions
+- Exigência occurrence history follows the existing document visibility policy and client focus rules; the snapshot does not broaden RBAC access and no current status/catalog lookup rewrites the historical identity of a submitted version
 
 #### Tracking and History Tables
 
@@ -918,6 +927,7 @@ Complete audit trail of status changes.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access
 - Client users: Read-only access to history for their company's processes
 
@@ -944,6 +954,7 @@ Task management for processes.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all tasks
 - Client users: Read-only access to tasks for their company's processes
 
@@ -966,6 +977,7 @@ User notification system.
 ```
 
 **Access Control**:
+
 - All users can view their own notifications
 - Admin users can send notifications to client users
 
@@ -987,6 +999,7 @@ System-wide activity logging for audit and compliance.
 ```
 
 **Access Control**:
+
 - Admin users: Full read access to all activity logs
 - Client users: Read access to logs for their own actions only
 
@@ -1011,6 +1024,7 @@ Passport information with expiration tracking.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all passports
 - Client users: Read-only access to passports for people associated with their company (via `peopleCompanies`)
 
@@ -1030,6 +1044,7 @@ Many-to-many relationship between people and companies (employment/association).
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all relationships
 - Client users: Read-only access to relationships for their company only
 
@@ -1038,6 +1053,7 @@ Many-to-many relationship between people and companies (employment/association).
 All lookup tables follow the same access control pattern:
 
 **Access Control**:
+
 - Admin users: Full CRUD access (can create, update, delete, reorder)
 - Client users: Read-only access (needed for form dropdowns and reference data)
 
@@ -1155,6 +1171,7 @@ User-specific dashboard customization.
 ```
 
 **Access Control**:
+
 - All users can manage their own dashboard widgets
 - Admin users can additionally view all users' widget configurations
 
@@ -1164,15 +1181,16 @@ System-wide configuration settings (admin only).
 
 ```typescript
 {
-  key: string                          // Setting key
-  value: any                           // Setting value
-  description: string                  // Setting description
-  updatedBy: Id<"users">               // Last updater (admin)
-  updatedAt: number                    // Update timestamp
+  key: string; // Setting key
+  value: any; // Setting value
+  description: string; // Setting description
+  updatedBy: Id<"users">; // Last updater (admin)
+  updatedAt: number; // Update timestamp
 }
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all system settings
 - Client users: Read-only access to public settings (e.g., company info)
 
@@ -1186,7 +1204,7 @@ System-wide configuration settings (admin only).
 - documentsDelivered (what's been provided)
 - Status indicators on each requirement
 - Critical document flags that block progress
-````
+```
 
 #### 2. Bulk Candidate Management
 
@@ -1265,6 +1283,7 @@ Key innovations include:
 - **Company-scoped data filtering** for secure multi-client support
 
 This platform will transform how the law firm operates, providing:
+
 - **For law firm staff (admins)**: Complete control over all processes, clients, and data
 - **For client companies**: Real-time visibility into their immigration processes with secure, read-only access
 - **For both**: Improved transparency, efficiency, and compliance in one integrated system

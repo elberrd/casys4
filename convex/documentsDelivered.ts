@@ -25,6 +25,10 @@ import {
   filterClientChecklistDocuments,
   resolveClientDocumentVisibility,
 } from "./lib/clientDocumentVisibility";
+import {
+  getExigenciaSnapshotStatusId,
+  selectLatestVersionsByExigenciaOccurrence,
+} from "./lib/exigenciaDocumentVersions";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -3096,19 +3100,49 @@ export const listGroupedByCategory = query({
       ? await cachedGet(individualProcess.collectiveProcessId)
       : null;
 
-    // Get all latest documents for this process
-    let documents = await ctx.db
+    // Read the process once by index. Current checklist state remains based on
+    // isLatest, while immutable Exigencia snapshots preserve one version per
+    // document and occurrence for the historical requirement groups.
+    const allProcessDocuments = await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
       .collect();
 
-    documents = documents.filter((doc) => doc.isLatest);
+    const latestDocuments = allProcessDocuments.filter((doc) => doc.isLatest);
     const checklistVisibility = filterClientChecklistDocuments(
-      documents,
+      latestDocuments,
       visibility,
       includeOtherDocuments,
     );
-    documents = checklistVisibility.documents;
+    let exigenciaOccurrenceDocuments = filterAccessibleDocuments(
+      selectLatestVersionsByExigenciaOccurrence(allProcessDocuments),
+      visibility,
+    );
+
+    const shouldFocusCurrentExigencia =
+      visibility.viewerRole === "client" &&
+      visibility.hasFullDocumentAccess &&
+      visibility.currentExigenciaStatusId !== undefined &&
+      !includeOtherDocuments;
+    if (shouldFocusCurrentExigencia) {
+      exigenciaOccurrenceDocuments = exigenciaOccurrenceDocuments.filter(
+        (document) =>
+          getExigenciaSnapshotStatusId(document) ===
+          visibility.currentExigenciaStatusId,
+      );
+    }
+
+    const documentsById = new Map<
+      Id<"documentsDelivered">,
+      Doc<"documentsDelivered">
+    >();
+    for (const document of checklistVisibility.documents) {
+      documentsById.set(document._id, document);
+    }
+    for (const document of exigenciaOccurrenceDocuments) {
+      documentsById.set(document._id, document);
+    }
+    const documents = Array.from(documentsById.values());
 
     // Enrich with related data
     const enrichedDocuments = await Promise.all(
@@ -3266,20 +3300,36 @@ export const listGroupedByCategory = query({
           previousRejectionReason = previousVersion?.rejectionReason;
         }
 
-        // Enrich linked status
+        // For submitted versions, the immutable upload snapshot is the source
+        // of truth for whether this exact version belongs to an Exigencia. A
+        // latest placeholder has no snapshot yet and keeps its explicit link.
         let linkedStatus = undefined;
-        if (doc.individualProcessStatusId) {
-          const statusEntry = await cachedGet(doc.individualProcessStatusId);
+        const snapshot = doc.processStatusAtUpload;
+        const snapshotExigenciaStatusId = getExigenciaSnapshotStatusId(doc);
+        const linkedStatusId = snapshot
+          ? snapshotExigenciaStatusId
+          : doc.individualProcessStatusId;
+        if (linkedStatusId) {
+          const statusEntry = await cachedGet(linkedStatusId);
           if (statusEntry) {
             const caseStatus = await cachedGet(statusEntry.caseStatusId);
-            if (caseStatus) {
+            if (caseStatus || snapshotExigenciaStatusId) {
               linkedStatus = {
-                caseStatusName: caseStatus.name,
-                caseStatusCode: caseStatus.code,
-                caseStatusColor: caseStatus.color,
+                caseStatusName:
+                  snapshotExigenciaStatusId && snapshot
+                    ? snapshot.name
+                    : caseStatus!.name,
+                caseStatusCode:
+                  snapshotExigenciaStatusId && snapshot
+                    ? snapshot.code
+                    : caseStatus!.code,
+                caseStatusColor:
+                  snapshotExigenciaStatusId && snapshot
+                    ? snapshot.color
+                    : caseStatus!.color,
                 date: statusEntry.date,
                 clientDeadlineDate: statusEntry.clientDeadlineDate,
-                individualProcessStatusId: doc.individualProcessStatusId!,
+                individualProcessStatusId: linkedStatusId,
               };
             }
           }
@@ -3312,6 +3362,16 @@ export const listGroupedByCategory = query({
     const loose = enrichedDocuments.filter(
       (doc) => !doc.documentTypeId
     );
+    const currentDocuments = enrichedDocuments.filter((doc) => doc.isLatest);
+    const currentRequired = currentDocuments.filter(
+      (doc) => doc.isRequired === true && doc.documentTypeId
+    );
+    const currentOptional = currentDocuments.filter(
+      (doc) => doc.isRequired !== true && doc.documentTypeId
+    );
+    const currentLoose = currentDocuments.filter(
+      (doc) => !doc.documentTypeId
+    );
 
     return {
       required,
@@ -3332,13 +3392,13 @@ export const listGroupedByCategory = query({
         showingOtherDocuments: checklistVisibility.showingOtherDocuments,
       },
       summary: {
-        totalRequired: required.length,
-        totalOptional: optional.length,
-        totalLoose: loose.length,
-        requiredUploaded: required.filter((d) => d.status !== "not_started").length,
-        requiredApproved: required.filter((d) => d.status === "approved").length,
-        optionalUploaded: optional.filter((d) => d.status !== "not_started").length,
-        optionalApproved: optional.filter((d) => d.status === "approved").length,
+        totalRequired: currentRequired.length,
+        totalOptional: currentOptional.length,
+        totalLoose: currentLoose.length,
+        requiredUploaded: currentRequired.filter((d) => d.status !== "not_started").length,
+        requiredApproved: currentRequired.filter((d) => d.status === "approved").length,
+        optionalUploaded: currentOptional.filter((d) => d.status !== "not_started").length,
+        optionalApproved: currentOptional.filter((d) => d.status === "approved").length,
       },
     };
   },

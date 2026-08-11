@@ -780,7 +780,15 @@ export function DocumentChecklistCard({
   const allSelectableSelected = selectableDocs.length > 0 && selectedDocumentIds.size === selectableDocs.length
 
   // Render a single document row
-  const renderDocumentRow = (doc: any, showCritical = false, isLoose = false) => (
+  const renderDocumentRow = (
+    doc: ChecklistDocument,
+    showCritical = false,
+    isLoose = false,
+    showVersion = false,
+  ) => {
+    const isHistoricalVersion = doc.isLatest !== true
+
+    return (
     <div
       key={doc._id}
       className={cn(
@@ -789,6 +797,12 @@ export function DocumentChecklistCard({
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
       onClick={() => {
+        if (isHistoricalVersion) {
+          if (doc.status !== "not_started") {
+            openReviewDialog(doc._id)
+          }
+          return
+        }
         if (userRole !== "admin") {
           if (doc.status !== "not_started") {
             openReviewDialog(doc._id)
@@ -799,7 +813,7 @@ export function DocumentChecklistCard({
       }}
     >
       <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
-        {userRole === "admin" && doc.status !== "not_started" && (
+        {userRole === "admin" && !isHistoricalVersion && doc.status !== "not_started" && (
           <Checkbox
             checked={selectedDocumentIds.has(doc._id)}
             onCheckedChange={() => toggleDocumentSelection(doc._id)}
@@ -819,6 +833,11 @@ export function DocumentChecklistCard({
             </p>
             {userRole === "admin" && (
               <DocumentWaitTimeBadge document={doc} />
+            )}
+            {showVersion && doc.status !== "not_started" && doc.version > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {t("byProgress.version", { version: doc.version })}
+              </Badge>
             )}
             {showCritical && doc.isRequired && (
               <Badge variant="default" className="text-xs">
@@ -883,7 +902,7 @@ export function DocumentChecklistCard({
         {getStatusBadge(doc.status)}
 
         {/* Exclude from PDF report checkbox (admin only) */}
-        {userRole === "admin" && processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
+        {userRole === "admin" && !isHistoricalVersion && processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center">
@@ -972,7 +991,7 @@ export function DocumentChecklistCard({
         {doc.validityCheck && doc.validityCheck.status === "expiring_soon" && (
           <Badge variant="warning" className="gap-1 text-xs">
             <AlertTriangle className="h-3 w-3" />
-            {t("validity.expiringSoon", { days: doc.validityCheck.daysValue })}
+            {t("validity.expiringSoon", { days: doc.validityCheck.daysValue ?? 0 })}
           </Badge>
         )}
         {doc.validityCheck && doc.validityCheck.status === "missing_date" && (
@@ -981,7 +1000,30 @@ export function DocumentChecklistCard({
           </Badge>
         )}
 
-        {doc.status === "not_started" ? (
+        {isHistoricalVersion ? (
+          <div className="flex flex-wrap gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openReviewDialog(doc._id)}
+              title={t("viewDetails")}
+              className="cursor-pointer"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {doc.documentTypeId && !doc.documentType?.isInformationOnly && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openHistoryDialog(doc.documentTypeId, doc.documentRequirementId)}
+                title={t("viewHistory")}
+                className="cursor-pointer"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ) : doc.status === "not_started" ? (
           <div className="flex flex-wrap gap-1">
             {userRole === "admin" && doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
               <Button
@@ -1104,7 +1146,8 @@ export function DocumentChecklistCard({
         )}
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <Card>
@@ -1287,7 +1330,7 @@ export function DocumentChecklistCard({
                 </Badge>
               </h3>
               <div className="space-y-2">
-                {group.docs.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
+                {group.docs.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId, true))}
               </div>
             </div>
           </div>

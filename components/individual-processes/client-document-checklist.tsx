@@ -51,6 +51,7 @@ export function ClientDocumentChecklist({
   embedded = false,
 }: ClientDocumentChecklistProps) {
   const t = useTranslations("ClientPortal");
+  const tDocument = useTranslations("DocumentChecklist");
   const tCommon = useTranslations("Common");
 
   const [showOtherDocuments, setShowOtherDocuments] = useState(false);
@@ -254,7 +255,10 @@ export function ClientDocumentChecklist({
   };
 
   // Render a delivered document card (read-only)
-  const renderDeliveredCard = (doc: ClientChecklistDocument) => {
+  const renderDeliveredCard = (
+    doc: ClientChecklistDocument,
+    showVersion = false,
+  ) => {
     const docName =
       doc.documentType?.name ||
       doc.documentName ||
@@ -319,6 +323,11 @@ export function ClientDocumentChecklist({
               <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
                 {docName}
               </p>
+              {showVersion && doc.version > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  {tDocument("byProgress.version", { version: doc.version })}
+                </Badge>
+              )}
             </div>
             {doc.fileName &&
               doc.fileName !== "information_only" &&
@@ -451,7 +460,7 @@ export function ClientDocumentChecklist({
                 {group.docs.map((doc) =>
                   doc.status === "not_started"
                     ? renderPendingCard(doc)
-                    : renderDeliveredCard(doc),
+                    : renderDeliveredCard(doc, true),
                 )}
               </div>
             </div>
@@ -495,7 +504,7 @@ export function ClientDocumentChecklist({
                 </Badge>
               </h3>
               <div className="space-y-2">
-                {deliveredDocs.map(renderDeliveredCard)}
+                {deliveredDocs.map((doc) => renderDeliveredCard(doc))}
               </div>
             </div>
           </>
