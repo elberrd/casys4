@@ -1,8 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
+import {
+  getCountryCodeCandidates,
+  isCountryCodeLike,
+} from "./lib/countryCodeNormalization";
 import { normalizeString } from "./lib/stringUtils";
 
 /**
@@ -19,7 +22,7 @@ export const list = query({
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
       countries = countries.filter((country) =>
-        normalizeString(country.name).includes(searchNormalized)
+        normalizeString(country.name).includes(searchNormalized),
       );
     }
 
@@ -44,23 +47,35 @@ export const get = query({
  */
 export const findByCodeOrName = query({
   args: { value: v.string() },
+  returns: v.union(v.id("countries"), v.null()),
   handler: async (ctx, { value }) => {
     const trimmed = value.trim();
     if (!trimmed) return null;
 
-    const all = await ctx.db.query("countries").collect();
     const upper = trimmed.toUpperCase();
-    const normalized = normalizeString(trimmed);
+    const codeCandidates = getCountryCodeCandidates(trimmed);
 
-    const byIso3 = all.find((c) => c.iso3 && c.iso3.toUpperCase() === upper);
+    for (const code of codeCandidates) {
+      const byCode = await ctx.db
+        .query("countries")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .first();
+      if (byCode) return byCode._id;
+    }
+
+    const byIso3 = await ctx.db
+      .query("countries")
+      .withIndex("by_iso3", (q) => q.eq("iso3", upper))
+      .first();
     if (byIso3) return byIso3._id;
 
-    const byCode = all.find((c) => c.code && c.code.toUpperCase() === upper);
-    if (byCode) return byCode._id;
+    // Never treat an unresolved code as a name fragment. For example, MRZ
+    // code "NOR" is Norway; a partial-name search used to match North Korea.
+    if (isCountryCodeLike(trimmed)) return null;
 
-    const byExactName = all.find(
-      (c) => normalizeString(c.name) === normalized
-    );
+    const all = await ctx.db.query("countries").collect();
+    const normalized = normalizeString(trimmed);
+    const byExactName = all.find((c) => normalizeString(c.name) === normalized);
     if (byExactName) return byExactName._id;
 
     const byPartialName = all.find((c) => {
@@ -133,7 +148,7 @@ export const update = mutation({
       {
         name: args.name,
         flag: args.flag,
-      }
+      },
     );
 
     if (Object.keys(changes).length > 0) {

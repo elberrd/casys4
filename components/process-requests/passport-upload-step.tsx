@@ -141,6 +141,9 @@ export interface PassportUploadStepProps {
   onPendingReadyChange?: (count: number) => void;
   /** Reports OCR/save activity so a containing dialog can prevent accidental close. */
   onBusyChange?: (busy: boolean) => void;
+  /** Collect person-only fields that are not normally present in a passport.
+   *  Used by the administrative quick-person flow. */
+  collectPersonDetails?: boolean;
 }
 
 /** Imperative handle: lets the wizard footer commit a pending review batch. */
@@ -206,6 +209,8 @@ type EditableFields = {
   givenNames: string;
   middleName: string;
   surname: string;
+  email: string;
+  maritalStatus: string;
   fatherName: string;
   motherName: string;
   passportNumber: string;
@@ -263,7 +268,14 @@ export const PassportUploadStep = forwardRef<
   PassportUploadStepHandle,
   PassportUploadStepProps
 >(function PassportUploadStep(
-  { onAdd, maxToAdd, disabled = false, onPendingReadyChange, onBusyChange },
+  {
+    onAdd,
+    maxToAdd,
+    disabled = false,
+    onPendingReadyChange,
+    onBusyChange,
+    collectPersonDetails = false,
+  },
   ref,
 ) {
   const t = useTranslations("ProcessRequests");
@@ -306,6 +318,17 @@ export const PassportUploadStep = forwardRef<
         : translatedName,
     };
   });
+
+  const sexOptions = [
+    { value: "Male", label: t("male") },
+    { value: "Female", label: t("female") },
+  ];
+  const maritalStatusOptions = [
+    { value: "Single", label: t("single") },
+    { value: "Married", label: t("married") },
+    { value: "Divorced", label: t("divorced") },
+    { value: "Widowed", label: t("widowed") },
+  ];
 
   // How many reviewed passports are ready to commit. Reported up so the wizard
   // footer can enable "Próximo" / "Salvar rascunho" before the explicit
@@ -433,6 +456,8 @@ export const PassportUploadStep = forwardRef<
         givenNames: ocr.extracted.givenNames ?? "",
         middleName: ocr.extracted.middleName ?? "",
         surname: ocr.extracted.surname ?? "",
+        email: "",
+        maritalStatus: "",
         fatherName: ocr.extracted.fatherName ?? "",
         motherName: ocr.extracted.motherName ?? "",
         passportNumber: ocr.extracted.passportNumber ?? "",
@@ -466,6 +491,14 @@ export const PassportUploadStep = forwardRef<
       toast.error(t("passportNumberRequired"));
       return;
     }
+    if (
+      collectPersonDetails &&
+      fields.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())
+    ) {
+      toast.error(t("candidateEmailInvalid"));
+      return;
+    }
     let handedOff = false;
     try {
       setIsApplying(true);
@@ -473,6 +506,12 @@ export const PassportUploadStep = forwardRef<
         mode: "existing",
         personId,
         fillGaps: true,
+        email: collectPersonDetails
+          ? fields.email.trim() || undefined
+          : undefined,
+        maritalStatus: collectPersonDetails
+          ? fields.maritalStatus || undefined
+          : undefined,
         middleName: fields.middleName.trim() || undefined,
         surname: fields.surname.trim() || undefined,
         fatherName: fields.fatherName.trim() || undefined,
@@ -521,12 +560,26 @@ export const PassportUploadStep = forwardRef<
       toast.error(t("passportNumberRequired"));
       return;
     }
+    if (
+      collectPersonDetails &&
+      fields.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())
+    ) {
+      toast.error(t("candidateEmailInvalid"));
+      return;
+    }
     let handedOff = false;
     try {
       setIsApplying(true);
       const applied = (await applyCandidate({
         mode: "new",
         givenNames: fields.givenNames.trim(),
+        email: collectPersonDetails
+          ? fields.email.trim() || undefined
+          : undefined,
+        maritalStatus: collectPersonDetails
+          ? fields.maritalStatus || undefined
+          : undefined,
         middleName: fields.middleName.trim() || undefined,
         surname: fields.surname.trim() || undefined,
         fatherName: fields.fatherName.trim() || undefined,
@@ -1014,127 +1067,228 @@ export const PassportUploadStep = forwardRef<
             </div>
             <CardDescription>{t("reviewExtractedHint")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="given-names">{t("givenNames")}</Label>
-                <Input
-                  id="given-names"
-                  value={fields.givenNames}
-                  onChange={(e) => setField("givenNames", e.target.value)}
-                  disabled={busy}
-                />
+          <CardContent className="space-y-6">
+            <section
+              aria-labelledby="person-data-heading"
+              className="space-y-4"
+            >
+              <div className="space-y-1">
+                <h3 id="person-data-heading" className="text-sm font-semibold">
+                  {t("personData")}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {t("personDataHint")}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="middle-name">{t("middleName")}</Label>
-                <Input
-                  id="middle-name"
-                  value={fields.middleName}
-                  onChange={(e) => setField("middleName", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="given-names">{t("givenNames")}</Label>
+                  <Input
+                    id="given-names"
+                    value={fields.givenNames}
+                    onChange={(e) => setField("givenNames", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="middle-name">{t("middleName")}</Label>
+                  <Input
+                    id="middle-name"
+                    value={fields.middleName}
+                    onChange={(e) => setField("middleName", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="surname">{t("surname")}</Label>
-                <Input
-                  id="surname"
-                  value={fields.surname}
-                  onChange={(e) => setField("surname", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div
+                  className={cn(
+                    "space-y-2",
+                    !collectPersonDetails && "sm:col-span-2",
+                  )}
+                >
+                  <Label htmlFor="surname">{t("surname")}</Label>
+                  <Input
+                    id="surname"
+                    value={fields.surname}
+                    onChange={(e) => setField("surname", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                {collectPersonDetails && (
+                  <div className="space-y-2">
+                    <Label htmlFor="candidate-email">
+                      {t("candidateEmailOptional")}
+                    </Label>
+                    <Input
+                      id="candidate-email"
+                      type="email"
+                      autoComplete="email"
+                      value={fields.email}
+                      onChange={(e) => setField("email", e.target.value)}
+                      disabled={busy}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="passport-number">{t("passportNumber")}</Label>
-                <Input
-                  id="passport-number"
-                  value={fields.passportNumber}
-                  onChange={(e) => setField("passportNumber", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="birth-date">{t("birthDate")}</Label>
+                  <DatePicker
+                    value={fields.birthDate}
+                    onChange={(v) => setField("birthDate", v || "")}
+                    disabled={busy}
+                    showYearMonthDropdowns
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sex">{t("sex")}</Label>
+                  <Combobox
+                    options={sexOptions}
+                    value={fields.sex || undefined}
+                    onValueChange={(value) => setField("sex", value ?? "")}
+                    placeholder={t("selectSex")}
+                    searchPlaceholder={t("searchOption")}
+                    emptyText={t("noOptionsFound")}
+                    disabled={busy}
+                    popoverModal
+                    isolateListScroll
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="sex">{t("sex")}</Label>
-                <Input
-                  id="sex"
-                  value={fields.sex}
-                  onChange={(e) => setField("sex", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div
+                  className={cn(
+                    "space-y-2",
+                    !collectPersonDetails && "sm:col-span-2",
+                  )}
+                >
+                  <Label htmlFor="nationality">{t("nationality")}</Label>
+                  <Combobox
+                    options={countryOptions}
+                    value={fields.nationalityId || undefined}
+                    onValueChange={(value) =>
+                      setField("nationalityId", value ?? "")
+                    }
+                    placeholder={t("selectCountry")}
+                    searchPlaceholder={t("searchCountry")}
+                    emptyText={t("noCountriesFound")}
+                    disabled={busy}
+                    popoverModal
+                    isolateListScroll
+                  />
+                </div>
+                {collectPersonDetails && (
+                  <div className="space-y-2">
+                    <Label htmlFor="marital-status">{t("maritalStatus")}</Label>
+                    <Combobox
+                      options={maritalStatusOptions}
+                      value={fields.maritalStatus || undefined}
+                      onValueChange={(value) =>
+                        setField("maritalStatus", value ?? "")
+                      }
+                      placeholder={t("selectMaritalStatus")}
+                      searchPlaceholder={t("searchOption")}
+                      emptyText={t("noOptionsFound")}
+                      disabled={busy}
+                      popoverModal
+                      isolateListScroll
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="birth-date">{t("birthDate")}</Label>
-                <DatePicker
-                  value={fields.birthDate}
-                  onChange={(v) => setField("birthDate", v || "")}
-                  disabled={busy}
-                  showYearMonthDropdowns
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="father-name">{t("fatherName")}</Label>
+                  <Input
+                    id="father-name"
+                    value={fields.fatherName}
+                    onChange={(e) => setField("fatherName", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mother-name">{t("motherName")}</Label>
+                  <Input
+                    id="mother-name"
+                    value={fields.motherName}
+                    onChange={(e) => setField("motherName", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="nationality">{t("nationality")}</Label>
-                <Combobox
-                  options={countryOptions}
-                  value={fields.nationalityId || undefined}
-                  onValueChange={(value) =>
-                    setField("nationalityId", value ?? "")
-                  }
-                  placeholder={t("selectCountry")}
-                  searchPlaceholder={t("searchCountry")}
-                  emptyText={t("noCountriesFound")}
-                  disabled={busy}
-                />
+            </section>
+
+            <section
+              aria-labelledby="passport-data-heading"
+              className="space-y-4 border-t pt-5"
+            >
+              <div className="space-y-1">
+                <h3
+                  id="passport-data-heading"
+                  className="text-sm font-semibold"
+                >
+                  {t("passportData")}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {t("passportDataHint")}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="father-name">{t("fatherName")}</Label>
-                <Input
-                  id="father-name"
-                  value={fields.fatherName}
-                  onChange={(e) => setField("fatherName", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="passport-number">{t("passportNumber")}</Label>
+                  <Input
+                    id="passport-number"
+                    value={fields.passportNumber}
+                    onChange={(e) => setField("passportNumber", e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="issuing-country">{t("issuingCountry")}</Label>
+                  <Combobox
+                    options={countryOptions}
+                    value={fields.issuingCountryId || undefined}
+                    onValueChange={(value) =>
+                      setField("issuingCountryId", value ?? "")
+                    }
+                    placeholder={t("selectCountry")}
+                    searchPlaceholder={t("searchCountry")}
+                    emptyText={t("noCountriesFound")}
+                    disabled={busy}
+                    popoverModal
+                    isolateListScroll
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="mother-name">{t("motherName")}</Label>
-                <Input
-                  id="mother-name"
-                  value={fields.motherName}
-                  onChange={(e) => setField("motherName", e.target.value)}
-                  disabled={busy}
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="issue-date">{t("issueDate")}</Label>
+                  <DatePicker
+                    value={fields.issueDate}
+                    onChange={(v) => setField("issueDate", v || "")}
+                    disabled={busy}
+                    showYearMonthDropdowns
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expiry-date">{t("expiryDate")}</Label>
+                  <DatePicker
+                    value={fields.expiryDate}
+                    onChange={(v) => setField("expiryDate", v || "")}
+                    disabled={busy}
+                    showYearMonthDropdowns
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="issue-date">{t("issueDate")}</Label>
-                <DatePicker
-                  value={fields.issueDate}
-                  onChange={(v) => setField("issueDate", v || "")}
-                  disabled={busy}
-                  showYearMonthDropdowns
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expiry-date">{t("expiryDate")}</Label>
-                <DatePicker
-                  value={fields.expiryDate}
-                  onChange={(v) => setField("expiryDate", v || "")}
-                  disabled={busy}
-                  showYearMonthDropdowns
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="issuing-country">{t("issuingCountry")}</Label>
-                <Combobox
-                  options={countryOptions}
-                  value={fields.issuingCountryId || undefined}
-                  onValueChange={(value) =>
-                    setField("issuingCountryId", value ?? "")
-                  }
-                  placeholder={t("selectCountry")}
-                  searchPlaceholder={t("searchCountry")}
-                  emptyText={t("noCountriesFound")}
-                  disabled={busy}
-                />
-              </div>
-            </div>
+            </section>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
@@ -1153,7 +1307,11 @@ export const PassportUploadStep = forwardRef<
                   ) : (
                     <UserPlus className="mr-2 h-4 w-4" />
                   )}
-                  {t("createNewCandidate")}
+                  {t(
+                    collectPersonDetails
+                      ? "savePersonAndPassport"
+                      : "createNewCandidate",
+                  )}
                 </Button>
               )}
             </div>

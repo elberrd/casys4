@@ -40,6 +40,8 @@ export const applyCandidate = mutation({
     givenNames: v.optional(v.string()),
     middleName: v.optional(v.string()),
     surname: v.optional(v.string()),
+    email: v.optional(v.string()),
+    maritalStatus: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     motherName: v.optional(v.string()),
     sex: v.optional(v.string()),
@@ -80,6 +82,7 @@ export const applyCandidate = mutation({
     const now = Date.now();
 
     const passportNumber = args.passportNumber.trim();
+    const email = args.email?.trim() || undefined;
     if (!passportNumber) {
       throw new Error("Passport number is required");
     }
@@ -102,6 +105,9 @@ export const applyCandidate = mutation({
 
       if (args.fillGaps) {
         const patch: Record<string, unknown> = {};
+        if (!person.email && email) patch.email = email;
+        if (!person.maritalStatus && args.maritalStatus)
+          patch.maritalStatus = args.maritalStatus;
         if (!person.middleName && args.middleName)
           patch.middleName = args.middleName;
         if (!person.surname && args.surname) patch.surname = args.surname;
@@ -127,6 +133,8 @@ export const applyCandidate = mutation({
         givenNames: args.givenNames.trim(),
         middleName: args.middleName,
         surname: args.surname,
+        email,
+        maritalStatus: args.maritalStatus,
         fatherName: args.fatherName,
         motherName: args.motherName,
         sex: args.sex,

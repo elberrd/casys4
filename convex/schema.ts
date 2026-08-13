@@ -38,7 +38,9 @@ export default defineSchema({
     code: v.string(),
     iso3: v.string(),
     flag: v.optional(v.string()),
-  }).index("by_code", ["code"]),
+  })
+    .index("by_code", ["code"])
+    .index("by_iso3", ["iso3"]),
 
   states: defineTable({
     name: v.string(),

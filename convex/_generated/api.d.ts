@@ -44,6 +44,7 @@ import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_cachedGet from "../lib/cachedGet.js";
 import type * as lib_clientDocumentVisibility from "../lib/clientDocumentVisibility.js";
+import type * as lib_countryCodeNormalization from "../lib/countryCodeNormalization.js";
 import type * as lib_createIndividualProcess from "../lib/createIndividualProcess.js";
 import type * as lib_documentChecklist from "../lib/documentChecklist.js";
 import type * as lib_documentProgressSnapshot from "../lib/documentProgressSnapshot.js";
@@ -176,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/cachedGet": typeof lib_cachedGet;
   "lib/clientDocumentVisibility": typeof lib_clientDocumentVisibility;
+  "lib/countryCodeNormalization": typeof lib_countryCodeNormalization;
   "lib/createIndividualProcess": typeof lib_createIndividualProcess;
   "lib/documentChecklist": typeof lib_documentChecklist;
   "lib/documentProgressSnapshot": typeof lib_documentProgressSnapshot;

@@ -126,7 +126,7 @@ For the passport holder's name, prefer the Latin spelling in the machine-readabl
 
 Extract fatherName and motherName only when those names are explicitly printed on the document; never infer or invent parent names. Apply the same casing and safe Latin-script normalization to those names, but do not derive them from the MRZ.
 
-Treat the MRZ as authoritative for country codes. nationality/nationalityCode identify the passport holder's nationality (the country-of-origin field; positions 11-13 of the second TD3 MRZ line). issuingCountry/issuingCountryCode identify the state that issued the passport (positions 3-5 of the first TD3 MRZ line). Never swap these fields, and never infer nationality from appearance, language, birthplace, or the issuing authority. Return the corresponding country names in English so they can be matched to the country registry.
+Treat the MRZ as authoritative for country codes. Reconstruct both TD3 MRZ rows, preserving all filler characters, and verify that each row has 44 characters before reading the country fields. nationality/nationalityCode identify the passport holder's nationality (characters 11-13 of the second TD3 MRZ row). issuingCountry/issuingCountryCode identify the state that issued the passport (characters 3-5 of the first TD3 MRZ row). Copy those three-letter codes exactly, then map each complete ISO 3166-1 alpha-3 code to its country name; never expand it with prefix or partial-name matching. For example, NOR means Norway, while North Korea is PRK. If a visually read country name conflicts with the MRZ code, keep the exact MRZ code and return the country name that corresponds to that code. Never swap the two fields, and never infer nationality from appearance, language, birthplace, or the issuing authority. Return the corresponding country names in English so they can be matched to the country registry.
 
 Preserve document numbers exactly as printed. Normalize dates to YYYY-MM-DD. Return the complete MRZ when legible. If the document is not a passport, or a field is absent or unreadable, return null for that field.`;
 
@@ -185,7 +185,8 @@ const PASSPORT_RESPONSE_SCHEMA = {
     },
     nationalityCode: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      description: "Three-letter nationality code from the MRZ",
+      description:
+        "Exact three-letter nationality code from characters 11-13 of the second 44-character TD3 MRZ row",
     },
     issuingCountry: {
       anyOf: [{ type: "string" }, { type: "null" }],
@@ -193,7 +194,8 @@ const PASSPORT_RESPONSE_SCHEMA = {
     },
     issuingCountryCode: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      description: "Three-letter issuing-country code from the MRZ",
+      description:
+        "Exact three-letter issuing-country code from characters 3-5 of the first 44-character TD3 MRZ row",
     },
     mrz: {
       anyOf: [{ type: "string" }, { type: "null" }],
