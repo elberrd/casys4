@@ -638,12 +638,13 @@ export function DocumentChecklistCard({
   const checklistDocuments = [...required, ...optional, ...loose]
   const total = checklistDocuments.length
 
-  // Separate exigência documents from normal documents
+  // Exigencia is an additional manual grouping. The current version always
+  // remains visible in the normal pending/received sections as well.
   const exigenciaDocuments = checklistDocuments.filter(
     (doc) => doc.linkedStatus?.caseStatusCode === "exigencia"
   )
   const nonExigenciaDocuments = checklistDocuments.filter(
-    (doc) => doc.linkedStatus?.caseStatusCode !== "exigencia"
+    (doc) => doc.isLatest
   )
   const filledDocuments = nonExigenciaDocuments.filter((doc) => doc.status !== "not_started")
   const unfilledDocuments = nonExigenciaDocuments.filter((doc) => doc.status === "not_started")

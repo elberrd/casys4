@@ -2,13 +2,15 @@
 
 ## Contexto
 
-No detalhe de um Processo Individual, a aba **Documentos** deve continuar exibindo somente a versão corrente dos documentos comuns e calcular a pílula de recebimento com os dados dessa versão. Quando uma versão foi enviada durante um andamento **Exigência**, porém, a última versão daquele documento dentro de cada ocorrência da exigência deve permanecer visível no grupo da respectiva data. O mesmo documento pode, portanto, aparecer no grupo de mais de uma exigência e também na lista corrente quando sua versão mais recente não pertence a uma exigência.
+No detalhe de um Processo Individual, a aba **Documentos** deve continuar exibindo a versão corrente de cada documento em **Documentos Pendentes** ou **Documentos Recebidos**, inclusive quando ela também estiver vinculada manualmente a uma **Exigência**. O vínculo cria uma aparição adicional na Exigência, sem retirar a versão corrente da seção normal. Se a mesma cadeia documental for vinculada novamente em outra Exigência, ela deixa de aparecer na ocorrência anterior e passa a aparecer somente na Exigência manual mais recente. O andamento ativo no momento do upload continua sendo apenas contexto histórico em **Por andamento**.
 
 ## Decisões de implementação
 
 - Preservar a seleção `isLatest` para o estado corrente, os totais de progresso, a visibilidade e as ações existentes.
-- Usar o snapshot imutável `processStatusAtUpload` para identificar a ocorrência de Exigência de cada versão, sem reconstruir o passado a partir do andamento atual.
-- Acrescentar no retorno agrupado somente a versão mais recente por documento e por `individualProcessStatusId` de Exigência; versões intermediárias da mesma ocorrência continuam acessíveis pelo histórico, mas não duplicam a lista.
+- Usar exclusivamente `individualProcessStatusId` para identificar o vínculo manual de uma versão com uma ocorrência de Exigência.
+- Manter `processStatusAtUpload` como snapshot imutável apenas para o histórico **Por andamento**, sem inferir pertencimento à Exigência.
+- Manter toda versão `isLatest` na seção normal, mesmo quando seu `individualProcessStatusId` aponta para uma Exigência.
+- Acrescentar no retorno agrupado somente a versão mais alta da Exigência manual mais recente por cadeia documental; ocorrências anteriores continuam no histórico, mas não duplicam a seção Exigência.
 - Exibir o número da versão nas linhas de Exigência e usar os campos temporais da própria versão na pílula de recebimento.
 - Tratar versões históricas mostradas nos grupos de Exigência como somente leitura; ações mutáveis continuam pertencendo ao documento `isLatest`.
 - Manter RBAC e o foco especial do portal client, sem ampliar documentos visíveis, alterar schema ou retropreencher dados legados.
@@ -17,27 +19,30 @@ No detalhe de um Processo Individual, a aba **Documentos** deve continuar exibin
 
 ### 1. Seleção e enriquecimento das versões
 
-- [x] 1.1: Ajustar `listGroupedByCategory` para combinar os documentos correntes com a última versão de cada documento em cada ocorrência de Exigência.
-- [x] 1.2: Resolver o grupo de Exigência pelo `individualProcessStatusId` do snapshot e preservar as políticas de visibilidade e os totais baseados somente nos latest.
+- [x] 1.1: Ajustar `listGroupedByCategory` para combinar os documentos correntes com a última versão da Exigência manual mais recente de cada documento.
+- [x] 1.2: Resolver o grupo de Exigência pelo `individualProcessStatusId` manual do documento e preservar as políticas de visibilidade e os totais baseados somente nos latest.
 
 ### 2. Apresentação e segurança das ações
 
 - [x] 2.1: Mostrar o badge de versão nas linhas de Exigência e manter o contador de recebimento ligado à versão renderizada.
 - [x] 2.2: Tornar versões históricas de Exigência somente leitura, mantendo visualização e histórico sem seleção, exclusão, reenvio ou nova versão.
+- [x] 2.3: Manter a versão corrente nas seções normal e de Exigência simultaneamente, sem duplicar totais ou progresso.
 
 ### 3. Documentação e validação
 
 - [x] 3.1: Documentar a regra no PRD sem adicionar texto visível novo fora do i18n.
 - [x] 3.2: Executar codegen, TypeScript, lint focado/global, build, detector Impeccable e `git diff --check`, separando débitos preexistentes.
   - Codegen, TypeScript, build, lint dos arquivos novos/sem débito, detector Impeccable, teste determinístico do seletor e `git diff --check` passaram. O lint global e o lint dos arquivos legados continuam apontando somente débitos preexistentes, sem nova ocorrência introduzida por esta tarefa.
+  - Regressão acrescentada: um documento enviado enquanto Exigência está ativa, mas sem vínculo manual, permanece fora da seção Exigência e continua disponível em **Por andamento** pelo snapshot.
 - [ ] 3.3: Validar no browser autenticado os cenários comum, uma Exigência e duas ocorrências em datas diferentes, em pt/en e mobile/desktop.
-  - Bloqueio de ambiente: o Browser seguro recusou `localhost`; pela URL LAN, o cookie seguro do Convex Auth não foi persistido. A estrutura dos snapshots foi verificada de forma somente leitura nos dados dev, e os cenários de mesma ocorrência e ocorrências distintas foram cobertos deterministicamente sem criar dados de teste.
+  - Chrome autenticado em pt/desktop confirmou no processo real que “Documento empresa 2” aparece na Exigência manual mais recente (11/08) e em Documentos Pendentes, mas não na Exigência anterior (13/03). Também confirmou “Documento empresa 1” simultaneamente na Exigência à qual foi vinculado e em Documentos Recebidos. Os cenários de vínculo ausente, mesma ocorrência e ocorrências distintas também estão cobertos deterministicamente; en/mobile permanecem como cobertura visual adicional.
 
 ## Definition of Done
 
 - [x] Documentos comuns aparecem uma vez pela versão latest e usam o timing dessa versão.
-- [x] Cada ocorrência de Exigência mostra a última versão do documento enviada nela, com versão e timing próprios.
-- [x] Um mesmo documento pode aparecer em duas exigências diferentes sem alterar totais, progresso, RBAC ou ações do documento corrente.
+- [x] Um documento vinculado à Exigência continua aparecendo também em Pendentes ou Recebidos pela versão latest.
+- [x] A seção Exigência mostra o documento apenas na ocorrência manual mais recente, com versão e timing próprios.
+- [x] Repetições visuais entre a seção normal e a Exigência não alteram totais, progresso, RBAC ou ações do documento corrente.
 - [x] Versões históricas de Exigência são somente leitura e a implementação passa pelos quality gates sem regressões novas.
 
 ---

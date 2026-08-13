@@ -141,10 +141,7 @@ export function ClientDocumentChecklist({
   }, [allDocuments]);
 
   const nonExigenciaDocs = useMemo(
-    () =>
-      allDocuments.filter(
-        (doc) => doc.linkedStatus?.caseStatusCode !== "exigencia",
-      ),
+    () => allDocuments.filter((doc) => doc.isLatest),
     [allDocuments],
   );
 

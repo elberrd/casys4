@@ -903,10 +903,12 @@ Actual documents uploaded by users.
 - The waiting counter is calculated from `waitingStartedAt` to `receivedAt`, the version closing timestamp, or the current time. Calendar-day differences use the configured business timezone and never display a negative duration
 - The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original timing fields; a new version receives a new immutable technical `createdAt`
 - `createdAt` remains independent from the editable business dates because it identifies the technical creation of the row/version and is also used by the client document visibility policy
-- In the individual process document list, ordinary documents keep a single current row selected by `isLatest`; its receipt badge therefore always uses the timing fields of that latest version
-- A submitted version whose immutable `processStatusAtUpload` identifies an **Exigência** is additionally preserved under that exact status occurrence. The list shows only the highest version of the same document inside each occurrence, includes the version number and uses that version's own timing fields
-- The same document may appear under multiple Exigência dates, and may also have a separate current row outside Exigência when a later version was submitted during another progress status. These historical occurrence rows are read-only and do not change current progress totals or current-document actions
-- Exigência occurrence history follows the existing document visibility policy and client focus rules; the snapshot does not broaden RBAC access and no current status/catalog lookup rewrites the historical identity of a submitted version
+- In the individual process document list, every document keeps its current `isLatest` row in the normal pending or received section, even when that same row is also manually linked to an Exigência; its receipt badge uses the timing fields of the current version
+- `processStatusAtUpload` records only the progress context in which a version was submitted and powers the **By progress** history. Uploading while the active progress is **Exigência** never links that document to the requirement automatically
+- Only an explicit `individualProcessStatusId`, set by a manual Exigência action, creates the additional Exigência appearance. This does not remove the current row from the normal pending or received section
+- When the same document chain is manually added to a later Exigência, the Exigência section keeps it only in the most recent occurrence and hides its earlier occurrence rows. The selected row is the highest version inside that latest occurrence and uses its own timing fields
+- The normal/Exigência double appearance and hidden earlier occurrence rows do not change current progress totals, current-document actions or the immutable **By progress** history
+- Exigência occurrence history follows the existing document visibility policy and client focus rules; neither the progress snapshot nor the current active status broadens RBAC access or creates a manual Exigência association
 
 #### Tracking and History Tables
 

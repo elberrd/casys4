@@ -1,21 +1,27 @@
-import { Doc, Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 
-export function getExigenciaSnapshotStatusId(
+export type ExigenciaOccurrence = {
+  date?: string;
+  changedAt: number;
+};
+
+export function getManualExigenciaStatusId(
   document: Doc<"documentsDelivered">,
+  exigenciaOccurrences: ReadonlyMap<
+    Id<"individualProcessStatuses">,
+    ExigenciaOccurrence
+  >,
 ): Id<"individualProcessStatuses"> | undefined {
-  const snapshot = document.processStatusAtUpload;
-  if (snapshot?.code.trim().toLowerCase() !== "exigencia") {
-    return undefined;
-  }
-
-  return snapshot.individualProcessStatusId;
+  const statusId = document.individualProcessStatusId;
+  return statusId && exigenciaOccurrences.has(statusId) ? statusId : undefined;
 }
 
 function getDocumentVersionChainKey(
   document: Doc<"documentsDelivered">,
 ): string {
   if (!document.documentTypeId) {
-    return `loose:${document._id}`;
+    const looseName = document.documentName?.trim().toLocaleLowerCase();
+    return looseName ? `loose-name:${looseName}` : `loose:${document._id}`;
   }
 
   return [
@@ -24,32 +30,67 @@ function getDocumentVersionChainKey(
   ].join("|");
 }
 
+function compareOccurrences(
+  first: ExigenciaOccurrence,
+  second: ExigenciaOccurrence,
+): number {
+  const firstDate = first.date ? Date.parse(first.date) : Number.NaN;
+  const secondDate = second.date ? Date.parse(second.date) : Number.NaN;
+  const firstTimestamp = Number.isNaN(firstDate) ? first.changedAt : firstDate;
+  const secondTimestamp = Number.isNaN(secondDate)
+    ? second.changedAt
+    : secondDate;
+
+  return firstTimestamp - secondTimestamp || first.changedAt - second.changedAt;
+}
+
 /**
- * Keeps one representative version for each document inside each immutable
- * Exigencia occurrence. The current version is still selected independently
- * through `isLatest`; this selection only preserves the historical occurrence
- * rows that would otherwise disappear from the checklist.
+ * Keeps one representative version for each document, exclusively in its most
+ * recent manually linked Exigencia occurrence. Within that occurrence, the
+ * highest version wins. `processStatusAtUpload` is deliberately ignored here:
+ * it records historical context for "By progress", not Exigencia membership.
  */
 export function selectLatestVersionsByExigenciaOccurrence(
   documents: Array<Doc<"documentsDelivered">>,
+  exigenciaOccurrences: ReadonlyMap<
+    Id<"individualProcessStatuses">,
+    ExigenciaOccurrence
+  >,
 ): Array<Doc<"documentsDelivered">> {
-  const selected = new Map<string, Doc<"documentsDelivered">>();
+  const selected = new Map<
+    string,
+    {
+      document: Doc<"documentsDelivered">;
+      statusId: Id<"individualProcessStatuses">;
+      occurrence: ExigenciaOccurrence;
+    }
+  >();
 
   for (const document of documents) {
-    const statusId = getExigenciaSnapshotStatusId(document);
+    const statusId = getManualExigenciaStatusId(
+      document,
+      exigenciaOccurrences,
+    );
     if (!statusId) continue;
 
-    const key = `${statusId}|${getDocumentVersionChainKey(document)}`;
+    const occurrence = exigenciaOccurrences.get(statusId)!;
+    const key = getDocumentVersionChainKey(document);
     const existing = selected.get(key);
+    const occurrenceComparison = existing
+      ? compareOccurrences(occurrence, existing.occurrence)
+      : 1;
     if (
       !existing ||
-      document.version > existing.version ||
-      (document.version === existing.version &&
-        document.uploadedAt > existing.uploadedAt)
+      occurrenceComparison > 0 ||
+      (occurrenceComparison === 0 && statusId > existing.statusId) ||
+      (statusId === existing.statusId &&
+        (document.version > existing.document.version ||
+          (document.version === existing.document.version &&
+            document.uploadedAt > existing.document.uploadedAt)))
     ) {
-      selected.set(key, document);
+      selected.set(key, { document, statusId, occurrence });
     }
   }
 
-  return Array.from(selected.values());
+  return Array.from(selected.values(), ({ document }) => document);
 }

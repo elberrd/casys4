@@ -26,7 +26,7 @@ import {
   resolveClientDocumentVisibility,
 } from "./lib/clientDocumentVisibility";
 import {
-  getExigenciaSnapshotStatusId,
+  getManualExigenciaStatusId,
   selectLatestVersionsByExigenciaOccurrence,
 } from "./lib/exigenciaDocumentVersions";
 
@@ -3101,12 +3101,47 @@ export const listGroupedByCategory = query({
       : null;
 
     // Read the process once by index. Current checklist state remains based on
-    // isLatest, while immutable Exigencia snapshots preserve one version per
-    // document and occurrence for the historical requirement groups.
+    // isLatest, while explicit manual links preserve one version per document
+    // and Exigencia occurrence for the historical requirement groups.
     const allProcessDocuments = await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", individualProcessId))
       .collect();
+
+    const manuallyLinkedStatusIds = Array.from(
+      new Set(
+        allProcessDocuments.flatMap((document) =>
+          document.individualProcessStatusId
+            ? [document.individualProcessStatusId]
+            : [],
+        ),
+      ),
+    );
+    const linkedStatusDetails = await Promise.all(
+      manuallyLinkedStatusIds.map(async (statusId) => {
+        const statusEntry = await cachedGet(statusId);
+        if (!statusEntry) return undefined;
+        const caseStatus = await cachedGet(statusEntry.caseStatusId);
+        if (caseStatus?.code !== "exigencia") return undefined;
+
+        return {
+          statusId,
+          date: statusEntry.date,
+          changedAt: statusEntry.changedAt,
+        };
+      }),
+    );
+    const exigenciaOccurrences = new Map<
+      Id<"individualProcessStatuses">,
+      { date?: string; changedAt: number }
+    >();
+    for (const status of linkedStatusDetails) {
+      if (!status) continue;
+      exigenciaOccurrences.set(status.statusId, {
+        date: status.date,
+        changedAt: status.changedAt,
+      });
+    }
 
     const latestDocuments = allProcessDocuments.filter((doc) => doc.isLatest);
     const checklistVisibility = filterClientChecklistDocuments(
@@ -3115,7 +3150,10 @@ export const listGroupedByCategory = query({
       includeOtherDocuments,
     );
     let exigenciaOccurrenceDocuments = filterAccessibleDocuments(
-      selectLatestVersionsByExigenciaOccurrence(allProcessDocuments),
+      selectLatestVersionsByExigenciaOccurrence(
+        allProcessDocuments,
+        exigenciaOccurrences,
+      ),
       visibility,
     );
 
@@ -3127,7 +3165,7 @@ export const listGroupedByCategory = query({
     if (shouldFocusCurrentExigencia) {
       exigenciaOccurrenceDocuments = exigenciaOccurrenceDocuments.filter(
         (document) =>
-          getExigenciaSnapshotStatusId(document) ===
+          getManualExigenciaStatusId(document, exigenciaOccurrences) ===
           visibility.currentExigenciaStatusId,
       );
     }
@@ -3300,33 +3338,20 @@ export const listGroupedByCategory = query({
           previousRejectionReason = previousVersion?.rejectionReason;
         }
 
-        // For submitted versions, the immutable upload snapshot is the source
-        // of truth for whether this exact version belongs to an Exigencia. A
-        // latest placeholder has no snapshot yet and keeps its explicit link.
+        // Exigencia membership is always explicit. The upload snapshot remains
+        // available to the separate "By progress" history, but never links a
+        // document to an Exigencia automatically.
         let linkedStatus = undefined;
-        const snapshot = doc.processStatusAtUpload;
-        const snapshotExigenciaStatusId = getExigenciaSnapshotStatusId(doc);
-        const linkedStatusId = snapshot
-          ? snapshotExigenciaStatusId
-          : doc.individualProcessStatusId;
+        const linkedStatusId = doc.individualProcessStatusId;
         if (linkedStatusId) {
           const statusEntry = await cachedGet(linkedStatusId);
           if (statusEntry) {
             const caseStatus = await cachedGet(statusEntry.caseStatusId);
-            if (caseStatus || snapshotExigenciaStatusId) {
+            if (caseStatus) {
               linkedStatus = {
-                caseStatusName:
-                  snapshotExigenciaStatusId && snapshot
-                    ? snapshot.name
-                    : caseStatus!.name,
-                caseStatusCode:
-                  snapshotExigenciaStatusId && snapshot
-                    ? snapshot.code
-                    : caseStatus!.code,
-                caseStatusColor:
-                  snapshotExigenciaStatusId && snapshot
-                    ? snapshot.color
-                    : caseStatus!.color,
+                caseStatusName: caseStatus.name,
+                caseStatusCode: caseStatus.code,
+                caseStatusColor: caseStatus.color,
                 date: statusEntry.date,
                 clientDeadlineDate: statusEntry.clientDeadlineDate,
                 individualProcessStatusId: linkedStatusId,
