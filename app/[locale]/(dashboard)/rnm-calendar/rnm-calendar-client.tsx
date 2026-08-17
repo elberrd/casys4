@@ -7,7 +7,16 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { IndividualProcessFormDialog } from "@/components/individual-processes/individual-process-form-dialog";
 import { Calendar, dateFnsLocalizer, View, Views } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  endOfWeek,
+  format,
+  getDay,
+  parse,
+  startOfWeek,
+} from "date-fns";
 import { pt, enUS } from "date-fns/locale";
 import { Id } from "@/convex/_generated/dataModel";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +28,7 @@ import {
   LayoutList,
   ChevronLeft,
   ChevronRight,
+  Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFullName } from "@/lib/utils/person-names";
@@ -27,6 +37,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { InfiniteAgenda } from "./infinite-agenda";
+import { PrintCalendarDialog } from "./print-calendar-dialog";
+import type { RNMCalendarEvent } from "./rnm-calendar-types";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./calendar.css";
 
@@ -35,29 +48,42 @@ const locales = {
   en: enUS,
 };
 
+const AGENDA_NAVIGATION_DAYS = 14;
+
 interface CustomToolbarProps {
   onNavigate: (action: "PREV" | "NEXT" | "TODAY") => void;
   onView: (view: View) => void;
+  onPrint: () => void;
   view: View;
   label: string;
-  localizer: { messages: any };
+  messages: {
+    today: string;
+    previous: string;
+    next: string;
+    month: string;
+    week: string;
+    agenda: string;
+    print: string;
+  };
 }
 
 const CustomToolbar = ({
   onNavigate,
   onView,
+  onPrint,
   view,
   label,
-  localizer: { messages },
+  messages,
 }: CustomToolbarProps) => {
   return (
-    <div className="flex flex-col gap-4 mb-4 sm:flex-row sm:items-center sm:justify-between p-2">
-      <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+    <div className="mb-4 flex flex-col gap-3 px-1 pt-1 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onNavigate("TODAY")}
+            className="h-8 px-2.5"
           >
             {messages.today}
           </Button>
@@ -65,6 +91,8 @@ const CustomToolbar = ({
             <Button
               variant="ghost"
               size="icon"
+              className="size-8"
+              aria-label={messages.previous}
               onClick={() => onNavigate("PREV")}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -72,54 +100,72 @@ const CustomToolbar = ({
             <Button
               variant="ghost"
               size="icon"
+              className="size-8"
+              aria-label={messages.next}
               onClick={() => onNavigate("NEXT")}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        <h2 className="text-xl font-semibold text-foreground sm:ml-2">
+        <h2 className="truncate text-base font-semibold capitalize text-foreground sm:text-lg lg:ms-2">
           {label}
         </h2>
       </div>
 
-      <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+      <div className="flex min-w-0 items-center gap-2">
         <Button
-          variant={view === Views.MONTH ? "secondary" : "ghost"}
+          variant="outline"
           size="sm"
-          onClick={() => onView(Views.MONTH)}
-          className={cn(
-            "flex-1 sm:flex-none",
-            view === Views.MONTH && "bg-background shadow-sm",
-          )}
+          className="h-9 shrink-0 px-2.5"
+          aria-label={messages.print}
+          onClick={onPrint}
         >
-          <CalendarDays className="mr-2 h-4 w-4" />
-          {messages.month}
+          <Printer className="size-4" />
+          <span className="hidden sm:inline">{messages.print}</span>
         </Button>
-        <Button
-          variant={view === Views.WEEK ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => onView(Views.WEEK)}
-          className={cn(
-            "flex-1 sm:flex-none",
-            view === Views.WEEK && "bg-background shadow-sm",
-          )}
-        >
-          <CalendarRange className="mr-2 h-4 w-4" />
-          {messages.week}
-        </Button>
-        <Button
-          variant={view === Views.AGENDA ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => onView(Views.AGENDA)}
-          className={cn(
-            "flex-1 sm:flex-none",
-            view === Views.AGENDA && "bg-background shadow-sm",
-          )}
-        >
-          <LayoutList className="mr-2 h-4 w-4" />
-          {messages.agenda}
-        </Button>
+
+        <div className="flex min-w-0 flex-1 items-center gap-1 rounded-lg bg-muted p-1">
+          <Button
+            variant={view === Views.MONTH ? "secondary" : "ghost"}
+            size="sm"
+            aria-label={messages.month}
+            onClick={() => onView(Views.MONTH)}
+            className={cn(
+              "min-w-0 flex-1 px-2 sm:flex-none sm:px-3",
+              view === Views.MONTH && "bg-background shadow-sm",
+            )}
+          >
+            <CalendarDays className="size-4 sm:me-1.5" />
+            <span className="hidden sm:inline">{messages.month}</span>
+          </Button>
+          <Button
+            variant={view === Views.WEEK ? "secondary" : "ghost"}
+            size="sm"
+            aria-label={messages.week}
+            onClick={() => onView(Views.WEEK)}
+            className={cn(
+              "min-w-0 flex-1 px-2 sm:flex-none sm:px-3",
+              view === Views.WEEK && "bg-background shadow-sm",
+            )}
+          >
+            <CalendarRange className="size-4 sm:me-1.5" />
+            <span className="hidden sm:inline">{messages.week}</span>
+          </Button>
+          <Button
+            variant={view === Views.AGENDA ? "secondary" : "ghost"}
+            size="sm"
+            aria-label={messages.agenda}
+            onClick={() => onView(Views.AGENDA)}
+            className={cn(
+              "min-w-0 flex-1 px-2 sm:flex-none sm:px-3",
+              view === Views.AGENDA && "bg-background shadow-sm",
+            )}
+          >
+            <LayoutList className="size-4 sm:me-1.5" />
+            <span className="hidden sm:inline">{messages.agenda}</span>
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -131,32 +177,44 @@ export function RNMCalendarClient() {
   const locale = useLocale();
   const dateLocale = locale.startsWith("pt") ? pt : enUS;
 
-  const localizer = dateFnsLocalizer({
-    format,
-    parse,
-    startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }),
-    getDay,
-    locales,
-  });
+  const localizer = useMemo(
+    () =>
+      dateFnsLocalizer({
+        format,
+        parse,
+        startOfWeek: (calendarDate: Date) =>
+          startOfWeek(calendarDate, { locale: dateLocale }),
+        getDay,
+        locales,
+      }),
+    [dateLocale],
+  );
 
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printAnchorDate, setPrintAnchorDate] = useState(new Date());
   const [selectedProcessId, setSelectedProcessId] = useState<
     Id<"individualProcesses"> | undefined
   >(undefined);
 
   // Fetch RNM appointments from Convex
-  const appointments =
-    useQuery(api.individualProcesses.listRNMAppointments, {}) ?? [];
+  const appointments = useQuery(
+    api.individualProcesses.listRNMAppointments,
+    {},
+  );
+  const isLoadingAppointments = appointments === undefined;
 
   // Transform appointments into calendar events
-  const baseEvents = useMemo(() => {
-    return appointments
+  const baseEvents = useMemo<RNMCalendarEvent[]>(() => {
+    return (appointments ?? [])
       .filter((appointment) => appointment.appointmentDateTime)
       .map((appointment) => ({
         id: appointment._id,
-        title: appointment.person ? getFullName(appointment.person) : t("noCandidate"),
+        title: appointment.person
+          ? getFullName(appointment.person)
+          : t("noCandidate"),
         start: new Date(appointment.appointmentDateTime!),
         // RNM appointments are point-in-time slots. We render them as 30min by default to avoid
         // visual overlap in week view when schedules are tight.
@@ -180,11 +238,10 @@ export function RNMCalendarClient() {
   );
 
   const handleSelectEvent = useCallback(
-    (event: any) => {
+    (event: RNMCalendarEvent) => {
       // Grouped events are handled by the popover inside the event renderer
-      if (event?.resource?.groupedEvents?.length) return;
-      const processId = event.resource.processId as Id<"individualProcesses">;
-      openProcessDialog(processId);
+      if (event.resource.groupedEvents?.length) return;
+      openProcessDialog(event.resource.processId);
     },
     [openProcessDialog],
   );
@@ -209,17 +266,18 @@ export function RNMCalendarClient() {
   // Custom messages for calendar
   const messages = {
     today: t("today"),
-    previous: t("previous") || "Anterior",
-    next: t("next") || "Próximo",
+    previous: t("previous"),
+    next: t("next"),
     month: t("month"),
     week: t("week"),
-    day: t("day") || "Dia",
-    agenda: t("agenda") || "Agenda",
-    date: t("date") || "Data",
-    time: t("time") || "Hora",
-    event: t("event") || "Evento",
-    showMore: (total: number) => `+${total} ${t("more") || "mais"}`,
-    noEventsInRange: t("noEventsInRange") || "Não há eventos neste período.",
+    day: t("day"),
+    agenda: t("agenda"),
+    date: t("date"),
+    time: t("time"),
+    event: t("event"),
+    print: t("print.button"),
+    showMore: (total: number) => `+${total} ${t("more")}`,
+    noEventsInRange: t("noEventsInRange"),
   };
 
   // Group overlapping events for month and week views only (not agenda)
@@ -231,7 +289,7 @@ export function RNMCalendarClient() {
 
     // Group events by their start time (rounded to 30-min buckets for week, exact for month)
     const bucketMinutes = view === Views.WEEK ? 30 : 1440; // 30 min for week, 1 day for month
-    const buckets = new Map<string, Array<any>>();
+    const buckets = new Map<string, RNMCalendarEvent[]>();
 
     for (const ev of baseEvents) {
       const d: Date = ev.start;
@@ -241,7 +299,8 @@ export function RNMCalendarClient() {
       if (view === Views.WEEK) {
         // For week view, group by 30-min time slots
         const minutes = d.getHours() * 60 + d.getMinutes();
-        const bucketStartMinutes = Math.floor(minutes / bucketMinutes) * bucketMinutes;
+        const bucketStartMinutes =
+          Math.floor(minutes / bucketMinutes) * bucketMinutes;
         key = `${dayKey}:${bucketStartMinutes}`;
       } else {
         // For month view, group by day
@@ -253,7 +312,7 @@ export function RNMCalendarClient() {
       buckets.set(key, arr);
     }
 
-    const grouped: Array<any> = [];
+    const grouped: RNMCalendarEvent[] = [];
     for (const [, group] of buckets) {
       group.sort((a, b) => +a.start - +b.start);
 
@@ -283,9 +342,8 @@ export function RNMCalendarClient() {
   );
 
   const EventRenderer = useCallback(
-    ({ event }: { event: any }) => {
-      const groupedEvents: Array<any> | undefined =
-        event?.resource?.groupedEvents;
+    ({ event }: { event: RNMCalendarEvent }) => {
+      const groupedEvents = event.resource.groupedEvents;
       const time = formatEventTime(event.start);
 
       // Single event - no grouping
@@ -313,7 +371,7 @@ export function RNMCalendarClient() {
                   e.stopPropagation();
                 }}
               >
-                +{extraCount} {t("more") || "mais"}
+                +{extraCount} {t("more")}
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -371,7 +429,7 @@ export function RNMCalendarClient() {
                   e.stopPropagation();
                 }}
               >
-                +{extraCount} {t("more") || "mais"}
+                +{extraCount} {t("more")}
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -415,6 +473,46 @@ export function RNMCalendarClient() {
     [dateLocale, formatEventTime, openProcessDialog, t, view],
   );
 
+  const calendarLabel = useMemo(() => {
+    if (view === Views.WEEK) {
+      const weekStart = startOfWeek(date, { locale: dateLocale });
+      const weekEnd = endOfWeek(date, { locale: dateLocale });
+      return `${format(weekStart, "d MMM", {
+        locale: dateLocale,
+      })} — ${format(weekEnd, "d MMM yyyy", { locale: dateLocale })}`;
+    }
+
+    return format(date, "MMMM yyyy", { locale: dateLocale });
+  }, [date, dateLocale, view]);
+
+  const handleToolbarNavigate = useCallback(
+    (action: "PREV" | "NEXT" | "TODAY") => {
+      if (action === "TODAY") {
+        setDate(new Date());
+        return;
+      }
+
+      const direction = action === "PREV" ? -1 : 1;
+      setDate((currentDate) => {
+        if (view === Views.MONTH) {
+          return addMonths(currentDate, direction);
+        }
+
+        if (view === Views.WEEK) {
+          return addWeeks(currentDate, direction);
+        }
+
+        return addDays(currentDate, direction * AGENDA_NAVIGATION_DAYS);
+      });
+    },
+    [view],
+  );
+
+  const handleOpenPrintDialog = useCallback(() => {
+    setPrintAnchorDate(new Date());
+    setIsPrintDialogOpen(true);
+  }, []);
+
   return (
     <>
       <DashboardPageHeader breadcrumbs={breadcrumbs} />
@@ -426,69 +524,96 @@ export function RNMCalendarClient() {
           </div>
         </div>
 
-        <Card className="border-none shadow-none sm:border sm:shadow-sm">
-          <CardContent className="p-0 sm:p-6">
-            <Calendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: "calc(100vh - 280px)", minHeight: 600 }}
-              view={view}
+        <Card className="overflow-hidden border shadow-sm">
+          <CardContent className="p-3 sm:p-4">
+            <CustomToolbar
+              onNavigate={handleToolbarNavigate}
               onView={setView}
-              date={date}
-              onNavigate={setDate}
-              onSelectEvent={handleSelectEvent}
+              onPrint={handleOpenPrintDialog}
+              view={view}
+              label={calendarLabel}
               messages={messages}
-              culture={locale}
-              components={{
-                toolbar: CustomToolbar,
-                event: EventRenderer as any,
-              }}
-              eventPropGetter={() => ({
-                className:
-                  "bg-primary border-primary text-primary-foreground text-xs rounded-md shadow-sm px-1.5 py-1 hover:bg-primary/90 transition-all cursor-pointer",
-              })}
-              dayPropGetter={(date) => {
-                const isToday =
-                  new Date().toDateString() === date.toDateString();
-                return {
-                  className: cn(
-                    "bg-background hover:bg-muted/30 transition-colors",
-                    isToday && "bg-muted/70 hover:bg-muted",
-                  ),
-                };
-              }}
-              views={{
-                month: true,
-                week: true,
-                agenda: true,
-              }}
-              step={30}
-              timeslots={2}
-              dayLayoutAlgorithm="no-overlap"
-              showMultiDayTimes
-              popup
-              className="rounded-md border bg-card text-card-foreground shadow-sm p-4"
             />
+
+            {view === Views.AGENDA ? (
+              <InfiniteAgenda
+                anchorDate={date}
+                events={baseEvents}
+                isLoading={isLoadingAppointments}
+                onSelectEvent={handleSelectEvent}
+              />
+            ) : (
+              <Calendar<RNMCalendarEvent>
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                style={{
+                  height: "clamp(32rem, calc(100dvh - 18rem), 70rem)",
+                }}
+                toolbar={false}
+                view={view}
+                onView={setView}
+                date={date}
+                onNavigate={setDate}
+                onSelectEvent={handleSelectEvent}
+                messages={messages}
+                culture={locale}
+                components={{
+                  event: EventRenderer,
+                }}
+                eventPropGetter={() => ({
+                  className:
+                    "bg-primary border-primary text-primary-foreground text-xs rounded-md shadow-sm px-1.5 py-1 hover:bg-primary/90 transition-all cursor-pointer",
+                })}
+                dayPropGetter={(calendarDate) => {
+                  const isToday =
+                    new Date().toDateString() === calendarDate.toDateString();
+                  return {
+                    className: cn(
+                      "bg-background hover:bg-muted/30 transition-colors",
+                      isToday && "bg-muted/70 hover:bg-muted",
+                    ),
+                  };
+                }}
+                views={{
+                  month: true,
+                  week: true,
+                }}
+                step={30}
+                timeslots={2}
+                dayLayoutAlgorithm="no-overlap"
+                showMultiDayTimes
+                popup
+                className="rnm-calendar-grid text-card-foreground"
+              />
+            )}
           </CardContent>
         </Card>
 
-        {baseEvents.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-              <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                {t("noAppointments")}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {t("noAppointmentsDescription") ||
-                  "Não há agendamentos de RNM no momento. Os agendamentos aparecerão aqui quando forem adicionados aos processos individuais."}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        {!isLoadingAppointments &&
+          view !== Views.AGENDA &&
+          baseEvents.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+                <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  {t("noAppointments")}
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  {t("noAppointmentsDescription")}
+                </p>
+              </CardContent>
+            </Card>
+          )}
       </div>
+
+      <PrintCalendarDialog
+        open={isPrintDialogOpen}
+        onOpenChange={setIsPrintDialogOpen}
+        anchorDate={printAnchorDate}
+        events={baseEvents}
+      />
 
       {selectedProcessId && (
         <IndividualProcessFormDialog

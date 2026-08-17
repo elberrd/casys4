@@ -4259,6 +4259,32 @@
     "viewDetails": "Ver detalhes",
     "editProcess": "Editar processo",
     "noCandidate": "Sem candidato",
-    "noEventsInRange": "Não há eventos neste período."
+    "noEventsInRange": "Não há eventos neste período.",
+    "appointments": "Agendamentos",
+    "agendaRegionLabel": "Agenda de agendamentos RNM",
+    "noAppointmentsForDay": "Sem agendamentos",
+    "loadingEarlierDates": "Carregando datas anteriores...",
+    "loadingLaterDates": "Carregando próximas datas...",
+    "openAppointment": "Abrir agendamento de {name} às {time}",
+    "print": {
+      "button": "Imprimir",
+      "dialogTitle": "Imprimir calendário",
+      "dialogDescription": "Escolha o período. O arquivo será aberto imediatamente no formato ideal para salvar como PDF.",
+      "scopeLabel": "Período da impressão",
+      "day": "Somente hoje",
+      "week": "Semana atual",
+      "month": "Mês inteiro",
+      "cancel": "Cancelar",
+      "confirm": "Imprimir PDF",
+      "preparing": "Preparando...",
+      "documentSubtitle": "Agenda de agendamentos RNM",
+      "period": "Período",
+      "generatedAtLabel": "Gerado em",
+      "totalLabel": "Total",
+      "appointmentCount": "{count, plural, =0 {Nenhum agendamento} one {# agendamento} other {# agendamentos}}",
+      "candidate": "Candidato",
+      "company": "Empresa",
+      "noAppointments": "Nenhum agendamento neste período."
+    }
   }
 }
