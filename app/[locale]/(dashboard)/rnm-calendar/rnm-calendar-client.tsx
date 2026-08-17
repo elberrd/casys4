@@ -455,7 +455,7 @@ export function RNMCalendarClient() {
                 return {
                   className: cn(
                     "bg-background hover:bg-muted/30 transition-colors",
-                    isToday && "bg-accent/10",
+                    isToday && "bg-muted/70 hover:bg-muted",
                   ),
                 };
               }}

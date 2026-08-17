@@ -558,7 +558,7 @@ export function DocumentReviewDialog({
               <FileText className="h-5 w-5" />
               <DialogTitle>{t("title")}</DialogTitle>
             </div>
-            {getStatusBadge(document.status)}
+            {getStatusBadge(displayDocument?.status ?? document.status)}
             {userRole === "admin" && displayDocument && (
               <DocumentWaitTimeBadge document={displayDocument} />
             )}

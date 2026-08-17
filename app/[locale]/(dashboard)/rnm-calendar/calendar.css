@@ -105,7 +105,7 @@
 }
 
 .rbc-today {
-  background: hsl(var(--accent) / 0.5);
+  background: color-mix(in oklab, var(--muted) 70%, var(--card));
 }
 
 .rbc-date-cell {
