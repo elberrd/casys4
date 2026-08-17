@@ -1,3 +1,145 @@
+# TODO ATIVO: Central de notificações agendadas com pop-up global e snooze
+
+## Contexto
+
+Notificações com uma data de exibição devem chamar a atenção do usuário dentro de qualquer tela autenticada. No dia programado, o sistema deve abrir um pop-up global com os lembretes pendentes, permitir abrir diretamente a origem da notificação — inicialmente notas e tarefas, sem quebrar os demais tipos já existentes —, adiar cada item por **2 horas** ou **5 horas** e ignorar em lote os lembretes daquele dia. A central já existente em `/[locale]/notifications` deve ser preservada e passar a ter acesso explícito no menu lateral esquerdo.
+
+## Decisões de implementação
+
+- Evoluir a tabela `notifications`; não criar uma segunda tabela ou um estado apenas em `localStorage`. O snooze e o descarte precisam acompanhar o usuário entre páginas, dispositivos e novas sessões.
+- Distinguir notificações imediatas das agendadas com campos opcionais. Somente notificações com data programada entram no pop-up diário; status, documentos, mensagens e atribuições imediatas continuam no sino/central sem começarem a abrir modais inesperadamente.
+- Usar `America/Sao_Paulo` como timezone de negócio e `YYYY-MM-DD` como chave do dia. `snoozedUntil` é timestamp absoluto; um timer no cliente deve reavaliar o item quando vencer, inclusive após foco/retorno da aba, pois uma query Convex não se atualiza apenas pela passagem do tempo.
+- **Ignorar todas de hoje** suprime o pop-up dos itens do dia, mas não exclui notificações nem apaga o histórico da central. Marcar como lida ou abrir a origem também encerra a pendência de pop-up daquele item; snooze mantém a notificação não lida.
+- O pop-up deve mostrar a fila do dia em um único diálogo/lista, com ações por item para **Abrir**, **Adiar 2 h** e **Adiar 5 h**, além da ação em lote. Fechar visualmente o diálogo não pode criar um ciclo de reabertura imediata; o estado persistente deve resultar de uma ação explícita e acessível.
+- Lembrete de nota pertence ao criador da nota e deve usar `entityType: "note"` + o ID da própria nota. Lembrete de vencimento de tarefa pertence ao responsável atual e só é gerado para `todo`/`in_progress`; tarefa concluída, cancelada, excluída, reatribuída ou com data alterada não pode reaparecer como lembrete obsoleto.
+- Manter a criação idempotente por usuário + origem + data programada, incluindo reconciliação por cron. Reexecução, reload ou scheduler duplicado não pode inserir o mesmo lembrete duas vezes.
+- Centralizar a resolução de destinos para eliminar os mapas divergentes atuais. Nota abre `/[locale]/notes` já focada/aberta; tarefa abre `/[locale]/tasks?highlight=<id>`; processo, solicitação, documento, pessoa e empresa usam seu destino existente. Origem removida ou sem acesso mantém a notificação legível, mas sem link que vaze dados.
+- A página `/[locale]/notifications` já existe e será aprimorada, não recriada. O item **Notificações** deve aparecer no menu de admin e client, pois o backend já restringe cada usuário às próprias notificações.
+- Adicionar testes automatizados focados no resolvedor de destinos e no dia de negócio, validar os fluxos interativos no browser e executar os quality gates existentes.
+
+## Sequência de tarefas
+
+### 0. Project Structure Analysis
+
+- [x] 0.1: Revisar o PRD e os padrões atuais em `app/[locale]/(dashboard)/prd.md`, `convex/schema.ts`, `convex/notifications.ts`, `convex/noteReminders.ts`, `convex/notes.ts`, `convex/tasks.ts`, `convex/cron.ts`, `app/[locale]/(dashboard)/layout.tsx`, `components/app-sidebar.tsx`, `components/notifications/`, `app/[locale]/(dashboard)/notifications/notifications-client.tsx`, `app/[locale]/(dashboard)/notes/notes-client.tsx` e `app/[locale]/(dashboard)/tasks/tasks-client.tsx`.
+  - Confirmar antes de editar: a central e o sino já existem; `noteReminders` cria `note_alarm` diretamente e hoje aponta para o processo; tarefas possuem `dueDate`, mas não geram alerta no vencimento; `/tasks?highlight=` já destaca a tarefa; a central não está no sidebar; `NotificationItem` e `NotificationViewModal` possuem mapas de rota incompatíveis.
+- [x] 0.2: Delimitar arquivos da implementação.
+  - Criar: `convex/taskReminders.ts`, `components/notifications/scheduled-notifications-popup.tsx` e `lib/notification-targets.ts`.
+  - Modificar: `convex/schema.ts`, `convex/notifications.ts`, `convex/noteReminders.ts`, `convex/notes.ts`, `convex/tasks.ts`, `convex/cron.ts`, `app/[locale]/(dashboard)/layout.tsx`, `components/app-sidebar.tsx`, `components/notifications/notification-item.tsx`, `components/notifications/notification-view-modal.tsx`, `components/notifications/notifications-table.tsx`, `app/[locale]/(dashboard)/notifications/notifications-client.tsx`, `app/[locale]/(dashboard)/notes/notes-client.tsx`, `app/[locale]/(dashboard)/tasks/tasks-client.tsx`, `app/[locale]/(dashboard)/documents/documents-client.tsx`, `components/documents/documents-table.tsx`, `messages/pt.json`, `messages/en.json` e `app/[locale]/(dashboard)/prd.md`.
+  - Reutilizar: `components/ui/dialog.tsx`, `components/ui/button.tsx`, `components/ui/dropdown-menu.tsx`, `components/ui/scroll-area.tsx`, `components/ui/badge.tsx`, `components/ui/alert-dialog.tsx`, `useToast`/Sonner e os helpers de auth de `convex/lib/auth.ts`. Não editar `convex/_generated/` manualmente.
+
+### 1. Modelar o ciclo persistente da notificação agendada
+
+- [x] 1.1: Evoluir `notifications` em `convex/schema.ts` com campos opcionais equivalentes a `scheduledDate`, `snoozedUntil`, `popupDismissedAt` e uma chave idempotente de origem/ocorrência.
+  - Adicionar índice composto por usuário + data programada + estado descartado para buscar somente a fila diária do dono, e índice para a chave de idempotência; preservar compatibilidade com todas as notificações legadas sem migração obrigatória.
+  - Validação: notificações antigas continuam válidas; data usa `YYYY-MM-DD`; snooze/descarte não substituem `isRead`/`readAt`; nenhuma query global ou `.filter()` de banco é introduzida.
+- [x] 1.2: Em `convex/notifications.ts`, tipar `args` e `returns` de todas as funções tocadas e estender o helper interno de criação para aceitar, validar e deduplicar dados agendados.
+  - Criar query pública da fila diária do usuário, indexada e limitada ao dia solicitado/atual, retornando somente campos necessários ao pop-up e enriquecendo/validando a origem quando ela for nota ou tarefa.
+  - Não retornar lembrete de nota inativa ou reagendada, nem tarefa fora de `todo`/`in_progress`, sem responsável, reatribuída ou cujo `dueDate` já não corresponda à ocorrência.
+  - Validação: `getCurrentUserProfile`/usuário ativo em toda função pública; um usuário nunca lê ou altera notificação alheia; origens inacessíveis não revelam título, conteúdo ou rota.
+- [x] 1.3: Adicionar em `convex/notifications.ts` mutations estreitas para snooze de **2** ou **5** horas, abertura/leitura da notificação e descarte em lote do dia atual.
+  - O servidor aceita somente as duas durações literais, calcula `snoozedUntil` a partir do relógio do servidor e verifica propriedade/estado agendado; não aceitar timestamp arbitrário do cliente.
+  - **Ignorar todas de hoje** usa o índice usuário + data e grava `popupDismissedAt` sem deletar; abrir/marcar como lida também suprime o item; snooze limpa eventual descarte incompatível e preserva `isRead: false`.
+  - Validação: chamadas repetidas são idempotentes, retornam contagens/IDs tipados e não alteram notificações imediatas ou de outro dia.
+
+### 2. Produzir lembretes de notas e tarefas sem duplicação
+
+- [x] 2.1: Ajustar `convex/noteReminders.ts` e, se necessário, o agendamento em `convex/notes.ts` para criar o `note_alarm` pelo contrato central de notificações.
+  - Gravar `entityType: "note"`, `entityId: noteId`, `scheduledDate: alarmDate` e chave idempotente por criador + nota + data; manter o `runAt` durável e a reconciliação atual como rede de segurança.
+  - Uma edição de `alarmDate`, remoção do alarme ou soft delete invalida a ocorrência antiga no pop-up; salvar novamente a mesma data não duplica; assunto/nome solicitado entram como dados da origem, enquanto os templates visíveis ficam no i18n.
+  - Validação: somente o criador recebe o alerta; notas de processo individual/coletivo navegam à mesma nota; `alarmNotifiedAt` continua coerente com o resultado idempotente.
+- [x] 2.2: Criar `convex/taskReminders.ts` para reconciliar tarefas que vencem no dia de São Paulo e registrar uma notificação `task_due` para o responsável atual.
+  - Consultar `tasks.by_dueDate_status` separadamente para `todo` e `in_progress`, ignorar concluídas/canceladas/sem responsável e deduplicar por responsável + tarefa + `dueDate`.
+  - Definir `entityType: "task"`, `entityId: taskId` e `scheduledDate: dueDate`; cobrir tarefas criadas pelos fluxos individual, em massa e automático sem inserir lógica duplicada em cada formulário.
+  - Validação: uma mesma tarefa gera uma ocorrência por data/responsável; reatribuição ou prorrogação não mostra o alerta antigo ao usuário anterior; falha em criar notificação não altera a tarefa.
+- [x] 2.3: Registrar em `convex/cron.ts` uma reconciliação horária de tarefas e revisar os horários de nota/tarefa em relação a `America/Sao_Paulo`.
+  - Seguir `.cursor/rules/convex_rules.mdc` e o padrão de cron permitido no projeto; manter scheduler + cron idempotentes, sem depender de o usuário estar conectado no horário.
+  - Validação: deploy/restart, atraso do cron e tarefa criada no próprio dia convergem para uma única notificação; nenhuma data usa `toISOString()` em UTC como definição do dia de negócio.
+- [x] 2.4: Revisar em `convex/tasks.ts` as mutations que mudam `dueDate`, `assignedTo`, `status` ou removem a tarefa para que o contrato de lembrete não exponha ocorrências obsoletas.
+  - Cobrir `update`, `extendDeadline`, `complete`, `remove`, reatribuição e operações em massa; preferir a validação da origem na query e uma única rotina compartilhada em vez de patches divergentes.
+  - Validação: completar/cancelar/adiar/reatribuir enquanto o pop-up está aberto remove ou desabilita o item de forma reativa e segura.
+
+### 3. Unificar deep-links para qualquer origem conhecida
+
+- [x] 3.1: Criar `lib/notification-targets.ts` como resolvedor único de destino e substituir os mapas locais de `components/notifications/notification-item.tsx` e `components/notifications/notification-view-modal.tsx`.
+  - Mapear `note`, `task`, `collectiveProcess`, `individualProcess`, `processRequest`, `document`, `person` e `company`; escapar IDs/query params e devolver `null` para tipo ausente/desconhecido.
+  - Usar o router localizado de `@/i18n/routing` em todos os consumidores; não concatenar manualmente `/pt` ou `/en`.
+  - Validação: item do sino, pop-up, modal e central abrem exatamente o mesmo destino; tipo desconhecido continua legível sem link quebrado.
+- [x] 3.2: Em `app/[locale]/(dashboard)/notes/notes-client.tsx`, aceitar o ID de nota vindo por query param, localizar somente uma nota presente em `api.notes.listAll` e abrir seu modo de visualização.
+  - Limpar/substituir o parâmetro ao fechar sem perder locale ou filtros; tratar ID malformado, nota removida e nota sem acesso com estado localizado e sem cast irrestrito.
+  - Validação: clicar em um `note_alarm` abre a nota exata, não apenas o processo ao qual ela pertence; voltar/avançar do navegador é previsível.
+- [x] 3.3: Consolidar em `app/[locale]/(dashboard)/tasks/tasks-client.tsx` o deep-link já existente `?highlight=` e garantir que o destino selecione a aba correta, role até a linha e ofereça a ação normal da tarefa.
+  - Remover `any` novo/relacionado no estado tocado e calcular “hoje” no timezone de negócio, sem regressão das abas minhas/atrasadas/próximas/todas.
+  - Validação: `task_due` de tarefa própria abre a tarefa exata; tarefa concluída/removida mostra fallback seguro em vez de loop ou página vazia.
+- [x] 3.4: Permitir que `app/[locale]/(dashboard)/documents/documents-client.tsx` e `components/documents/documents-table.tsx` recebam o deep-link de `documentsDelivered` já usado pelas notificações atuais e abram `DocumentViewModal`; validar as rotas diretas já existentes para processos, solicitações, pessoas e empresas.
+  - Validação: notificações antigas de documento não apontam para a rota inexistente `/documents/<id>`; o documento continua submetido ao RBAC de `documentsDelivered.get`.
+
+### 4. Exibir e controlar o pop-up global
+
+- [x] 4.1: Criar `components/notifications/scheduled-notifications-popup.tsx` com uma única assinatura reativa da fila diária.
+  - Renderizar lista responsiva com tipo, título/assunto, mensagem localizada e horário/data; ações por item **Abrir**, **Adiar 2 horas** e **Adiar 5 horas**, e ação em lote **Ignorar todas de hoje** com confirmação clara.
+  - Reutilizar componentes de `components/ui/`; limitar altura com `ScrollArea`; manter foco inicial, retorno de foco, `aria-live`, navegação por teclado e alvos de toque adequados.
+  - Validação: zero itens não abre; vários itens não empilham modais; mutações mostram estado de loading por ação e erro não fecha/perde a fila.
+- [x] 4.2: Implementar no componente o relógio local necessário para o snooze.
+  - Filtrar visualmente `snoozedUntil > agora`, agendar um único timer para o menor vencimento e recalcular em `visibilitychange`/focus e na virada do dia em São Paulo; limpar timers no unmount.
+  - Validação: 2 h/5 h sobrevivem a navegação e reload, reaparecem sem precisar de nova escrita Convex e não criam polling agressivo; snooze que cruza a meia-noite segue a regra documentada da ocorrência agendada.
+- [x] 4.3: Montar o pop-up em `app/[locale]/(dashboard)/layout.tsx` dentro da área autenticada/guardada, uma única vez para todas as páginas.
+  - Não montar antes de auth/perfil estar resolvido e não competir com `NavigationBlockerProvider`, dialogs de formulário ou o sino; navegar por **Abrir** deve confirmar leitura/descarte antes de trocar a rota.
+  - Validação: dashboard, listas, detalhes e central recebem o mesmo pop-up; login/logout/troca de locale não reaproveitam estado de outro usuário.
+
+### 5. Tornar a central acessível no sidebar e coerente com o pop-up
+
+- [x] 5.1: Adicionar **Notificações** em `components/app-sidebar.tsx`, com ícone e chave `Navigation.notifications`, tanto na navegação admin quanto client.
+  - Posicionar junto de Tarefas/Notas no admin e antes de Configurações no client; preservar sidebar recolhido, tooltip, `SafeLink` e comportamento mobile.
+  - Validação: `/pt/notifications` e `/en/notifications` abrem pelo menu de ambos os roles sem ampliar acesso a dados.
+- [x] 5.2: Aprimorar `app/[locale]/(dashboard)/notifications/notifications-client.tsx` e `components/notifications/notifications-table.tsx` para representar também `note_alarm`/`task_due`, data programada e estados de snooze/descarte.
+  - Reutilizar o resolvedor único para **Abrir origem**; manter detalhes, marcar como lida, seleção, busca, filtros e exclusão existentes; disponibilizar snooze somente quando semanticamente válido.
+  - Diferenciar **lida** de **ignorada no pop-up** sem excluir registros. Acrescentar os tipos novos aos ícones e filtros do sino/tabela, incluindo `notification-item.tsx`.
+  - Validação: histórico continua visível após **Ignorar todas de hoje**; ações em lote não afetam notificações de outro dia; paginação/ordenação continuam estáveis.
+- [x] 5.3: Revisar `components/notifications/notification-view-modal.tsx` para exibir destino, data agendada, snooze e descarte quando presentes, sempre com o mesmo contrato de navegação.
+  - Validação: origem indisponível mostra mensagem localizada e desabilita o link; nenhum ID interno sem contexto vira texto visível obrigatório.
+
+### 6. i18n, PRD e quality gates
+
+- [x] 6.1: Adicionar chaves equivalentes em `messages/pt.json` e `messages/en.json` nos namespaces `Navigation` e `Notifications`.
+  - Cobrir tipos `note_alarm`/`task_due`, título e descrição do pop-up, fila vazia, abrir origem, snooze 2 h/5 h, confirmação/resultado de ignorar hoje, estados agendada/adiada/ignorada, origem indisponível, loading, sucesso, erro e textos acessíveis.
+  - Conteúdo digitado pelo usuário (assunto da nota/título da tarefa) permanece literal; frases de sistema são formatadas no cliente por tipo, com fallback para `title`/`message` das notificações legadas. Nenhum novo texto visível hardcoded.
+- [x] 6.2: Atualizar `app/[locale]/(dashboard)/prd.md` com o contrato de notificações agendadas.
+  - Documentar diferença entre imediata/agendada, timezone, destinatários de nota/tarefa, idempotência, pop-up global, snooze, semântica não destrutiva de ignorar hoje, deep-links, central/sidebar e RBAC.
+- [x] 6.3: Executar `pnpm exec convex codegen`, `pnpm exec tsc --noEmit`, lint focado nos arquivos criados/modificados, `pnpm lint`, `pnpm run build` e `git diff --check`, separando débitos preexistentes.
+  - Confirmar TypeScript strict sem `any` novo, validators de `args`/`returns`, Zod em qualquer query param/input não coberto por tipos literais, queries indexadas, auth, paridade pt/en e ausência de edição manual em `convex/_generated/`.
+  - Codegen, TypeScript, lint focado, 3 testes determinísticos, build de 89 rotas e `git diff --check` passaram. O lint global continua apontando débitos preexistentes em arquivos legados; nenhum erro novo apareceu no recorte da feature.
+- [x] 6.4: Validar no browser autenticado em pt/en, desktop e mobile.
+  - Cobrir: nenhuma/uma/várias notificações do dia; nota individual/coletiva; tarefa `todo`/`in_progress`; deep-link de nota, tarefa e documento; snooze 2 h/5 h com reload/foco; ignorar todas sem apagar a central; marcar lida; virada de dia/timezone; origem alterada/removida; deduplicação de cron; admin/client; teclado/foco/leitor de tela; console/network e overflow.
+  - Browser autenticado confirmou página/sidebar em pt/en, pop-up desktop/mobile sem overflow horizontal, snooze de 2 h, descarte diário não destrutivo, estado persistido na central e deep-link de documento. Rotas de nota/tarefa, tipos conhecidos/desconhecidos e timezone de São Paulo têm cobertura determinística; fixtures temporárias foram removidas após o teste.
+
+### 7. Follow-up — ação explícita para abrir o destino
+
+- [x] 7.1: Tornar o destino da notificação uma ação principal fixa no rodapé do modal, com texto contextual por tipo e paridade pt/en.
+- [x] 7.2: Direcionar notificações de documento ao processo individual na seção `#documentation`, resolvendo também notificações legadas salvas com o ID de `documentsDelivered`.
+- [x] 7.3: Validar o fluxo autenticado em desktop/mobile, incluindo ausência de overflow, rota localizada, rolagem após carregamento e um registro legado de documento.
+
+## Riscos e mitigações
+
+- **Snooze não reaparecer sozinho:** Convex é reativo a dados, não ao relógio; usar timer para o próximo vencimento e recalcular ao recuperar foco.
+- **Duplicação por scheduler + cron:** exigir chave idempotente no mesmo write transacional, não apenas `alarmNotifiedAt` em memória.
+- **Lembrete obsoleto após editar a origem:** validar nota/tarefa atual na query do pop-up e invalidar mudanças relevantes por rotina compartilhada.
+- **UTC trocar o dia no Brasil:** centralizar a data de negócio em `America/Sao_Paulo` no servidor e cliente.
+- **Ignorar apagar histórico:** separar `popupDismissedAt` de leitura/exclusão e nunca usar delete na ação diária.
+- **Rotas inconsistentes ou vazamento:** usar um único resolvedor, preservar queries RBAC do destino e não gerar link quando a entidade não é mais acessível.
+- **Muitos itens bloquearem a interface:** um único diálogo com lista rolável e ações independentes, sem modal por notificação.
+
+## Definition of Done
+
+- [x] Toda notificação agendada para o dia do usuário aparece uma única vez no pop-up global quando elegível, em qualquer tela autenticada.
+- [x] Cada item pode ser aberto na origem correta e adiado por 2 h ou 5 h com persistência e reaparição automática.
+- [x] **Ignorar todas de hoje** encerra a fila diária sem excluir o histórico da central nem afetar outros dias/usuários.
+- [x] Alarmes de nota apontam para a nota exata; tarefas ativas geram lembrete no vencimento para o responsável atual; ocorrências duplicadas ou obsoletas não aparecem.
+- [x] A central de notificações está no menu lateral de admin/client e continua funcional para notificações imediatas e legadas.
+- [x] pt/en, responsividade, acessibilidade, RBAC, TypeScript, validators/Zod, índices Convex, build/lint e validação browser passam sem regressão nova.
+
+---
+
 # TODO ATIVO: Preservar versões por ocorrência de Exigência na Lista de Documentos
 
 ## Contexto

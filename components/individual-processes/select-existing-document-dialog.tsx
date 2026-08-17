@@ -36,6 +36,7 @@ import {
   Link2,
   ArrowLeft,
   ListChecks,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -145,6 +146,8 @@ export function SelectExistingDocumentDialog({
       case "uploaded":
       case "under_review":
         return <Clock className="h-4 w-4 text-yellow-500" />;
+      case "awaiting_signature":
+        return <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />;
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
@@ -291,7 +294,7 @@ export function SelectExistingDocumentDialog({
                             variant={doc.status === "approved" ? "default" : doc.status === "rejected" ? "destructive" : "secondary"}
                             className="text-[10px] px-1.5 py-0"
                           >
-                            {t(`status.${doc.status === "not_started" ? "notStarted" : doc.status === "under_review" ? "underReview" : doc.status}`)}
+                            {t(`status.${doc.status === "not_started" ? "notStarted" : doc.status === "under_review" ? "underReview" : doc.status === "awaiting_signature" ? "awaitingSignature" : doc.status}`)}
                           </Badge>
                         </div>
                       </div>

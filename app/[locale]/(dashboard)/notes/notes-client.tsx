@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -22,6 +23,7 @@ import { Plus, StickyNote, Calendar, User } from "lucide-react";
 import { toast } from "sonner";
 
 export function NotesClient() {
+  const searchParams = useSearchParams();
   const t = useTranslations("Notes");
   const tBreadcrumbs = useTranslations("Breadcrumbs");
   const tCommon = useTranslations("Common");
@@ -31,10 +33,31 @@ export function NotesClient() {
 
   const [activeTab, setActiveTab] = useState("all-notes");
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [selectedNoteId, setSelectedNoteId] = useState<Id<"notes"> | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<Id<"notes"> | null>(
+    null,
+  );
+  const handledHighlightRef = useRef<string | null>(null);
 
   // Fetch all notes
   const allNotes = useQuery(api.notes.listAll, {});
+
+  useEffect(() => {
+    const highlightedId = searchParams.get("highlight");
+    if (
+      !highlightedId ||
+      !allNotes ||
+      handledHighlightRef.current === highlightedId
+    ) {
+      return;
+    }
+
+    const highlightedNote = allNotes.find((note) => note._id === highlightedId);
+    handledHighlightRef.current = highlightedId;
+    if (highlightedNote) {
+      setSelectedNoteId(highlightedNote._id);
+      setNoteDialogOpen(true);
+    }
+  }, [allNotes, searchParams]);
 
   // Mutations
   const deleteNote = useMutation(api.notes.remove);
@@ -69,9 +92,13 @@ export function NotesClient() {
 
     return {
       totalNotes: allNotes.length,
-      myNotes: allNotes.filter((note) => note.createdBy === userProfile.userId).length,
-      recentNotes: allNotes.filter((note) => note.createdAt >= sevenDaysAgo).length,
-      notesThisMonth: allNotes.filter((note) => note.createdAt >= thisMonthStart.getTime()).length,
+      myNotes: allNotes.filter((note) => note.createdBy === userProfile.userId)
+        .length,
+      recentNotes: allNotes.filter((note) => note.createdAt >= sevenDaysAgo)
+        .length,
+      notesThisMonth: allNotes.filter(
+        (note) => note.createdAt >= thisMonthStart.getTime(),
+      ).length,
     };
   }, [allNotes, userProfile]);
 
@@ -101,6 +128,11 @@ export function NotesClient() {
   const handleDialogClose = () => {
     setNoteDialogOpen(false);
     setSelectedNoteId(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("highlight")) {
+      url.searchParams.delete("highlight");
+      window.history.replaceState(window.history.state, "", url);
+    }
   };
 
   // Display notes based on active tab
@@ -127,9 +159,7 @@ export function NotesClient() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalNotes}</div>
-              <p className="text-xs text-muted-foreground">
-                {t("allNotes")}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("allNotes")}</p>
             </CardContent>
           </Card>
 
@@ -202,9 +232,7 @@ export function NotesClient() {
             <Card>
               <CardHeader>
                 <CardTitle>{t("allNotes")}</CardTitle>
-                <CardDescription>
-                  {t("description")}
-                </CardDescription>
+                <CardDescription>{t("description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <NotesTable
@@ -226,9 +254,7 @@ export function NotesClient() {
             <Card>
               <CardHeader>
                 <CardTitle>{t("myNotes")}</CardTitle>
-                <CardDescription>
-                  {t("description")}
-                </CardDescription>
+                <CardDescription>{t("description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <NotesTable

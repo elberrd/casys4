@@ -38,6 +38,7 @@ import {
   RotateCcw,
   Link2,
   AlertTriangle,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -215,6 +216,8 @@ export function StatusDocumentsDialog({
         return <Badge variant="info" className="gap-1"><Clock className="h-3 w-3" />{tDoc("status.uploaded")}</Badge>;
       case "under_review":
         return <Badge variant="warning" className="gap-1"><Clock className="h-3 w-3" />{tDoc("status.underReview")}</Badge>;
+      case "awaiting_signature":
+        return <Badge variant="signature" className="gap-1"><FileSignature className="h-3 w-3" />{tDoc("status.awaitingSignature")}</Badge>;
       case "not_started":
         return <Badge variant="outline" className="gap-1"><FileText className="h-3 w-3" />{tDoc("status.notStarted")}</Badge>;
       default:
@@ -231,6 +234,8 @@ export function StatusDocumentsDialog({
       case "uploaded":
       case "under_review":
         return <Clock className="h-5 w-5 text-yellow-500" />;
+      case "awaiting_signature":
+        return <FileSignature className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />;
       case "not_started":
         return <FileText className="h-5 w-5 text-muted-foreground" />;
       default:

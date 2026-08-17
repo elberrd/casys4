@@ -655,17 +655,17 @@ export function IndividualProcessFormPage({
       };
 
       if (individualProcessId) {
-        // Remove personId, collectiveProcessId, userApplicantId, userApplicantCompanyId from submit data when updating (immutable after creation)
-        const {
-          personId,
-          collectiveProcessId,
-          userApplicantId,
-          userApplicantCompanyId,
-          ...updateData
-        } = submitData;
+        // Process identity and current/previous classification have dedicated
+        // flows. This form can update the requester without promoting an old
+        // process back to current.
+        const { personId, collectiveProcessId, processStatus, ...updateData } =
+          submitData;
+        void [personId, collectiveProcessId, processStatus];
         await updateIndividualProcess({
           id: individualProcessId,
           ...updateData,
+          userApplicantId: data.userApplicantId || null,
+          userApplicantCompanyId: data.userApplicantCompanyId || null,
         });
         toast({
           title: t("updatedSuccess"),
@@ -684,7 +684,9 @@ export function IndividualProcessFormPage({
         onSuccess();
       } else if (individualProcessId) {
         // When editing, redirect to the view page of that process
-        router.push(`/${locale}/individual-processes/${individualProcessId}`);
+        router.replace(
+          `/${locale}/individual-processes/${individualProcessId}`,
+        );
       } else {
         // When creating new, redirect to the list
         router.push(`/${locale}/individual-processes`);
@@ -874,12 +876,22 @@ export function IndividualProcessFormPage({
                         value={field.value || ""}
                         onChange={(value, companyId) => {
                           field.onChange(value);
+                          const requesterCompanyId = (companyId || "") as
+                            | Id<"companies">
+                            | "";
                           form.setValue(
                             "userApplicantCompanyId",
-                            (companyId || "") as any,
+                            requesterCompanyId,
+                            { shouldDirty: true, shouldValidate: true },
                           );
+                          if (requesterCompanyId) {
+                            form.setValue(
+                              "companyApplicantId",
+                              requesterCompanyId,
+                              { shouldDirty: true, shouldValidate: true },
+                            );
+                          }
                         }}
-                        disabled={!!individualProcessId}
                       />
                     </FormControl>
                     <FormMessage />

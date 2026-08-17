@@ -10,7 +10,7 @@ const crons = cronJobs();
 crons.daily(
   "send appointment reminders",
   { hourUTC: 9, minuteUTC: 0 },
-  internal.appointmentReminders.sendAppointmentReminders
+  internal.appointmentReminders.sendAppointmentReminders,
 );
 
 /**
@@ -22,6 +22,17 @@ crons.daily(
   "reconcile note alarms",
   { hourUTC: 9, minuteUTC: 5 },
   internal.noteReminders.reconcileDueNoteAlarms,
+);
+
+/**
+ * Reconcile due tasks every hour. The idempotency key keeps this inexpensive
+ * safety net from creating duplicates while still covering tasks created or
+ * reassigned after the start-of-day run.
+ */
+crons.hourly(
+  "reconcile due task reminders",
+  { minuteUTC: 10 },
+  internal.taskReminders.reconcileDueTaskReminders,
 );
 
 export default crons;

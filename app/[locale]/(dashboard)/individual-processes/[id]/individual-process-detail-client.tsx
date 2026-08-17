@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
@@ -108,6 +108,21 @@ export function IndividualProcessDetailClient({
     api.documentsDelivered.list,
     individualProcess ? { individualProcessId: processId } : "skip",
   );
+
+  useEffect(() => {
+    if (!individualProcess || window.location.hash !== "#documentation") {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      document
+        .getElementById("documentation")
+        ?.scrollIntoView({ block: "start" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [individualProcess]);
+
   const updateUrgentForCollectiveGroup = useMutation(
     api.individualProcesses.updateUrgentForCollectiveGroup,
   );
@@ -960,26 +975,28 @@ export function IndividualProcessDetailClient({
         </div>
 
         {/* Document Checklist Section — branch by role for cleaner client UX */}
-        {isAdmin ? (
-          <DocumentChecklistCard
-            individualProcessId={processId}
-            userRole={currentUser?.role}
-            processInfo={{
-              personFullName: individualProcess.person
-                ? getFullName(individualProcess.person)
-                : undefined,
-              legalFrameworkName: individualProcess.legalFramework?.name,
-              processTypeName: individualProcess.processType?.name,
-              companyApplicantName: individualProcess.companyApplicant?.name,
-              referenceNumber:
-                individualProcess.collectiveProcess?.referenceNumber,
-              protocolNumber: individualProcess.protocolNumber,
-              dateProcess: individualProcess.dateProcess,
-            }}
-          />
-        ) : (
-          <ClientDocumentChecklist individualProcessId={processId} />
-        )}
+        <section id="documentation" className="scroll-mt-6">
+          {isAdmin ? (
+            <DocumentChecklistCard
+              individualProcessId={processId}
+              userRole={currentUser?.role}
+              processInfo={{
+                personFullName: individualProcess.person
+                  ? getFullName(individualProcess.person)
+                  : undefined,
+                legalFrameworkName: individualProcess.legalFramework?.name,
+                processTypeName: individualProcess.processType?.name,
+                companyApplicantName: individualProcess.companyApplicant?.name,
+                referenceNumber:
+                  individualProcess.collectiveProcess?.referenceNumber,
+                protocolNumber: individualProcess.protocolNumber,
+                dateProcess: individualProcess.dateProcess,
+              }}
+            />
+          ) : (
+            <ClientDocumentChecklist individualProcessId={processId} />
+          )}
+        </section>
 
         {/* Notes Section (admin only) */}
         {isAdmin && (

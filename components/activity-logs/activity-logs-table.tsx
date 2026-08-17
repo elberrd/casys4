@@ -102,6 +102,7 @@ export function ActivityLogsTable({
         return <CheckCircle className="h-3 w-3" />;
       case "status_changed":
       case "status_added":
+      case "requester_changed":
         return <RefreshCw className="h-3 w-3" />;
       case "uploaded":
         return <Upload className="h-3 w-3" />;
@@ -162,6 +163,7 @@ export function ActivityLogsTable({
         };
       case "status_changed":
       case "status_added":
+      case "requester_changed":
         return {
           variant: "outline",
           className:

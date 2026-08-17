@@ -2,17 +2,10 @@ import { v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
-
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
-
-function getDateInSaoPaulo(timestamp = Date.now()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: SAO_PAULO_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(timestamp);
-}
+import {
+  getDateInSaoPaulo,
+  insertNotification,
+} from "./lib/notificationHelpers";
 
 async function deliverReminder(
   ctx: MutationCtx,
@@ -39,21 +32,17 @@ async function deliverReminder(
     : null;
   const subject = note.subject?.trim() || "Nota do processo";
 
-  await ctx.db.insert("notifications", {
+  await insertNotification(ctx, {
     userId: note.createdBy,
     type: "note_alarm",
-    title: `Lembrete: ${subject}`,
+    title: subject,
     message: requestedByName
       ? `A nota solicitada por ${requestedByName} está programada para hoje.`
       : "Esta nota está programada para hoje.",
-    entityType: note.individualProcessId
-      ? "individualProcess"
-      : note.collectiveProcessId
-        ? "collectiveProcess"
-        : undefined,
-    entityId: note.individualProcessId ?? note.collectiveProcessId,
-    isRead: false,
-    createdAt: Date.now(),
+    entityType: "note",
+    entityId: note._id,
+    scheduledDate: expectedAlarmDate,
+    dedupeKey: `note_alarm:${note._id}:${expectedAlarmDate}`,
   });
 
   await ctx.db.patch(noteId, { alarmNotifiedAt: Date.now() });

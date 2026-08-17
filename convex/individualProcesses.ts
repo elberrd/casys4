@@ -1,7 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin, getClientCurrentCompanyIds } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  requireAdmin,
+  getClientCurrentCompanyIds,
+} from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import {
   autoReuseCompanyDocuments,
@@ -14,13 +18,25 @@ import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { autoGenerateTasksOnStatusChange } from "./tasks";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
-import { ensureSingleActiveStatus, getEmPreparacaoStatus } from "./lib/statusManagement";
+import {
+  ensureSingleActiveStatus,
+  getEmPreparacaoStatus,
+} from "./lib/statusManagement";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { formatNowDateTime, normalizeStatusDateTime } from "./lib/statusDateTime";
+import {
+  formatNowDateTime,
+  normalizeStatusDateTime,
+} from "./lib/statusDateTime";
 import { hasDocumentContent } from "./lib/documentReceiptTiming";
 
-function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
-  return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+function getFullName(person: {
+  givenNames: string;
+  middleName?: string;
+  surname?: string;
+}): string {
+  return [person.givenNames, person.middleName, person.surname]
+    .filter(Boolean)
+    .join(" ");
 }
 
 type ProcessStatus = "Atual" | "Anterior";
@@ -44,8 +60,10 @@ const processStatusUpdateResultValidator = v.union(
 function getEffectiveProcessStatus(
   individualProcess: Doc<"individualProcesses">,
 ): ProcessStatus {
-  return individualProcess.processStatus ??
-    (individualProcess.isActive === false ? "Anterior" : "Atual");
+  return (
+    individualProcess.processStatus ??
+    (individualProcess.isActive === false ? "Anterior" : "Atual")
+  );
 }
 
 async function getOtherCurrentProcesses(
@@ -144,9 +162,7 @@ export const list = query({
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .first()
         .then((profile) =>
-          profile
-            ? { fullName: profile.fullName, email: profile.email }
-            : null,
+          profile ? { fullName: profile.fullName, email: profile.email } : null,
         );
       requesterProfilePromises.set(userId, pending);
       return pending;
@@ -198,7 +214,7 @@ export const list = query({
     // in the Solicitações screen. Once finalized ("solicitado") it is a live
     // process and appears here like any other.
     filteredResults = filteredResults.filter(
-      (r) => r.requestStatus !== "draft"
+      (r) => r.requestStatus !== "draft",
     );
 
     // Apply role-based access control: clients see processes only for the
@@ -206,7 +222,10 @@ export const list = query({
     // A person may have past affiliations — those must be excluded so they
     // cannot view processes belonging to former employers.
     if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
       if (currentCompanyIds.size === 0) {
         throw new Error("Client user must have a current company assignment");
       }
@@ -214,13 +233,17 @@ export const list = query({
       const filteredByCompany = await Promise.all(
         filteredResults.map(async (process) => {
           if (
-            (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
-            (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId))
+            (process.companyApplicantId &&
+              currentCompanyIds.has(process.companyApplicantId)) ||
+            (process.userApplicantCompanyId &&
+              currentCompanyIds.has(process.userApplicantCompanyId))
           ) {
             return process;
           }
           if (process.collectiveProcessId) {
-            const collectiveProcess = await cachedGet(process.collectiveProcessId);
+            const collectiveProcess = await cachedGet(
+              process.collectiveProcessId,
+            );
             if (
               collectiveProcess &&
               collectiveProcess.companyId &&
@@ -230,18 +253,36 @@ export const list = query({
             }
           }
           return null;
-        })
+        }),
       );
 
-      filteredResults = filteredByCompany.filter((p) => p !== null) as typeof filteredResults;
+      filteredResults = filteredByCompany.filter(
+        (p) => p !== null,
+      ) as typeof filteredResults;
     }
 
     // Enrich with related data including active status and case status
     const enrichedResults = await Promise.all(
       filteredResults.map(async (process) => {
-        const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatusRaw, passport, processType, companyApplicant, userApplicant, requesterProfile, consulate, notesCount, pendingDocsCount] = await Promise.all([
+        const [
+          rawPerson,
+          collectiveProcess,
+          legalFramework,
+          cbo,
+          activeStatusRaw,
+          passport,
+          processType,
+          companyApplicant,
+          userApplicant,
+          requesterProfile,
+          consulate,
+          notesCount,
+          pendingDocsCount,
+        ] = await Promise.all([
           cachedGet(process.personId),
-          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
+          process.collectiveProcessId
+            ? cachedGet(process.collectiveProcessId)
+            : null,
           process.legalFrameworkId ? cachedGet(process.legalFrameworkId) : null,
           process.cboId ? cachedGet(process.cboId) : null,
           // Get most recent status by date (regardless of isActive flag).
@@ -251,7 +292,7 @@ export const list = query({
           ctx.db
             .query("individualProcessStatuses")
             .withIndex("by_individualProcess_date", (q) =>
-              q.eq("individualProcessId", process._id)
+              q.eq("individualProcessId", process._id),
             )
             .order("desc")
             .first(),
@@ -260,7 +301,9 @@ export const list = query({
           // Get process type details if processTypeId exists
           process.processTypeId ? cachedGet(process.processTypeId) : null,
           // Get company applicant details if companyApplicantId exists
-          process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
+          process.companyApplicantId
+            ? cachedGet(process.companyApplicantId)
+            : null,
           // Get user applicant details if userApplicantId exists
           process.userApplicantId ? cachedGet(process.userApplicantId) : null,
           // For administrators, resolve the client user who submitted a
@@ -275,7 +318,7 @@ export const list = query({
           ctx.db
             .query("notes")
             .withIndex("by_individualProcess_active", (q) =>
-              q.eq("individualProcessId", process._id).eq("isActive", true)
+              q.eq("individualProcessId", process._id).eq("isActive", true),
             )
             .collect()
             .then((notes) => notes.length),
@@ -285,24 +328,28 @@ export const list = query({
           ctx.db
             .query("documentsDelivered")
             .withIndex("by_individualProcess_status", (q) =>
-              q.eq("individualProcessId", process._id).eq("status", "not_started")
+              q
+                .eq("individualProcessId", process._id)
+                .eq("status", "not_started"),
             )
             .collect()
-            .then((docs) =>
-              docs.filter((d) => d.isLatest !== false).length
-            ),
+            .then((docs) => docs.filter((d) => d.isLatest !== false).length),
         ]);
 
         // Get caseStatus from the most recent activeStatus (not from process.caseStatusId which may be stale)
         const caseStatus = activeStatusRaw?.caseStatusId
           ? await cachedGet(activeStatusRaw.caseStatusId)
-          : (process.caseStatusId ? await cachedGet(process.caseStatusId) : null);
+          : process.caseStatusId
+            ? await cachedGet(process.caseStatusId)
+            : null;
 
         // Create activeStatus with enriched caseStatus
-        const activeStatus = activeStatusRaw ? {
-          ...activeStatusRaw,
-          caseStatus,
-        } : null;
+        const activeStatus = activeStatusRaw
+          ? {
+              ...activeStatusRaw,
+              caseStatus,
+            }
+          : null;
 
         // Documents linked to the active "exigência" status entry
         // Used by the table to display a small indicator on the status badge
@@ -317,13 +364,15 @@ export const list = query({
           const docs = await ctx.db
             .query("documentsDelivered")
             .withIndex("by_individualProcessStatus", (q) =>
-              q.eq("individualProcessStatusId", activeStatusRaw._id)
+              q.eq("individualProcessStatusId", activeStatusRaw._id),
             )
             .collect();
           const latestDocs = docs.filter((d) => d.isLatest);
           exigenciaDocs = await Promise.all(
             latestDocs.map(async (d) => {
-              const docType = d.documentTypeId ? await cachedGet(d.documentTypeId) : null;
+              const docType = d.documentTypeId
+                ? await cachedGet(d.documentTypeId)
+                : null;
               return {
                 _id: d._id,
                 fileName: d.fileName,
@@ -331,12 +380,14 @@ export const list = query({
                 documentTypeName: docType?.name,
                 status: d.status,
               };
-            })
+            }),
           );
         }
 
         // Enrich person with nationality and computed fullName
-        let person: (typeof rawPerson & { fullName: string; nationality: any }) | null = null;
+        let person:
+          | (typeof rawPerson & { fullName: string; nationality: any })
+          | null = null;
         if (rawPerson) {
           const nationality = rawPerson.nationalityId
             ? await cachedGet(rawPerson.nationalityId)
@@ -363,7 +414,9 @@ export const list = query({
         // If consulate exists, enrich it with city, state, and country
         let enrichedConsulate = null;
         if (consulate) {
-          const city = consulate.cityId ? await cachedGet(consulate.cityId) : null;
+          const city = consulate.cityId
+            ? await cachedGet(consulate.cityId)
+            : null;
           let state = null;
           let country = null;
           if (city) {
@@ -393,23 +446,51 @@ export const list = query({
 
             // Handle reference fields
             if (fieldName === "passportId" && typeof fieldValue === "string") {
-              const passportDoc = await cachedGet(fieldValue as Id<"passports">);
-              enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
-            } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
+              const passportDoc = await cachedGet(
+                fieldValue as Id<"passports">,
+              );
+              enrichedData[fieldName] =
+                passportDoc?.passportNumber || fieldValue;
+            } else if (
+              fieldName === "applicantId" &&
+              typeof fieldValue === "string"
+            ) {
               const personDoc = await cachedGet(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
-            } else if (fieldName === "personId" && typeof fieldValue === "string") {
+              enrichedData[fieldName] = personDoc
+                ? getFullName(personDoc)
+                : fieldValue;
+            } else if (
+              fieldName === "personId" &&
+              typeof fieldValue === "string"
+            ) {
               const personDoc = await cachedGet(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
-            } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
-              const processTypeDoc = await cachedGet(fieldValue as Id<"processTypes">);
+              enrichedData[fieldName] = personDoc
+                ? getFullName(personDoc)
+                : fieldValue;
+            } else if (
+              fieldName === "processTypeId" &&
+              typeof fieldValue === "string"
+            ) {
+              const processTypeDoc = await cachedGet(
+                fieldValue as Id<"processTypes">,
+              );
               enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
-            } else if (fieldName === "legalFrameworkId" && typeof fieldValue === "string") {
-              const legalFrameworkDoc = await cachedGet(fieldValue as Id<"legalFrameworks">);
+            } else if (
+              fieldName === "legalFrameworkId" &&
+              typeof fieldValue === "string"
+            ) {
+              const legalFrameworkDoc = await cachedGet(
+                fieldValue as Id<"legalFrameworks">,
+              );
               enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
-            } else if (fieldName === "cboId" && typeof fieldValue === "string") {
+            } else if (
+              fieldName === "cboId" &&
+              typeof fieldValue === "string"
+            ) {
               const cboDoc = await cachedGet(fieldValue as Id<"cboCodes">);
-              enrichedData[fieldName] = cboDoc ? `${cboDoc.code} - ${cboDoc.title}` : fieldValue;
+              enrichedData[fieldName] = cboDoc
+                ? `${cboDoc.code} - ${cboDoc.title}`
+                : fieldValue;
             } else {
               // Keep non-reference fields as-is
               enrichedData[fieldName] = fieldValue;
@@ -433,11 +514,15 @@ export const list = query({
           passport: enrichedPassport,
           processType, // Include process type details
           companyApplicant, // Include company applicant details
-          userApplicant: userApplicant ? {
-            ...userApplicant,
-            fullName: getFullName(userApplicant),
-            company: process.userApplicantCompanyId ? await cachedGet(process.userApplicantCompanyId) : null,
-          } : null, // Include user applicant details with stored company
+          userApplicant: userApplicant
+            ? {
+                ...userApplicant,
+                fullName: getFullName(userApplicant),
+                company: process.userApplicantCompanyId
+                  ? await cachedGet(process.userApplicantCompanyId)
+                  : null,
+              }
+            : null, // Include user applicant details with stored company
           ...(userProfile.role === "admin" ? { requesterProfile } : {}),
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
@@ -452,9 +537,15 @@ export const list = query({
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
       searchFilteredResults = enrichedResults.filter((item) => {
-        const personName = item.person ? normalizeString(getFullName(item.person)) : "";
-        const protocolNumber = item.protocolNumber ? normalizeString(item.protocolNumber) : "";
-        const mreOfficeNumber = item.mreOfficeNumber ? normalizeString(item.mreOfficeNumber) : "";
+        const personName = item.person
+          ? normalizeString(getFullName(item.person))
+          : "";
+        const protocolNumber = item.protocolNumber
+          ? normalizeString(item.protocolNumber)
+          : "";
+        const mreOfficeNumber = item.mreOfficeNumber
+          ? normalizeString(item.mreOfficeNumber)
+          : "";
         const rnmNumber = item.rnmNumber ? normalizeString(item.rnmNumber) : "";
 
         return (
@@ -487,23 +578,40 @@ export const get = query({
     // the Solicitações flow (api.processRequests.get), never the process detail.
     if (process.requestStatus === "draft") return null;
 
-    const [rawPerson, collectiveProcess, legalFramework, cbo, activeStatus, caseStatus, passport, applicant, companyApplicant, userApplicant, consulate, processType] = await Promise.all([
+    const [
+      rawPerson,
+      collectiveProcess,
+      legalFramework,
+      cbo,
+      activeStatus,
+      caseStatus,
+      passport,
+      applicant,
+      companyApplicant,
+      userApplicant,
+      consulate,
+      processType,
+    ] = await Promise.all([
       ctx.db.get(process.personId),
-      process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : null,
+      process.collectiveProcessId
+        ? ctx.db.get(process.collectiveProcessId)
+        : null,
       process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
       process.cboId ? ctx.db.get(process.cboId) : null,
       // Get most recent status by date (regardless of isActive flag)
       ctx.db
         .query("individualProcessStatuses")
         .withIndex("by_individualProcess", (q) =>
-          q.eq("individualProcessId", id)
+          q.eq("individualProcessId", id),
         )
         .collect()
         .then((statuses) => {
           if (statuses.length === 0) return null;
           return statuses.sort((a, b) => {
-            const dateA = a.date || new Date(a.changedAt).toISOString().split('T')[0];
-            const dateB = b.date || new Date(b.changedAt).toISOString().split('T')[0];
+            const dateA =
+              a.date || new Date(a.changedAt).toISOString().split("T")[0];
+            const dateB =
+              b.date || new Date(b.changedAt).toISOString().split("T")[0];
             return dateB.localeCompare(dateA);
           })[0];
         }),
@@ -514,7 +622,9 @@ export const get = query({
       // Get applicant details if applicantId exists (DEPRECATED)
       process.applicantId ? ctx.db.get(process.applicantId) : null,
       // Get company applicant details if companyApplicantId exists
-      process.companyApplicantId ? ctx.db.get(process.companyApplicantId) : null,
+      process.companyApplicantId
+        ? ctx.db.get(process.companyApplicantId)
+        : null,
       // Get user applicant details if userApplicantId exists
       process.userApplicantId ? ctx.db.get(process.userApplicantId) : null,
       // Get consulate details if consulateId exists
@@ -525,7 +635,11 @@ export const get = query({
 
     // Enrich person with nationality, birth city and computed fullName
     let person:
-      | (typeof rawPerson & { fullName: string; nationality: any; birthCity: any })
+      | (typeof rawPerson & {
+          fullName: string;
+          nationality: any;
+          birthCity: any;
+        })
       | null = null;
     if (rawPerson) {
       const nationality = rawPerson.nationalityId
@@ -554,17 +668,22 @@ export const get = query({
     // company matches one of the user's CURRENT company assignments only
     // (past employers in peopleCompanies are excluded).
     if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
       const hasAccess =
         currentCompanyIds.size > 0 &&
-        ((process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
-          (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId)) ||
+        ((process.companyApplicantId &&
+          currentCompanyIds.has(process.companyApplicantId)) ||
+          (process.userApplicantCompanyId &&
+            currentCompanyIds.has(process.userApplicantCompanyId)) ||
           (collectiveProcess &&
             collectiveProcess.companyId &&
             currentCompanyIds.has(collectiveProcess.companyId)));
       if (!hasAccess) {
         throw new Error(
-          "Access denied: You do not have permission to view this individual process"
+          "Access denied: You do not have permission to view this individual process",
         );
       }
     }
@@ -602,7 +721,8 @@ export const get = query({
       };
     }
 
-    // If user applicant exists, enrich with stored company snapshot (from creation time)
+    // If the requester exists, enrich it with the company stored for the
+    // current selection on this process.
     let enrichedUserApplicant = null;
     if (userApplicant) {
       const company = process.userApplicantCompanyId
@@ -651,21 +771,40 @@ export const get = query({
         if (fieldName === "passportId" && typeof fieldValue === "string") {
           const passportDoc = await ctx.db.get(fieldValue as Id<"passports">);
           enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
-        } else if (fieldName === "applicantId" && typeof fieldValue === "string") {
+        } else if (
+          fieldName === "applicantId" &&
+          typeof fieldValue === "string"
+        ) {
           const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
+          enrichedData[fieldName] = personDoc
+            ? getFullName(personDoc)
+            : fieldValue;
         } else if (fieldName === "personId" && typeof fieldValue === "string") {
           const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc ? getFullName(personDoc) : fieldValue;
-        } else if (fieldName === "processTypeId" && typeof fieldValue === "string") {
-          const processTypeDoc = await ctx.db.get(fieldValue as Id<"processTypes">);
+          enrichedData[fieldName] = personDoc
+            ? getFullName(personDoc)
+            : fieldValue;
+        } else if (
+          fieldName === "processTypeId" &&
+          typeof fieldValue === "string"
+        ) {
+          const processTypeDoc = await ctx.db.get(
+            fieldValue as Id<"processTypes">,
+          );
           enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
-        } else if (fieldName === "legalFrameworkId" && typeof fieldValue === "string") {
-          const legalFrameworkDoc = await ctx.db.get(fieldValue as Id<"legalFrameworks">);
+        } else if (
+          fieldName === "legalFrameworkId" &&
+          typeof fieldValue === "string"
+        ) {
+          const legalFrameworkDoc = await ctx.db.get(
+            fieldValue as Id<"legalFrameworks">,
+          );
           enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
         } else if (fieldName === "cboId" && typeof fieldValue === "string") {
           const cboDoc = await ctx.db.get(fieldValue as Id<"cboCodes">);
-          enrichedData[fieldName] = cboDoc ? `${cboDoc.code} - ${cboDoc.title}` : fieldValue;
+          enrichedData[fieldName] = cboDoc
+            ? `${cboDoc.code} - ${cboDoc.title}`
+            : fieldValue;
         } else {
           // Keep non-reference fields as-is
           enrichedData[fieldName] = fieldValue;
@@ -739,7 +878,9 @@ export const create = mutation({
     salaryInBRL: v.optional(v.number()),
     monthlyAmountToReceive: v.optional(v.number()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
-    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
+    processStatus: v.optional(
+      v.union(v.literal("Atual"), v.literal("Anterior")),
+    ),
     replaceExistingCurrent: v.optional(v.boolean()),
     urgent: v.optional(v.boolean()),
   },
@@ -791,10 +932,7 @@ export const create = mutation({
         ? await getCurrentProcessesForPerson(ctx, args.personId)
         : [];
 
-    if (
-      currentProcessConflicts.length > 0 &&
-      !args.replaceExistingCurrent
-    ) {
+    if (currentProcessConflicts.length > 0 && !args.replaceExistingCurrent) {
       throw new ConvexError({
         code: "CURRENT_PROCESS_CONFLICT",
         conflictingProcessId: currentProcessConflicts[0]._id,
@@ -847,7 +985,8 @@ export const create = mutation({
       exchangeRateToBRL: args.exchangeRateToBRL,
       salaryInBRL: args.salaryInBRL,
       monthlyAmountToReceive: args.monthlyAmountToReceive,
-      isActive: args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
+      isActive:
+        args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
       processStatus: desiredProcessStatus, // Default to "Atual" for new processes
       urgent: args.urgent,
       createdAt: now,
@@ -882,7 +1021,7 @@ export const create = mutation({
         processId,
         undefined,
         caseStatus.name,
-        `Individual process created with status: ${caseStatus.name}`
+        `Individual process created with status: ${caseStatus.name}`,
       );
     } catch (error) {
       // Log error but don't fail process creation
@@ -902,7 +1041,10 @@ export const create = mutation({
       await generateDocumentChecklistByLegalFramework(ctx, processId);
     } catch (error) {
       // Log error but don't fail process creation
-      console.error("Failed to generate document checklist by legal framework:", error);
+      console.error(
+        "Failed to generate document checklist by legal framework:",
+        error,
+      );
     }
 
     // Auto-reuse company documents from other processes of the same company
@@ -918,7 +1060,9 @@ export const create = mutation({
     try {
       const [person, collectiveProcess] = await Promise.all([
         ctx.db.get(args.personId),
-        args.collectiveProcessId ? ctx.db.get(args.collectiveProcessId) : Promise.resolve(null),
+        args.collectiveProcessId
+          ? ctx.db.get(args.collectiveProcessId)
+          : Promise.resolve(null),
       ]);
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
@@ -1054,7 +1198,8 @@ export const createFromExisting = mutation({
       personId: sourceProcess.personId, // Candidato
       companyApplicantId: sourceProcess.companyApplicantId, // Empresa Requerente
       userApplicantId: args.userApplicantId ?? sourceProcess.userApplicantId, // Solicitante (override or copy)
-      userApplicantCompanyId: args.userApplicantCompanyId ?? sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
+      userApplicantCompanyId:
+        args.userApplicantCompanyId ?? sourceProcess.userApplicantCompanyId, // Empresa do Solicitante
       processTypeId: args.processTypeId, // Tipo de Autorização selecionado
       legalFrameworkId: args.legalFrameworkId, // Amparo Legal selecionado
       consulateId: sourceProcess.consulateId, // Consulado
@@ -1105,7 +1250,7 @@ export const createFromExisting = mutation({
         newProcessId,
         undefined,
         emPreparacaoStatus.name,
-        `Individual process created from existing process (source: ${args.sourceProcessId})`
+        `Individual process created from existing process (source: ${args.sourceProcessId})`,
       );
     } catch (error) {
       console.error("Failed to log initial status to history:", error);
@@ -1163,7 +1308,9 @@ export const createFromExisting = mutation({
         // Copy document conditions
         const conditions = await ctx.db
           .query("documentDeliveredConditions")
-          .withIndex("by_documentDelivered", (q) => q.eq("documentsDeliveredId", doc._id))
+          .withIndex("by_documentDelivered", (q) =>
+            q.eq("documentsDeliveredId", doc._id),
+          )
           .collect();
 
         for (const condition of conditions) {
@@ -1198,10 +1345,7 @@ export const createFromExisting = mutation({
           q.eq("individualProcessId", newProcessId),
         )
         .collect();
-      const targetDocumentByType = new Map<
-        string,
-        Doc<"documentsDelivered">
-      >();
+      const targetDocumentByType = new Map<string, Doc<"documentsDelivered">>();
 
       for (const targetDocument of targetDocuments) {
         if (
@@ -1243,8 +1387,10 @@ export const createFromExisting = mutation({
         }
       }
 
-      for (const [documentTypeId, sourceDocument] of
-        reusableSourceDocumentByType) {
+      for (const [
+        documentTypeId,
+        sourceDocument,
+      ] of reusableSourceDocumentByType) {
         const targetDocument = targetDocumentByType.get(documentTypeId);
         if (!targetDocument) continue;
 
@@ -1362,7 +1508,8 @@ export const update = mutation({
     passportId: v.optional(v.id("passports")), // Reference to the person's passport
     applicantId: v.optional(v.id("people")), // DEPRECATED: Reference to applicant (person with company)
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
-    userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
+    userApplicantId: v.optional(v.union(v.id("people"), v.null())), // Requester; null clears the selection
+    userApplicantCompanyId: v.optional(v.union(v.id("companies"), v.null())), // Company associated with the selected requester; null clears it
     consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     caseStatusId: v.optional(v.id("caseStatuses")), // NEW: Use case status ID
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility
@@ -1393,7 +1540,9 @@ export const update = mutation({
     monthlyAmountToReceive: v.optional(v.number()),
     // Visa receipt location & foreign residence details (copied from the
     // approved process request, also editable directly on the process)
-    visaReceiptLocation: v.optional(v.union(v.literal("brazil"), v.literal("abroad"))),
+    visaReceiptLocation: v.optional(
+      v.union(v.literal("brazil"), v.literal("abroad")),
+    ),
     residenceCountryCode: v.optional(v.string()),
     residenceCountryName: v.optional(v.string()),
     residenceStateCode: v.optional(v.string()),
@@ -1403,7 +1552,9 @@ export const update = mutation({
     consularPost: v.optional(v.string()),
     professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
-    processStatus: v.optional(v.union(v.literal("Atual"), v.literal("Anterior"))),
+    processStatus: v.optional(
+      v.union(v.literal("Atual"), v.literal("Anterior")),
+    ),
     urgent: v.optional(v.boolean()),
   },
   returns: v.id("individualProcesses"),
@@ -1416,11 +1567,20 @@ export const update = mutation({
       throw new Error("Individual process not found");
     }
 
+    // Previous processes remain fully editable for administrators. Their
+    // current/previous classification is independent from their progress
+    // history, so historical corrections must not be constrained by the
+    // transition rules used by an active workflow.
+    const isPreviousProcess = getEffectiveProcessStatus(process) === "Anterior";
+
     if (
       args.processStatus === "Atual" &&
       getEffectiveProcessStatus(process) !== "Atual"
     ) {
-      const currentProcessConflicts = await getOtherCurrentProcesses(ctx, process);
+      const currentProcessConflicts = await getOtherCurrentProcesses(
+        ctx,
+        process,
+      );
       if (currentProcessConflicts.length > 0) {
         throw new ConvexError({
           code: "CURRENT_PROCESS_CONFLICT",
@@ -1436,6 +1596,75 @@ export const update = mutation({
       }
     }
 
+    let nextUserApplicant: Doc<"people"> | null | undefined;
+    let nextUserApplicantCompany: Doc<"companies"> | null | undefined;
+    if (
+      args.userApplicantId !== undefined ||
+      args.userApplicantCompanyId !== undefined
+    ) {
+      const requestedUserApplicantId =
+        args.userApplicantId === undefined
+          ? (process.userApplicantId ?? null)
+          : args.userApplicantId;
+
+      if (requestedUserApplicantId === null) {
+        nextUserApplicant = null;
+        nextUserApplicantCompany = null;
+      } else {
+        const userApplicant = await ctx.db.get(requestedUserApplicantId);
+        if (!userApplicant) {
+          throw new ConvexError({ code: "USER_APPLICANT_NOT_FOUND" });
+        }
+
+        const currentCompanyRelationships = (
+          await ctx.db
+            .query("peopleCompanies")
+            .withIndex("by_person", (q) =>
+              q.eq("personId", requestedUserApplicantId),
+            )
+            .collect()
+        ).filter(
+          (
+            relationship,
+          ): relationship is typeof relationship & {
+            companyId: Id<"companies">;
+          } =>
+            relationship.isCurrent === true &&
+            relationship.companyId !== undefined,
+        );
+
+        const requestedCompanyId =
+          args.userApplicantCompanyId !== undefined
+            ? args.userApplicantCompanyId
+            : requestedUserApplicantId === process.userApplicantId
+              ? (process.userApplicantCompanyId ?? null)
+              : currentCompanyRelationships.length === 1
+                ? currentCompanyRelationships[0].companyId
+                : null;
+
+        if (requestedCompanyId === null) {
+          throw new ConvexError({ code: "USER_APPLICANT_COMPANY_REQUIRED" });
+        }
+
+        const hasCurrentCompanyRelationship = currentCompanyRelationships.some(
+          (relationship) => relationship.companyId === requestedCompanyId,
+        );
+        if (!hasCurrentCompanyRelationship) {
+          throw new ConvexError({
+            code: "INVALID_USER_APPLICANT_COMPANY",
+          });
+        }
+
+        const userApplicantCompany = await ctx.db.get(requestedCompanyId);
+        if (!userApplicantCompany) {
+          throw new ConvexError({ code: "USER_APPLICANT_COMPANY_NOT_FOUND" });
+        }
+
+        nextUserApplicant = userApplicant;
+        nextUserApplicantCompany = userApplicantCompany;
+      }
+    }
+
     // Validate that new case status exists if provided
     let newCaseStatus = null;
     if (args.caseStatusId !== undefined) {
@@ -1446,23 +1675,31 @@ export const update = mutation({
     }
 
     // Validate status transition if status is being updated
-    const isStatusChanging = args.caseStatusId !== undefined && args.caseStatusId !== process.caseStatusId;
+    const isStatusChanging =
+      args.caseStatusId !== undefined &&
+      args.caseStatusId !== process.caseStatusId;
 
-    if (isStatusChanging && process.status && newCaseStatus) {
+    if (
+      isStatusChanging &&
+      !isPreviousProcess &&
+      process.status &&
+      newCaseStatus
+    ) {
       const isValid = isValidIndividualStatusTransition(
         process.status,
-        newCaseStatus.code
+        newCaseStatus.code,
       );
 
       if (!isValid) {
         throw new Error(
-          `Invalid status transition from "${process.status}" to "${newCaseStatus.code}". This transition is not allowed.`
+          `Invalid status transition from "${process.status}" to "${newCaseStatus.code}". This transition is not allowed.`,
         );
       }
     }
 
+    const updateTimestamp = Date.now();
     const updates: any = {
-      updatedAt: Date.now(),
+      updatedAt: updateTimestamp,
     };
 
     // Only update provided fields
@@ -1479,15 +1716,27 @@ export const update = mutation({
     }
     if (args.passportId !== undefined) updates.passportId = args.passportId;
     if (args.applicantId !== undefined) updates.applicantId = args.applicantId; // DEPRECATED
-    if (args.companyApplicantId !== undefined) updates.companyApplicantId = args.companyApplicantId;
-    // userApplicantId and userApplicantCompanyId are immutable after creation — not updated here
+    if (args.companyApplicantId !== undefined)
+      updates.companyApplicantId = args.companyApplicantId;
+    if (nextUserApplicant !== undefined) {
+      updates.userApplicantId = nextUserApplicant?._id;
+      updates.userApplicantCompanyId = nextUserApplicantCompany?._id;
+      if (nextUserApplicantCompany) {
+        // The requesting company follows the selected requester. Keeping this
+        // invariant in the mutation prevents other clients from persisting an
+        // inconsistent requester/company pair.
+        updates.companyApplicantId = nextUserApplicantCompany._id;
+      }
+    }
     if (args.consulateId !== undefined) updates.consulateId = args.consulateId;
-    if (args.processTypeId !== undefined) updates.processTypeId = args.processTypeId;
+    if (args.processTypeId !== undefined)
+      updates.processTypeId = args.processTypeId;
     if (args.legalFrameworkId !== undefined)
       updates.legalFrameworkId = args.legalFrameworkId;
     if (args.funcao !== undefined) updates.funcao = args.funcao;
     if (args.cboId !== undefined) updates.cboId = args.cboId;
-    if (args.qualification !== undefined) updates.qualification = args.qualification;
+    if (args.qualification !== undefined)
+      updates.qualification = args.qualification;
     if (args.professionalExperienceSince !== undefined)
       updates.professionalExperienceSince = args.professionalExperienceSince;
     if (args.mreOfficeNumber !== undefined)
@@ -1511,21 +1760,34 @@ export const update = mutation({
       updates.deadlineQuantity = args.deadlineQuantity;
     if (args.deadlineSpecificDate !== undefined)
       updates.deadlineSpecificDate = args.deadlineSpecificDate;
-    if (args.lastSalaryCurrency !== undefined) updates.lastSalaryCurrency = args.lastSalaryCurrency;
-    if (args.lastSalaryAmount !== undefined) updates.lastSalaryAmount = args.lastSalaryAmount;
-    if (args.exchangeRateToBRL !== undefined) updates.exchangeRateToBRL = args.exchangeRateToBRL;
+    if (args.lastSalaryCurrency !== undefined)
+      updates.lastSalaryCurrency = args.lastSalaryCurrency;
+    if (args.lastSalaryAmount !== undefined)
+      updates.lastSalaryAmount = args.lastSalaryAmount;
+    if (args.exchangeRateToBRL !== undefined)
+      updates.exchangeRateToBRL = args.exchangeRateToBRL;
     if (args.salaryInBRL !== undefined) updates.salaryInBRL = args.salaryInBRL;
-    if (args.monthlyAmountToReceive !== undefined) updates.monthlyAmountToReceive = args.monthlyAmountToReceive;
+    if (args.monthlyAmountToReceive !== undefined)
+      updates.monthlyAmountToReceive = args.monthlyAmountToReceive;
     // Visa receipt location & foreign residence details
-    if (args.visaReceiptLocation !== undefined) updates.visaReceiptLocation = args.visaReceiptLocation;
-    if (args.residenceCountryCode !== undefined) updates.residenceCountryCode = args.residenceCountryCode;
-    if (args.residenceCountryName !== undefined) updates.residenceCountryName = args.residenceCountryName;
-    if (args.residenceStateCode !== undefined) updates.residenceStateCode = args.residenceStateCode;
-    if (args.residenceCity !== undefined) updates.residenceCity = args.residenceCity;
-    if (args.residenceSince !== undefined) updates.residenceSince = args.residenceSince;
-    if (args.residenceAddressAbroad !== undefined) updates.residenceAddressAbroad = args.residenceAddressAbroad;
-    if (args.consularPost !== undefined) updates.consularPost = args.consularPost;
-    if (args.professionalExperience !== undefined) updates.professionalExperience = args.professionalExperience;
+    if (args.visaReceiptLocation !== undefined)
+      updates.visaReceiptLocation = args.visaReceiptLocation;
+    if (args.residenceCountryCode !== undefined)
+      updates.residenceCountryCode = args.residenceCountryCode;
+    if (args.residenceCountryName !== undefined)
+      updates.residenceCountryName = args.residenceCountryName;
+    if (args.residenceStateCode !== undefined)
+      updates.residenceStateCode = args.residenceStateCode;
+    if (args.residenceCity !== undefined)
+      updates.residenceCity = args.residenceCity;
+    if (args.residenceSince !== undefined)
+      updates.residenceSince = args.residenceSince;
+    if (args.residenceAddressAbroad !== undefined)
+      updates.residenceAddressAbroad = args.residenceAddressAbroad;
+    if (args.consularPost !== undefined)
+      updates.consularPost = args.consularPost;
+    if (args.professionalExperience !== undefined)
+      updates.professionalExperience = args.professionalExperience;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.urgent !== undefined) updates.urgent = args.urgent;
 
@@ -1537,7 +1799,11 @@ export const update = mutation({
     }
 
     // Mark as completed if status is completed (backward compatibility)
-    if ((args.status === "completed" || (newCaseStatus && newCaseStatus.code === "deferido")) && !process.completedAt) {
+    if (
+      (args.status === "completed" ||
+        (newCaseStatus && newCaseStatus.code === "deferido")) &&
+      !process.completedAt
+    ) {
       updates.completedAt = Date.now();
     }
 
@@ -1553,17 +1819,19 @@ export const update = mutation({
       throw new ConvexError({ code: "USER_NOT_ACTIVATED" });
     }
     const checklistReconciliation = shouldReconcileChecklist
-      ? await reconcileDocumentChecklistForLegalFramework(
-          ctx,
-          id,
-          actingUserId,
-        )
+      ? await reconcileDocumentChecklistForLegalFramework(ctx, id, actingUserId)
       : undefined;
 
     // Sync dateProcess changes to "em preparação" status
     if (args.dateProcess !== undefined) {
       const emPreparacaoStatus = await getEmPreparacaoStatus(ctx, id);
-      if (emPreparacaoStatus && emPreparacaoStatus.date !== args.dateProcess) {
+      const processDate = args.dateProcess.slice(0, 10);
+      const preparationStatusDate = emPreparacaoStatus?.date?.slice(0, 10);
+
+      // The form sends dateProcess on every save. Compare only the calendar
+      // date so an unrelated edit (such as changing the requester) does not
+      // replace the original status time with the current time.
+      if (emPreparacaoStatus && preparationStatusDate !== processDate) {
         await ctx.db.patch(emPreparacaoStatus._id, {
           date: normalizeStatusDateTime(args.dateProcess, Date.now()),
         });
@@ -1613,12 +1881,17 @@ export const update = mutation({
         id,
         oldCaseStatusName,
         newCaseStatus.name,
-        `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`
+        `Status changed from ${oldCaseStatusName} to ${newCaseStatus.name}`,
       );
 
       // Auto-generate tasks for the new status
       try {
-        await autoGenerateTasksOnStatusChange(ctx, id, newCaseStatus.code, userId);
+        await autoGenerateTasksOnStatusChange(
+          ctx,
+          id,
+          newCaseStatus.code,
+          userId,
+        );
       } catch (error) {
         // Log error but don't fail status update
         console.error("Failed to auto-generate tasks:", error);
@@ -1636,7 +1909,9 @@ export const update = mutation({
           // Notify company contact person (client user)
           const companyUsers = await ctx.db
             .query("userProfiles")
-            .withIndex("by_company", (q) => q.eq("companyId", collectiveProcess.companyId))
+            .withIndex("by_company", (q) =>
+              q.eq("companyId", collectiveProcess.companyId),
+            )
             .collect();
 
           const personName = getFullName(person);
@@ -1644,14 +1919,18 @@ export const update = mutation({
           // Create notifications for all company users (only those with userId)
           for (const companyUser of companyUsers) {
             if (companyUser.userId) {
-              await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
-                userId: companyUser.userId,
-                type: "status_change",
-                title: "Individual Process Status Updated",
-                message: `Status changed for ${personName}: ${oldCaseStatusName} → ${newCaseStatus.name}`,
-                entityType: "individualProcess",
-                entityId: id,
-              });
+              await ctx.scheduler.runAfter(
+                0,
+                internal.notifications.createNotification,
+                {
+                  userId: companyUser.userId,
+                  type: "status_change",
+                  title: "Individual Process Status Updated",
+                  message: `Status changed for ${personName}: ${oldCaseStatusName} → ${newCaseStatus.name}`,
+                  entityType: "individualProcess",
+                  entityId: id,
+                },
+              );
             }
           }
         }
@@ -1661,40 +1940,120 @@ export const update = mutation({
       }
     }
 
-    // Log activity with before/after values (non-blocking)
-    try {
-      const changedFields: Record<string, { before: any; after: any }> = {};
-      Object.keys(updates).forEach((key) => {
-        if (key !== "updatedAt" && updates[key] !== process[key as keyof typeof process]) {
-          changedFields[key] = {
-            before: process[key as keyof typeof process],
-            after: updates[key],
-          };
-        }
-      });
-
-      if (Object.keys(changedFields).length > 0) {
-        const [person, collectiveProcess] = await Promise.all([
-          ctx.db.get(process.personId),
-          process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
-        ]);
-
-    if (!userProfile.userId) throw new Error("User must be activated");
-        await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-          userId: userProfile.userId,
-          action: args.status && args.status !== process.status ? "status_changed" : "updated",
-          entityType: "individualProcess",
-          entityId: id,
-          details: {
-            personName: person ? getFullName(person) : undefined,
-            collectiveProcessReference: collectiveProcess?.referenceNumber,
-            changes: changedFields,
-            checklistReconciliation,
-          },
-        });
+    // Log activity with before/after values in the same transaction as the
+    // process update. This guarantees that edits to previous processes cannot
+    // be committed without the corresponding audit record.
+    const changedFields: Record<string, { before: unknown; after: unknown }> =
+      {};
+    Object.keys(updates).forEach((key) => {
+      if (
+        key !== "updatedAt" &&
+        updates[key] !== process[key as keyof typeof process]
+      ) {
+        changedFields[key] = {
+          before: process[key as keyof typeof process],
+          after: updates[key],
+        };
       }
-    } catch (error) {
-      console.error("Failed to log activity:", error);
+    });
+
+    if (Object.keys(changedFields).length > 0) {
+      const requesterChanged =
+        changedFields.userApplicantId !== undefined ||
+        changedFields.userApplicantCompanyId !== undefined;
+      const companyApplicantChanged =
+        changedFields.companyApplicantId !== undefined;
+      const [
+        person,
+        collectiveProcess,
+        previousUserApplicant,
+        previousCompany,
+        previousCompanyApplicant,
+        nextCompanyApplicant,
+      ] = await Promise.all([
+        ctx.db.get(process.personId),
+        process.collectiveProcessId
+          ? ctx.db.get(process.collectiveProcessId)
+          : Promise.resolve(null),
+        requesterChanged && process.userApplicantId
+          ? ctx.db.get(process.userApplicantId)
+          : Promise.resolve(null),
+        requesterChanged && process.userApplicantCompanyId
+          ? ctx.db.get(process.userApplicantCompanyId)
+          : Promise.resolve(null),
+        companyApplicantChanged && process.companyApplicantId
+          ? ctx.db.get(process.companyApplicantId)
+          : Promise.resolve(null),
+        companyApplicantChanged && updates.companyApplicantId
+          ? ctx.db.get(updates.companyApplicantId as Id<"companies">)
+          : Promise.resolve(null),
+      ]);
+
+      if (requesterChanged) {
+        changedFields.userApplicantId = {
+          before: previousUserApplicant
+            ? getFullName(previousUserApplicant)
+            : null,
+          after: nextUserApplicant ? getFullName(nextUserApplicant) : null,
+        };
+        changedFields.userApplicantCompanyId = {
+          before: previousCompany?.name ?? null,
+          after: nextUserApplicantCompany?.name ?? null,
+        };
+      }
+      if (companyApplicantChanged) {
+        changedFields.companyApplicantId = {
+          before: previousCompanyApplicant?.name ?? null,
+          after: nextCompanyApplicant?.name ?? null,
+        };
+      }
+
+      if (!userProfile.userId) {
+        throw new Error("User must be activated");
+      }
+
+      const activityDetails = {
+        personName: person ? getFullName(person) : undefined,
+        collectiveProcessReference: collectiveProcess?.referenceNumber,
+        processStatusAtChange: getEffectiveProcessStatus(process),
+        changes: changedFields,
+        checklistReconciliation,
+        ...(requesterChanged
+          ? {
+              requesterChange: {
+                before: {
+                  personId: process.userApplicantId ?? null,
+                  personName: previousUserApplicant
+                    ? getFullName(previousUserApplicant)
+                    : null,
+                  companyId: process.userApplicantCompanyId ?? null,
+                  companyName: previousCompany?.name ?? null,
+                },
+                after: {
+                  personId: nextUserApplicant?._id ?? null,
+                  personName: nextUserApplicant
+                    ? getFullName(nextUserApplicant)
+                    : null,
+                  companyId: nextUserApplicantCompany?._id ?? null,
+                  companyName: nextUserApplicantCompany?.name ?? null,
+                },
+              },
+            }
+          : {}),
+      };
+
+      await ctx.db.insert("activityLogs", {
+        userId: userProfile.userId,
+        action: requesterChanged
+          ? "requester_changed"
+          : isStatusChanging
+            ? "status_changed"
+            : "updated",
+        entityType: "individualProcess",
+        entityId: id,
+        details: activityDetails,
+        createdAt: updateTimestamp,
+      });
     }
 
     return id;
@@ -1867,7 +2226,9 @@ export const remove = mutation({
     // Get person and main process data before deletion
     const [person, collectiveProcess] = await Promise.all([
       ctx.db.get(process.personId),
-      process.collectiveProcessId ? ctx.db.get(process.collectiveProcessId) : Promise.resolve(null),
+      process.collectiveProcessId
+        ? ctx.db.get(process.collectiveProcessId)
+        : Promise.resolve(null),
     ]);
 
     // CASCADE DELETE: Delete all related data
@@ -1972,9 +2333,7 @@ export const regenerateDocumentChecklist = mutation({
     // Get all existing documents for this process
     const existingDocuments = await ctx.db
       .query("documentsDelivered")
-      .withIndex("by_individualProcess", (q) =>
-        q.eq("individualProcessId", id),
-      )
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
       .collect();
 
     // Delete only not_started documents
@@ -1988,7 +2347,8 @@ export const regenerateDocumentChecklist = mutation({
     const templateCreatedIds = await generateDocumentChecklist(ctx, id);
 
     // Regenerate checklist from legal framework associations (new approach)
-    const legalFrameworkCreatedIds = await generateDocumentChecklistByLegalFramework(ctx, id);
+    const legalFrameworkCreatedIds =
+      await generateDocumentChecklistByLegalFramework(ctx, id);
 
     return {
       deletedCount: existingDocuments.filter((d) => d.status === "not_started")
@@ -2017,20 +2377,25 @@ export const listByCollectiveProcess = query({
     // Check access permissions for client users — only allow if the collective
     // process belongs to one of their CURRENT company assignments.
     if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
       if (
         !collectiveProcess.companyId ||
         !currentCompanyIds.has(collectiveProcess.companyId)
       ) {
         throw new Error(
-          "Access denied: You do not have permission to view individual processes for this main process"
+          "Access denied: You do not have permission to view individual processes for this main process",
         );
       }
     }
 
     const allResults = await ctx.db
       .query("individualProcesses")
-      .withIndex("by_collectiveProcess", (q) => q.eq("collectiveProcessId", collectiveProcessId))
+      .withIndex("by_collectiveProcess", (q) =>
+        q.eq("collectiveProcessId", collectiveProcessId),
+      )
       .collect();
 
     // Exclude any client-request drafts (defensive — drafts are never linked
@@ -2092,7 +2457,7 @@ export const updateUrgentForCollectiveGroup = mutation({
       const relatedProcesses = await ctx.db
         .query("individualProcesses")
         .withIndex("by_collectiveProcess", (q) =>
-          q.eq("collectiveProcessId", process.collectiveProcessId)
+          q.eq("collectiveProcessId", process.collectiveProcessId),
         )
         .collect();
 
@@ -2103,7 +2468,7 @@ export const updateUrgentForCollectiveGroup = mutation({
           ctx.db.patch(p._id, {
             urgent,
             updatedAt: now,
-          })
+          }),
         );
 
       await Promise.all(updatePromises);
@@ -2161,10 +2526,15 @@ export const updateAuthorizationForCollectiveGroup = mutation({
     id: v.id("individualProcesses"),
     processTypeId: v.optional(v.id("processTypes")),
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
-    deadlineUnit: v.optional(v.union(v.literal("years"), v.literal("months"), v.literal("days"))),
+    deadlineUnit: v.optional(
+      v.union(v.literal("years"), v.literal("months"), v.literal("days")),
+    ),
     deadlineQuantity: v.optional(v.number()),
   },
-  handler: async (ctx, { id, processTypeId, legalFrameworkId, deadlineUnit, deadlineQuantity }) => {
+  handler: async (
+    ctx,
+    { id, processTypeId, legalFrameworkId, deadlineUnit, deadlineQuantity },
+  ) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
 
@@ -2177,7 +2547,11 @@ export const updateAuthorizationForCollectiveGroup = mutation({
 
     // Calculate deadline specific date if unit and quantity are provided
     let deadlineSpecificDate: string | undefined = undefined;
-    if (deadlineUnit && deadlineQuantity !== undefined && deadlineQuantity > 0) {
+    if (
+      deadlineUnit &&
+      deadlineQuantity !== undefined &&
+      deadlineQuantity > 0
+    ) {
       const currentDate = new Date();
 
       switch (deadlineUnit) {
@@ -2193,7 +2567,7 @@ export const updateAuthorizationForCollectiveGroup = mutation({
       }
 
       // Format as ISO date (YYYY-MM-DD)
-      deadlineSpecificDate = currentDate.toISOString().split('T')[0];
+      deadlineSpecificDate = currentDate.toISOString().split("T")[0];
     }
 
     // Prepare update object
@@ -2209,10 +2583,13 @@ export const updateAuthorizationForCollectiveGroup = mutation({
     };
 
     if (processTypeId !== undefined) updateData.processTypeId = processTypeId;
-    if (legalFrameworkId !== undefined) updateData.legalFrameworkId = legalFrameworkId;
+    if (legalFrameworkId !== undefined)
+      updateData.legalFrameworkId = legalFrameworkId;
     if (deadlineUnit !== undefined) updateData.deadlineUnit = deadlineUnit;
-    if (deadlineQuantity !== undefined) updateData.deadlineQuantity = deadlineQuantity;
-    if (deadlineSpecificDate !== undefined) updateData.deadlineSpecificDate = deadlineSpecificDate;
+    if (deadlineQuantity !== undefined)
+      updateData.deadlineQuantity = deadlineQuantity;
+    if (deadlineSpecificDate !== undefined)
+      updateData.deadlineSpecificDate = deadlineSpecificDate;
 
     // Update the current process
     await ctx.db.patch(id, updateData);
@@ -2223,7 +2600,7 @@ export const updateAuthorizationForCollectiveGroup = mutation({
       const relatedProcesses = await ctx.db
         .query("individualProcesses")
         .withIndex("by_collectiveProcess", (q) =>
-          q.eq("collectiveProcessId", process.collectiveProcessId)
+          q.eq("collectiveProcessId", process.collectiveProcessId),
         )
         .collect();
 
@@ -2285,13 +2662,15 @@ export const updateAuthorizationForCollectiveGroup = mutation({
     return {
       id,
       affectedProcesses: process.collectiveProcessId
-        ? (await ctx.db
-            .query("individualProcesses")
-            .withIndex("by_collectiveProcess", (q) =>
-              q.eq("collectiveProcessId", process.collectiveProcessId!)
-            )
-            .collect()).length
-        : 1
+        ? (
+            await ctx.db
+              .query("individualProcesses")
+              .withIndex("by_collectiveProcess", (q) =>
+                q.eq("collectiveProcessId", process.collectiveProcessId!),
+              )
+              .collect()
+          ).length
+        : 1,
     };
   },
 });
@@ -2308,22 +2687,23 @@ export const listRNMAppointments = query({
     const userProfile = await getCurrentUserProfile(ctx);
 
     // Get all individual processes
-    const allProcesses = await ctx.db
-      .query("individualProcesses")
-      .collect();
+    const allProcesses = await ctx.db.query("individualProcesses").collect();
 
     // Filter processes with appointmentDateTime (excluding client-request drafts)
     const processesWithAppointments = allProcesses.filter(
       (process) =>
         process.requestStatus !== "draft" &&
         process.appointmentDateTime !== undefined &&
-        process.appointmentDateTime !== null
+        process.appointmentDateTime !== null,
     );
 
     // Apply access control for client users — filter by CURRENT company assignments
     let filteredProcesses = processesWithAppointments;
     if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
       if (currentCompanyIds.size === 0) {
         filteredProcesses = [];
       } else {
@@ -2337,10 +2717,14 @@ export const listRNMAppointments = query({
           for (const cp of collectives) clientCollectiveProcessIds.add(cp._id);
         }
 
-        filteredProcesses = processesWithAppointments.filter((process) =>
-          (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
-          (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId)) ||
-          (process.collectiveProcessId && clientCollectiveProcessIds.has(process.collectiveProcessId))
+        filteredProcesses = processesWithAppointments.filter(
+          (process) =>
+            (process.companyApplicantId &&
+              currentCompanyIds.has(process.companyApplicantId)) ||
+            (process.userApplicantCompanyId &&
+              currentCompanyIds.has(process.userApplicantCompanyId)) ||
+            (process.collectiveProcessId &&
+              clientCollectiveProcessIds.has(process.collectiveProcessId)),
         );
       }
     }
@@ -2351,7 +2735,9 @@ export const listRNMAppointments = query({
       filteredProcesses.map(async (process) => {
         const [person, companyApplicant] = await Promise.all([
           cachedGet(process.personId),
-          process.companyApplicantId ? cachedGet(process.companyApplicantId) : null,
+          process.companyApplicantId
+            ? cachedGet(process.companyApplicantId)
+            : null,
         ]);
 
         return {
@@ -2359,7 +2745,7 @@ export const listRNMAppointments = query({
           person,
           companyApplicant,
         };
-      })
+      }),
     );
 
     // Sort by appointment date (earliest first)
@@ -2390,7 +2776,10 @@ export const listForSelector = query({
 
     // Apply role-based access control: only the user's CURRENT companies
     if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
       if (currentCompanyIds.size === 0) {
         throw new Error("Client user must have a current company assignment");
       }
@@ -2398,13 +2787,17 @@ export const listForSelector = query({
       const filteredByCompany = await Promise.all(
         processes.map(async (process) => {
           if (
-            (process.companyApplicantId && currentCompanyIds.has(process.companyApplicantId)) ||
-            (process.userApplicantCompanyId && currentCompanyIds.has(process.userApplicantCompanyId))
+            (process.companyApplicantId &&
+              currentCompanyIds.has(process.companyApplicantId)) ||
+            (process.userApplicantCompanyId &&
+              currentCompanyIds.has(process.userApplicantCompanyId))
           ) {
             return process;
           }
           if (process.collectiveProcessId) {
-            const collectiveProcess = await cachedGet(process.collectiveProcessId);
+            const collectiveProcess = await cachedGet(
+              process.collectiveProcessId,
+            );
             if (
               collectiveProcess &&
               collectiveProcess.companyId &&
@@ -2414,10 +2807,12 @@ export const listForSelector = query({
             }
           }
           return null;
-        })
+        }),
       );
 
-      processes = filteredByCompany.filter((p) => p !== null) as typeof processes;
+      processes = filteredByCompany.filter(
+        (p) => p !== null,
+      ) as typeof processes;
     }
 
     // Enrich with person name and collective process reference
@@ -2425,7 +2820,9 @@ export const listForSelector = query({
       processes.map(async (process) => {
         const [person, collectiveProcess] = await Promise.all([
           cachedGet(process.personId),
-          process.collectiveProcessId ? cachedGet(process.collectiveProcessId) : null,
+          process.collectiveProcessId
+            ? cachedGet(process.collectiveProcessId)
+            : null,
         ]);
 
         const personDisplayName = person ? getFullName(person) : "Unknown";
@@ -2439,7 +2836,7 @@ export const listForSelector = query({
           personName: personDisplayName,
           referenceNumber: collectiveProcess?.referenceNumber || null,
         };
-      })
+      }),
     );
 
     // Sort by label (person name)

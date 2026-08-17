@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,8 +15,16 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { FileIcon, Download, Edit, Trash2, Eye, Upload, History } from "lucide-react";
-import { useRouter } from "next/navigation";
+import {
+  FileIcon,
+  Download,
+  Edit,
+  Trash2,
+  Eye,
+  Upload,
+  History,
+} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -32,9 +40,9 @@ import { DataGridBulkActions } from "@/components/ui/data-grid-bulk-actions";
 import { DataGridHighlightedCell } from "@/components/ui/data-grid-highlighted-cell";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { createSelectColumn } from "@/lib/data-grid-utils";
-import { globalFuzzyFilter } from "@/lib/fuzzy-search"
-import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
-import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation"
+import { globalFuzzyFilter } from "@/lib/fuzzy-search";
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation";
 import { formatBytes } from "@/hooks/use-file-upload";
 import { DocumentFormDialog } from "./document-form-dialog";
@@ -82,45 +90,89 @@ export function DocumentsTable() {
   const t = useTranslations("Documents");
   const tCommon = useTranslations("Common");
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const documentsQuery = useQuery(api.documents.list, {});
-  const documents = (documentsQuery ?? []) as Document[];
+  const documents = useMemo(
+    () => (documentsQuery ?? []) as Document[],
+    [documentsQuery],
+  );
   const removeDocument = useMutation(api.documents.remove);
 
-  const [viewingDocument, setViewingDocument] = useState<{ id: Id<"documents"> | Id<"documentsDelivered">; source: "documents" | "documentsDelivered" } | undefined>();
-  const [editingDocument, setEditingDocument] = useState<Id<"documents"> | undefined>();
+  const [viewingDocument, setViewingDocument] = useState<
+    | {
+        id: Id<"documents"> | Id<"documentsDelivered">;
+        source: "documents" | "documentsDelivered";
+      }
+    | undefined
+  >();
+  const handledHighlightRef = useRef<string | null>(null);
+  const [editingDocument, setEditingDocument] = useState<
+    Id<"documents"> | undefined
+  >();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [versionUploadDoc, setVersionUploadDoc] = useState<{
-    id: Id<"documents">
-    version: number
-    fileName: string
-    fileSize: number
-    name: string
-  } | null>(null)
+    id: Id<"documents">;
+    version: number;
+    fileName: string;
+    fileSize: number;
+    name: string;
+  } | null>(null);
   const [versionHistoryDoc, setVersionHistoryDoc] = useState<{
-    id: Id<"documents">
-    name: string
-  } | null>(null)
+    id: Id<"documents">;
+    name: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const highlightedId = searchParams.get("highlight");
+    if (
+      !highlightedId ||
+      documentsQuery === undefined ||
+      handledHighlightRef.current === highlightedId
+    ) {
+      return;
+    }
+
+    const highlightedDocument = documents.find(
+      (document) => document._id === highlightedId,
+    );
+    handledHighlightRef.current = highlightedId;
+    if (highlightedDocument) {
+      setViewingDocument({
+        id: highlightedDocument._id,
+        source: highlightedDocument.source ?? "documents",
+      });
+    }
+  }, [documents, documentsQuery, searchParams]);
+
+  const closeViewingDocument = () => {
+    setViewingDocument(undefined);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("highlight")) {
+      url.searchParams.delete("highlight");
+      window.history.replaceState(window.history.state, "", url);
+    }
+  };
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: Id<"documents">) => {
-      await removeDocument({ id })
+      await removeDocument({ id });
     },
     entityName: t("entityName"),
-  })
+  });
 
   // Bulk delete confirmation for multiple items (only standalone documents can be deleted)
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
     onDelete: async (item: Document) => {
       // Only delete standalone documents
       if (item.source !== "documentsDelivered") {
-        await removeDocument({ id: item._id as Id<"documents"> })
+        await removeDocument({ id: item._id as Id<"documents"> });
       }
     },
     onSuccess: () => {
-      setRowSelection({})
+      setRowSelection({});
     },
   });
 
@@ -163,7 +215,10 @@ export function DocumentsTable() {
         cell: ({ row }) => {
           const person = row.original.person;
           return person ? (
-            <DataGridHighlightedCell text={person.fullName} className="text-sm" />
+            <DataGridHighlightedCell
+              text={person.fullName}
+              className="text-sm"
+            />
           ) : (
             <span className="text-muted-foreground">-</span>
           );
@@ -216,7 +271,9 @@ export function DocumentsTable() {
           const date = row.original.issueDate;
           if (!date) return <span className="text-muted-foreground">-</span>;
           try {
-            return <span className="text-sm">{format(new Date(date), "PP")}</span>;
+            return (
+              <span className="text-sm">{format(new Date(date), "PP")}</span>
+            );
           } catch {
             return <span className="text-sm">{date}</span>;
           }
@@ -244,62 +301,91 @@ export function DocumentsTable() {
           const isStandaloneDocument = document.source !== "documentsDelivered";
           const actions = [
             {
-              label: tCommon('view'),
+              label: tCommon("view"),
               icon: <Eye className="h-4 w-4" />,
-              onClick: () => setViewingDocument({ id: document._id, source: document.source || "documents" }),
+              onClick: () =>
+                setViewingDocument({
+                  id: document._id,
+                  source: document.source || "documents",
+                }),
             },
-            ...(document.fileUrl ? [{
-              label: t("download") || "Download",
-              icon: <Download className="h-4 w-4" />,
-              onClick: () => {
-                if (document.fileUrl) {
-                  window.open(document.fileUrl, "_blank");
-                }
-              },
-              variant: "default" as const,
-              separator: true,
-            }] : []),
+            ...(document.fileUrl
+              ? [
+                  {
+                    label: t("download") || "Download",
+                    icon: <Download className="h-4 w-4" />,
+                    onClick: () => {
+                      if (document.fileUrl) {
+                        window.open(document.fileUrl, "_blank");
+                      }
+                    },
+                    variant: "default" as const,
+                    separator: true,
+                  },
+                ]
+              : []),
             // Version actions only for standalone documents with files
-            ...(isStandaloneDocument && document.storageId ? [{
-              label: t("uploadNewVersion"),
-              icon: <Upload className="h-4 w-4" />,
-              onClick: () => setVersionUploadDoc({
-                id: document._id as Id<"documents">,
-                version: (document as any).version || 1,
-                fileName: document.fileName || "",
-                fileSize: document.fileSize || 0,
-                name: document.name,
-              }),
-              variant: "default" as const,
-            }] : []),
-            ...(isStandaloneDocument && document.storageId ? [{
-              label: t("versionHistory"),
-              icon: <History className="h-4 w-4" />,
-              onClick: () => setVersionHistoryDoc({
-                id: document._id as Id<"documents">,
-                name: document.name,
-              }),
-              variant: "default" as const,
-              separator: true,
-            }] : []),
+            ...(isStandaloneDocument && document.storageId
+              ? [
+                  {
+                    label: t("uploadNewVersion"),
+                    icon: <Upload className="h-4 w-4" />,
+                    onClick: () =>
+                      setVersionUploadDoc({
+                        id: document._id as Id<"documents">,
+                        version: (document as any).version || 1,
+                        fileName: document.fileName || "",
+                        fileSize: document.fileSize || 0,
+                        name: document.name,
+                      }),
+                    variant: "default" as const,
+                  },
+                ]
+              : []),
+            ...(isStandaloneDocument && document.storageId
+              ? [
+                  {
+                    label: t("versionHistory"),
+                    icon: <History className="h-4 w-4" />,
+                    onClick: () =>
+                      setVersionHistoryDoc({
+                        id: document._id as Id<"documents">,
+                        name: document.name,
+                      }),
+                    variant: "default" as const,
+                    separator: true,
+                  },
+                ]
+              : []),
             // Edit only available for standalone documents
-            ...(isStandaloneDocument ? [{
-              label: tCommon("edit"),
-              icon: <Edit className="h-4 w-4" />,
-              onClick: () => {
-                setEditingDocument(document._id as Id<"documents">);
-                setIsFormOpen(true);
-              },
-              variant: "default" as const,
-            }] : []),
+            ...(isStandaloneDocument
+              ? [
+                  {
+                    label: tCommon("edit"),
+                    icon: <Edit className="h-4 w-4" />,
+                    onClick: () => {
+                      setEditingDocument(document._id as Id<"documents">);
+                      setIsFormOpen(true);
+                    },
+                    variant: "default" as const,
+                  },
+                ]
+              : []),
             // Delete only available for standalone documents
-            ...(isStandaloneDocument ? [{
-              label: tCommon("delete"),
-              icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => deleteConfirmation.confirmDelete(document._id as Id<"documents">),
-              variant: "destructive" as const,
-              separator: true,
-            }] : []),
+            ...(isStandaloneDocument
+              ? [
+                  {
+                    label: tCommon("delete"),
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () =>
+                      deleteConfirmation.confirmDelete(
+                        document._id as Id<"documents">,
+                      ),
+                    variant: "destructive" as const,
+                    separator: true,
+                  },
+                ]
+              : []),
           ];
 
           return <DataGridRowActions actions={actions} />;
@@ -309,7 +395,7 @@ export function DocumentsTable() {
         enableHiding: false,
       },
     ],
-    [t, tCommon]
+    [t, tCommon],
   );
 
   const table = useReactTable({
@@ -338,7 +424,9 @@ export function DocumentsTable() {
         table={table}
         recordCount={documents.length}
         emptyMessage={t("noResults")}
-        onRowClick={(row) => setViewingDocument({ id: row._id, source: row.source || "documents" })}
+        onRowClick={(row) =>
+          setViewingDocument({ id: row._id, source: row.source || "documents" })
+        }
         tableLayout={{
           columnsVisibility: true,
         }}
@@ -349,10 +437,18 @@ export function DocumentsTable() {
             <div className="flex gap-2">
               <DataGridColumnVisibility
                 table={table}
-                trigger={<Button variant="outline" size="sm" className="w-full sm:w-auto">Columns</Button>}
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                  >
+                    Columns
+                  </Button>
+                }
               />
               <Button
-                onClick={() => router.push('/documents/new')}
+                onClick={() => router.push("/documents/new")}
                 className="w-full sm:w-auto"
               >
                 {t("createTitle")}
@@ -366,7 +462,7 @@ export function DocumentsTable() {
                 label: tCommon("deleteSelected"),
                 icon: <Trash2 className="h-4 w-4" />,
                 onClick: (selectedRows) => {
-                  bulkDeleteConfirmation.confirmBulkDelete(selectedRows)
+                  bulkDeleteConfirmation.confirmBulkDelete(selectedRows);
                 },
                 variant: "destructive",
               },
@@ -386,11 +482,11 @@ export function DocumentsTable() {
         <DocumentViewModal
           documentId={viewingDocument.id as Id<"documents">}
           open={true}
-          onOpenChange={(open) => !open && setViewingDocument(undefined)}
+          onOpenChange={(open) => !open && closeViewingDocument()}
           onEdit={() => {
-            setEditingDocument(viewingDocument.id as Id<"documents">)
-            setViewingDocument(undefined)
-            setIsFormOpen(true)
+            setEditingDocument(viewingDocument.id as Id<"documents">);
+            setViewingDocument(undefined);
+            setIsFormOpen(true);
           }}
         />
       )}
@@ -398,7 +494,7 @@ export function DocumentsTable() {
         <DocumentViewModal
           documentId={viewingDocument.id as Id<"documentsDelivered">}
           open={true}
-          onOpenChange={(open) => !open && setViewingDocument(undefined)}
+          onOpenChange={(open) => !open && closeViewingDocument()}
           isDeliveredDocument
         />
       )}

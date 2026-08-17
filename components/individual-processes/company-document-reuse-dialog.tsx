@@ -28,6 +28,7 @@ import {
   Download,
   Calendar,
   Info,
+  FileSignature,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -125,6 +126,13 @@ export function CompanyDocumentReuseDialog({
           <Badge variant="warning" className="gap-1">
             <Clock className="h-3 w-3" />
             {t("status.underReview")}
+          </Badge>
+        )
+      case "awaiting_signature":
+        return (
+          <Badge variant="signature" className="gap-1">
+            <FileSignature className="h-3 w-3" />
+            {t("status.awaitingSignature")}
           </Badge>
         )
       default:

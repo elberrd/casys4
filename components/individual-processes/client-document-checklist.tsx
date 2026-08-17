@@ -25,6 +25,7 @@ import {
   FileText,
   AlertTriangle,
   ChevronRight,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -298,6 +299,17 @@ export function ClientDocumentChecklist({
           </Badge>
         );
         icon = <Clock className="h-5 w-5 text-blue-500" />;
+        break;
+      case "awaiting_signature":
+        statusBadge = (
+          <Badge variant="signature" className="gap-1">
+            <FileSignature className="h-3 w-3" />
+            {t("statusAwaitingSignature")}
+          </Badge>
+        );
+        icon = <FileSignature className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />;
+        containerClass =
+          "border-2 border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/30";
         break;
       default:
         statusBadge = <Badge variant="outline">{doc.status}</Badge>;

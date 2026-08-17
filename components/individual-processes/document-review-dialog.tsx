@@ -50,6 +50,7 @@ import {
   Trash2,
   ShieldOff,
   Lock,
+  FileSignature,
 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -468,7 +469,7 @@ export function DocumentReviewDialog({
     }
   }
 
-  const handleChangeStatus = async (newStatus: "uploaded" | "under_review" | "approved" | "rejected") => {
+  const handleChangeStatus = async (newStatus: "uploaded" | "under_review" | "awaiting_signature" | "approved" | "rejected") => {
     if (!documentId) return
 
     // For rejected status, need rejection reason
@@ -515,6 +516,8 @@ export function DocumentReviewDialog({
         return <Badge variant="info">{t("status.uploaded")}</Badge>
       case "under_review":
         return <Badge variant="warning">{t("status.underReview")}</Badge>
+      case "awaiting_signature":
+        return <Badge variant="signature">{t("status.awaitingSignature")}</Badge>
       case "not_started":
         return <Badge variant="outline">{t("status.notStarted")}</Badge>
       default:
@@ -532,6 +535,8 @@ export function DocumentReviewDialog({
         return <Upload className="h-4 w-4 text-blue-500" />
       case "under_review":
         return <Clock className="h-4 w-4 text-yellow-500" />
+      case "awaiting_signature":
+        return <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />
     }
@@ -542,7 +547,7 @@ export function DocumentReviewDialog({
   }
 
   const isReviewed = document.status === "approved" || document.status === "rejected"
-  const canChangeStatus = document.status !== "not_started"
+  const canChangeStatus = userRole === "admin" && document.status !== "not_started"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -590,15 +595,23 @@ export function DocumentReviewDialog({
                 </Badge>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => setShowUploadNewVersion(true)}
-            >
-              <Upload className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">{t("newVersion")}</span>
-            </Button>
+            {userRole === "admin" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setShowUploadNewVersion(true)}
+              >
+                {document.status === "awaiting_signature" ? (
+                  <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400 sm:mr-1" />
+                ) : (
+                  <Upload className="h-4 w-4 sm:mr-1" />
+                )}
+                <span className="hidden sm:inline">
+                  {document.status === "awaiting_signature" ? t("attachSignedVersion") : t("newVersion")}
+                </span>
+              </Button>
+            )}
           </div>
 
           {/* Warning banner when viewing old version */}
@@ -1471,8 +1484,14 @@ export function DocumentReviewDialog({
                   </div>
 
                   {/* Status change buttons */}
+                  {document.status === "awaiting_signature" && (
+                    <div className="flex items-start gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
+                      <FileSignature className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p>{t("awaitingSignatureApprovalHint")}</p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    {document.status !== "uploaded" && (
+                    {document.status !== "uploaded" && document.status !== "awaiting_signature" && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1483,7 +1502,7 @@ export function DocumentReviewDialog({
                         {t("status.uploaded")}
                       </Button>
                     )}
-                    {document.status !== "under_review" && (
+                    {document.status !== "under_review" && document.status !== "awaiting_signature" && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1494,7 +1513,19 @@ export function DocumentReviewDialog({
                         {t("status.underReview")}
                       </Button>
                     )}
-                    {document.status !== "approved" && (
+                    {document.status !== "awaiting_signature" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChangeStatus("awaiting_signature")}
+                        disabled={isApproving || isRejecting}
+                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                      >
+                        <FileSignature className="mr-1 h-4 w-4" />
+                        {t("status.awaitingSignature")}
+                      </Button>
+                    )}
+                    {document.status !== "approved" && document.status !== "awaiting_signature" && (
                       <Button
                         size="sm"
                         onClick={handleApprove}
@@ -1650,7 +1681,7 @@ export function DocumentReviewDialog({
               {t("deleteDocument")}
             </Button>
           )}
-          {!isViewingOldVersion && !isReviewed && !showStatusActions ? (
+          {!isViewingOldVersion && canChangeStatus && !isReviewed && !showStatusActions ? (
             <>
               <Button
                 type="button"
@@ -1660,25 +1691,38 @@ export function DocumentReviewDialog({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => setShowStatusActions(true)}
-                disabled={isApproving || isRejecting}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                {t("reject")}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleApprove}
-                disabled={isApproving || isRejecting}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isApproving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <CheckCircle className="mr-2 h-4 w-4" />
-                {t("approve")}
-              </Button>
+              {document.status === "awaiting_signature" ? (
+                <Button
+                  type="button"
+                  onClick={() => setShowUploadNewVersion(true)}
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  <FileSignature className="mr-2 h-4 w-4" />
+                  {t("attachSignedVersion")}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setShowStatusActions(true)}
+                    disabled={isApproving || isRejecting}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    {t("reject")}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={isApproving || isRejecting}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isApproving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    {t("approve")}
+                  </Button>
+                </>
+              )}
             </>
           ) : (
             <Button

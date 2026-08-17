@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +13,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+} from "@/components/ui/dialog";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import {
   Form,
   FormControl,
@@ -23,48 +23,48 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Combobox } from "@/components/ui/combobox"
-import { DatePicker } from "@/components/ui/date-picker"
-import { useTranslations, useLocale } from "next-intl"
+} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { useTranslations, useLocale } from "next-intl";
 import {
   individualProcessSchema,
   IndividualProcessFormData,
-} from "@/lib/validations/individualProcesses"
-import { Id } from "@/convex/_generated/dataModel"
-import { useToast } from "@/hooks/use-toast"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { IndividualProcessStatusesSubtable } from "./individual-process-statuses-subtable"
-import { InitialStatusForm } from "./initial-status-form"
-import { Separator } from "@/components/ui/separator"
-import { CompanyApplicantSelector } from "./company-applicant-selector"
-import { UserApplicantSelector } from "./user-applicant-selector"
-import { PassportSelector } from "./passport-selector"
+} from "@/lib/validations/individualProcesses";
+import { Id } from "@/convex/_generated/dataModel";
+import { useToast } from "@/hooks/use-toast";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { IndividualProcessStatusesSubtable } from "./individual-process-statuses-subtable";
+import { InitialStatusForm } from "./initial-status-form";
+import { Separator } from "@/components/ui/separator";
+import { CompanyApplicantSelector } from "./company-applicant-selector";
+import { UserApplicantSelector } from "./user-applicant-selector";
+import { PassportSelector } from "./passport-selector";
 import {
   getCountryCurrencyOptions,
   getCurrencySymbol,
-} from "@/lib/constants/currencies"
-import { FormDescription } from "@/components/ui/form"
-import { CurrencyInput } from "@/components/ui/currency-input"
-import { Calculator, Loader2, RefreshCw } from "lucide-react"
-import { fetchExchangeRate } from "@/lib/api/exchange-rate"
-import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator"
-import { TooltipProvider } from "@/components/ui/tooltip"
+} from "@/lib/constants/currencies";
+import { FormDescription } from "@/components/ui/form";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { Calculator, Loader2, RefreshCw } from "lucide-react";
+import { fetchExchangeRate } from "@/lib/api/exchange-rate";
+import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface IndividualProcessFormDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  individualProcessId?: Id<"individualProcesses">
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  individualProcessId?: Id<"individualProcesses">;
+  onSuccess?: () => void;
 }
 
 export function IndividualProcessFormDialog({
@@ -73,35 +73,35 @@ export function IndividualProcessFormDialog({
   individualProcessId,
   onSuccess,
 }: IndividualProcessFormDialogProps) {
-  const t = useTranslations("IndividualProcesses")
-  const tCommon = useTranslations("Common")
-  const locale = useLocale()
-  const { toast } = useToast()
-  const userProfile = useQuery(api.userProfiles.getCurrentUser)
+  const t = useTranslations("IndividualProcesses");
+  const tCommon = useTranslations("Common");
+  const locale = useLocale();
+  const { toast } = useToast();
+  const userProfile = useQuery(api.userProfiles.getCurrentUser);
 
   // State for initial status when creating new process
   const [initialStatus, setInitialStatus] = useState<{
-    caseStatusId: Id<"caseStatuses">
-    date: string
-  } | null>(null)
+    caseStatusId: Id<"caseStatuses">;
+    date: string;
+  } | null>(null);
 
   // State for exchange rate loading
-  const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false)
+  const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false);
 
   const individualProcess = useQuery(
     api.individualProcesses.get,
     individualProcessId ? { id: individualProcessId } : "skip",
-  )
+  );
 
-  const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? []
-  const people = useQuery(api.people.search, { query: "" }) ?? []
-  const processTypes = useQuery(api.processTypes.listActive, {}) ?? []
-  const cboCodes = useQuery(api.cboCodes.list, {}) ?? []
-  const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? []
-  const consulates = useQuery(api.consulates.list, {}) ?? []
+  const collectiveProcesses = useQuery(api.collectiveProcesses.list, {}) ?? [];
+  const people = useQuery(api.people.search, { query: "" }) ?? [];
+  const processTypes = useQuery(api.processTypes.listActive, {}) ?? [];
+  const cboCodes = useQuery(api.cboCodes.list, {}) ?? [];
+  const caseStatuses = useQuery(api.caseStatuses.listActive, {}) ?? [];
+  const consulates = useQuery(api.consulates.list, {}) ?? [];
 
-  const createIndividualProcess = useMutation(api.individualProcesses.create)
-  const updateIndividualProcess = useMutation(api.individualProcesses.update)
+  const createIndividualProcess = useMutation(api.individualProcesses.create);
+  const updateIndividualProcess = useMutation(api.individualProcesses.update);
 
   const form = useForm<IndividualProcessFormData>({
     resolver: zodResolver(individualProcessSchema) as any,
@@ -144,7 +144,7 @@ export function IndividualProcessFormDialog({
       isActive: true, // DEPRECATED: Use processStatus instead
       processStatus: "Atual" as const,
     },
-  })
+  });
 
   // Unsaved changes protection
   const {
@@ -156,22 +156,22 @@ export function IndividualProcessFormDialog({
   } = useUnsavedChanges({
     formState: form.formState,
     onConfirmedClose: () => {
-      form.reset()
-      onOpenChange(false)
+      form.reset();
+      onOpenChange(false);
     },
     isSubmitting: form.formState.isSubmitting,
-  })
+  });
 
   // Watch authorization type for cascading legal framework filtering
-  const selectedProcessTypeId = form.watch("processTypeId")
+  const selectedProcessTypeId = form.watch("processTypeId");
 
   // Watch deadline unit for conditional field display
-  const selectedDeadlineUnit = form.watch("deadlineUnit")
+  const selectedDeadlineUnit = form.watch("deadlineUnit");
 
   // Watch salary fields for currency conversion
-  const selectedCurrency = form.watch("lastSalaryCurrency")
-  const lastSalaryAmount = form.watch("lastSalaryAmount")
-  const exchangeRate = form.watch("exchangeRateToBRL")
+  const selectedCurrency = form.watch("lastSalaryCurrency");
+  const lastSalaryAmount = form.watch("lastSalaryAmount");
+  const exchangeRate = form.watch("exchangeRateToBRL");
 
   // Check if conversion can be calculated
   const canCalculateConversion = Boolean(
@@ -180,19 +180,19 @@ export function IndividualProcessFormDialog({
       lastSalaryAmount > 0 &&
       exchangeRate &&
       exchangeRate > 0,
-  )
+  );
 
   // Handle conversion calculation
   const handleCalculateConversion = () => {
     if (canCalculateConversion) {
-      const converted = lastSalaryAmount! * exchangeRate!
-      const convertedValue = Number(converted.toFixed(2))
-      form.setValue("salaryInBRL", convertedValue)
+      const converted = lastSalaryAmount! * exchangeRate!;
+      const convertedValue = Number(converted.toFixed(2));
+      form.setValue("salaryInBRL", convertedValue);
       toast({
         title: t("conversionCalculated"),
-      })
+      });
     }
-  }
+  };
 
   // Get filtered legal frameworks based on selected authorization type
   const filteredLegalFrameworks = useQuery(
@@ -200,16 +200,16 @@ export function IndividualProcessFormDialog({
     selectedProcessTypeId && selectedProcessTypeId !== ""
       ? { processTypeId: selectedProcessTypeId as Id<"processTypes"> }
       : "skip",
-  )
+  );
 
   // Fallback to all legal frameworks if no authorization type selected
-  const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {})
+  const allLegalFrameworks = useQuery(api.legalFrameworks.listActive, {});
 
   // Use filtered or all legal frameworks
   const legalFrameworks =
     selectedProcessTypeId && selectedProcessTypeId !== ""
       ? (filteredLegalFrameworks ?? [])
-      : (allLegalFrameworks ?? [])
+      : (allLegalFrameworks ?? []);
 
   // Reset form when individual process data loads
   useEffect(() => {
@@ -262,7 +262,7 @@ export function IndividualProcessFormDialog({
         processStatus:
           individualProcess.processStatus ??
           (individualProcess.isActive === false ? "Anterior" : "Atual"),
-      })
+      });
     } else if (!individualProcessId) {
       form.reset({
         collectiveProcessId: "" as Id<"collectiveProcesses">,
@@ -302,54 +302,54 @@ export function IndividualProcessFormDialog({
         monthlyAmountToReceive: undefined,
         isActive: true,
         processStatus: "Atual" as const,
-      })
+      });
     }
-  }, [individualProcess, individualProcessId, form])
+  }, [individualProcess, individualProcessId, form]);
 
   // Clear legal framework when authorization type changes
   useEffect(() => {
     // Clear legal framework when authorization type changes or is cleared
-    const currentLegalFrameworkId = form.getValues("legalFrameworkId")
+    const currentLegalFrameworkId = form.getValues("legalFrameworkId");
     if (currentLegalFrameworkId) {
       // Reset legal framework when authorization type changes
-      form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">)
+      form.setValue("legalFrameworkId", "" as Id<"legalFrameworks">);
     }
-  }, [selectedProcessTypeId])
+  }, [selectedProcessTypeId]);
 
   // Manual function to fetch exchange rate when user clicks the button
   const handleFetchExchangeRate = async () => {
     if (!selectedCurrency || selectedCurrency === "BRL") {
-      return
+      return;
     }
 
-    setIsLoadingExchangeRate(true)
+    setIsLoadingExchangeRate(true);
     try {
-      const rate = await fetchExchangeRate(selectedCurrency)
+      const rate = await fetchExchangeRate(selectedCurrency);
       if (rate !== null) {
-        form.setValue("exchangeRateToBRL", rate)
+        form.setValue("exchangeRateToBRL", rate);
         toast({
           title: t("exchangeRateUpdated") || "Taxa de câmbio atualizada",
           description: `1 ${selectedCurrency} = R$ ${rate.toFixed(4)}`,
-        })
+        });
       } else {
         // Não conseguiu buscar a taxa
         toast({
           title: "Não foi possível buscar a taxa de câmbio",
           description: `Por favor, insira a taxa manualmente para ${selectedCurrency}`,
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error fetching exchange rate:", error)
+      console.error("Error fetching exchange rate:", error);
       toast({
         title: "Erro ao buscar taxa de câmbio",
         description: "Por favor, insira a taxa manualmente",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoadingExchangeRate(false)
+      setIsLoadingExchangeRate(false);
     }
-  }
+  };
 
   const onSubmit = async (data: IndividualProcessFormData) => {
     try {
@@ -396,56 +396,53 @@ export function IndividualProcessFormDialog({
         residenceSince: data.residenceSince || undefined,
         residenceAddressAbroad: data.residenceAddressAbroad || undefined,
         professionalExperience: data.professionalExperience || undefined,
-      }
+      };
 
       if (individualProcessId) {
-        // Identidade e status do processo têm fluxos dedicados e não são editados por este formulário.
-        const {
-          personId,
-          userApplicantId,
-          userApplicantCompanyId,
-          processStatus,
-          ...updateData
-        } = submitData
-        void [personId, userApplicantId, userApplicantCompanyId, processStatus]
+        // A identidade e o status têm fluxos dedicados; o solicitante é editável.
+        const { personId, collectiveProcessId, processStatus, ...updateData } =
+          submitData;
+        void [personId, collectiveProcessId, processStatus];
         await updateIndividualProcess({
           id: individualProcessId,
           ...updateData,
-        })
+          userApplicantId: data.userApplicantId || null,
+          userApplicantCompanyId: data.userApplicantCompanyId || null,
+        });
         toast({
           title: t("updatedSuccess"),
-        })
+        });
       } else {
-        await createIndividualProcess(submitData)
+        await createIndividualProcess(submitData);
         toast({
           title: t("createdSuccess"),
-        })
+        });
       }
-      form.reset()
-      onSuccess?.()
+      form.reset();
+      onSuccess?.();
     } catch (error) {
       toast({
         title: individualProcessId ? t("errorUpdate") : t("errorCreate"),
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const collectiveProcessOptions = collectiveProcesses.map((process) => ({
     value: process._id,
     label: process.referenceNumber,
-  }))
+  }));
 
   const peopleOptions = people.map((person) => ({
     value: person._id,
     label: person.fullName || person.givenNames,
-  }))
+  }));
 
   const processTypeOptions = processTypes.map((processType) => ({
     value: processType._id,
     label: processType.name,
-  }))
+  }));
 
   const legalFrameworkOptions = legalFrameworks
     .filter(
@@ -455,12 +452,12 @@ export function IndividualProcessFormDialog({
     .map((framework) => ({
       value: framework._id,
       label: framework.name,
-    }))
+    }));
 
   const cboOptions = cboCodes.map((cbo) => ({
     value: cbo._id,
     label: `${cbo.code} - ${cbo.title}`,
-  }))
+  }));
 
   // Build case status options from active case statuses
   const caseStatusOptions = caseStatuses.map((status) => ({
@@ -468,21 +465,21 @@ export function IndividualProcessFormDialog({
     label: locale === "en" && status.nameEn ? status.nameEn : status.name,
     color: status.color,
     category: status.category,
-  }))
+  }));
 
   // Build consulate options with city and country info
   const consulateOptions = consulates.map((consulate) => {
-    const cityName = consulate.city?.name ?? ""
-    const stateName = consulate.state?.name ?? ""
-    const countryName = consulate.country?.name ?? ""
+    const cityName = consulate.city?.name ?? "";
+    const stateName = consulate.state?.name ?? "";
+    const countryName = consulate.country?.name ?? "";
     const label =
       [cityName, stateName, countryName].filter(Boolean).join(", ") ||
-      consulate._id
+      consulate._id;
     return {
       value: consulate._id,
       label,
-    }
-  })
+    };
+  });
 
   return (
     <>
@@ -557,13 +554,23 @@ export function IndividualProcessFormDialog({
                           <UserApplicantSelector
                             value={field.value || ""}
                             onChange={(value, companyId) => {
-                              field.onChange(value)
+                              field.onChange(value);
+                              const requesterCompanyId = (companyId || "") as
+                                | Id<"companies">
+                                | "";
                               form.setValue(
                                 "userApplicantCompanyId",
-                                (companyId || "") as any,
-                              )
+                                requesterCompanyId,
+                                { shouldDirty: true, shouldValidate: true },
+                              );
+                              if (requesterCompanyId) {
+                                form.setValue(
+                                  "companyApplicantId",
+                                  requesterCompanyId,
+                                  { shouldDirty: true, shouldValidate: true },
+                                );
+                              }
                             }}
-                            disabled={!!individualProcessId}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1094,9 +1101,9 @@ export function IndividualProcessFormDialog({
                   {!individualProcessId ? (
                     <InitialStatusForm
                       onStatusChange={(caseStatusId, date) => {
-                        setInitialStatus({ caseStatusId, date })
+                        setInitialStatus({ caseStatusId, date });
                         // Also update the form's caseStatusId for backend compatibility
-                        form.setValue("caseStatusId", caseStatusId)
+                        form.setValue("caseStatusId", caseStatusId);
                       }}
                       defaultDate={new Date().toISOString().split("T")[0]}
                     />
@@ -1392,5 +1399,5 @@ export function IndividualProcessFormDialog({
         onCancel={handleCancelClose}
       />
     </>
-  )
+  );
 }

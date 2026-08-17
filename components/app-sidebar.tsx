@@ -1,8 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   Briefcase,
+  Bell,
   Calendar,
   ClipboardList,
   FileText,
@@ -15,237 +16,250 @@ import {
   Settings2,
   StickyNote,
   Users,
-} from "lucide-react"
+} from "lucide-react";
 
-import { NavMain } from "@/components/nav-main"
-import { NavUser } from "@/components/nav-user"
-import { TeamSwitcher } from "@/components/team-switcher"
+import { NavMain } from "@/components/nav-main";
+import { NavUser } from "@/components/nav-user";
+import { TeamSwitcher } from "@/components/team-switcher";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/ui/sidebar"
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { useTranslations } from 'next-intl'
+} from "@/components/ui/sidebar";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useTranslations } from "next-intl";
 
 const brandingData = {
   name: "CASys",
   logo: GalleryVerticalEnd,
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const viewer = useQuery(api.myFunctions.viewer)
-  const userProfile = useQuery(api.userProfiles.getCurrentUser)
-  const t = useTranslations('Navigation')
+  const viewer = useQuery(api.myFunctions.viewer);
+  const userProfile = useQuery(api.userProfiles.getCurrentUser);
+  const t = useTranslations("Navigation");
 
-  const isClient = userProfile?.role === "client"
+  const isClient = userProfile?.role === "client";
 
   // Client-only navigation: process requests, individual processes, settings
   const clientNav = [
     {
-      title: t('processRequests'),
+      title: t("processRequests"),
       url: "/process-requests",
       icon: ClipboardList,
       isActive: false,
       items: [],
     },
     {
-      title: t('individualProcesses'),
+      title: t("individualProcesses"),
       url: "/individual-processes",
       icon: FolderKanban,
       isActive: false,
       items: [],
     },
     {
-      title: t('settings'),
+      title: t("notifications"),
+      url: "/notifications",
+      icon: Bell,
+      isActive: false,
+      items: [],
+    },
+    {
+      title: t("settings"),
       url: "/settings",
       icon: Settings2,
       isActive: false,
       items: [],
     },
-  ]
+  ];
 
   // Build navigation data with translations
   const navMain = [
     {
-      title: t('dashboard'),
+      title: t("dashboard"),
       url: "/dashboard",
       icon: LayoutDashboard,
       isActive: true,
       items: [
         {
-          title: t('rnmCalendar'),
+          title: t("rnmCalendar"),
           url: "/rnm-calendar",
           icon: Calendar,
         },
       ],
     },
     {
-      title: t('processManagement'),
+      title: t("processManagement"),
       url: "#",
       icon: FolderKanban,
       isActive: false,
       items: [
         {
-          title: t('individualProcesses'),
+          title: t("individualProcesses"),
           url: "/individual-processes",
         },
         {
-          title: t('collectiveProcesses'),
+          title: t("collectiveProcesses"),
           url: "/collective-processes",
         },
         {
-          title: t('processRequests'),
+          title: t("processRequests"),
           url: "/process-requests",
         },
       ],
     },
     {
-      title: t('peopleCompanies'),
+      title: t("peopleCompanies"),
       url: "#",
       icon: Users,
       items: [
         {
-          title: t('people'),
+          title: t("people"),
           url: "/people",
         },
         {
-          title: t('companies'),
+          title: t("companies"),
           url: "/companies",
         },
         {
-          title: t('passports'),
+          title: t("passports"),
           url: "/passports",
         },
         {
-          title: t('peopleCompanies'),
+          title: t("peopleCompanies"),
           url: "/people-companies",
         },
       ],
     },
     {
-      title: t('documentsManagement'),
+      title: t("documentsManagement"),
       url: "#",
       icon: FileText,
       items: [
         {
-          title: t('documents'),
+          title: t("documents"),
           url: "/documents",
         },
         {
-          title: t('documentTypes'),
+          title: t("documentTypes"),
           url: "/document-types",
         },
         {
-          title: t('documentCategories'),
+          title: t("documentCategories"),
           url: "/document-categories",
           icon: FolderTree,
         },
         {
-          title: t('documentTemplates'),
+          title: t("documentTemplates"),
           url: "/document-templates",
         },
       ],
     },
     {
-      title: t('tasks'),
+      title: t("tasks"),
       url: "/tasks",
       icon: ListTodo,
       items: [],
     },
     {
-      title: t('notes'),
+      title: t("notes"),
       url: "/notes",
       icon: StickyNote,
       items: [],
     },
     {
-      title: t('supportData'),
+      title: t("notifications"),
+      url: "/notifications",
+      icon: Bell,
+      items: [],
+    },
+    {
+      title: t("supportData"),
       url: "#",
       icon: Globe,
       items: [
         {
-          title: t('caseStatuses'),
+          title: t("caseStatuses"),
           url: "/case-statuses",
         },
         {
-          title: t('countries'),
+          title: t("countries"),
           url: "/countries",
         },
         {
-          title: t('states'),
+          title: t("states"),
           url: "/states",
         },
         {
-          title: t('cities'),
+          title: t("cities"),
           url: "/cities",
         },
         {
-          title: t('processTypes'),
+          title: t("processTypes"),
           url: "/process-types",
         },
         {
-          title: t('legalFrameworks'),
+          title: t("legalFrameworks"),
           url: "/legal-frameworks",
         },
         {
-          title: t('cboCodes'),
+          title: t("cboCodes"),
           url: "/cbo-codes",
         },
         {
-          title: t('economicActivities'),
+          title: t("economicActivities"),
           url: "/economic-activities",
           icon: Briefcase,
         },
         {
-          title: t('consulates'),
+          title: t("consulates"),
           url: "/consulates",
         },
         {
-          title: t('documentTypeConditions'),
+          title: t("documentTypeConditions"),
           url: "/document-type-conditions",
         },
       ],
     },
     {
-      title: t('settings'),
+      title: t("settings"),
       url: "#",
       icon: Settings2,
       items: [
         ...(userProfile?.role === "admin"
           ? [
               {
-                title: t('users'),
+                title: t("users"),
                 url: "/users",
               },
             ]
           : []),
         {
-          title: t('settings'),
+          title: t("settings"),
           url: "/settings",
         },
         {
-          title: t('activityLogs'),
+          title: t("activityLogs"),
           url: "/activity-logs",
         },
       ],
     },
-  ]
+  ];
 
   const user = {
     name: userProfile?.fullName ?? "User",
     email: userProfile?.email ?? viewer ?? "user@example.com",
     avatar: userProfile?.photoUrl ?? "/avatars/default.svg",
-  }
+  };
 
   const navigationItems = isClient
     ? clientNav
     : userProfile?.role === "admin"
       ? navMain
-      : []
+      : [];
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -260,5 +274,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

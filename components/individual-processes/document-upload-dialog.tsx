@@ -39,6 +39,7 @@ import {
   useDocumentWaitingStartDate,
 } from "./document-waiting-start-date-field"
 import { orderDocumentUploadConditions } from "@/lib/document-upload-conditions"
+import { AwaitingSignatureField } from "./document-signature-options"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -98,6 +99,7 @@ export function DocumentUploadDialog({
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
   const [autoApprove, setAutoApprove] = useState(false)
+  const [awaitingSignature, setAwaitingSignature] = useState(false)
   const [bypassConditions, setBypassConditions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const {
@@ -177,7 +179,8 @@ export function DocumentUploadDialog({
     return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id))
   }, [conditions, fulfilledConditionIds])
 
-  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions && !bypassConditions
+  const isAutoApproveBlocked =
+    autoApprove && hasUnfulfilledRequiredConditions && !bypassConditions
 
   const maxSizeMB = documentInfo?.maxSizeMB || 10
   const maxSizeBytes = maxSizeMB * 1024 * 1024
@@ -209,6 +212,7 @@ export function DocumentUploadDialog({
   const handleRemoveFile = () => {
     setSelectedFile(null)
     setAutoApprove(false)
+    setAwaitingSignature(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -236,6 +240,7 @@ export function DocumentUploadDialog({
       setIsIllegible(false)
       setIllegibleNotes("")
       setAutoApprove(false)
+      setAwaitingSignature(false)
       setBypassConditions(false)
     } catch (error) {
       console.error("Error saving notes:", error)
@@ -292,6 +297,7 @@ export function DocumentUploadDialog({
         isIllegible: isIllegible || undefined,
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
         autoApprove: autoApprove || undefined,
+        awaitingSignature: awaitingSignature || undefined,
         bypassConditions: bypassConditions || undefined,
         waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
@@ -318,6 +324,7 @@ export function DocumentUploadDialog({
       setIsIllegible(false)
       setIllegibleNotes("")
       setAutoApprove(false)
+      setAwaitingSignature(false)
       setBypassConditions(false)
       setUploadProgress(0)
     } catch (error) {
@@ -424,13 +431,29 @@ export function DocumentUploadDialog({
             </div>
           )}
 
+          {selectedFile && canEditReceivedDate && !isIllegible && (
+            <AwaitingSignatureField
+              id="document-upload-awaiting-signature"
+              checked={awaitingSignature}
+              onCheckedChange={(checked) => {
+                setAwaitingSignature(checked)
+                if (checked) setAutoApprove(false)
+              }}
+              disabled={isUploading}
+            />
+          )}
+
           {/* Auto-approve checkbox */}
-          {selectedFile && !isIllegible && (
+          {selectedFile && !isIllegible && !awaitingSignature && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="autoApprove"
                 checked={autoApprove}
-                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                onCheckedChange={(checked) => {
+                  const nextChecked = checked === true
+                  setAutoApprove(nextChecked)
+                  if (nextChecked) setAwaitingSignature(false)
+                }}
                 disabled={isUploading}
               />
               <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
@@ -479,7 +502,10 @@ export function DocumentUploadDialog({
                 checked={isIllegible}
                 onCheckedChange={(checked) => {
                   setIsIllegible(checked === true)
-                  if (checked) setAutoApprove(false)
+                  if (checked) {
+                    setAutoApprove(false)
+                    setAwaitingSignature(false)
+                  }
                 }}
                 disabled={isUploading}
               />

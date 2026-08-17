@@ -77,7 +77,9 @@
 
 .rbc-month-row {
   border-top: 1px solid hsl(var(--border));
-  min-height: 100px;
+  /* Let all calendar weeks share the available height. A fixed minimum clips
+     the sixth week in months that span six rows. */
+  min-height: 0;
 }
 
 .rbc-month-row:first-child {
@@ -310,10 +312,6 @@
   .rbc-header {
     font-size: 0.6875rem;
     padding: 0.5rem 0.25rem;
-  }
-
-  .rbc-month-row {
-    min-height: 80px;
   }
 
   .rbc-event {

@@ -39,6 +39,7 @@ import {
   Loader2,
   Pencil,
   Save,
+  FileSignature,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -126,6 +127,10 @@ export function DocumentHistoryDialog({
         return <XCircle className="h-4 w-4 text-destructive" />
       case "uploaded":
         return <Clock className="h-4 w-4 text-yellow-500" />
+      case "under_review":
+        return <Clock className="h-4 w-4 text-amber-500" />
+      case "awaiting_signature":
+        return <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />
     }
@@ -141,6 +146,8 @@ export function DocumentHistoryDialog({
         return <Badge variant="info">{t("status.uploaded")}</Badge>
       case "under_review":
         return <Badge variant="warning">{t("status.underReview")}</Badge>
+      case "awaiting_signature":
+        return <Badge variant="signature">{t("status.awaitingSignature")}</Badge>
       case "not_started":
         return <Badge variant="outline">{t("status.notStarted")}</Badge>
       default:

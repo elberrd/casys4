@@ -53,7 +53,7 @@ Os 3 widgets `client-*-widget.tsx` existem em `components/dashboard/`.
 
 ### 1.7. Documentos Entregues
 `convex/documentsDelivered.ts` (≈4.000 linhas) — fluxo completo:
-- Status: `not_started`, `pending_upload`, `uploaded`, `under_review`, `approved`, `rejected`, `expired`
+- Status: `not_started`, `pending_upload`, `uploaded`, `under_review`, `awaiting_signature`, `approved`, `rejected`, `expired`
 - `uploadedBy: v.id("users")` — cliente pode fazer upload
 - Condições por documento (legalizado, apostilado, etc.)
 - Versionamento (`upload-new-version-dialog`, `document-version-history-dialog`)

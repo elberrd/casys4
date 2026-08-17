@@ -92,6 +92,7 @@ export const documentStatusOptions = [
   "not_started",
   "uploaded",
   "under_review",
+  "awaiting_signature",
   "approved",
   "rejected",
 ] as const;

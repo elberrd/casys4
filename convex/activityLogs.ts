@@ -640,7 +640,9 @@ export const getAuditSummary = query({
     const actionCounts = logs.reduce(
       (acc, log) => {
         if (log.action === "created") acc.created += 1;
-        if (log.action === "updated") acc.updated += 1;
+        if (log.action === "updated" || log.action === "requester_changed") {
+          acc.updated += 1;
+        }
         if (log.action === "deleted") acc.deleted += 1;
         return acc;
       },

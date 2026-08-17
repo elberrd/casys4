@@ -24,10 +24,14 @@ export interface FieldMetadata {
   referenceQuery?: string;
 }
 
-const DOU_FIELD_DISPLAY_ORDER = new Map<string, number>([
+const FILLED_FIELD_DISPLAY_ORDER = new Map<string, number>([
   ["douNumber", 0],
   ["douSection", 1],
   ["douPage", 2],
+  ["appointmentDateTime", 3],
+  ["rnmProtocol", 4],
+  ["rnmNumber", 5],
+  ["rnmDeadline", 6],
 ]);
 
 /**
@@ -166,7 +170,8 @@ export function getFieldsMetadata(fieldNames: string[]): FieldMetadata[] {
 
 /**
  * Returns filled fields in their display order without changing persisted data.
- * DOU publication fields are kept together in the business-defined order.
+ * Related DOU publication and RNM fields are kept together in their
+ * business-defined display order.
  */
 export function getOrderedFilledFieldEntries<T>(
   filledFieldsData: Record<string, T>,
@@ -175,8 +180,8 @@ export function getOrderedFilledFieldEntries<T>(
   return Object.entries(filledFieldsData)
     .filter(([fieldName]) => fillableFields.includes(fieldName))
     .sort(([firstFieldName], [secondFieldName]) => {
-      const firstOrder = DOU_FIELD_DISPLAY_ORDER.get(firstFieldName);
-      const secondOrder = DOU_FIELD_DISPLAY_ORDER.get(secondFieldName);
+      const firstOrder = FILLED_FIELD_DISPLAY_ORDER.get(firstFieldName);
+      const secondOrder = FILLED_FIELD_DISPLAY_ORDER.get(secondFieldName);
 
       if (firstOrder !== undefined && secondOrder !== undefined) {
         return firstOrder - secondOrder;

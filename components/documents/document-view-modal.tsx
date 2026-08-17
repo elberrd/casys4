@@ -81,6 +81,7 @@ export function DocumentViewModal({
       approved: t("statusValues.approved") || "Aprovado",
       rejected: t("statusValues.rejected") || "Rejeitado",
       under_review: t("statusValues.underReview") || "Em Análise",
+      awaiting_signature: t("statusValues.awaitingSignature") || "Aguardando assinatura",
     }
 
     sections.push({

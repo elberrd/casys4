@@ -459,7 +459,7 @@ export default defineSchema({
     applicantId: v.optional(v.id("people")), // DEPRECATED: Split into companyApplicantId and userApplicantId
     companyApplicantId: v.optional(v.id("companies")), // Company applicant (optional)
     userApplicantId: v.optional(v.id("people")), // User applicant (optional, filtered by company)
-    userApplicantCompanyId: v.optional(v.id("companies")), // Company the user applicant was associated with at process creation time
+    userApplicantCompanyId: v.optional(v.id("companies")), // Company associated with the requester when selected for this process
     consulateId: v.optional(v.id("consulates")), // Consulate for this individual process (optional)
     status: v.optional(v.string()), // DEPRECATED: Kept for backward compatibility during migration
     caseStatusId: v.optional(v.id("caseStatuses")), // New: Reference to case status
@@ -775,7 +775,7 @@ export default defineSchema({
     fileUrl: v.string(),
     fileSize: v.number(),
     mimeType: v.string(),
-    status: v.string(), // "not_started", "pending_upload", "uploaded", "under_review", "approved", "rejected", "expired"
+    status: v.string(), // "not_started", "pending_upload", "uploaded", "under_review", "awaiting_signature", "approved", "rejected", "expired"
     uploadedBy: v.id("users"),
     uploadedAt: v.number(),
     // Lifecycle timestamps for this exact version. Optional during rollout so
@@ -895,12 +895,23 @@ export default defineSchema({
     message: v.string(),
     entityType: v.optional(v.string()),
     entityId: v.optional(v.string()),
+    scheduledDate: v.optional(v.string()), // Date-only reminder in America/Sao_Paulo (YYYY-MM-DD)
+    snoozedUntil: v.optional(v.number()),
+    popupDismissedAt: v.optional(v.number()),
+    dedupeKey: v.optional(v.string()),
     isRead: v.boolean(),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
     .index("by_user_read", ["userId", "isRead"])
+    .index("by_user_scheduledDate", ["userId", "scheduledDate"])
+    .index("by_user_scheduledDate_dismissed", [
+      "userId",
+      "scheduledDate",
+      "popupDismissedAt",
+    ])
+    .index("by_user_dedupeKey", ["userId", "dedupeKey"])
     .index("by_createdAt", ["createdAt"])
     .index("by_type", ["type"]),
 

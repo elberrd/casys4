@@ -32,6 +32,7 @@ import {
   DocumentWaitingStartDateField,
   useDocumentWaitingStartDate,
 } from "./document-waiting-start-date-field";
+import { AwaitingSignatureField } from "./document-signature-options";
 
 interface PendingDocumentUploadDialogProps {
   open: boolean;
@@ -66,6 +67,7 @@ export function PendingDocumentUploadDialog({
   const [versionNotes, setVersionNotes] = useState<string>("");
   const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [awaitingSignature, setAwaitingSignature] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     waitingStartDate,
@@ -110,6 +112,7 @@ export function PendingDocumentUploadDialog({
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setAutoApprove(false);
+    setAwaitingSignature(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -122,6 +125,7 @@ export function PendingDocumentUploadDialog({
       setVersionNotes("");
       setReceivedDate(getDefaultReceivedDate());
       setAutoApprove(false);
+      setAwaitingSignature(false);
       setUploadProgress(0);
       onOpenChange(false);
     }
@@ -167,6 +171,7 @@ export function PendingDocumentUploadDialog({
           expiryDate: expiryDate || undefined,
           versionNotes: versionNotes || undefined,
           autoApprove: autoApprove || undefined,
+          awaitingSignature: awaitingSignature || undefined,
           waitingStartDate: waitingStartDateOverride,
           receivedDate: canEditReceivedDate
             ? getReceivedDateOverride(receivedDate)
@@ -193,6 +198,7 @@ export function PendingDocumentUploadDialog({
       setVersionNotes("");
       setReceivedDate(getDefaultReceivedDate());
       setAutoApprove(false);
+      setAwaitingSignature(false);
       setUploadProgress(0);
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -264,13 +270,29 @@ export function PendingDocumentUploadDialog({
             </div>
           )}
 
+          {selectedFile && canEditReceivedDate && !hideAutoApprove && (
+            <AwaitingSignatureField
+              id="pending-upload-awaiting-signature"
+              checked={awaitingSignature}
+              onCheckedChange={(checked) => {
+                setAwaitingSignature(checked);
+                if (checked) setAutoApprove(false);
+              }}
+              disabled={isUploading}
+            />
+          )}
+
           {/* Auto-approve checkbox (hidden for clients) */}
-          {selectedFile && !hideAutoApprove && (
+          {selectedFile && !hideAutoApprove && !awaitingSignature && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="autoApprove"
                 checked={autoApprove}
-                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                onCheckedChange={(checked) => {
+                  const nextChecked = checked === true;
+                  setAutoApprove(nextChecked);
+                  if (nextChecked) setAwaitingSignature(false);
+                }}
                 disabled={isUploading}
               />
               <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">

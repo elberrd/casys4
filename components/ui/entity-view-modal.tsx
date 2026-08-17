@@ -41,6 +41,7 @@ interface EntityViewModalProps<T> {
   editButtonText?: string
   children?: ReactNode
   customHeader?: ReactNode
+  footer?: ReactNode
 }
 
 const sizeClasses: Record<EntityViewModalSize, string> = {
@@ -64,6 +65,7 @@ export function EntityViewModal<T>({
   editButtonText,
   children,
   customHeader,
+  footer,
 }: EntityViewModalProps<T>) {
   const tCommon = useTranslations("Common")
 
@@ -129,6 +131,12 @@ export function EntityViewModal<T>({
 
               {children}
             </div>
+          </div>
+        )}
+
+        {!loading && footer && (
+          <div className="flex shrink-0 justify-end border-t bg-background px-6 py-4">
+            {footer}
           </div>
         )}
       </DialogContent>

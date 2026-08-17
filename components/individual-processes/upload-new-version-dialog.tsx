@@ -40,6 +40,11 @@ import {
   useDocumentWaitingStartDate,
 } from "./document-waiting-start-date-field"
 import { orderDocumentUploadConditions } from "@/lib/document-upload-conditions"
+import {
+  AwaitingSignatureField,
+  SignedReturnOutcomeField,
+  type SignedReturnOutcome,
+} from "./document-signature-options"
 
 interface UploadNewVersionDialogProps {
   open: boolean
@@ -82,6 +87,9 @@ export function UploadNewVersionDialog({
   const [isIllegible, setIsIllegible] = useState(false)
   const [illegibleNotes, setIllegibleNotes] = useState("")
   const [autoApprove, setAutoApprove] = useState(false)
+  const [awaitingSignature, setAwaitingSignature] = useState(false)
+  const [signedReturnOutcome, setSignedReturnOutcome] =
+    useState<SignedReturnOutcome>("approved")
   const [bypassConditions, setBypassConditions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const {
@@ -115,7 +123,12 @@ export function UploadNewVersionDialog({
     return conditions.some(c => c.isRequired && !fulfilledConditionIds.has(c._id))
   }, [conditions, fulfilledConditionIds])
 
-  const isAutoApproveBlocked = autoApprove && hasUnfulfilledRequiredConditions && !bypassConditions
+  const isSignedReturn = currentStatus === "awaiting_signature"
+  const effectiveAutoApprove =
+    !isIllegible &&
+    (isSignedReturn ? signedReturnOutcome === "approved" : autoApprove)
+  const isAutoApproveBlocked =
+    effectiveAutoApprove && hasUnfulfilledRequiredConditions && !bypassConditions
 
   const nextVersion = currentVersion + 1
 
@@ -123,12 +136,13 @@ export function UploadNewVersionDialog({
     const file = event.target.files?.[0]
     if (!file) return
     setSelectedFile(file)
-    setAutoApprove(true)
+    setAutoApprove(!isSignedReturn)
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
     setAutoApprove(false)
+    setAwaitingSignature(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -176,7 +190,8 @@ export function UploadNewVersionDialog({
           : undefined,
         isIllegible: isIllegible || undefined,
         rejectionReason: isIllegible && illegibleNotes.trim() ? illegibleNotes.trim() : undefined,
-        autoApprove: autoApprove || undefined,
+        autoApprove: effectiveAutoApprove || undefined,
+        awaitingSignature: awaitingSignature || undefined,
         bypassConditions: bypassConditions || undefined,
         waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
@@ -198,6 +213,8 @@ export function UploadNewVersionDialog({
       setIsIllegible(false)
       setIllegibleNotes("")
       setAutoApprove(false)
+      setAwaitingSignature(false)
+      setSignedReturnOutcome("approved")
       setBypassConditions(false)
       setUploadProgress(0)
     } catch (error) {
@@ -214,10 +231,14 @@ export function UploadNewVersionDialog({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            <DialogTitle>{t("uploadNewVersionTitle")}</DialogTitle>
+            <DialogTitle>
+              {isSignedReturn ? t("signedReturnTitle") : t("uploadNewVersionTitle")}
+            </DialogTitle>
           </div>
-          <DialogDescription className="sr-only">
-            {t("versionUpgrade", { current: currentVersion, next: nextVersion })}
+          <DialogDescription className={isSignedReturn ? undefined : "sr-only"}>
+            {isSignedReturn
+              ? t("signedReturnDescription")
+              : t("versionUpgrade", { current: currentVersion, next: nextVersion })}
           </DialogDescription>
           <Badge variant="secondary" className="mt-1">
             {t("versionUpgrade", { current: currentVersion, next: nextVersion })}
@@ -272,13 +293,38 @@ export function UploadNewVersionDialog({
             </div>
           )}
 
+          {selectedFile && isSignedReturn && !isIllegible && (
+            <SignedReturnOutcomeField
+              name="signed-return-outcome"
+              value={signedReturnOutcome}
+              onValueChange={setSignedReturnOutcome}
+              disabled={isUploading}
+            />
+          )}
+
+          {selectedFile && canEditReceivedDate && !isSignedReturn && !isIllegible && (
+            <AwaitingSignatureField
+              id="new-version-awaiting-signature"
+              checked={awaitingSignature}
+              onCheckedChange={(checked) => {
+                setAwaitingSignature(checked)
+                if (checked) setAutoApprove(false)
+              }}
+              disabled={isUploading}
+            />
+          )}
+
           {/* Auto-approve checkbox */}
-          {selectedFile && !isIllegible && (
+          {selectedFile && !isIllegible && !isSignedReturn && !awaitingSignature && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="autoApprove"
                 checked={autoApprove}
-                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                onCheckedChange={(checked) => {
+                  const nextChecked = checked === true
+                  setAutoApprove(nextChecked)
+                  if (nextChecked) setAwaitingSignature(false)
+                }}
                 disabled={isUploading}
               />
               <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">
@@ -327,7 +373,10 @@ export function UploadNewVersionDialog({
                 checked={isIllegible}
                 onCheckedChange={(checked) => {
                   setIsIllegible(checked === true)
-                  if (checked) setAutoApprove(false)
+                  if (checked) {
+                    setAutoApprove(false)
+                    setAwaitingSignature(false)
+                  }
                 }}
                 disabled={isUploading}
               />
@@ -510,7 +559,13 @@ export function UploadNewVersionDialog({
             }
           >
             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isIllegible ? t("uploadAsIllegible") : t("upload")}
+            {isIllegible
+              ? t("uploadAsIllegible")
+              : isSignedReturn
+                ? signedReturnOutcome === "approved"
+                  ? t("uploadSignedAndComplete")
+                  : t("uploadSignedAsReceived")
+                : t("upload")}
           </Button>
         </DialogFooter>
       </DialogContent>

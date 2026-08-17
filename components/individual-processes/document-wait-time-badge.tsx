@@ -56,7 +56,7 @@ export function DocumentWaitTimeBadge({
       title={title}
       aria-label={title}
       className={cn(
-        "shrink-0 rounded-full font-medium shadow-none",
+        "shrink-0 whitespace-nowrap rounded-full font-medium tabular-nums shadow-none",
         timing.state === "pending" &&
           "border-red-200 bg-red-50 text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300",
         timing.state === "received" &&

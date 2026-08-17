@@ -56,6 +56,7 @@ import {
   Link2,
   EyeOff,
   ShieldOff,
+  FileSignature,
 } from "lucide-react"
 import {
   Tooltip,
@@ -578,7 +579,9 @@ export function DocumentChecklistCard({
   const toggleSelectAll = () => {
     if (!documents) return
 
-    const selectableDocs = documents.filter(doc => doc.status !== "not_started")
+    const selectableDocs = documents.filter(
+      (doc) => doc.status !== "not_started" && doc.status !== "awaiting_signature",
+    )
     if (selectedDocumentIds.size === selectableDocs.length) {
       setSelectedDocumentIds(new Set())
     } else {
@@ -646,7 +649,12 @@ export function DocumentChecklistCard({
   const nonExigenciaDocuments = checklistDocuments.filter(
     (doc) => doc.isLatest
   )
-  const filledDocuments = nonExigenciaDocuments.filter((doc) => doc.status !== "not_started")
+  const awaitingSignatureDocuments = nonExigenciaDocuments.filter(
+    (doc) => doc.status === "awaiting_signature",
+  )
+  const filledDocuments = nonExigenciaDocuments.filter(
+    (doc) => doc.status !== "not_started" && doc.status !== "awaiting_signature",
+  )
   const unfilledDocuments = nonExigenciaDocuments.filter((doc) => doc.status === "not_started")
 
   // Group exigência documents by their individualProcessStatusId
@@ -728,6 +736,7 @@ export function DocumentChecklistCard({
       const statusLabels: Record<string, string> = {
         uploaded: t("status.uploaded"),
         under_review: t("status.underReview"),
+        awaiting_signature: t("status.awaitingSignature"),
         rejected: t("status.rejected"),
       }
       return {
@@ -752,6 +761,8 @@ export function DocumentChecklistCard({
         return <Badge variant="info" className="gap-1"><Clock className="h-3 w-3" />{t("status.uploaded")}</Badge>
       case "under_review":
         return <Badge variant="warning" className="gap-1"><Clock className="h-3 w-3" />{t("status.underReview")}</Badge>
+      case "awaiting_signature":
+        return <Badge variant="signature" className="gap-1"><FileSignature className="h-3 w-3" />{t("status.awaitingSignature")}</Badge>
       case "not_started":
         return <Badge variant="outline" className="gap-1"><FileText className="h-3 w-3" />{t("status.notStarted")}</Badge>
       default:
@@ -768,6 +779,8 @@ export function DocumentChecklistCard({
       case "uploaded":
       case "under_review":
         return <Clock className="h-5 w-5 text-yellow-500" />
+      case "awaiting_signature":
+        return <FileSignature className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
       case "not_started":
         return <FileText className="h-5 w-5 text-muted-foreground" />
       default:
@@ -777,7 +790,9 @@ export function DocumentChecklistCard({
 
   // Get selected documents with full info for bulk actions
   const selectedDocuments = documents?.filter(doc => selectedDocumentIds.has(doc._id)) || []
-  const selectableDocs = documents?.filter(doc => doc.status !== "not_started") || []
+  const selectableDocs = documents?.filter(
+    (doc) => doc.status !== "not_started" && doc.status !== "awaiting_signature",
+  ) || []
   const allSelectableSelected = selectableDocs.length > 0 && selectedDocumentIds.size === selectableDocs.length
 
   // Render a single document row
@@ -793,7 +808,7 @@ export function DocumentChecklistCard({
     <div
       key={doc._id}
       className={cn(
-        "flex cursor-pointer flex-col gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between",
+        "flex cursor-pointer flex-col gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center 2xl:gap-4",
         showCritical && doc.isRequired && "border-primary/50",
         selectedDocumentIds.has(doc._id) && "ring-2 ring-primary"
       )}
@@ -813,69 +828,72 @@ export function DocumentChecklistCard({
         handleDocumentInteraction(doc, "row")
       }}
     >
-      <div className="flex w-full flex-1 items-start gap-3 sm:items-center">
-        {userRole === "admin" && !isHistoricalVersion && doc.status !== "not_started" && (
-          <Checkbox
-            checked={selectedDocumentIds.has(doc._id)}
-            onCheckedChange={() => toggleDocumentSelection(doc._id)}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${doc.documentType?.name || doc.documentName || doc.fileName}`}
-          />
+      <div className="flex w-full min-w-0 items-start gap-3 2xl:items-center">
+        {userRole === "admin" && (
+          <span className="flex size-4 shrink-0 items-center justify-center">
+            {!isHistoricalVersion && doc.status !== "not_started" && doc.status !== "awaiting_signature" && (
+              <Checkbox
+                checked={selectedDocumentIds.has(doc._id)}
+                onCheckedChange={() => toggleDocumentSelection(doc._id)}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Select ${doc.documentType?.name || doc.documentName || doc.fileName}`}
+              />
+            )}
+          </span>
         )}
         {isLoose ? (
-          <FileQuestion className="h-5 w-5 text-muted-foreground" />
+          <FileQuestion className="h-5 w-5 shrink-0 text-muted-foreground" />
         ) : (
           getStatusIcon(doc.status)
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 flex-wrap items-start gap-2">
-            <p className="min-w-0 flex-1 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
+          <div className="flex min-w-0 flex-col items-start gap-1.5">
+            <p className="w-full min-w-0 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
               {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
             </p>
-            {userRole === "admin" && (
-              <DocumentWaitTimeBadge document={doc} />
-            )}
-            {showVersion && doc.status !== "not_started" && doc.version > 0 && (
-              <Badge variant="outline" className="text-xs">
-                {t("byProgress.version", { version: doc.version })}
-              </Badge>
-            )}
-            {showCritical && doc.isRequired && (
-              <Badge variant="default" className="text-xs">
-                {t("required")}
-              </Badge>
-            )}
-            {doc.documentType?.isCompanyDocument === true && (
-              <Badge variant="secondary" className="text-xs gap-1">
-                <Building2 className="h-3 w-3" />
-                {t("companyDocument")}
-              </Badge>
-            )}
-            {doc.documentType?.isInformationOnly === true && (
-              <Badge variant="secondary" className="text-xs gap-1">
-                <FileText className="h-3 w-3" />
-                {t("informationOnly")}
-              </Badge>
-            )}
-            {doc.linkedStatus && (
-              <Badge
-                variant="outline"
-                className="text-xs gap-1"
-                style={doc.linkedStatus.caseStatusColor ? {
-                  borderColor: doc.linkedStatus.caseStatusColor,
-                  color: doc.linkedStatus.caseStatusColor,
-                } : undefined}
-              >
-                {doc.linkedStatus.caseStatusName}
-                {doc.linkedStatus.date && ` - ${format(parseISO(doc.linkedStatus.date), "dd/MM/yyyy HH:mm")}`}
-              </Badge>
-            )}
-            {isLoose && (
-              <Badge variant="outline" className="text-xs gap-1">
-                <FileQuestion className="h-3 w-3" />
-                {t("looseDocument")}
-              </Badge>
-            )}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {showVersion && doc.status !== "not_started" && doc.version > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  {t("byProgress.version", { version: doc.version })}
+                </Badge>
+              )}
+              {showCritical && doc.isRequired && (
+                <Badge variant="default" className="text-xs">
+                  {t("required")}
+                </Badge>
+              )}
+              {doc.documentType?.isCompanyDocument === true && (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Building2 className="h-3 w-3" />
+                  {t("companyDocument")}
+                </Badge>
+              )}
+              {doc.documentType?.isInformationOnly === true && (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <FileText className="h-3 w-3" />
+                  {t("informationOnly")}
+                </Badge>
+              )}
+              {doc.linkedStatus && (
+                <Badge
+                  variant="outline"
+                  className="text-xs gap-1"
+                  style={doc.linkedStatus.caseStatusColor ? {
+                    borderColor: doc.linkedStatus.caseStatusColor,
+                    color: doc.linkedStatus.caseStatusColor,
+                  } : undefined}
+                >
+                  {doc.linkedStatus.caseStatusName}
+                  {doc.linkedStatus.date && ` - ${format(parseISO(doc.linkedStatus.date), "dd/MM/yyyy HH:mm")}`}
+                </Badge>
+              )}
+              {isLoose && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <FileQuestion className="h-3 w-3" />
+                  {t("looseDocument")}
+                </Badge>
+              )}
+            </div>
           </div>
           {doc.documentType?.description && !isLoose && !doc.documentType?.isInformationOnly && (
             <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
@@ -899,8 +917,26 @@ export function DocumentChecklistCard({
         </div>
       </div>
 
-      <div className="flex w-full flex-wrap items-center gap-2 sm:ml-3 sm:w-auto sm:justify-end" onClick={(e) => e.stopPropagation()}>
-        {getStatusBadge(doc.status)}
+      <div
+        className={cn(
+          "flex w-full flex-wrap items-center gap-2 2xl:w-auto 2xl:gap-3",
+          userRole === "admin"
+            ? "2xl:grid 2xl:grid-cols-[17rem_9rem_8rem_10rem]"
+            : "2xl:grid 2xl:grid-cols-[9rem_8rem_10rem]",
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {userRole === "admin" && (
+          <div className="flex min-w-0 items-center 2xl:justify-start">
+            <DocumentWaitTimeBadge document={doc} />
+          </div>
+        )}
+
+        <div className="flex min-w-0 items-center 2xl:justify-start">
+          {getStatusBadge(doc.status)}
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-2 2xl:justify-start">
 
         {/* Exclude from PDF report checkbox (admin only) */}
         {userRole === "admin" && !isHistoricalVersion && processInfo && (doc.status === "not_started" || doc.linkedStatus?.caseStatusCode === "exigencia") && (
@@ -1000,9 +1036,10 @@ export function DocumentChecklistCard({
             {t("validity.missingDate")}
           </Badge>
         )}
+        </div>
 
         {isHistoricalVersion ? (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 2xl:justify-end">
             <Button
               size="sm"
               variant="ghost"
@@ -1025,7 +1062,7 @@ export function DocumentChecklistCard({
             )}
           </div>
         ) : doc.status === "not_started" ? (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 2xl:justify-end">
             {userRole === "admin" && doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
               <Button
                 size="sm"
@@ -1075,7 +1112,7 @@ export function DocumentChecklistCard({
             )}
           </div>
         ) : (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 2xl:justify-end">
             <Button
               size="sm"
               variant="ghost"
@@ -1101,10 +1138,14 @@ export function DocumentChecklistCard({
                 size="sm"
                 variant="ghost"
                 onClick={() => openUploadNewVersionDialog(doc)}
-                title={t("uploadNewVersion")}
+                title={doc.status === "awaiting_signature" ? t("attachSignedVersion") : t("uploadNewVersion")}
                 className="cursor-pointer"
               >
-                <Upload className="h-4 w-4" />
+                {doc.status === "awaiting_signature" ? (
+                  <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
               </Button>
             )}
             {userRole === "admin" && (
@@ -1384,10 +1425,29 @@ export function DocumentChecklistCard({
           </>
         )}
 
+        {/* Documents waiting for a signed return */}
+        {awaitingSignatureDocuments.length > 0 && (
+          <>
+            {(exigenciaGroups.length > 0 || unfilledDocuments.length > 0) && <Separator />}
+            <div className="space-y-3">
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                <FileSignature className="h-4 w-4" />
+                {t("awaitingSignatureDocuments")}
+                <Badge variant="signature" className="sm:ml-auto">
+                  {awaitingSignatureDocuments.length}
+                </Badge>
+              </h3>
+              <div className="space-y-2">
+                {awaitingSignatureDocuments.map((doc) => renderDocumentRow(doc, true, !doc.documentTypeId))}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Received Documents */}
         {filledDocuments.length > 0 && (
           <>
-            {(exigenciaGroups.length > 0 || unfilledDocuments.length > 0) && <Separator />}
+            {(exigenciaGroups.length > 0 || unfilledDocuments.length > 0 || awaitingSignatureDocuments.length > 0) && <Separator />}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2">
                 <CheckCircle2 className="h-4 w-4" />

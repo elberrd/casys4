@@ -47,6 +47,7 @@ import {
   useDocumentWaitingStartDate,
 } from "./document-waiting-start-date-field";
 import { orderDocumentUploadConditions } from "@/lib/document-upload-conditions";
+import { AwaitingSignatureField } from "./document-signature-options";
 
 interface TypedDocumentUploadDialogProps {
   open: boolean;
@@ -79,6 +80,7 @@ export function TypedDocumentUploadDialog({
   const [fulfilledConditionIds, setFulfilledConditionIds] = useState<Set<string>>(new Set());
   const [selectedStatusId, setSelectedStatusId] = useState<string>(defaultStatusId || "");
   const [autoApprove, setAutoApprove] = useState(false);
+  const [awaitingSignature, setAwaitingSignature] = useState(false);
   const [bypassConditions, setBypassConditions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -191,6 +193,7 @@ export function TypedDocumentUploadDialog({
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setAutoApprove(false);
+    setAwaitingSignature(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -249,6 +252,7 @@ export function TypedDocumentUploadDialog({
           ? (selectedStatusId as Id<"individualProcessStatuses">)
           : undefined,
         autoApprove: autoApprove || undefined,
+        awaitingSignature: awaitingSignature || undefined,
         bypassConditions: bypassConditions || undefined,
         waitingStartDate: waitingStartDateOverride,
         receivedDate: canEditReceivedDate
@@ -275,6 +279,7 @@ export function TypedDocumentUploadDialog({
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
+      setAwaitingSignature(false);
       setBypassConditions(false);
       setUploadProgress(0);
     } catch (error) {
@@ -296,6 +301,7 @@ export function TypedDocumentUploadDialog({
       setFulfilledConditionIds(new Set());
       setSelectedStatusId("");
       setAutoApprove(false);
+      setAwaitingSignature(false);
       setBypassConditions(false);
       setUploadProgress(0);
       onOpenChange(false);
@@ -421,13 +427,29 @@ export function TypedDocumentUploadDialog({
             </div>
           )}
 
+          {selectedFile && canEditReceivedDate && (
+            <AwaitingSignatureField
+              id="typed-upload-awaiting-signature"
+              checked={awaitingSignature}
+              onCheckedChange={(checked) => {
+                setAwaitingSignature(checked);
+                if (checked) setAutoApprove(false);
+              }}
+              disabled={isUploading}
+            />
+          )}
+
           {/* Auto-approve checkbox */}
-          {selectedFile && (
+          {selectedFile && !awaitingSignature && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="autoApprove"
                 checked={autoApprove}
-                onCheckedChange={(checked) => setAutoApprove(checked === true)}
+                onCheckedChange={(checked) => {
+                  const nextChecked = checked === true;
+                  setAutoApprove(nextChecked);
+                  if (nextChecked) setAwaitingSignature(false);
+                }}
                 disabled={isUploading}
               />
               <label htmlFor="autoApprove" className="text-sm font-medium cursor-pointer">

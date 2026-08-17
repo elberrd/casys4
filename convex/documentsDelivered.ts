@@ -29,6 +29,40 @@ import {
   getManualExigenciaStatusId,
   selectLatestVersionsByExigenciaOccurrence,
 } from "./lib/exigenciaDocumentVersions";
+import {
+  isAwaitingSignature,
+  requiresSignedVersionForTransition,
+  resolveDocumentUploadStatus,
+} from "./lib/documentStatus";
+
+function validateSignatureUploadOptions({
+  awaitingSignature,
+  autoApprove,
+  isIllegible = false,
+  hasFile = true,
+}: {
+  awaitingSignature: boolean;
+  autoApprove: boolean;
+  isIllegible?: boolean;
+  hasFile?: boolean;
+}): void {
+  if (!awaitingSignature) return;
+
+  if (!hasFile) {
+    throw new ConvexError({
+      code: "SIGNATURE_FILE_REQUIRED",
+      message: "A file is required before waiting for a signed return.",
+    });
+  }
+
+  if (autoApprove || isIllegible) {
+    throw new ConvexError({
+      code: "INVALID_SIGNATURE_STATUS",
+      message:
+        "A document waiting for signature cannot be approved or marked as illegible.",
+    });
+  }
+}
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -619,15 +653,16 @@ export const upload = mutation({
     isIllegible: v.optional(v.boolean()),
     rejectionReason: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
+    awaitingSignature: v.optional(v.boolean()),
     bypassConditions: v.optional(v.boolean()),
     waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
-    // Require admin role when auto-approving or bypassing conditions
+    // Signature waiting is an administrative workflow decision.
     let userProfile;
-    if (args.autoApprove || args.bypassConditions) {
+    if (args.autoApprove || args.awaitingSignature || args.bypassConditions) {
       userProfile = await requireAdmin(ctx);
     } else {
       userProfile = await getCurrentUserProfile(ctx);
@@ -683,7 +718,14 @@ export const upload = mutation({
 
     // Create new document record
     const isIllegible = args.isIllegible === true;
-    let canAutoApprove = args.autoApprove === true && !isIllegible;
+    const awaitingSignature = args.awaitingSignature === true;
+    validateSignatureUploadOptions({
+      awaitingSignature,
+      autoApprove: args.autoApprove === true,
+      isIllegible,
+    });
+    let canAutoApprove =
+      args.autoApprove === true && !isIllegible && !awaitingSignature;
 
     // Check conditions — if required conditions are unfulfilled, skip auto-approve (unless bypassed)
     if (canAutoApprove && !args.bypassConditions) {
@@ -707,7 +749,12 @@ export const upload = mutation({
       }
     }
 
-    const status = canAutoApprove ? "approved" : (isIllegible ? "rejected" : "uploaded");
+    const status = resolveDocumentUploadStatus({
+      hasFile: true,
+      awaitingSignature,
+      isIllegible,
+      canAutoApprove,
+    });
     const now = Date.now();
     const createdAt = fillsPendingVersion
       ? getDocumentCreatedAt(currentLatest)
@@ -815,6 +862,18 @@ export const upload = mutation({
           isIllegible: true,
         },
       });
+    } else if (awaitingSignature) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: "uploaded",
+        newStatus: "awaiting_signature",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version,
+        },
+      });
     } else if (canAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
         documentId,
@@ -857,7 +916,13 @@ export const upload = mutation({
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
         userId: uploaderUserId,
-        action: isIllegible ? "rejected" : (canAutoApprove ? "approved" : "uploaded"),
+        action: isIllegible
+          ? "rejected"
+          : awaitingSignature
+            ? "awaiting_signature"
+            : canAutoApprove
+              ? "approved"
+              : "uploaded",
         entityType: "document",
         entityId: documentId,
         details: {
@@ -919,6 +984,7 @@ export const approve = mutation({
   args: {
     id: v.id("documentsDelivered"),
   },
+  returns: v.id("documentsDelivered"),
   handler: async (ctx, { id }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -931,6 +997,14 @@ export const approve = mutation({
     // Can't approve a document that hasn't been uploaded yet
     if (document.status === "not_started") {
       throw new Error("Cannot approve a document that hasn't been uploaded yet");
+    }
+
+    if (isAwaitingSignature(document.status)) {
+      throw new ConvexError({
+        code: "SIGNED_VERSION_REQUIRED",
+        message:
+          "Upload the signed return as a new version before completing this document.",
+      });
     }
 
     // Validate conditions before approval
@@ -1034,8 +1108,8 @@ export const approve = mutation({
         type: "document_approved",
         title: "Document Approved",
         message: `Your document "${documentTypeName}" has been approved`,
-        entityType: "document",
-        entityId: id,
+        entityType: "individualProcess",
+        entityId: document.individualProcessId,
       });
     } catch (error) {
       console.error("Failed to create document approval notification:", error);
@@ -1135,8 +1209,8 @@ export const reject = mutation({
         type: "document_rejected",
         title: "Document Rejected",
         message: `Your document "${documentTypeName}" was rejected: ${rejectionReason}`,
-        entityType: "document",
-        entityId: id,
+        entityType: "individualProcess",
+        entityId: document.individualProcessId,
       });
     } catch (error) {
       console.error("Failed to create document rejection notification:", error);
@@ -1905,6 +1979,16 @@ export const bulkApprove = mutation({
     documentIds: v.array(v.id("documentsDelivered")),
     notes: v.optional(v.string()),
   },
+  returns: v.object({
+    successful: v.array(v.id("documentsDelivered")),
+    failed: v.array(
+      v.object({
+        documentId: v.id("documentsDelivered"),
+        reason: v.string(),
+      }),
+    ),
+    totalProcessed: v.number(),
+  }),
   handler: async (ctx, args) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -1935,6 +2019,15 @@ export const bulkApprove = mutation({
           continue;
         }
 
+        if (isAwaitingSignature(document.status)) {
+          results.failed.push({
+            documentId,
+            reason:
+              "Upload the signed return as a new version before completing this document.",
+          });
+          continue;
+        }
+
         await ctx.db.patch(documentId, {
           status: "approved",
           reviewedBy: adminProfile.userId,
@@ -1956,8 +2049,8 @@ export const bulkApprove = mutation({
             type: "document_approved",
             title: "Document Approved",
             message: `Your document "${documentTypeName}" has been approved`,
-            entityType: "document",
-            entityId: documentId,
+            entityType: "individualProcess",
+            entityId: document.individualProcessId,
           });
         } catch (error) {
           console.error("Failed to create notification:", error);
@@ -2070,8 +2163,8 @@ export const bulkReject = mutation({
             type: "document_rejected",
             title: "Document Rejected",
             message: `Your document "${documentTypeName}" was rejected: ${args.rejectionReason}`,
-            entityType: "document",
-            entityId: documentId,
+            entityType: "individualProcess",
+            entityId: document.individualProcessId,
           });
         } catch (error) {
           console.error("Failed to create notification:", error);
@@ -2413,15 +2506,16 @@ export const uploadWithType = mutation({
     ),
     individualProcessStatusId: v.optional(v.id("individualProcessStatuses")),
     autoApprove: v.optional(v.boolean()),
+    awaitingSignature: v.optional(v.boolean()),
     bypassConditions: v.optional(v.boolean()),
     waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
-    // Require admin role when auto-approving or bypassing conditions
+    // Signature waiting is an administrative workflow decision.
     let userProfile;
-    if (args.autoApprove || args.bypassConditions) {
+    if (args.autoApprove || args.awaitingSignature || args.bypassConditions) {
       userProfile = await requireAdmin(ctx);
     } else {
       userProfile = await getCurrentUserProfile(ctx);
@@ -2466,6 +2560,12 @@ export const uploadWithType = mutation({
     }
 
     const hasFile = !!args.storageId;
+    const awaitingSignature = args.awaitingSignature === true;
+    validateSignatureUploadOptions({
+      awaitingSignature,
+      autoApprove: args.autoApprove === true,
+      hasFile,
+    });
 
     // Only validate file constraints when a file is provided
     if (hasFile) {
@@ -2527,7 +2627,8 @@ export const uploadWithType = mutation({
     }
 
     // Determine status based on auto-approve
-    let canAutoApprove = args.autoApprove === true && hasFile;
+    let canAutoApprove =
+      args.autoApprove === true && hasFile && !awaitingSignature;
 
     // Check conditions — if required conditions are unfulfilled, skip auto-approve (unless bypassed)
     if (canAutoApprove && !args.bypassConditions) {
@@ -2551,7 +2652,12 @@ export const uploadWithType = mutation({
       }
     }
 
-    const status = canAutoApprove ? "approved" : (hasFile ? "uploaded" : "not_started");
+    const status = resolveDocumentUploadStatus({
+      hasFile,
+      awaitingSignature,
+      isIllegible: false,
+      canAutoApprove,
+    });
     const createdAt = Date.now();
     const processCreatedAt = await getIndividualProcessCreationTimestamp(
       ctx,
@@ -2603,8 +2709,20 @@ export const uploadWithType = mutation({
       excludedFromReport: documentType.excludeFromReportByDefault || undefined,
     });
 
-    // Create status history for auto-approved documents
-    if (canAutoApprove) {
+    // Record the initial operational decision for this version.
+    if (awaitingSignature) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId,
+        previousStatus: "uploaded",
+        newStatus: "awaiting_signature",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version,
+        },
+      });
+    } else if (canAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
         documentId,
         previousStatus: "uploaded",
@@ -2774,14 +2892,15 @@ export const uploadForPending = mutation({
     issueDate: v.optional(v.string()),
     versionNotes: v.optional(v.string()),
     autoApprove: v.optional(v.boolean()),
+    awaitingSignature: v.optional(v.boolean()),
     waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
-    // Require admin role when auto-approving
+    // Signature waiting is an administrative workflow decision.
     let userProfile;
-    if (args.autoApprove) {
+    if (args.autoApprove || args.awaitingSignature) {
       userProfile = await requireAdmin(ctx);
     } else {
       userProfile = await getCurrentUserProfile(ctx);
@@ -2860,9 +2979,19 @@ export const uploadForPending = mutation({
       throw new Error("Failed to get file URL from storage");
     }
 
-    // Determine status based on auto-approve
-    const shouldAutoApprove = args.autoApprove === true;
-    const status = shouldAutoApprove ? "approved" : "uploaded";
+    const awaitingSignature = args.awaitingSignature === true;
+    validateSignatureUploadOptions({
+      awaitingSignature,
+      autoApprove: args.autoApprove === true,
+    });
+    const shouldAutoApprove =
+      args.autoApprove === true && !awaitingSignature;
+    const status = resolveDocumentUploadStatus({
+      hasFile: true,
+      awaitingSignature,
+      isIllegible: false,
+      canAutoApprove: shouldAutoApprove,
+    });
     const now = Date.now();
     const createdAt = isRejectedResubmission
       ? now
@@ -2962,8 +3091,20 @@ export const uploadForPending = mutation({
       });
     }
 
-    // Create status history for auto-approved documents
-    if (shouldAutoApprove) {
+    // Record the initial operational decision for this version.
+    if (awaitingSignature) {
+      await ctx.db.insert("documentStatusHistory", {
+        documentId: savedDocumentId,
+        previousStatus: document.status,
+        newStatus: "awaiting_signature",
+        changedBy: uploaderUserId,
+        changedAt: Date.now(),
+        metadata: {
+          fileName: args.fileName,
+          version: newVersion,
+        },
+      });
+    } else if (shouldAutoApprove) {
       await ctx.db.insert("documentStatusHistory", {
         documentId: savedDocumentId,
         previousStatus: document.status,
@@ -3504,11 +3645,13 @@ export const changeStatus = mutation({
     newStatus: v.union(
       v.literal("uploaded"),
       v.literal("under_review"),
+      v.literal("awaiting_signature"),
       v.literal("approved"),
       v.literal("rejected")
     ),
     notes: v.optional(v.string()),
   },
+  returns: v.id("documentsDelivered"),
   handler: async (ctx, { id, newStatus, notes }) => {
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
@@ -3521,6 +3664,14 @@ export const changeStatus = mutation({
     // Can't change status of not_started documents (need to upload first)
     if (document.status === "not_started") {
       throw new Error("Cannot change status of a document that hasn't been uploaded yet");
+    }
+
+    if (requiresSignedVersionForTransition(document.status, newStatus)) {
+      throw new ConvexError({
+        code: "SIGNED_VERSION_REQUIRED",
+        message:
+          "Upload the signed return as a new version before continuing this document.",
+      });
     }
 
     const previousStatus = document.status;
@@ -3573,6 +3724,9 @@ export const changeStatus = mutation({
         notificationMessage = notes
           ? `Your document "${documentTypeName}" was rejected: ${notes}`
           : `Your document "${documentTypeName}" was rejected`;
+      } else if (newStatus === "awaiting_signature") {
+        notificationTitle = "Document Awaiting Signature";
+        notificationMessage = `Your document "${documentTypeName}" is waiting for a signed return`;
       }
 
       await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
@@ -3580,8 +3734,8 @@ export const changeStatus = mutation({
         type: notificationType,
         title: notificationTitle,
         message: notificationMessage,
-        entityType: "document",
-        entityId: id,
+        entityType: "individualProcess",
+        entityId: document.individualProcessId,
       });
     } catch (error) {
       console.error("Failed to create notification:", error);
@@ -4841,8 +4995,8 @@ export const linkToStatusAndReject = mutation({
         type: "document_rejected",
         title: "Document Rejected",
         message: `Your document "${documentTypeName}" was rejected: ${rejectionReason}`,
-        entityType: "document",
-        entityId: documentId,
+        entityType: "individualProcess",
+        entityId: document.individualProcessId,
       });
     } catch (error) {
       console.error("Failed to create document rejection notification:", error);

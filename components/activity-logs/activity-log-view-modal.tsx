@@ -1,49 +1,90 @@
-"use client"
+"use client";
 
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { useTranslations, useLocale } from "next-intl"
-import { EntityViewModal, ViewSection } from "@/components/ui/entity-view-modal"
-import { createField, createJsonField } from "@/lib/entity-view-helpers"
-import { Activity, User, Clock, Info, Globe, Monitor } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { formatDistanceToNow } from "date-fns"
-import { enUS, ptBR } from "date-fns/locale"
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useTranslations, useLocale } from "next-intl";
+import {
+  EntityViewModal,
+  ViewSection,
+} from "@/components/ui/entity-view-modal";
+import { createField, createJsonField } from "@/lib/entity-view-helpers";
+import { Activity, User, Clock, Info, Globe, Monitor } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
 
 interface ActivityLogViewModalProps {
-  activityLogId: Id<"activityLogs">
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onEdit?: () => void
+  activityLogId: Id<"activityLogs">;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEdit?: () => void;
 }
 
 // Helper to get action badge style
-const getActionStyle = (action: string): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
+const getActionStyle = (
+  action: string,
+): {
+  variant: "default" | "secondary" | "destructive" | "outline";
+  className: string;
+} => {
   switch (action) {
     case "created":
-      return { variant: "default", className: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20" }
+      return {
+        variant: "default",
+        className:
+          "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20",
+      };
     case "updated":
-      return { variant: "secondary", className: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20" }
+      return {
+        variant: "secondary",
+        className:
+          "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20",
+      };
     case "deleted":
-      return { variant: "destructive", className: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20" }
+      return {
+        variant: "destructive",
+        className:
+          "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20",
+      };
     case "approved":
     case "completed":
-      return { variant: "default", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" }
+      return {
+        variant: "default",
+        className:
+          "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+      };
     case "rejected":
     case "cancelled":
-      return { variant: "destructive", className: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/20" }
+      return {
+        variant: "destructive",
+        className:
+          "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/20",
+      };
     case "status_changed":
     case "status_added":
-      return { variant: "outline", className: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/20" }
+    case "requester_changed":
+      return {
+        variant: "outline",
+        className:
+          "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/20",
+      };
     case "activated":
-      return { variant: "default", className: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20" }
+      return {
+        variant: "default",
+        className:
+          "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/20",
+      };
     case "reordered":
-      return { variant: "outline", className: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/20" }
+      return {
+        variant: "outline",
+        className:
+          "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/20",
+      };
     default:
-      return { variant: "outline", className: "" }
+      return { variant: "outline", className: "" };
   }
-}
+};
 
 export function ActivityLogViewModal({
   activityLogId,
@@ -51,12 +92,12 @@ export function ActivityLogViewModal({
   onOpenChange,
   onEdit,
 }: ActivityLogViewModalProps) {
-  const t = useTranslations("ActivityLogs")
-  const tCommon = useTranslations("Common")
-  const locale = useLocale()
-  const dateLocale = locale === "pt" ? ptBR : enUS
+  const t = useTranslations("ActivityLogs");
+  const tCommon = useTranslations("Common");
+  const locale = useLocale();
+  const dateLocale = locale === "pt" ? ptBR : enUS;
 
-  const activityLog = useQuery(api.activityLogs.get, { id: activityLogId })
+  const activityLog = useQuery(api.activityLogs.get, { id: activityLogId });
 
   if (!activityLog) {
     return (
@@ -69,11 +110,11 @@ export function ActivityLogViewModal({
         loading={true}
         loadingText={tCommon("loading")}
       />
-    )
+    );
   }
 
-  const actionStyle = getActionStyle(activityLog.action)
-  const createdDate = new Date(activityLog.createdAt)
+  const actionStyle = getActionStyle(activityLog.action);
+  const createdDate = new Date(activityLog.createdAt);
 
   const sections: ViewSection[] = [
     {
@@ -83,14 +124,21 @@ export function ActivityLogViewModal({
         {
           label: t("action"),
           value: (
-            <Badge variant={actionStyle.variant} className={actionStyle.className}>
-              {t(`actions.${activityLog.action}`, { defaultValue: activityLog.action })}
+            <Badge
+              variant={actionStyle.variant}
+              className={actionStyle.className}
+            >
+              {t(`actions.${activityLog.action}`, {
+                defaultValue: activityLog.action,
+              })}
             </Badge>
           ),
         },
         createField(
           t("entityType"),
-          t(`entityTypes.${activityLog.entityType}`, { defaultValue: activityLog.entityType })
+          t(`entityTypes.${activityLog.entityType}`, {
+            defaultValue: activityLog.entityType,
+          }),
         ),
         {
           label: t("entityId"),
@@ -113,7 +161,9 @@ export function ActivityLogViewModal({
         },
         {
           label: t("email"),
-          value: activityLog.user?.email || <span className="text-muted-foreground">-</span>,
+          value: activityLog.user?.email || (
+            <span className="text-muted-foreground">-</span>
+          ),
         },
         {
           label: t("ipAddress"),
@@ -140,7 +190,7 @@ export function ActivityLogViewModal({
         },
       ],
     },
-  ]
+  ];
 
   // Add Details section if details exist
   if (activityLog.details && Object.keys(activityLog.details).length > 0) {
@@ -150,7 +200,7 @@ export function ActivityLogViewModal({
       fields: [
         createJsonField(t("details"), activityLog.details, { fullWidth: true }),
       ],
-    })
+    });
   }
 
   // Add Timestamp section
@@ -169,14 +219,17 @@ export function ActivityLogViewModal({
               })}
             </span>
             <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(createdDate, { addSuffix: true, locale: dateLocale })}
+              {formatDistanceToNow(createdDate, {
+                addSuffix: true,
+                locale: dateLocale,
+              })}
             </span>
           </div>
         ),
         fullWidth: true,
       },
     ],
-  })
+  });
 
   return (
     <EntityViewModal
@@ -188,5 +241,5 @@ export function ActivityLogViewModal({
       size="lg"
       entity={activityLog}
     />
-  )
+  );
 }

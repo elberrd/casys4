@@ -609,6 +609,7 @@ User profiles with simplified two-role access control system.
 ```
 
 **Access Control Logic**:
+
 - **Admin users**: `role === "admin"` and `companyId === undefined`
   - Full CRUD access to all entities across all companies
   - Can create, update, delete any record
@@ -644,6 +645,7 @@ Client companies that request immigration services from the law firm.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all companies
 - Client users: Read-only access to their assigned company only (via `userProfiles.companyId`)
 
@@ -675,6 +677,7 @@ Individuals (candidates) being processed for immigration services.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all people
 - Client users: Read-only access to people associated with their company (via `peopleCompanies` junction table)
 
@@ -685,18 +688,19 @@ not a formal passport record and is not a process document.
 
 ```typescript
 {
-  personId: Id<"people">               // One attachment per Person
-  storageId: Id<"_storage">            // PNG, JPEG, WebP, or PDF in Convex Storage
-  fileName: string                      // Original file name
-  mimeType: string                      // Server-validated MIME type
-  fileSize: number                      // Server-validated size (maximum 10 MB)
-  createdAt: number                     // Initial attachment timestamp
-  updatedAt: number                     // Replacement timestamp
-  createdBy: Id<"users">               // Administrator who attached it
+  personId: Id<"people">; // One attachment per Person
+  storageId: Id<"_storage">; // PNG, JPEG, WebP, or PDF in Convex Storage
+  fileName: string; // Original file name
+  mimeType: string; // Server-validated MIME type
+  fileSize: number; // Server-validated size (maximum 10 MB)
+  createdAt: number; // Initial attachment timestamp
+  updatedAt: number; // Replacement timestamp
+  createdBy: Id<"users">; // Administrator who attached it
 }
 ```
 
 **Behavior**:
+
 - Every new upload in the full Person form is read with the existing passport OCR flow so its passport number can be checked. Only the first upload applies valid personal fields automatically.
 - OCR-populated person and parent names use title case. Latin-script variants are converted to basic A-Z equivalents, with the passport MRZ spelling taking precedence for the holder's name; complex non-Latin scripts remain unchanged when no Latin spelling is available.
 - Nationality (the holder's country of origin) and issuing country remain separate. Their TD3 MRZ positions are authoritative, and the model may not infer nationality from appearance, language, birthplace, or issuing authority.
@@ -706,6 +710,7 @@ not a formal passport record and is not a process document.
 - OCR records an internal, storage-bound verification. `people.create` consumes that verification and rechecks `passports.by_passportNumber` in the same transaction. If the passport already has a linked Person, creation is blocked and the UI links to that existing Person.
 
 **Access Control**:
+
 - Admin users: create, view, replace, and remove the attachment.
 - Client users: read only when they already have company-scoped access to the Person.
 - MIME type and size are validated from Convex Storage metadata on the server; browser metadata is not trusted.
@@ -737,6 +742,7 @@ Container for one or more individual immigration processes. Created directly by 
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all main processes
 - Client users: Read-only access to processes for their company only (filtered by `companyId`)
 
@@ -769,6 +775,7 @@ Tracks each person's journey within a main process.
 ```
 
 **Access Control**:
+
 - Admin users: Full CRUD access to all individual processes
 - Client users: Read-only access to individual processes for their company (filtered via `mainProcess.companyId`)
 
@@ -789,28 +796,33 @@ Tracks the complete status history for each individual process with a many-to-ma
 ```
 
 **Indexes**:
+
 - `by_individualProcess`: For querying all statuses of a process
 - `by_individualProcess_active`: For quickly finding the active status
 - `by_changedAt`: For chronological sorting
 
 **Single Active Status Constraint**:
 The system enforces that only one status record can have `isActive: true` for each `individualProcessId` at any time. This is enforced at the application level through atomic mutations that:
+
 1. Deactivate all existing active statuses for the process
 2. Create/activate the new status record
 
 **Status History Workflow**:
+
 1. When a process is created, an initial status record is automatically created with `isActive: true`
 2. When status changes, a new record is inserted with `isActive: true` and all previous records are set to `isActive: false`
 3. The complete history is preserved for audit purposes
 4. Queries join with this table to get the current active status
 
 **Migration Notes**:
+
 - The legacy `status` field in `individualProcesses` is kept for backward compatibility
 - Both systems operate in parallel during the transition period
 - Migration scripts convert existing status strings to status records
 - See `/convex/migrations/migrateIndividualProcessStatuses.ts` for migration details
 
 **Access Control**:
+
 - Admin users: Full CRUD access to status records (create, update, delete)
 - Client users: Read-only access to status history for their company's processes
 
@@ -880,7 +892,7 @@ Actual documents uploaded by users.
   fileUrl: string                      // Storage URL
   fileSize: number                     // Size in bytes
   mimeType: string                     // File type
-  status: "not_started" | "pending_upload" | "uploaded" | "under_review" | "approved" | "rejected" | "expired"
+  status: "not_started" | "pending_upload" | "uploaded" | "under_review" | "awaiting_signature" | "approved" | "rejected" | "expired"
   uploadedBy: Id<"users">              // Who uploaded
   uploadedAt: number                   // Legacy compatibility timestamp; mirrors receivedAt for received content
   createdAt?: number                   // Creation of this row/version; immutable after creation
@@ -899,6 +911,9 @@ Actual documents uploaded by users.
 
 - Admin users: Full CRUD access to all documents; can view, set during upload, and later correct both `waitingStartedAt` and `receivedAt` to valid calendar dates
 - Client users: Can upload documents for processes in their company, but cannot send an override or read `waitingStartedAt`, `receivedAt`, its `uploadedAt` compatibility alias, or receipt-derived timestamps
+- During an administrative upload, the document can be marked as `awaiting_signature`. This state means the attached version is the unsigned current version and cannot be completed directly
+- A document in `awaiting_signature` leaves that state only through a new attached version (or an explicit rejection). When the signed return is attached, the administrator chooses between completing it as `approved`—the recommended default—or recording it as `uploaded` for later review
+- The checklist displays `awaiting_signature` in a dedicated indigo section, separate from documents that are still missing and documents already received or completed
 - Every document or version starts with `waitingStartedAt = individualProcesses.createdAt`, even when it is added later. An explicit administrative override can change only this business date
 - The waiting counter is calculated from `waitingStartedAt` to `receivedAt`, the version closing timestamp, or the current time. Calendar-day differences use the configured business timezone and never display a negative duration
 - The server records the receipt time automatically for client uploads. Filling an existing placeholder preserves its original timing fields; a new version receives a new immutable technical `createdAt`
@@ -972,6 +987,10 @@ User notification system.
   message: string                      // Notification body
   entityType?: string                  // Related entity type
   entityId?: string                    // Related entity ID
+  scheduledDate?: string               // Business date in America/Sao_Paulo (YYYY-MM-DD)
+  snoozedUntil?: number                // Absolute timestamp for 2h/5h snooze
+  popupDismissedAt?: number            // Suppresses the scheduled popup, preserving history
+  dedupeKey?: string                   // Idempotency key for one source/date/recipient occurrence
   isRead: boolean                      // Read status
   readAt?: number                      // Read timestamp
   createdAt: number                    // Creation timestamp
@@ -982,6 +1001,17 @@ User notification system.
 
 - All users can view their own notifications
 - Admin users can send notifications to client users
+
+**Scheduled notification behavior**:
+
+- Immediate notifications remain available through the bell and notification center without interrupting the current task.
+- Date-based reminders use `America/Sao_Paulo` as the business timezone and appear in one global, accessible popup on authenticated pages.
+- Note alarms are delivered to the note creator and deep-link to the exact note. Active `todo` and `in_progress` tasks generate a due-date reminder for the current assignee and deep-link to the highlighted task.
+- Each reminder can be snoozed for exactly two or five hours. The absolute snooze timestamp is persisted in Convex and re-evaluated by the client clock after navigation, reload, or tab focus.
+- **Dismiss today's reminders** suppresses the scheduled popup for that business date without deleting the notification or removing it from the notification center. Opening or marking a notification as read also removes it from the popup.
+- Reminder creation is idempotent per recipient, source, and scheduled date. The popup revalidates the current source so removed, completed, cancelled, rescheduled, or reassigned items do not expose stale links.
+- The notification center is available from the left sidebar for both roles; every query and mutation remains owner-scoped, so client users cannot read or modify another user's notifications.
+- Notification details expose one prominent, contextual action for the related destination. Document notifications open the owning individual process at its documentation section, including legacy notifications whose stored entity is a `documentsDelivered` record; other known types keep their note, task, process, request, person, company, or document destination.
 
 ##### activityLogs
 
