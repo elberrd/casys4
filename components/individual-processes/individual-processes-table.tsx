@@ -252,6 +252,10 @@ interface IndividualProcessesTableProps {
   cboOptions?: Array<{ value: string; label: string }>;
   selectedCbos?: string[];
   onCboFilterChange?: (cbos: string[]) => void;
+  // Qualification filter props
+  qualificationOptions?: Array<{ value: string; label: string }>;
+  selectedQualifications?: string[];
+  onQualificationFilterChange?: (qualifications: string[]) => void;
   // Process Status filter props (Atual / Anterior)
   processStatusOptions?: Array<{ value: string; label: string }>;
   selectedProcessStatuses?: string[];
@@ -323,6 +327,9 @@ export function IndividualProcessesTable({
   cboOptions = [],
   selectedCbos = [],
   onCboFilterChange,
+  qualificationOptions = [],
+  selectedQualifications = [],
+  onQualificationFilterChange,
   processStatusOptions = [],
   selectedProcessStatuses = [],
   onProcessStatusFilterChange,
@@ -1853,6 +1860,9 @@ export function IndividualProcessesTable({
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    // Keep expanded children on the same page as their group header. Otherwise,
+    // a group near the page boundary can open without rendering its rows.
+    paginateExpandedRows: false,
     globalFilterFn: globalFuzzyFilter,
     enableRowSelection: true,
     onRowSelectionChange: handleRowSelectionChange,
@@ -2399,7 +2409,7 @@ export function IndividualProcessesTable({
           />}
         </div>
         {/* Second row: Select filters */}
-        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange || onNationalityFilterChange || onCboFilterChange || onProcessStatusFilterChange) && (
+        {(onApplicantFilterChange || onUserApplicantFilterChange || onCandidateFilterChange || onProgressStatusFilterChange || onAuthorizationTypeFilterChange || onLegalFrameworkFilterChange || onNationalityFilterChange || onCboFilterChange || onQualificationFilterChange || onProcessStatusFilterChange) && (
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             {onApplicantFilterChange && applicantOptions.length > 0 && (
               <Combobox
@@ -2491,6 +2501,20 @@ export function IndividualProcessesTable({
                 triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
                 showClearButton={true}
                 clearButtonAriaLabel={t("filters.clearLegalFrameworks")}
+              />
+            )}
+            {onQualificationFilterChange && columnVisibility.qualification !== false && qualificationOptions.length > 0 && (
+              <Combobox
+                multiple
+                options={qualificationOptions as ComboboxOption<string>[]}
+                value={selectedQualifications}
+                onValueChange={onQualificationFilterChange}
+                placeholder={t("filters.selectQualifications")}
+                searchPlaceholder={t("filters.searchQualifications")}
+                emptyText={t("filters.noQualificationsFound")}
+                triggerClassName="min-w-[160px] max-w-[220px] w-full min-h-10"
+                showClearButton={true}
+                clearButtonAriaLabel={t("filters.clearQualifications")}
               />
             )}
             {onNationalityFilterChange && nationalityOptions.length > 0 && (

@@ -36,6 +36,14 @@ import { getFullName } from "@/lib/utils/person-names"
 import { translateCountryName } from "@/lib/utils/country-translations"
 import { loadPersistedFilters, persistFilters, clearPersistedFilters } from "@/hooks/use-persisted-filters"
 
+const QUALIFICATION_VALUES = [
+  "medio",
+  "tecnico",
+  "superior",
+  "mestrado",
+  "naoPossui",
+] as const
+
 function withoutRemovedRequestColumn(
   visibility?: VisibilityState,
 ): VisibilityState {
@@ -79,6 +87,7 @@ export function IndividualProcessesClient() {
   const [selectedLegalFrameworks, setSelectedLegalFrameworks] = useState<string[]>(() => persisted?.selectedLegalFrameworks ?? [])
   const [selectedNationalities, setSelectedNationalities] = useState<string[]>(() => persisted?.selectedNationalities ?? [])
   const [selectedCbos, setSelectedCbos] = useState<string[]>(() => persisted?.selectedCbos ?? [])
+  const [selectedQualifications, setSelectedQualifications] = useState<string[]>(() => persisted?.selectedQualifications ?? [])
   const [selectedProcessStatuses, setSelectedProcessStatuses] = useState<string[]>(() => persisted?.selectedProcessStatuses ?? ["Atual"])
   const [isRnmModeActive, setIsRnmModeActive] = useState<boolean>(() => persisted?.isRnmModeActive ?? false)
   const [isUrgentModeActive, setIsUrgentModeActive] = useState<boolean>(() => persisted?.isUrgentModeActive ?? false)
@@ -117,6 +126,7 @@ export function IndividualProcessesClient() {
       ...withoutRemovedRequestColumn(persisted?.columnVisibility),
     })
   )
+  const isQualificationColumnVisible = columnVisibility.qualification !== false
   const hasLoadedColumnPreferencesRef = useRef(false)
   const [sorting, setSorting] = useState<SortingState>(
     () => persisted?.sorting ?? []
@@ -293,6 +303,28 @@ export function IndividualProcessesClient() {
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [individualProcesses])
 
+  const qualificationOptions = useMemo(() => {
+    const labels = {
+      medio: t("qualificationOptions.medio"),
+      tecnico: t("qualificationOptions.tecnico"),
+      superior: t("qualificationOptions.superior"),
+      mestrado: t("qualificationOptions.mestrado"),
+      naoPossui: t("qualificationOptions.naoPossui"),
+    }
+
+    return QUALIFICATION_VALUES.map((value) => ({
+      value,
+      label: labels[value],
+    }))
+  }, [t])
+
+  // A hidden column must not leave an invisible filter affecting the results.
+  useEffect(() => {
+    if (!isQualificationColumnVisible && selectedQualifications.length > 0) {
+      setSelectedQualifications([])
+    }
+  }, [isQualificationColumnVisible, selectedQualifications.length])
+
   // Process status options (Atual / Anterior)
   const processStatusOptions = useMemo(() => [
     { value: "Atual", label: t("processStatusCurrent") },
@@ -384,6 +416,7 @@ export function IndividualProcessesClient() {
       selectedLegalFrameworks.length > 0 ||
       selectedNationalities.length > 0 ||
       selectedCbos.length > 0 ||
+      (isQualificationColumnVisible && selectedQualifications.length > 0) ||
       (selectedProcessStatuses.length > 0 && !isDefaultProcessStatus) ||
       !!progressDate ||
       isRnmModeActive ||
@@ -392,7 +425,7 @@ export function IndividualProcessesClient() {
       isExigenciaModeActive ||
       filters.length > 0
     )
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedQualifications, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, isQualificationColumnVisible, filters])
 
   // Clear selected filter name when all filters are cleared
   useEffect(() => {
@@ -411,6 +444,7 @@ export function IndividualProcessesClient() {
     if (selectedLegalFrameworks.length > 0) criteria.selectedLegalFrameworks = selectedLegalFrameworks
     if (selectedNationalities.length > 0) criteria.selectedNationalities = selectedNationalities
     if (selectedCbos.length > 0) criteria.selectedCbos = selectedCbos
+    if (isQualificationColumnVisible && selectedQualifications.length > 0) criteria.selectedQualifications = selectedQualifications
     if (selectedProcessStatuses.length > 0) criteria.selectedProcessStatuses = selectedProcessStatuses
     if (progressDate) criteria.progressDate = progressDate
     if (isRnmModeActive) criteria.isRnmModeActive = true
@@ -422,7 +456,7 @@ export function IndividualProcessesClient() {
     criteria.columnVisibility = columnVisibility
     if (sorting.length > 0) criteria.sorting = sorting
     return criteria
-  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, filters, columnVisibility, sorting])
+  }, [selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedQualifications, selectedProcessStatuses, progressDate, isRnmModeActive, isUrgentModeActive, isQualExpProfModeActive, isExigenciaModeActive, isQualificationColumnVisible, filters, columnVisibility, sorting])
 
   // Persist filter state to sessionStorage on every change
   useEffect(() => {
@@ -443,6 +477,7 @@ export function IndividualProcessesClient() {
     setSelectedLegalFrameworks([])
     setSelectedNationalities([])
     setSelectedCbos([])
+    setSelectedQualifications([])
     setSelectedProcessStatuses([])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
@@ -475,6 +510,9 @@ export function IndividualProcessesClient() {
     }
     if (filterCriteria.selectedCbos) {
       setSelectedCbos(filterCriteria.selectedCbos)
+    }
+    if (filterCriteria.selectedQualifications) {
+      setSelectedQualifications(filterCriteria.selectedQualifications)
     }
     if (filterCriteria.selectedProcessStatuses) {
       setSelectedProcessStatuses(filterCriteria.selectedProcessStatuses)
@@ -527,6 +565,7 @@ export function IndividualProcessesClient() {
     setSelectedLegalFrameworks([])
     setSelectedNationalities([])
     setSelectedCbos([])
+    setSelectedQualifications([])
     setSelectedProcessStatuses(["Atual"])
     setProgressDate(undefined)
     setIsRnmModeActive(false)
@@ -656,6 +695,13 @@ export function IndividualProcessesClient() {
       result = result.filter((process) => {
         const cboId = process.cbo?._id
         return cboId && selectedCbos.includes(cboId)
+      })
+    }
+
+    // Apply qualification multi-select filter only while its column is visible.
+    if (isQualificationColumnVisible && selectedQualifications.length > 0) {
+      result = result.filter((process) => {
+        return !!process.qualification && selectedQualifications.includes(process.qualification)
       })
     }
 
@@ -855,7 +901,7 @@ export function IndividualProcessesClient() {
     })
 
     return filtered
-  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive, onlyPendingMode, isClient])
+  }, [individualProcesses, filters, selectedCandidates, selectedApplicants, selectedUserApplicants, selectedProgressStatuses, selectedAuthorizationTypes, selectedLegalFrameworks, selectedNationalities, selectedCbos, selectedQualifications, selectedProcessStatuses, progressDate, isUrgentModeActive, isExigenciaModeActive, isQualificationColumnVisible, onlyPendingMode, isClient])
 
   const handleExportSnapshotChange = useCallback(
     (snapshot: IndividualProcessesExportSnapshot) => {
@@ -1213,6 +1259,9 @@ export function IndividualProcessesClient() {
             cboOptions,
             selectedCbos,
             onCboFilterChange: setSelectedCbos,
+            qualificationOptions,
+            selectedQualifications,
+            onQualificationFilterChange: setSelectedQualifications,
             processStatusOptions,
             selectedProcessStatuses,
             onProcessStatusFilterChange: setSelectedProcessStatuses,
