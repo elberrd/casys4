@@ -1,0 +1,21 @@
+{
+  "name": "CASYS4",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "convex",
+      "command": "export CONVEX_AGENT_MODE=anonymous && pnpm exec convex dev",
+      "description": "Local Convex backend (anonymous agent mode) at http://127.0.0.1:3210"
+    },
+    {
+      "name": "next",
+      "command": "pnpm exec next dev",
+      "description": "Next.js dev server at http://localhost:3000"
+    }
+  ],
+  "ports": [
+    { "name": "next", "port": 3000 },
+    { "name": "convex-backend", "port": 3210 },
+    { "name": "convex-dashboard", "port": 6790 }
+  ]
+}
