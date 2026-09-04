@@ -1,5 +1,6 @@
 {
   "name": "CASYS4",
+  "snapshot": "snapshot-20260904-7cbd3808-f38b-4f7b-af19-ab8ea5da86b7",
   "install": "bash .cursor/install.sh",
   "terminals": [
     {
