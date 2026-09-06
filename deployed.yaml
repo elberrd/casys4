@@ -18,7 +18,7 @@ vercel:
   org_id: "team_0SZb9tRbglBfWofq25Pj6iUr"
   team: "elberrds-projects"
   dashboard_url: "https://vercel.com/elberrds-projects/casys4"
-  build_command: "npx convex deploy --cmd 'pnpm run build'"
+  build_command: "pnpm run vercel-build"
   build_command_configured: true
   
 convex:
