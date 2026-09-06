@@ -16,7 +16,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textDecoration: "underline",
     marginBottom: 28,
-    letterSpacing: 2,
   },
   block: {
     marginBottom: 18,
