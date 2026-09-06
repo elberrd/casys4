@@ -1254,6 +1254,7 @@
     "markAsPreviousSuccess": "Processo marcado como anterior",
     "markAsPreviousError": "Não foi possível marcar o processo como anterior",
     "updateProcessStatus": "Alterar status do processo",
+    "reports": "Relatórios",
     "updateProcessStatusTitle": "Alterar status do processo",
     "updateProcessStatusDescription": "Escolha se este processo é atual ou anterior. Esta alteração não modifica o Histórico do Andamento.",
     "currentProcessStatus": "Status atual do processo",
@@ -2002,6 +2003,10 @@
     "countryCreated": "País criado com sucesso",
     "deleteConfirm": "Tem certeza de que deseja excluir este país?",
     "name": "Nome do País",
+    "fullName": "Nome completo",
+    "fullNameDescription": "Nome oficial usado em documentos legais, como a emissão do passaporte (ex.: República da Turquia).",
+    "formCreateDescription": "Preencha as informações para criar um novo país.",
+    "formEditDescription": "Edite as informações do país abaixo.",
     "code": "Código ISO (2 letras)",
     "iso3": "Código ISO3 (3 letras)",
     "createdSuccess": "País criado com sucesso",
@@ -2204,6 +2209,36 @@
       "ZM": "Zâmbia",
       "ZW": "Zimbábue"
     }
+  },
+  "ProcessReports": {
+    "menuLabel": "Relatórios",
+    "previewTitle": "Pré-visualização do relatório",
+    "generating": "Gerando relatório...",
+    "close": "Fechar",
+    "downloadPdf": "Baixar PDF",
+    "downloadDocx": "Baixar DOCX",
+    "filenameLabel": "Nome do arquivo",
+    "missingFieldsTitle": "Campos incompletos",
+    "missingFieldsDescription": "O relatório será gerado, mas os trechos abaixo estão vazios no processo e aparecerão como espaço reservado.",
+    "missingFields": {
+      "candidateName": "Nome do candidato",
+      "nationality": "Nacionalidade",
+      "maritalStatus": "Estado civil",
+      "birthDate": "Data de nascimento",
+      "fatherName": "Nome do pai",
+      "motherName": "Nome da mãe",
+      "passportNumber": "Número do passaporte",
+      "passportIssueDate": "Data de emissão do passaporte",
+      "passportIssuingCountry": "País emissor do passaporte",
+      "passportExpiryDate": "Validade do passaporte",
+      "legalFramework": "Amparo legal"
+    },
+    "types": {
+      "criminalBackgroundDeclaration": "Declaração de ausência de antecedentes criminais"
+    },
+    "errorLoad": "Não foi possível gerar o relatório",
+    "errorDownload": "Não foi possível baixar o arquivo",
+    "previewAriaLabel": "Pré-visualização da declaração"
   },
   "States": {
     "title": "Estados",

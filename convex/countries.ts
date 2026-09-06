@@ -7,6 +7,27 @@ import {
   isCountryCodeLike,
 } from "./lib/countryCodeNormalization";
 import { normalizeString } from "./lib/stringUtils";
+import { resolveOfficialCountryName } from "../lib/data/country-official-names-pt";
+
+const countryDocValidator = v.object({
+  _id: v.id("countries"),
+  _creationTime: v.number(),
+  name: v.string(),
+  code: v.string(),
+  iso3: v.string(),
+  flag: v.optional(v.string()),
+  fullName: v.optional(v.string()),
+});
+
+function resolvedFullName(args: {
+  code?: string;
+  name: string;
+  fullName?: string;
+}): string | undefined {
+  const provided = args.fullName?.trim();
+  if (provided) return provided;
+  return resolveOfficialCountryName(args.code, args.name);
+}
 
 /**
  * Query to list all countries with optional accent-insensitive search
@@ -15,15 +36,21 @@ export const list = query({
   args: {
     search: v.optional(v.string()),
   },
+  returns: v.array(countryDocValidator),
   handler: async (ctx, args) => {
     let countries = await ctx.db.query("countries").collect();
 
-    // Filter by search query if provided (accent-insensitive)
     if (args.search) {
       const searchNormalized = normalizeString(args.search);
-      countries = countries.filter((country) =>
-        normalizeString(country.name).includes(searchNormalized),
-      );
+      countries = countries.filter((country) => {
+        const nameMatch = normalizeString(country.name).includes(
+          searchNormalized,
+        );
+        const fullNameMatch = country.fullName
+          ? normalizeString(country.fullName).includes(searchNormalized)
+          : false;
+        return nameMatch || fullNameMatch;
+      });
     }
 
     return countries;
@@ -35,6 +62,7 @@ export const list = query({
  */
 export const get = query({
   args: { id: v.id("countries") },
+  returns: v.union(countryDocValidator, v.null()),
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
@@ -75,12 +103,21 @@ export const findByCodeOrName = query({
 
     const all = await ctx.db.query("countries").collect();
     const normalized = normalizeString(trimmed);
-    const byExactName = all.find((c) => normalizeString(c.name) === normalized);
+    const byExactName = all.find(
+      (c) =>
+        normalizeString(c.name) === normalized ||
+        (c.fullName ? normalizeString(c.fullName) === normalized : false),
+    );
     if (byExactName) return byExactName._id;
 
     const byPartialName = all.find((c) => {
       const cn = normalizeString(c.name);
-      return cn.includes(normalized) || normalized.includes(cn);
+      const fn = c.fullName ? normalizeString(c.fullName) : "";
+      return (
+        cn.includes(normalized) ||
+        normalized.includes(cn) ||
+        (fn.length > 0 && (fn.includes(normalized) || normalized.includes(fn)))
+      );
     });
     return byPartialName?._id ?? null;
   },
@@ -93,15 +130,22 @@ export const create = mutation({
   args: {
     name: v.string(),
     flag: v.optional(v.string()),
+    fullName: v.optional(v.string()),
   },
+  returns: v.id("countries"),
   handler: async (ctx, args) => {
     const adminProfile = await requireAdmin(ctx);
+    const fullName = resolvedFullName({
+      name: args.name,
+      fullName: args.fullName,
+    });
 
     const countryId = await ctx.db.insert("countries", {
       name: args.name,
       code: "",
       iso3: "",
       flag: args.flag,
+      ...(fullName ? { fullName } : {}),
     });
 
     await logActivitySafely(ctx, {
@@ -112,6 +156,7 @@ export const create = mutation({
       details: {
         name: args.name,
         flag: args.flag,
+        fullName,
       },
     });
 
@@ -127,7 +172,9 @@ export const update = mutation({
     id: v.id("countries"),
     name: v.string(),
     flag: v.optional(v.string()),
+    fullName: v.optional(v.string()),
   },
+  returns: v.id("countries"),
   handler: async (ctx, args) => {
     const adminProfile = await requireAdmin(ctx);
     const existing = await ctx.db.get(args.id);
@@ -135,19 +182,28 @@ export const update = mutation({
       throw new Error("Country not found");
     }
 
+    const fullName =
+      args.fullName !== undefined
+        ? args.fullName.trim() ||
+          resolveOfficialCountryName(existing.code, args.name)
+        : existing.fullName;
+
     await ctx.db.patch(args.id, {
       name: args.name,
       flag: args.flag,
+      fullName,
     });
 
     const changes = buildChangedFields(
       {
         name: existing.name,
         flag: existing.flag,
+        fullName: existing.fullName,
       },
       {
         name: args.name,
         flag: args.flag,
+        fullName,
       },
     );
 
@@ -169,10 +225,47 @@ export const update = mutation({
 });
 
 /**
+ * Fill empty official country names from the canonical Portuguese mapping.
+ * Existing custom full names are left untouched.
+ */
+export const fillMissingOfficialNames = mutation({
+  args: {},
+  returns: v.object({
+    updated: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const countries = await ctx.db.query("countries").collect();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const country of countries) {
+      if (country.fullName?.trim()) {
+        skipped += 1;
+        continue;
+      }
+
+      const official = resolveOfficialCountryName(country.code, country.name);
+      if (!official) {
+        skipped += 1;
+        continue;
+      }
+
+      await ctx.db.patch(country._id, { fullName: official });
+      updated += 1;
+    }
+
+    return { updated, skipped };
+  },
+});
+
+/**
  * Mutation to delete country (admin only)
  */
 export const remove = mutation({
   args: { id: v.id("countries") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     const adminProfile = await requireAdmin(ctx);
     const existing = await ctx.db.get(id);
@@ -180,7 +273,6 @@ export const remove = mutation({
       throw new Error("Country not found");
     }
 
-    // Check if there are states associated with this country
     const states = await ctx.db
       .query("states")
       .withIndex("by_country", (q) => q.eq("countryId", id))
@@ -201,7 +293,10 @@ export const remove = mutation({
         name: existing.name,
         code: existing.code,
         iso3: existing.iso3,
+        fullName: existing.fullName,
       },
     });
+
+    return null;
   },
 });

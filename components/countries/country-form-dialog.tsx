@@ -59,6 +59,7 @@ export function CountryFormDialog({
     resolver: zodResolver(countrySchema),
     defaultValues: {
       name: "",
+      fullName: "",
     },
   })
 
@@ -83,10 +84,12 @@ export function CountryFormDialog({
     if (country) {
       form.reset({
         name: country.name,
+        fullName: country.fullName ?? "",
       })
     } else if (!countryId) {
       form.reset({
         name: "",
+        fullName: "",
       })
     }
   }, [country, countryId, form])
@@ -124,10 +127,7 @@ export function CountryFormDialog({
             {countryId ? t('editTitle') : t('createTitle')}
           </DialogTitle>
           <DialogDescription>
-            {countryId
-              ? "Edit the country information below"
-              : "Fill in the information to create a new country"
-            }
+            {countryId ? t("formEditDescription") : t("formCreateDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,8 +140,23 @@ export function CountryFormDialog({
                 <FormItem>
                   <FormLabel>{t('name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Brazil" {...field} />
+                    <Input placeholder="Turquia" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("fullName")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="República da Turquia" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">{t("fullNameDescription")}</p>
                   <FormMessage />
                 </FormItem>
               )}

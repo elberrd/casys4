@@ -89,8 +89,14 @@ export function useCountrySearch() {
       const translatedName = getCountryName(country.code);
       const matchesTranslated = normalizeString(translatedName).includes(normalized);
       const matchesOriginal = normalizeString(country.name).includes(normalized);
+      const fullName = "fullName" in country && typeof country.fullName === "string"
+        ? country.fullName
+        : "";
+      const matchesFullName = fullName
+        ? normalizeString(fullName).includes(normalized)
+        : false;
 
-      return matchesTranslated || matchesOriginal;
+      return matchesTranslated || matchesOriginal || matchesFullName;
     });
   };
 }

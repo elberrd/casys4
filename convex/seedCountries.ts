@@ -8,6 +8,7 @@
 
 import { internalMutation } from "./_generated/server";
 import { countries } from "../lib/data/countries-phone";
+import { resolveOfficialCountryName } from "../lib/data/country-official-names-pt";
 
 export default internalMutation({
   args: {},
@@ -25,25 +26,35 @@ export default internalMutation({
         .filter((q) => q.eq(q.field("name"), country.name))
         .first();
 
+      const officialName = resolveOfficialCountryName(country.code, country.name);
+
       if (existing) {
-        // Update existing country to add flag if it doesn't have one
+        const patch: {
+          code?: string;
+          flag?: string;
+          fullName?: string;
+        } = {};
         if (!existing.flag && country.flag) {
-          await ctx.db.patch(existing._id, {
-            code: country.code,
-            flag: country.flag,
-          });
+          patch.code = country.code;
+          patch.flag = country.flag;
+        }
+        if (!existing.fullName && officialName) {
+          patch.fullName = officialName;
+        }
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(existing._id, patch);
           updated++;
-          console.log(`Updated: ${country.name} ${country.flag}`);
+          console.log(`Updated: ${country.name} ${country.flag ?? ""}`);
         } else {
           skipped++;
         }
       } else {
-        // Create new country
         await ctx.db.insert("countries", {
           name: country.name,
           code: country.code,
-          iso3: "", // We don't have ISO3 data in the phone library
+          iso3: "",
           flag: country.flag,
+          ...(officialName ? { fullName: officialName } : {}),
         });
         created++;
         console.log(`Created: ${country.name} ${country.flag}`);

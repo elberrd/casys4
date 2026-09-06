@@ -114,6 +114,7 @@ import type * as peopleCompanies from "../peopleCompanies.js";
 import type * as personPassportAttachments from "../personPassportAttachments.js";
 import type * as personPassportOcrVerifications from "../personPassportOcrVerifications.js";
 import type * as processHistory from "../processHistory.js";
+import type * as processReports from "../processReports.js";
 import type * as processRequestMessages from "../processRequestMessages.js";
 import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   personPassportAttachments: typeof personPassportAttachments;
   personPassportOcrVerifications: typeof personPassportOcrVerifications;
   processHistory: typeof processHistory;
+  processReports: typeof processReports;
   processRequestMessages: typeof processRequestMessages;
   processRequests: typeof processRequests;
   processTypes: typeof processTypes;

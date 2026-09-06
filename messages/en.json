@@ -1254,6 +1254,7 @@
     "markAsPreviousSuccess": "Process marked as previous",
     "markAsPreviousError": "Could not mark the process as previous",
     "updateProcessStatus": "Change process status",
+    "reports": "Reports",
     "updateProcessStatusTitle": "Change process status",
     "updateProcessStatusDescription": "Choose whether this process is current or previous. This change does not modify the Progress History.",
     "currentProcessStatus": "Current process status",
@@ -1977,6 +1978,10 @@
     "countryCreated": "Country created successfully",
     "deleteConfirm": "Are you sure you want to delete this country?",
     "name": "Country Name",
+    "fullName": "Full name",
+    "fullNameDescription": "Official name used in legal documents, such as the passport issuing clause (e.g. Republic of Turkey).",
+    "formCreateDescription": "Fill in the information to create a new country.",
+    "formEditDescription": "Edit the country information below.",
     "code": "ISO Code (2 letters)",
     "iso3": "ISO3 Code (3 letters)",
     "createdSuccess": "Country created successfully",
@@ -2179,6 +2184,36 @@
       "ZM": "Zambia",
       "ZW": "Zimbabwe"
     }
+  },
+  "ProcessReports": {
+    "menuLabel": "Reports",
+    "previewTitle": "Report preview",
+    "generating": "Generating report...",
+    "close": "Close",
+    "downloadPdf": "Download PDF",
+    "downloadDocx": "Download DOCX",
+    "filenameLabel": "File name",
+    "missingFieldsTitle": "Incomplete fields",
+    "missingFieldsDescription": "The report will still be generated, but the excerpts below are empty on the process and will appear as placeholders.",
+    "missingFields": {
+      "candidateName": "Candidate name",
+      "nationality": "Nationality",
+      "maritalStatus": "Marital status",
+      "birthDate": "Date of birth",
+      "fatherName": "Father's name",
+      "motherName": "Mother's name",
+      "passportNumber": "Passport number",
+      "passportIssueDate": "Passport issue date",
+      "passportIssuingCountry": "Passport issuing country",
+      "passportExpiryDate": "Passport expiry date",
+      "legalFramework": "Legal framework"
+    },
+    "types": {
+      "criminalBackgroundDeclaration": "Criminal background self-declaration"
+    },
+    "errorLoad": "Could not generate the report",
+    "errorDownload": "Could not download the file",
+    "previewAriaLabel": "Declaration preview"
   },
   "States": {
     "title": "States",

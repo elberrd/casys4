@@ -18,6 +18,7 @@ import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { internal } from "./_generated/api";
 import { formatNowDateTime } from "./lib/statusDateTime";
+import { resolveOfficialCountryName } from "../lib/data/country-official-names-pt";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -103,11 +104,16 @@ export const bulkImportPeople = mutation({
         if (matchingCountry) {
           nationalityId = matchingCountry._id;
         } else {
-          // Create new country if not found
+          const guessedCode = nationalityName.substring(0, 2).toUpperCase();
+          const officialName = resolveOfficialCountryName(
+            guessedCode,
+            nationalityName,
+          );
           nationalityId = await ctx.db.insert("countries", {
             name: nationalityName,
-            code: nationalityName.substring(0, 2).toUpperCase(),
+            code: guessedCode,
             iso3: nationalityName.substring(0, 3).toUpperCase(),
+            ...(officialName ? { fullName: officialName } : {}),
           });
         }
 

@@ -36,6 +36,7 @@ interface Country {
   name: string
   code: string
   flag?: string
+  fullName?: string
 }
 
 interface CountriesTableProps {
@@ -86,6 +87,15 @@ export function CountriesTable({ countries, onEdit, onDelete, onView }: Countrie
             </div>
           )
         },
+      },
+      {
+        accessorKey: "fullName",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("fullName")} />
+        ),
+        cell: ({ row }) => (
+          <DataGridHighlightedCell text={row.original.fullName || "—"} />
+        ),
       },
       {
         id: "actions",
