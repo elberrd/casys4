@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { useTranslations } from "next-intl"
 import { useQuery, useMutation } from "convex/react"
@@ -20,9 +20,24 @@ export function CountriesClient() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState<Id<"countries"> | null>(null)
   const [viewingId, setViewingId] = useState<Id<"countries"> | null>(null)
+  const didFillOfficialNames = useRef(false)
 
-  const countries = useQuery(api.countries.list, {}) ?? []
+  const countriesQuery = useQuery(api.countries.list, {})
+  const countries = countriesQuery ?? []
+  const currentUser = useQuery(api.userProfiles.getCurrentUser)
   const deleteCountry = useMutation(api.countries.remove)
+  const fillMissingOfficialNames = useMutation(api.countries.fillMissingOfficialNames)
+
+  useEffect(() => {
+    if (didFillOfficialNames.current || countriesQuery === undefined) return
+    if (currentUser?.role !== "admin") return
+    if (!countriesQuery.some((country) => !country.fullName)) return
+    didFillOfficialNames.current = true
+    void fillMissingOfficialNames({}).catch((error: unknown) => {
+      didFillOfficialNames.current = false
+      console.error("Failed to fill official country names", error)
+    })
+  }, [countriesQuery, currentUser?.role, fillMissingOfficialNames])
 
   const breadcrumbs = [
     { label: tBreadcrumbs('dashboard'), href: "/dashboard" },

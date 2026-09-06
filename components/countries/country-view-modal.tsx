@@ -48,6 +48,7 @@ export function CountryViewModal({
       icon: <Globe className="h-5 w-5" />,
       fields: [
         createField(t("name"), getCountryName(country.code) || country.name),
+        createField(t("fullName"), country.fullName),
       ],
     },
   ]

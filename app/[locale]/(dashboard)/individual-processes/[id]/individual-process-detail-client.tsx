@@ -33,6 +33,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ProcessStatusUpdateDialog } from "@/components/individual-processes/process-status-update-dialog";
+import { ProcessReportsMenu } from "@/components/process-reports/process-reports-menu";
 import { EntityHistory } from "@/components/activity-logs/entity-history";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
@@ -377,6 +378,7 @@ export function IndividualProcessDetailClient({
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 {t("updateProcessStatus")}
               </Button>
+              <ProcessReportsMenu processId={processId} />
               <Button
                 onClick={() =>
                   router.push(
