@@ -2206,7 +2206,8 @@
       "passportIssueDate": "Passport issue date",
       "passportIssuingCountry": "Passport issuing country",
       "passportExpiryDate": "Passport expiry date",
-      "legalFramework": "Legal framework"
+      "legalFramework": "Legal framework",
+      "visaReceiptPlace": "Visa receipt location"
     },
     "types": {
       "criminalBackgroundDeclaration": "Criminal background self-declaration"

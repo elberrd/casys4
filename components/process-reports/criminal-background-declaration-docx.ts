@@ -10,6 +10,8 @@ import type { CriminalBackgroundDeclaration, ReportRun } from "@/lib/process-rep
 
 const FONT = "Times New Roman"
 const SIZE = 24
+const BODY_FIRST_LINE_INDENT = 400
+const CLOSING_TAB_INDENT = 720
 
 function runsToText(runs: ReportRun[]): TextRun[] {
   return runs.map(
@@ -30,6 +32,8 @@ function paragraph(
     spacingAfter?: number
     spacingBefore?: number
     indent?: number
+    leftIndent?: number
+    line?: number
   },
 ): Paragraph {
   return new Paragraph({
@@ -37,9 +41,13 @@ function paragraph(
     spacing: {
       after: options?.spacingAfter ?? 200,
       before: options?.spacingBefore,
-      line: 360,
+      line: options?.line ?? 360,
     },
-    indent: options?.indent ? { firstLine: options.indent } : undefined,
+    indent: options?.indent
+      ? { firstLine: options.indent }
+      : options?.leftIndent
+        ? { left: options.leftIndent }
+        : undefined,
     children:
       typeof children === "string"
         ? [new TextRun({ text: children, font: FONT, size: SIZE })]
@@ -83,13 +91,25 @@ export async function buildCriminalBackgroundDeclarationDocx(
           paragraph(""),
           paragraph(report.salutation, { spacingAfter: 300 }),
           paragraph(runsToText(report.body), {
-            indent: 400,
+            indent: BODY_FIRST_LINE_INDENT,
             spacingAfter: 300,
           }),
-          ...report.closingLines.map((line) =>
-            paragraph(line, { spacingAfter: 80 }),
+          paragraph(report.closingStatement, {
+            leftIndent: CLOSING_TAB_INDENT,
+            spacingAfter: 240,
+          }),
+          ...report.petitionLines.map((line, index) =>
+            paragraph(line, {
+              leftIndent: CLOSING_TAB_INDENT,
+              spacingBefore: 0,
+              spacingAfter: index === report.petitionLines.length - 1 ? 80 : 0,
+              line: 240,
+            }),
           ),
-          paragraph(runsToText(report.locationDate), { spacingBefore: 360 }),
+          paragraph(runsToText(report.locationDate), {
+            spacingBefore: 360,
+            alignment: AlignmentType.CENTER,
+          }),
           paragraph(""),
           new Paragraph({
             alignment: AlignmentType.CENTER,

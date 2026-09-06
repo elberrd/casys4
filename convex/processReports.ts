@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
 import type { Doc, Id } from "./_generated/dataModel";
+import { resolveVisaReceiptPlace } from "../lib/process-reports/visa-receipt-place";
 
 function getFullName(person: {
   givenNames: string;
@@ -69,6 +70,15 @@ async function cityStateFromId(
   return { cityName: city.name, stateCode };
 }
 
+async function cityStateFromConsulate(
+  ctx: QueryCtx,
+  consulateId: Id<"consulates"> | undefined,
+): Promise<{ cityName: string | null; stateCode: string | null }> {
+  if (!consulateId) return { cityName: null, stateCode: null };
+  const consulate = await ctx.db.get(consulateId);
+  return cityStateFromId(ctx, consulate?.cityId);
+}
+
 async function resolvePassport(
   ctx: QueryCtx,
   process: Doc<"individualProcesses">,
@@ -105,26 +115,42 @@ export const getDeclarationSource = query({
     const process = await ctx.db.get(args.individualProcessId);
     if (!process || process.requestStatus === "draft") return null;
 
-    const [person, legalFramework, collectiveProcess] = await Promise.all([
-      ctx.db.get(process.personId),
-      process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
-      process.collectiveProcessId
-        ? ctx.db.get(process.collectiveProcessId)
-        : null,
-    ]);
+    const [person, legalFramework, collectiveProcess, company] =
+      await Promise.all([
+        ctx.db.get(process.personId),
+        process.legalFrameworkId ? ctx.db.get(process.legalFrameworkId) : null,
+        process.collectiveProcessId
+          ? ctx.db.get(process.collectiveProcessId)
+          : null,
+        process.companyApplicantId
+          ? ctx.db.get(process.companyApplicantId)
+          : null,
+      ]);
 
     const passport = await resolvePassport(ctx, process);
 
-    const nationality = await countryFieldsFromId(ctx, person?.nationalityId);
-    const issuingCountry = await countryFieldsFromId(
-      ctx,
-      passport?.issuingCountryId,
-    );
+    const [
+      nationality,
+      issuingCountry,
+      consulatePlace,
+      workplacePlace,
+      companyPlace,
+    ] = await Promise.all([
+      countryFieldsFromId(ctx, person?.nationalityId),
+      countryFieldsFromId(ctx, passport?.issuingCountryId),
+      cityStateFromConsulate(ctx, process.consulateId),
+      cityStateFromId(ctx, collectiveProcess?.workplaceCityId),
+      cityStateFromId(ctx, company?.cityId),
+    ]);
 
-    let location = await cityStateFromId(ctx, person?.currentCityId);
-    if (!location.cityName) {
-      location = await cityStateFromId(ctx, collectiveProcess?.workplaceCityId);
-    }
+    const location = resolveVisaReceiptPlace({
+      visaReceiptLocation: process.visaReceiptLocation ?? null,
+      receivedInBrazil: legalFramework?.receivedInBrazil ?? null,
+      consularPost: process.consularPost ?? null,
+      consulate: consulatePlace,
+      workplace: workplacePlace,
+      company: companyPlace,
+    });
 
     return {
       candidateName: person ? getFullName(person) : "",

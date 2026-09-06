@@ -12,13 +12,13 @@ export const MISSING_FIELD_KEYS = [
   "passportIssuingCountry",
   "passportExpiryDate",
   "legalFramework",
+  "visaReceiptPlace",
 ] as const
 
 export type MissingFieldKey = (typeof MISSING_FIELD_KEYS)[number]
 
 export type ReportRun = {
   text: string
-  highlight?: boolean
   bold?: boolean
 }
 
@@ -49,7 +49,8 @@ export type CriminalBackgroundDeclaration = {
   recipientLines: string[]
   salutation: string
   body: ReportRun[]
-  closingLines: string[]
+  closingStatement: string
+  petitionLines: string[]
   locationDate: ReportRun[]
   signatureName: string
   missingFields: MissingFieldKey[]

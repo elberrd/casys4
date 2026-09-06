@@ -1,5 +1,4 @@
 import type { CriminalBackgroundDeclaration, ReportRun } from "@/lib/process-reports/types"
-import { cn } from "@/lib/utils"
 
 function InlineRuns({ runs }: { runs: ReportRun[] }) {
   return (
@@ -7,10 +6,7 @@ function InlineRuns({ runs }: { runs: ReportRun[] }) {
       {runs.map((run, index) => (
         <span
           key={`${index}-${run.text.slice(0, 12)}`}
-          className={cn(
-            run.bold && "font-bold",
-            run.highlight && "bg-yellow-200 px-0.5 rounded-[2px]",
-          )}
+          className={run.bold ? "font-bold" : undefined}
         >
           {run.text}
         </span>
@@ -53,13 +49,19 @@ export function CriminalBackgroundDeclarationPreview({
           <InlineRuns runs={report.body} />
         </p>
 
-        {report.closingLines.map((line) => (
-          <p key={line} className="mb-1">
-            {line}
+        <div className="mb-8 pl-12">
+          <p className="mb-6">{report.closingStatement}</p>
+          <p className="mb-0 leading-[1.15]">
+            {report.petitionLines.map((line, index) => (
+              <span key={line}>
+                {index > 0 ? <br /> : null}
+                {line}
+              </span>
+            ))}
           </p>
-        ))}
+        </div>
 
-        <p className="mt-10">
+        <p className="mt-10 text-center">
           <InlineRuns runs={report.locationDate} />
         </p>
 

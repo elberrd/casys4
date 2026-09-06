@@ -2231,7 +2231,8 @@
       "passportIssueDate": "Data de emissão do passaporte",
       "passportIssuingCountry": "País emissor do passaporte",
       "passportExpiryDate": "Validade do passaporte",
-      "legalFramework": "Amparo legal"
+      "legalFramework": "Amparo legal",
+      "visaReceiptPlace": "Local de Recebimento do Visto"
     },
     "types": {
       "criminalBackgroundDeclaration": "Declaração de ausência de antecedentes criminais"
