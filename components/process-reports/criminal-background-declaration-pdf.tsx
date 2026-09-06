@@ -29,11 +29,19 @@ const styles = StyleSheet.create({
     textIndent: 28,
   },
   closing: {
-    marginBottom: 2,
+    marginLeft: 28,
+    marginBottom: 18,
+  },
+  closingStatement: {
+    marginBottom: 14,
+  },
+  petition: {
+    lineHeight: 1.3,
   },
   location: {
     marginTop: 22,
     marginBottom: 48,
+    textAlign: "center",
   },
   signature: {
     fontFamily: "Times-Bold",
@@ -80,12 +88,11 @@ export function CriminalBackgroundDeclarationPdf({
           <PdfRuns runs={report.body} />
         </View>
 
-        <View style={styles.block}>
-          {report.closingLines.map((line) => (
-            <Text key={line} style={styles.closing}>
-              {line}
-            </Text>
-          ))}
+        <View style={styles.closing}>
+          <Text style={styles.closingStatement}>{report.closingStatement}</Text>
+          <Text style={styles.petition}>
+            {report.petitionLines.join("\n")}
+          </Text>
         </View>
 
         <View style={styles.location}>

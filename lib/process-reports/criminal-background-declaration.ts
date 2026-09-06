@@ -34,10 +34,6 @@ function valueOrPlaceholder(value: string | null | undefined): {
   return { text: trimmed, missing: false }
 }
 
-function highlight(text: string, extra?: { bold?: boolean }): ReportRun {
-  return { text, highlight: true, bold: extra?.bold }
-}
-
 function plain(text: string, extra?: { bold?: boolean }): ReportRun {
   return { text, bold: extra?.bold }
 }
@@ -84,9 +80,9 @@ function parentsClause(
     return {
       runs: [
         plain(`${childWord} de `),
-        highlight(`${toUpperName(father)} (pai)`),
+        plain(`${toUpperName(father)} (pai)`),
         plain(" e de "),
-        highlight(`${toUpperName(mother)} (mãe)`),
+        plain(`${toUpperName(mother)} (mãe)`),
       ],
       missing,
     }
@@ -96,9 +92,9 @@ function parentsClause(
     return {
       runs: [
         plain(`${childWord} de `),
-        highlight(`${toUpperName(father)} (pai)`),
+        plain(`${toUpperName(father)} (pai)`),
         plain(" e de "),
-        highlight(`${REPORT_PLACEHOLDER} (mãe)`),
+        plain(`${REPORT_PLACEHOLDER} (mãe)`),
       ],
       missing,
     }
@@ -108,9 +104,9 @@ function parentsClause(
     return {
       runs: [
         plain(`${childWord} de `),
-        highlight(`${REPORT_PLACEHOLDER} (pai)`),
+        plain(`${REPORT_PLACEHOLDER} (pai)`),
         plain(" e de "),
-        highlight(`${toUpperName(mother)} (mãe)`),
+        plain(`${toUpperName(mother)} (mãe)`),
       ],
       missing,
     }
@@ -119,9 +115,9 @@ function parentsClause(
   return {
     runs: [
       plain(`${childWord} de `),
-      highlight(`${REPORT_PLACEHOLDER} (pai)`),
+      plain(`${REPORT_PLACEHOLDER} (pai)`),
       plain(" e de "),
-      highlight(`${REPORT_PLACEHOLDER} (mãe)`),
+      plain(`${REPORT_PLACEHOLDER} (mãe)`),
     ],
     missing,
   }
@@ -190,23 +186,23 @@ export function buildCriminalBackgroundDeclaration(
 
   const body: ReportRun[] = [
     plain("Eu, "),
-    highlight(candidateName),
+    plain(candidateName, { bold: true }),
     plain(", nacional da "),
-    highlight(nationality || REPORT_PLACEHOLDER),
+    plain(nationality || REPORT_PLACEHOLDER),
     plain(", "),
-    highlight(marital || REPORT_PLACEHOLDER),
+    plain(marital || REPORT_PLACEHOLDER),
     plain(`, ${bornWord} em `),
-    highlight(birthDate || REPORT_PLACEHOLDER),
+    plain(birthDate || REPORT_PLACEHOLDER),
     plain(", "),
     ...parents.runs,
     plain(`, ${holderWord} do passaporte de nº `),
-    highlight(passportNumber || REPORT_PLACEHOLDER),
+    plain(passportNumber || REPORT_PLACEHOLDER),
     plain(" – emitido em "),
-    highlight(issueDate || REPORT_PLACEHOLDER),
+    plain(issueDate || REPORT_PLACEHOLDER),
     plain(" pela "),
-    highlight(issuingOfficial || REPORT_PLACEHOLDER),
+    plain(issuingOfficial || REPORT_PLACEHOLDER),
     plain(", válido até "),
-    highlight(expiryDate || REPORT_PLACEHOLDER),
+    plain(expiryDate || REPORT_PLACEHOLDER),
     plain(
       " – em atendimento ao disposto no Inciso XI do art. 1º da RN 01/2017 CNIg, ",
     ),
@@ -214,7 +210,7 @@ export function buildCriminalBackgroundDeclaration(
     plain(
       " sob as penas do art. 299 do Código Penal Brasileiro, que não possuo antecedentes criminais em qualquer país, nos 05 anos anteriores à data da solicitação de minha Autorização de Residência com base no ",
     ),
-    highlight(legalFrameworkText),
+    plain(legalFrameworkText),
     plain(legalFrameworkText.endsWith(".") ? "" : "."),
   ]
 
@@ -224,9 +220,11 @@ export function buildCriminalBackgroundDeclaration(
   const locationPrefix =
     city && state ? `${city}/${state}` : city || ""
 
+  if (!locationPrefix) missingFields.push("visaReceiptPlace")
+
   const locationDate: ReportRun[] = locationPrefix
-    ? [highlight(`${locationPrefix}, ${todayLong}.`)]
-    : [highlight(`${todayLong}.`)]
+    ? [plain(`${locationPrefix}, ${todayLong}.`)]
+    : [plain(`${todayLong}.`)]
 
   return {
     title: "DECLARAÇÃO",
@@ -236,11 +234,9 @@ export function buildCriminalBackgroundDeclaration(
     ],
     salutation: "Prezado Sr. Coordenador,",
     body,
-    closingLines: [
+    closingStatement:
       "Por ser a expressão da verdade, firmo a presente declaração.",
-      "Nestes termos,",
-      "Pede deferimento.",
-    ],
+    petitionLines: ["Nestes termos,", "Pede deferimento."],
     locationDate,
     signatureName: candidateName,
     missingFields: [...new Set(missingFields)],
@@ -265,7 +261,9 @@ export function declarationPlainText(
     "",
     body,
     "",
-    ...report.closingLines,
+    report.closingStatement,
+    "",
+    ...report.petitionLines,
     "",
     location,
     "",

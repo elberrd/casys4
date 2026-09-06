@@ -6,9 +6,13 @@ import {
   getOfficialCountryNameOrFallback,
   resolveOfficialCountryName,
 } from "../lib/data/country-official-names-pt"
-import { buildCriminalBackgroundDeclaration } from "../lib/process-reports/criminal-background-declaration"
+import {
+  buildCriminalBackgroundDeclaration,
+  declarationPlainText,
+} from "../lib/process-reports/criminal-background-declaration"
 import { formatLongDatePt, todayIsoInSaoPaulo } from "../lib/process-reports/pt-dates"
 import { REPORT_PLACEHOLDER } from "../lib/process-reports/types"
+import { resolveVisaReceiptPlace } from "../lib/process-reports/visa-receipt-place"
 
 test("formats Portuguese long dates with zero-padded day", () => {
   assert.equal(formatLongDatePt("2001-04-04"), "04 de abril de 2001")
@@ -54,9 +58,16 @@ test("builds the criminal background declaration from process fields", () => {
   })
 
   const body = report.body.map((run) => run.text).join("")
+  const candidateRun = report.body.find((run) => run.text === "CAN ASLAN DURKAYA")
+  const plainText = declarationPlainText(report)
 
   assert.equal(report.title, "DECLARAÇÃO")
   assert.match(body, /CAN ASLAN DURKAYA/)
+  assert.equal(candidateRun?.bold, true)
+  assert.equal(
+    report.body.find((run) => run.text === "DECLARO")?.bold,
+    true,
+  )
   assert.match(body, /nacional da Turquia/)
   assert.match(body, /solteiro/)
   assert.match(body, /nascido em 04 de abril de 2001/)
@@ -67,6 +78,13 @@ test("builds the criminal background declaration from process fields", () => {
   assert.match(body, /válido até 07 de maio de 2028/)
   assert.match(body, /Art\. 4º da RN 02\/2017 CNIg/)
   assert.equal(report.missingFields.length, 0)
+  assert.equal(
+    report.closingStatement,
+    "Por ser a expressão da verdade, firmo a presente declaração.",
+  )
+  assert.deepEqual(report.petitionLines, ["Nestes termos,", "Pede deferimento."])
+  assert.match(plainText, /Nestes termos,\nPede deferimento\./)
+  assert.doesNotMatch(plainText, /Nestes termos,\n\nPede deferimento\./)
   assert.equal(
     report.locationDate.map((run) => run.text).join(""),
     "Rio de Janeiro/RJ, 02 de setembro de 2026.",
@@ -106,6 +124,7 @@ test("uses the legal framework name and gendered language", () => {
   assert.match(body, /portadora do passaporte/)
   assert.match(body, /República Federativa do Brasil/)
   assert.match(body, /Art\. 4º da RN 08\/2017 CNIg — Residência/)
+  assert.ok(report.missingFields.includes("visaReceiptPlace"))
 })
 
 test("marks missing fields and inserts placeholders", () => {
@@ -136,6 +155,38 @@ test("marks missing fields and inserts placeholders", () => {
   assert.ok(report.missingFields.includes("candidateName"))
   assert.ok(report.missingFields.includes("legalFramework"))
   assert.ok(report.missingFields.includes("passportNumber"))
+  assert.ok(report.missingFields.includes("visaReceiptPlace"))
+})
+
+test("uses workplace city when the visa is received in Brazil", () => {
+  const place = resolveVisaReceiptPlace({
+    visaReceiptLocation: "brazil",
+    consularPost: "Ancara",
+    consulate: { cityName: "Istambul", stateCode: null },
+    workplace: { cityName: "Rio de Janeiro", stateCode: "RJ" },
+    company: { cityName: "São Paulo", stateCode: "SP" },
+  })
+  assert.deepEqual(place, { cityName: "Rio de Janeiro", stateCode: "RJ" })
+})
+
+test("uses the consular post when the visa is received abroad", () => {
+  const place = resolveVisaReceiptPlace({
+    visaReceiptLocation: "abroad",
+    consularPost: "Ancara",
+    consulate: { cityName: "Istambul", stateCode: null },
+    workplace: { cityName: "Rio de Janeiro", stateCode: "RJ" },
+    company: { cityName: "São Paulo", stateCode: "SP" },
+  })
+  assert.deepEqual(place, { cityName: "Ancara", stateCode: null })
+})
+
+test("falls back to the legal framework receipt rule and company city", () => {
+  const place = resolveVisaReceiptPlace({
+    receivedInBrazil: true,
+    workplace: { cityName: null, stateCode: null },
+    company: { cityName: "Rio de Janeiro", stateCode: "RJ" },
+  })
+  assert.deepEqual(place, { cityName: "Rio de Janeiro", stateCode: "RJ" })
 })
 
 test("today in Sao Paulo is an ISO date", () => {
