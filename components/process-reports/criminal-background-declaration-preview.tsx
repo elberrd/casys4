@@ -49,9 +49,9 @@ export function CriminalBackgroundDeclarationPreview({
           <InlineRuns runs={report.body} />
         </p>
 
-        <div className="mb-8 pl-8">
+        <div className="mb-8 pl-12">
           <p className="mb-6">{report.closingStatement}</p>
-          <p className="mb-0 leading-snug">
+          <p className="mb-0 leading-[1.15]">
             {report.petitionLines.map((line, index) => (
               <span key={line}>
                 {index > 0 ? <br /> : null}

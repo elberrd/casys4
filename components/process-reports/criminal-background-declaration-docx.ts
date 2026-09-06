@@ -10,7 +10,8 @@ import type { CriminalBackgroundDeclaration, ReportRun } from "@/lib/process-rep
 
 const FONT = "Times New Roman"
 const SIZE = 24
-const TAB_INDENT = 400
+const BODY_FIRST_LINE_INDENT = 400
+const CLOSING_TAB_INDENT = 720
 
 function runsToText(runs: ReportRun[]): TextRun[] {
   return runs.map(
@@ -90,19 +91,19 @@ export async function buildCriminalBackgroundDeclarationDocx(
           paragraph(""),
           paragraph(report.salutation, { spacingAfter: 300 }),
           paragraph(runsToText(report.body), {
-            indent: TAB_INDENT,
+            indent: BODY_FIRST_LINE_INDENT,
             spacingAfter: 300,
           }),
           paragraph(report.closingStatement, {
-            leftIndent: TAB_INDENT,
+            leftIndent: CLOSING_TAB_INDENT,
             spacingAfter: 240,
           }),
           ...report.petitionLines.map((line, index) =>
             paragraph(line, {
-              leftIndent: TAB_INDENT,
+              leftIndent: CLOSING_TAB_INDENT,
               spacingBefore: 0,
               spacingAfter: index === report.petitionLines.length - 1 ? 80 : 0,
-              line: 276,
+              line: 240,
             }),
           ),
           paragraph(runsToText(report.locationDate), {

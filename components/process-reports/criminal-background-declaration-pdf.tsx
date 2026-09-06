@@ -29,14 +29,14 @@ const styles = StyleSheet.create({
     textIndent: 28,
   },
   closing: {
-    marginLeft: 28,
+    marginLeft: 48,
     marginBottom: 18,
   },
   closingStatement: {
     marginBottom: 14,
   },
   petition: {
-    lineHeight: 1.3,
+    lineHeight: 1.15,
   },
   location: {
     marginTop: 22,
