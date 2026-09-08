@@ -2,6 +2,11 @@ export const REPORT_PAGE_WIDTH_MM = 210;
 export const REPORT_PAGE_HEIGHT_MM = 297;
 export const REPORT_PAGE_MARGIN_X_MM = 18;
 export const REPORT_PAGE_MARGIN_Y_MM = 20;
+export const REPORT_PAGE_GAP_MM = 12;
+export const REPORT_CONTENT_HEIGHT_MM =
+  REPORT_PAGE_HEIGHT_MM - REPORT_PAGE_MARGIN_Y_MM * 2;
+export const REPORT_PAGE_SPACER_MM =
+  REPORT_PAGE_MARGIN_Y_MM * 2 + REPORT_PAGE_GAP_MM;
 
 export const REPORT_PAGE_WIDTH_PX = Math.round(
   (REPORT_PAGE_WIDTH_MM * 96) / 25.4,
@@ -12,6 +17,8 @@ export const REPORT_PAGE_HEIGHT_PX = Math.round(
 
 export const REPORT_ZOOM_LEVELS = [50, 75, 90, 100, 125, 150] as const;
 export type ReportZoomLevel = (typeof REPORT_ZOOM_LEVELS)[number];
+export const REPORT_ZOOM_MIN: ReportZoomLevel = 50;
+export const REPORT_ZOOM_MAX: ReportZoomLevel = 150;
 
 export const REPORT_DOCUMENT_CSS = `
   color: #111827;
@@ -52,11 +59,29 @@ export function nextReportZoomLevel(
   current: number,
   direction: 1 | -1,
 ): ReportZoomLevel {
-  const index = REPORT_ZOOM_LEVELS.findIndex((level) => level === current);
-  const from = index === -1 ? REPORT_ZOOM_LEVELS.indexOf(100) : index;
-  const next = from + direction;
-  const clamped = Math.max(0, Math.min(REPORT_ZOOM_LEVELS.length - 1, next));
-  return REPORT_ZOOM_LEVELS[clamped] ?? 100;
+  if (direction === 1) {
+    const next = REPORT_ZOOM_LEVELS.find((level) => level > current + 0.5);
+    return next ?? REPORT_ZOOM_MAX;
+  }
+  const previous = [...REPORT_ZOOM_LEVELS]
+    .reverse()
+    .find((level) => level < current - 0.5);
+  return previous ?? REPORT_ZOOM_MIN;
+}
+
+export function fitReportZoom(
+  containerWidthPx: number,
+  paddingPx = 64,
+): number {
+  if (containerWidthPx <= 0) return 100;
+  const available = Math.max(1, containerWidthPx - paddingPx);
+  const raw = (available / REPORT_PAGE_WIDTH_PX) * 100;
+  return Math.round(Math.min(REPORT_ZOOM_MAX, Math.max(REPORT_ZOOM_MIN, raw)));
+}
+
+export function reportPageStackHeightMm(pageCount: number): number {
+  const pages = Math.max(1, pageCount);
+  return pages * REPORT_PAGE_HEIGHT_MM + (pages - 1) * REPORT_PAGE_GAP_MM;
 }
 
 export function countReportPages(heightPx: number, widthPx: number): number {
@@ -64,4 +89,13 @@ export function countReportPages(heightPx: number, widthPx: number): number {
   const pageHeightPx = widthPx * (REPORT_PAGE_HEIGHT_MM / REPORT_PAGE_WIDTH_MM);
   if (heightPx <= pageHeightPx + 1) return 1;
   return Math.ceil(heightPx / pageHeightPx);
+}
+
+export function countReportContentPages(
+  contentHeightPx: number,
+  contentPageHeightPx: number,
+): number {
+  if (contentHeightPx <= 0 || contentPageHeightPx <= 0) return 1;
+  if (contentHeightPx <= contentPageHeightPx + 1) return 1;
+  return Math.ceil(contentHeightPx / contentPageHeightPx);
 }

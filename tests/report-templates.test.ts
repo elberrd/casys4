@@ -12,7 +12,11 @@ import {
 } from "../lib/report-templates/html-to-pdf";
 import {
   countReportPages,
+  countReportContentPages,
+  fitReportZoom,
   nextReportZoomLevel,
+  reportPageStackHeightMm,
+  REPORT_PAGE_WIDTH_PX,
 } from "../lib/report-templates/page-layout";
 import {
   isReportVariableKey,
@@ -195,9 +199,29 @@ test("counts A4 pages from the paper aspect ratio", () => {
   assert.equal(countReportPages(0, 794), 1);
 });
 
+test("counts pages from content height inside the printable area", () => {
+  assert.equal(countReportContentPages(257, 257), 1);
+  assert.equal(countReportContentPages(400, 257), 2);
+  assert.equal(countReportContentPages(0, 257), 1);
+});
+
+test("stacks A4 sheets with a gap like Word print layout", () => {
+  assert.equal(reportPageStackHeightMm(1), 297);
+  assert.equal(reportPageStackHeightMm(2), 297 * 2 + 12);
+  assert.equal(reportPageStackHeightMm(3), 297 * 3 + 24);
+});
+
 test("steps zoom between preset Word-like levels", () => {
   assert.equal(nextReportZoomLevel(100, 1), 125);
   assert.equal(nextReportZoomLevel(100, -1), 90);
   assert.equal(nextReportZoomLevel(50, -1), 50);
   assert.equal(nextReportZoomLevel(150, 1), 150);
+  assert.equal(nextReportZoomLevel(83, 1), 90);
+  assert.equal(nextReportZoomLevel(83, -1), 75);
+});
+
+test("fits zoom to the available desk width", () => {
+  assert.equal(fitReportZoom(REPORT_PAGE_WIDTH_PX + 64), 100);
+  assert.equal(fitReportZoom(200), 50);
+  assert.equal(fitReportZoom(5000), 150);
 });

@@ -297,7 +297,7 @@ export function ReportTemplateFormPage({
                       variablesLabel={t("insertVariable")}
                       variablesSearchPlaceholder={t("searchVariables")}
                       noVariablesFoundLabel={t("noVariablesFound")}
-                      className="h-[min(78vh,920px)]"
+                      className="h-[min(82vh,1080px)]"
                     />
                   </FormControl>
                   <FormMessage />

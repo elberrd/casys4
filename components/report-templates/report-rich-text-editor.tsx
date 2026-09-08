@@ -48,8 +48,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { ReportVariable } from "@/components/report-templates/report-variable-extension";
 import { ReportPageCanvas } from "@/components/report-templates/report-page-canvas";
+import { ReportPageGap } from "@/components/report-templates/report-page-gap-extension";
 import type { ReportVariableGroupId, ReportVariableKey } from "@/lib/report-templates/variables";
-import { reportDocumentCss } from "@/lib/report-templates/page-layout";
+import {
+  REPORT_CONTENT_HEIGHT_MM,
+  reportDocumentCss,
+} from "@/lib/report-templates/page-layout";
 
 const PRESET_COLORS = [
   "#111827",
@@ -492,6 +496,7 @@ export function ReportRichTextEditor({
 }: ReportRichTextEditorProps) {
   const t = useTranslations("ReportTemplates");
   const [zoom, setZoom] = useState(100);
+  const [zoomMode, setZoomMode] = useState<"fit" | number>("fit");
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -511,6 +516,7 @@ export function ReportRichTextEditor({
       Subscript,
       Superscript,
       ReportVariable.configure({ getLabel: getVariableLabel }),
+      ReportPageGap,
     ],
     content: value,
     editable: !disabled,
@@ -521,10 +527,11 @@ export function ReportRichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "report-page-editor max-w-none min-h-[257mm] focus:outline-none",
+          "report-page-editor max-w-none bg-transparent focus:outline-none",
           "[&_span.report-variable]:inline-flex [&_span.report-variable]:items-center [&_span.report-variable]:rounded-md [&_span.report-variable]:border [&_span.report-variable]:border-sky-300 [&_span.report-variable]:bg-sky-50 [&_span.report-variable]:px-1.5 [&_span.report-variable]:py-0.5 [&_span.report-variable]:text-xs [&_span.report-variable]:font-medium [&_span.report-variable]:text-sky-800",
           "[&_table]:w-full",
         ),
+        style: `min-height: ${REPORT_CONTENT_HEIGHT_MM}mm`,
       },
     },
   });
@@ -554,7 +561,10 @@ export function ReportRichTextEditor({
         className,
       )}
     >
-      <style>{reportDocumentCss(".report-page-editor")}</style>
+      <style>
+        {reportDocumentCss(".report-page-editor")}
+        {`.report-page-gap{display:block;background:transparent}.report-page-editor{min-height:${REPORT_CONTENT_HEIGHT_MM}mm}`}
+      </style>
       <EditorToolbar
         editor={editor}
         disabled={disabled}
@@ -566,10 +576,13 @@ export function ReportRichTextEditor({
       />
       <ReportPageCanvas
         zoom={zoom}
+        zoomMode={zoomMode}
         onZoomChange={setZoom}
+        onZoomModeChange={setZoomMode}
         zoomLabel={t("toolbar.zoom")}
         zoomInLabel={t("toolbar.zoomIn")}
         zoomOutLabel={t("toolbar.zoomOut")}
+        fitWidthLabel={t("toolbar.fitWidth")}
         pageSizeLabel={t("toolbar.pageSize")}
         pageCountLabel={(count) => t("toolbar.pageCount", { count })}
         pageBreakLabel={(page) => t("toolbar.pageBreak", { page })}

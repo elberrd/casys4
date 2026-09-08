@@ -2274,7 +2274,8 @@
       "zoom": "Zoom",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
-      "pageSize": "A4",
+      "fitWidth": "Fit to width",
+      "pageSize": "A4 (210 × 297 mm)",
       "pageCount": "{count, plural, one {# page} other {# pages}}",
       "pageBreak": "Page {page}"
     },

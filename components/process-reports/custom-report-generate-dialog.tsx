@@ -363,6 +363,7 @@ export function CustomReportGenerateDialog({
                     html={editedHtml}
                     className="h-full min-h-[48vh]"
                     ariaLabel={t("previewAriaLabel")}
+                    pageBreakLabel={(page) => t("toolbar.pageBreak", { page })}
                   />
                 </div>
               </div>
