@@ -13,7 +13,7 @@ export function ReportPageMarginGuides() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute z-10 border border-dashed border-sky-300/80"
+      className="pointer-events-none absolute z-10 border border-dashed border-sky-500/80"
       style={{
         top: `${REPORT_PAGE_MARGIN_Y_MM}mm`,
         right: `${REPORT_PAGE_MARGIN_X_MM}mm`,
