@@ -7,6 +7,10 @@ import {
   substituteReportVariables,
 } from "../lib/report-templates/substitute";
 import {
+  buildIsolatedReportHtml,
+  sanitizeReportHtmlForPdf,
+} from "../lib/report-templates/html-to-pdf";
+import {
   isReportVariableKey,
   REPORT_VARIABLES,
   variablesByGroup,
@@ -165,4 +169,17 @@ test("formats individual process fields with the labels shown to staff", () => {
   assert.match(values.statusHistory, /Em Trâmite/);
   assert.match(values.statusHistory, /Em Preparação/);
   assert.equal(values.currentStatus, "Em Trâmite");
+});
+
+test("PDF HTML isolation uses only hex colors and keeps report content", () => {
+  const isolated = buildIsolatedReportHtml(
+    '<p style="color: oklch(0.5 0.1 20)">Oran Alder Mc Gee</p>',
+  );
+  assert.match(isolated, /Oran Alder Mc Gee/);
+  assert.match(isolated, /id="report-paper"/);
+  assert.equal(isolated.includes("oklch"), false);
+  assert.equal(
+    sanitizeReportHtmlForPdf("color: oklch(0.21 0.03 256)"),
+    "color: #111827",
+  );
 });
