@@ -992,6 +992,35 @@ export default defineSchema({
     .index("by_note", ["noteId"])
     .index("by_storageId", ["storageId"]),
 
+  // Admin-authored rich-text report templates for individual processes.
+  // Variables in contentHtml are TipTap nodes keyed by client-facing field ids.
+  reportTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    contentHtml: v.string(),
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_name", ["name"]),
+
+  // Optional many-to-many link between a report template and document types.
+  // When a process document matches a linked type, staff can generate the
+  // report from that document row and attach the resulting PDF.
+  reportTemplateDocumentTypes: defineTable({
+    reportTemplateId: v.id("reportTemplates"),
+    documentTypeId: v.id("documentTypes"),
+    createdAt: v.number(),
+  })
+    .index("by_reportTemplate", ["reportTemplateId"])
+    .index("by_documentType", ["documentTypeId"])
+    .index("by_reportTemplate_and_documentType", [
+      "reportTemplateId",
+      "documentTypeId",
+    ]),
+
   // Saved filter presets for users
   savedFilters: defineTable({
     name: v.string(), // User-defined filter name
