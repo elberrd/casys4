@@ -85,6 +85,39 @@ test("substitutes chips using client-facing keys, not database names", () => {
   assert.equal(extractReportVariableKeys(html).includes("nationality"), true);
 });
 
+test("keeps bold, italic and inline styles when filling a variable chip", () => {
+  const html =
+    '<p><strong><em><span data-type="report-variable" data-key="personName" style="font-size: 20px; color: #111827">Nome do indivíduo</span></em></strong></p>';
+  const result = substituteReportVariables(html, {
+    personName: "Oran Alder Mc Gee",
+  });
+  assert.equal(
+    result,
+    '<p><strong><em><span style="font-size: 20px; color: #111827">Oran Alder Mc Gee</span></em></strong></p>',
+  );
+});
+
+test("applies chip data-bold and data-italic to the filled value", () => {
+  const html =
+    '<p>Nome: <span data-type="report-variable" data-key="personName" data-bold="true" data-italic="true">Nome do indivíduo</span></p>';
+  const result = substituteReportVariables(html, {
+    personName: "Oran Alder Mc Gee",
+  });
+  assert.equal(
+    result,
+    "<p>Nome: <strong><em>Oran Alder Mc Gee</em></strong></p>",
+  );
+});
+
+test("applies chip underline and strike to the filled value", () => {
+  const html =
+    '<p><span data-type="report-variable" data-key="cpf" data-underline="true" data-strike="true">CPF</span></p>';
+  const result = substituteReportVariables(html, {
+    cpf: "039.867.637-24",
+  });
+  assert.equal(result, "<p><u><s>039.867.637-24</s></u></p>");
+});
+
 test("substitutes mustache tokens and escapes HTML in values", () => {
   const html = "<p>{{personName}} — {{cpf}}</p>";
   const result = substituteReportVariables(html, {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { ReportVariable, type ReportVariableFormatAttr } from "@/components/report-templates/report-variable-extension";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontSize, Color, LineHeight } from "@tiptap/extension-text-style";
 import { TextAlign } from "@tiptap/extension-text-align";
@@ -46,7 +47,6 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { ReportVariable } from "@/components/report-templates/report-variable-extension";
 import { ReportPageCanvas } from "@/components/report-templates/report-page-canvas";
 import { ReportPageGap } from "@/components/report-templates/report-page-gap-extension";
 import type { ReportVariableGroupId, ReportVariableKey } from "@/lib/report-templates/variables";
@@ -92,6 +92,33 @@ interface ReportRichTextEditorProps {
   noVariablesFoundLabel?: string;
 }
 
+function toggleInlineFormat(editor: Editor, attr: ReportVariableFormatAttr) {
+  if (editor.commands.toggleReportVariableFormat(attr)) {
+    return;
+  }
+  const chain = editor.chain();
+  if (attr === "bold") {
+    chain.toggleBold().run();
+    return;
+  }
+  if (attr === "italic") {
+    chain.toggleItalic().run();
+    return;
+  }
+  if (attr === "underline") {
+    chain.toggleUnderline().run();
+    return;
+  }
+  chain.toggleStrike().run();
+}
+
+function isInlineFormatActive(editor: Editor, attr: ReportVariableFormatAttr) {
+  if (editor.isActive("reportVariable")) {
+    return Boolean(editor.getAttributes("reportVariable")[attr]);
+  }
+  return editor.isActive(attr);
+}
+
 function ToolbarButton({
   active,
   disabled,
@@ -110,6 +137,7 @@ function ToolbarButton({
       type="button"
       variant={active ? "secondary" : "ghost"}
       size="icon-sm"
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -193,34 +221,34 @@ function EditorToolbar({
       </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border" />
       <ToolbarButton
-        active={editor.isActive("bold")}
+        active={isInlineFormatActive(editor, "bold")}
         disabled={disabled}
         title={t("toolbar.bold")}
-        onClick={() => editor.chain().focus().toggleBold().run()}
+        onClick={() => toggleInlineFormat(editor, "bold")}
       >
         <Bold className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("italic")}
+        active={isInlineFormatActive(editor, "italic")}
         disabled={disabled}
         title={t("toolbar.italic")}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
+        onClick={() => toggleInlineFormat(editor, "italic")}
       >
         <Italic className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("underline")}
+        active={isInlineFormatActive(editor, "underline")}
         disabled={disabled}
         title={t("toolbar.underline")}
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        onClick={() => toggleInlineFormat(editor, "underline")}
       >
         <UnderlineIcon className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("strike")}
+        active={isInlineFormatActive(editor, "strike")}
         disabled={disabled}
         title={t("toolbar.strikethrough")}
-        onClick={() => editor.chain().focus().toggleStrike().run()}
+        onClick={() => toggleInlineFormat(editor, "strike")}
       >
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
@@ -228,7 +256,7 @@ function EditorToolbar({
         active={editor.isActive("subscript")}
         disabled={disabled}
         title={t("toolbar.subscript")}
-        onClick={() => editor.chain().focus().toggleSubscript().run()}
+        onClick={() => editor.chain().toggleSubscript().run()}
       >
         <SubscriptIcon className="h-4 w-4" />
       </ToolbarButton>
@@ -236,7 +264,7 @@ function EditorToolbar({
         active={editor.isActive("superscript")}
         disabled={disabled}
         title={t("toolbar.superscript")}
-        onClick={() => editor.chain().focus().toggleSuperscript().run()}
+        onClick={() => editor.chain().toggleSuperscript().run()}
       >
         <SuperscriptIcon className="h-4 w-4" />
       </ToolbarButton>
@@ -247,10 +275,10 @@ function EditorToolbar({
         onChange={(event) => {
           const size = event.target.value;
           if (!size) {
-            editor.chain().focus().unsetFontSize().run();
+            editor.chain().unsetFontSize().run();
             return;
           }
-          editor.chain().focus().setFontSize(size).run();
+          editor.chain().setFontSize(size).run();
         }}
         aria-label={t("toolbar.fontSize")}
       >
@@ -268,10 +296,10 @@ function EditorToolbar({
         onChange={(event) => {
           const lineHeight = event.target.value;
           if (!lineHeight) {
-            editor.chain().focus().unsetLineHeight().run();
+            editor.chain().unsetLineHeight().run();
             return;
           }
-          editor.chain().focus().setLineHeight(lineHeight).run();
+          editor.chain().setLineHeight(lineHeight).run();
         }}
         aria-label={t("toolbar.lineHeight")}
       >
@@ -284,7 +312,7 @@ function EditorToolbar({
       </select>
       <Popover>
         <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} title={t("toolbar.textColor")}>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} title={t("toolbar.textColor")} onMouseDown={(event) => event.preventDefault()}>
             <Palette className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
@@ -296,7 +324,8 @@ function EditorToolbar({
                 type="button"
                 className="h-6 w-6 rounded-md border border-border transition-transform hover:scale-110"
                 style={{ backgroundColor: color }}
-                onClick={() => editor.chain().focus().setColor(color).run()}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => editor.chain().setColor(color).run()}
                 title={color}
               />
             ))}
@@ -305,7 +334,7 @@ function EditorToolbar({
       </Popover>
       <Popover>
         <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} title={t("toolbar.highlight")}>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} title={t("toolbar.highlight")} onMouseDown={(event) => event.preventDefault()}>
             <Highlighter className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
@@ -318,8 +347,9 @@ function EditorToolbar({
                   type="button"
                   className="h-6 w-6 rounded-md border border-border transition-transform hover:scale-110"
                   style={{ backgroundColor: color }}
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() =>
-                    editor.chain().focus().toggleHighlight({ color }).run()
+                    editor.chain().toggleHighlight({ color }).run()
                   }
                   title={color}
                 />
@@ -528,7 +558,11 @@ export function ReportRichTextEditor({
       attributes: {
         class: cn(
           "report-page-editor max-w-none bg-transparent focus:outline-none",
-          "[&_span.report-variable]:inline-flex [&_span.report-variable]:items-center [&_span.report-variable]:rounded-md [&_span.report-variable]:border [&_span.report-variable]:border-sky-300 [&_span.report-variable]:bg-sky-50 [&_span.report-variable]:px-1.5 [&_span.report-variable]:py-0.5 [&_span.report-variable]:text-xs [&_span.report-variable]:font-medium [&_span.report-variable]:text-sky-800",
+          "[&_span.report-variable]:inline-flex [&_span.report-variable]:items-center [&_span.report-variable]:rounded-md [&_span.report-variable]:border [&_span.report-variable]:border-sky-300 [&_span.report-variable]:bg-sky-50 [&_span.report-variable]:px-1.5 [&_span.report-variable]:py-0.5 [&_span.report-variable]:text-sky-800",
+          "[&_span.report-variable[data-bold=true]]:font-bold [&_strong_span.report-variable]:font-bold [&_b_span.report-variable]:font-bold",
+          "[&_span.report-variable[data-italic=true]]:italic [&_em_span.report-variable]:italic [&_i_span.report-variable]:italic",
+          "[&_span.report-variable[data-underline=true]]:underline [&_u_span.report-variable]:underline",
+          "[&_span.report-variable[data-strike=true]]:line-through [&_s_span.report-variable]:line-through [&_del_span.report-variable]:line-through",
           "[&_table]:w-full",
         ),
         style: `min-height: ${REPORT_CONTENT_HEIGHT_MM}mm`,
@@ -563,7 +597,7 @@ export function ReportRichTextEditor({
     >
       <style>
         {reportDocumentCss(".report-page-editor")}
-        {`.report-page-gap{display:block;background:transparent}.report-page-editor{min-height:${REPORT_CONTENT_HEIGHT_MM}mm}`}
+        {`.report-page-gap{display:block;background:transparent}.report-page-editor{min-height:${REPORT_CONTENT_HEIGHT_MM}mm}.report-page-editor span.report-variable[data-bold="true"]{font-weight:700}.report-page-editor span.report-variable[data-italic="true"]{font-style:italic}.report-page-editor span.report-variable[data-underline="true"]{text-decoration-line:underline}.report-page-editor span.report-variable[data-strike="true"]{text-decoration-line:line-through}.report-page-editor span.report-variable[data-underline="true"][data-strike="true"]{text-decoration-line:underline line-through}`}
       </style>
       <EditorToolbar
         editor={editor}
