@@ -2270,7 +2270,13 @@
       "clearFormatting": "Clear formatting",
       "subscript": "Subscript",
       "superscript": "Superscript",
-      "lineHeight": "Line height"
+      "lineHeight": "Line height",
+      "zoom": "Zoom",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "pageSize": "A4",
+      "pageCount": "{count, plural, one {# page} other {# pages}}",
+      "pageBreak": "Page {page}"
     },
     "noResults": "No reports found",
     "notFound": "Report not found",

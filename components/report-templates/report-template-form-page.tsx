@@ -297,7 +297,7 @@ export function ReportTemplateFormPage({
                       variablesLabel={t("insertVariable")}
                       variablesSearchPlaceholder={t("searchVariables")}
                       noVariablesFoundLabel={t("noVariablesFound")}
-                      minHeightClassName="min-h-[420px]"
+                      className="h-[min(78vh,920px)]"
                     />
                   </FormControl>
                   <FormMessage />

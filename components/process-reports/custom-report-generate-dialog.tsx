@@ -347,7 +347,7 @@ export function CustomReportGenerateDialog({
                   <ReportRichTextEditor
                     value={editedHtml}
                     onChange={setEditedHtml}
-                    minHeightClassName="min-h-[48vh]"
+                    className="min-h-0 flex-1"
                   />
                 </div>
                 <div

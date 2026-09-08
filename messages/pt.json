@@ -2295,7 +2295,13 @@
       "clearFormatting": "Limpar formatação",
       "subscript": "Subscrito",
       "superscript": "Sobrescrito",
-      "lineHeight": "Espaçamento entre linhas"
+      "lineHeight": "Espaçamento entre linhas",
+      "zoom": "Zoom",
+      "zoomIn": "Aumentar zoom",
+      "zoomOut": "Diminuir zoom",
+      "pageSize": "A4",
+      "pageCount": "{count, plural, one {# página} other {# páginas}}",
+      "pageBreak": "Página {page}"
     },
     "noResults": "Nenhum relatório encontrado",
     "notFound": "Relatório não encontrado",

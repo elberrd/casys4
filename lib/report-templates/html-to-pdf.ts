@@ -1,37 +1,23 @@
+import {
+  REPORT_PAGE_HEIGHT_MM,
+  REPORT_PAGE_HEIGHT_PX,
+  REPORT_PAGE_MARGIN_X_MM,
+  REPORT_PAGE_MARGIN_Y_MM,
+  REPORT_PAGE_WIDTH_MM,
+  REPORT_PAGE_WIDTH_PX,
+  reportDocumentCss,
+} from "./page-layout";
+
 const PREVIEW_TABLE_STYLES = `
   html, body { margin: 0; padding: 0; background: #ffffff; }
   #report-paper {
-    width: 794px;
+    width: ${REPORT_PAGE_WIDTH_MM}mm;
+    min-height: ${REPORT_PAGE_HEIGHT_MM}mm;
     box-sizing: border-box;
-    padding: 64px 56px;
+    padding: ${REPORT_PAGE_MARGIN_Y_MM}mm ${REPORT_PAGE_MARGIN_X_MM}mm;
     background: #ffffff;
-    color: #111827;
-    font-family: "Times New Roman", Times, serif;
-    font-size: 16px;
-    line-height: 1.6;
   }
-  #report-paper table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-  #report-paper th, #report-paper td {
-    border: 1px solid #d1d5db;
-    padding: 8px 10px;
-    text-align: left;
-    vertical-align: top;
-  }
-  #report-paper th { background: #f3f4f6; font-weight: 600; }
-  #report-paper p { margin: 0 0 0.75em; }
-  #report-paper h1, #report-paper h2, #report-paper h3 {
-    margin: 0 0 0.6em;
-    line-height: 1.25;
-    color: #111827;
-  }
-  #report-paper ul, #report-paper ol { margin: 0 0 0.75em; padding-left: 1.4em; }
-  #report-paper blockquote {
-    margin: 0 0 0.75em;
-    padding-left: 12px;
-    border-left: 3px solid #d1d5db;
-    color: #4b5563;
-  }
-  #report-paper hr { border: none; border-top: 1px solid #d1d5db; margin: 16px 0; }
+  ${reportDocumentCss("#report-paper")}
 `;
 
 const UNSUPPORTED_COLOR_FUNCTION =
@@ -88,7 +74,11 @@ function loadIframeDocument(html: string): Promise<{
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
     iframe.style.cssText =
-      "position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;background:#ffffff;";
+      "position:fixed;left:-12000px;top:0;width:" +
+      REPORT_PAGE_WIDTH_PX +
+      "px;height:" +
+      REPORT_PAGE_HEIGHT_PX +
+      "px;border:0;background:#ffffff;";
     let settled = false;
     const timeoutId = window.setTimeout(() => {
       if (settled) return;
@@ -119,7 +109,7 @@ export async function htmlToPdfBlob(html: string): Promise<Blob> {
       backgroundColor: "#ffffff",
       useCORS: true,
       logging: false,
-      windowWidth: 794,
+      windowWidth: REPORT_PAGE_WIDTH_PX,
       onclone: (clonedDoc) => {
         stripUnsupportedColorsFromClone(clonedDoc);
       },

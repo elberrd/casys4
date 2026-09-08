@@ -11,6 +11,10 @@ import {
   sanitizeReportHtmlForPdf,
 } from "../lib/report-templates/html-to-pdf";
 import {
+  countReportPages,
+  nextReportZoomLevel,
+} from "../lib/report-templates/page-layout";
+import {
   isReportVariableKey,
   REPORT_VARIABLES,
   variablesByGroup,
@@ -182,4 +186,18 @@ test("PDF HTML isolation uses only hex colors and keeps report content", () => {
     sanitizeReportHtmlForPdf("color: oklch(0.21 0.03 256)"),
     "color: #111827",
   );
+});
+
+test("counts A4 pages from the paper aspect ratio", () => {
+  assert.equal(countReportPages(1123, 794), 1);
+  assert.equal(countReportPages(1500, 794), 2);
+  assert.equal(countReportPages(2300, 794), 3);
+  assert.equal(countReportPages(0, 794), 1);
+});
+
+test("steps zoom between preset Word-like levels", () => {
+  assert.equal(nextReportZoomLevel(100, 1), 125);
+  assert.equal(nextReportZoomLevel(100, -1), 90);
+  assert.equal(nextReportZoomLevel(50, -1), 50);
+  assert.equal(nextReportZoomLevel(150, 1), 150);
 });

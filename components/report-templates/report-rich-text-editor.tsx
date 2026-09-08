@@ -47,7 +47,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { ReportVariable } from "@/components/report-templates/report-variable-extension";
+import { ReportPageCanvas } from "@/components/report-templates/report-page-canvas";
 import type { ReportVariableGroupId, ReportVariableKey } from "@/lib/report-templates/variables";
+import { reportDocumentCss } from "@/lib/report-templates/page-layout";
 
 const PRESET_COLORS = [
   "#111827",
@@ -81,7 +83,6 @@ interface ReportRichTextEditorProps {
   enableVariables?: boolean;
   variableGroups?: ReportEditorVariableGroup[];
   getVariableLabel?: (key: string) => string;
-  minHeightClassName?: string;
   variablesLabel?: string;
   variablesSearchPlaceholder?: string;
   noVariablesFoundLabel?: string;
@@ -485,11 +486,12 @@ export function ReportRichTextEditor({
   enableVariables = false,
   variableGroups = [],
   getVariableLabel = (key) => key,
-  minHeightClassName = "min-h-[320px]",
   variablesLabel = "Variables",
   variablesSearchPlaceholder = "Search variables",
   noVariablesFoundLabel = "No variables found",
 }: ReportRichTextEditorProps) {
+  const t = useTranslations("ReportTemplates");
+  const [zoom, setZoom] = useState(100);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -519,10 +521,9 @@ export function ReportRichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-sm dark:prose-invert max-w-none px-4 py-3 focus:outline-none",
-          minHeightClassName,
+          "report-page-editor max-w-none min-h-[257mm] focus:outline-none",
           "[&_span.report-variable]:inline-flex [&_span.report-variable]:items-center [&_span.report-variable]:rounded-md [&_span.report-variable]:border [&_span.report-variable]:border-sky-300 [&_span.report-variable]:bg-sky-50 [&_span.report-variable]:px-1.5 [&_span.report-variable]:py-0.5 [&_span.report-variable]:text-xs [&_span.report-variable]:font-medium [&_span.report-variable]:text-sky-800",
-          "[&_table]:w-full [&_td]:border [&_th]:border [&_td]:border-border [&_th]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted",
+          "[&_table]:w-full",
         ),
       },
     },
@@ -542,12 +543,18 @@ export function ReportRichTextEditor({
 
   if (!editor) {
     return (
-      <div className={cn("min-h-[360px] rounded-md border bg-background", className)} />
+      <div className={cn("min-h-[560px] rounded-md border bg-background", className)} />
     );
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-md border bg-background", className)}>
+    <div
+      className={cn(
+        "flex h-full min-h-[520px] flex-col overflow-hidden rounded-md border bg-background",
+        className,
+      )}
+    >
+      <style>{reportDocumentCss(".report-page-editor")}</style>
       <EditorToolbar
         editor={editor}
         disabled={disabled}
@@ -557,7 +564,18 @@ export function ReportRichTextEditor({
         variablesSearchPlaceholder={variablesSearchPlaceholder}
         noVariablesFoundLabel={noVariablesFoundLabel}
       />
-      <EditorContent editor={editor} />
+      <ReportPageCanvas
+        zoom={zoom}
+        onZoomChange={setZoom}
+        zoomLabel={t("toolbar.zoom")}
+        zoomInLabel={t("toolbar.zoomIn")}
+        zoomOutLabel={t("toolbar.zoomOut")}
+        pageSizeLabel={t("toolbar.pageSize")}
+        pageCountLabel={(count) => t("toolbar.pageCount", { count })}
+        pageBreakLabel={(page) => t("toolbar.pageBreak", { page })}
+      >
+        <EditorContent editor={editor} />
+      </ReportPageCanvas>
     </div>
   );
 }
