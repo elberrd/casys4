@@ -222,6 +222,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t("documentTypeConditions"),
           url: "/document-type-conditions",
         },
+        {
+          title: t("reports"),
+          url: "/report-templates",
+        },
       ],
     },
     {

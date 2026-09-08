@@ -83,6 +83,7 @@ import { SelectExistingDocumentDialog } from "./select-existing-document-dialog"
 import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
 import { StatusDocumentsDialog } from "./status-documents-dialog"
 import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
+import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
 import type {
   PdfReportMode,
   ProcessInfoForReport,
@@ -171,6 +172,10 @@ export function DocumentChecklistCard({
   const groupedDocuments = useQuery(api.documentsDelivered.listGroupedByCategory, {
     individualProcessId,
   })
+  const linkedReports = useQuery(
+    api.reportTemplates.listActiveSummaries,
+    userRole === "admin" ? {} : "skip",
+  )
 
   type ChecklistDocument = NonNullable<
     typeof groupedDocuments
@@ -259,6 +264,11 @@ export function DocumentChecklistCard({
     [reusableTypeIds]
   )
 
+  const reportsForType = (documentTypeId: Id<"documentTypes">) =>
+    (linkedReports ?? []).filter((report) =>
+      report.documentTypeIds.includes(documentTypeId),
+    )
+
   const [dialogs, setDialogs] = useState<DialogState>({
     upload: { open: false, document: null },
     review: { open: false, documentId: null },
@@ -332,6 +342,12 @@ export function DocumentChecklistCard({
   const [isBulkReusing, setIsBulkReusing] = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [pdfReportMode, setPdfReportMode] = useState<PdfReportMode | null>(null)
+  const [generateTemplateId, setGenerateTemplateId] = useState<Id<"reportTemplates"> | null>(null)
+  const [attachTarget, setAttachTarget] = useState<{
+    documentTypeId: Id<"documentTypes">
+    documentRequirementId?: Id<"documentRequirements">
+    documentName: string
+  } | null>(null)
   const bulkReuse = useMutation(api.documentsDelivered.bulkReuseCompanyDocuments)
   const toggleExcludeFromReportMutation = useMutation(api.documentsDelivered.toggleExcludeFromReport)
   const bulkExcludeFromReportByDefaultMutation = useMutation(api.documentsDelivered.bulkExcludeFromReportByDefault)
@@ -795,6 +811,58 @@ export function DocumentChecklistCard({
   ) || []
   const allSelectableSelected = selectableDocs.length > 0 && selectedDocumentIds.size === selectableDocs.length
 
+  const renderLinkedReportsButton = (
+    doc: ChecklistDocument,
+    isHistoricalVersion: boolean,
+  ) => {
+    if (userRole !== "admin" || isHistoricalVersion || !doc.documentTypeId) {
+      return null
+    }
+    const reports = reportsForType(doc.documentTypeId)
+    if (reports.length === 0) return null
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 cursor-pointer gap-1"
+            onClick={(e) => e.stopPropagation()}
+            title={t("linkedReports")}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {t("linkedReports")}
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {reports.map((report) => (
+            <DropdownMenuItem
+              key={report._id}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!doc.documentTypeId) return
+                setAttachTarget({
+                  documentTypeId: doc.documentTypeId,
+                  documentRequirementId: doc.documentRequirementId,
+                  documentName:
+                    doc.documentType?.name ||
+                    doc.documentName ||
+                    doc.fileName ||
+                    t("looseDocument"),
+                })
+                setGenerateTemplateId(report._id)
+              }}
+            >
+              {report.name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   // Render a single document row
   const renderDocumentRow = (
     doc: ChecklistDocument,
@@ -1063,6 +1131,7 @@ export function DocumentChecklistCard({
           </div>
         ) : doc.status === "not_started" ? (
           <div className="flex flex-wrap gap-1 2xl:justify-end">
+            {renderLinkedReportsButton(doc, isHistoricalVersion)}
             {userRole === "admin" && doc.documentType?.isCompanyDocument === true && companyApplicantId && doc.documentTypeId && reusableTypeIdSet.has(doc.documentTypeId) && (
               <Button
                 size="sm"
@@ -1113,6 +1182,7 @@ export function DocumentChecklistCard({
           </div>
         ) : (
           <div className="flex flex-wrap gap-1 2xl:justify-end">
+            {renderLinkedReportsButton(doc, isHistoricalVersion)}
             <Button
               size="sm"
               variant="ghost"
@@ -1887,6 +1957,21 @@ export function DocumentChecklistCard({
           pendingDocuments={pdfPendingDocuments}
           exigenciaGroups={pdfReportMode === "exigencias_atuais" ? pdfExigenciaGroups.slice(0, 1) : pdfExigenciaGroups}
           documentsWithUnfulfilledConditions={pdfDocumentsWithUnfulfilledConditions}
+        />
+      )}
+
+      {generateTemplateId && (
+        <CustomReportGenerateDialog
+          open={!!generateTemplateId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setGenerateTemplateId(null)
+              setAttachTarget(null)
+            }
+          }}
+          processId={individualProcessId}
+          templateId={generateTemplateId}
+          attachTarget={attachTarget}
         />
       )}
     </Card>

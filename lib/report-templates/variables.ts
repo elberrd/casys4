@@ -1,0 +1,118 @@
+export const REPORT_VARIABLE_GROUP_IDS = [
+  "header",
+  "process",
+  "person",
+  "passport",
+  "history",
+] as const;
+
+export type ReportVariableGroupId = (typeof REPORT_VARIABLE_GROUP_IDS)[number];
+
+export const REPORT_VARIABLE_KEYS = [
+  "personName",
+  "referenceNumber",
+  "processStatus",
+  "dateProcess",
+  "userApplicant",
+  "cbo",
+  "funcao",
+  "processType",
+  "legalFramework",
+  "companyApplicant",
+  "consulate",
+  "deadlineDate",
+  "protocolNumber",
+  "qualification",
+  "professionalExperienceSince",
+  "visaReceiptLocation",
+  "residence",
+  "consularPost",
+  "residenceAddressAbroad",
+  "professionalExperience",
+  "cpf",
+  "nationality",
+  "sex",
+  "maritalStatus",
+  "birthDate",
+  "birthCity",
+  "fatherName",
+  "motherName",
+  "email",
+  "profession",
+  "lastSalaryAmount",
+  "exchangeRateToBRL",
+  "salaryInBRL",
+  "monthlyAmountToReceive",
+  "passportNumber",
+  "issuingCountry",
+  "issueDate",
+  "expiryDate",
+  "passportStatus",
+  "passportFile",
+  "statusHistory",
+  "currentStatus",
+  "currentStatusDateTime",
+] as const;
+
+export type ReportVariableKey = (typeof REPORT_VARIABLE_KEYS)[number];
+
+export interface ReportVariableDefinition {
+  key: ReportVariableKey;
+  group: ReportVariableGroupId;
+}
+
+export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
+  { key: "personName", group: "header" },
+  { key: "referenceNumber", group: "header" },
+  { key: "processStatus", group: "header" },
+  { key: "dateProcess", group: "process" },
+  { key: "userApplicant", group: "process" },
+  { key: "cbo", group: "process" },
+  { key: "funcao", group: "process" },
+  { key: "processType", group: "process" },
+  { key: "legalFramework", group: "process" },
+  { key: "companyApplicant", group: "process" },
+  { key: "consulate", group: "process" },
+  { key: "deadlineDate", group: "process" },
+  { key: "protocolNumber", group: "process" },
+  { key: "qualification", group: "process" },
+  { key: "professionalExperienceSince", group: "process" },
+  { key: "visaReceiptLocation", group: "process" },
+  { key: "residence", group: "process" },
+  { key: "consularPost", group: "process" },
+  { key: "residenceAddressAbroad", group: "process" },
+  { key: "professionalExperience", group: "process" },
+  { key: "cpf", group: "person" },
+  { key: "nationality", group: "person" },
+  { key: "sex", group: "person" },
+  { key: "maritalStatus", group: "person" },
+  { key: "birthDate", group: "person" },
+  { key: "birthCity", group: "person" },
+  { key: "fatherName", group: "person" },
+  { key: "motherName", group: "person" },
+  { key: "email", group: "person" },
+  { key: "profession", group: "person" },
+  { key: "lastSalaryAmount", group: "person" },
+  { key: "exchangeRateToBRL", group: "person" },
+  { key: "salaryInBRL", group: "person" },
+  { key: "monthlyAmountToReceive", group: "person" },
+  { key: "passportNumber", group: "passport" },
+  { key: "issuingCountry", group: "passport" },
+  { key: "issueDate", group: "passport" },
+  { key: "expiryDate", group: "passport" },
+  { key: "passportStatus", group: "passport" },
+  { key: "passportFile", group: "passport" },
+  { key: "statusHistory", group: "history" },
+  { key: "currentStatus", group: "history" },
+  { key: "currentStatusDateTime", group: "history" },
+];
+
+export function isReportVariableKey(value: string): value is ReportVariableKey {
+  return (REPORT_VARIABLE_KEYS as readonly string[]).includes(value);
+}
+
+export function variablesByGroup(
+  group: ReportVariableGroupId,
+): readonly ReportVariableDefinition[] {
+  return REPORT_VARIABLES.filter((variable) => variable.group === group);
+}

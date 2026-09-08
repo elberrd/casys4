@@ -118,6 +118,7 @@ import type * as processReports from "../processReports.js";
 import type * as processRequestMessages from "../processRequestMessages.js";
 import type * as processRequests from "../processRequests.js";
 import type * as processTypes from "../processTypes.js";
+import type * as reportTemplates from "../reportTemplates.js";
 import type * as savedFilters from "../savedFilters.js";
 import type * as seedCaseStatuses from "../seedCaseStatuses.js";
 import type * as seedCboCodes from "../seedCboCodes.js";
@@ -256,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   processRequestMessages: typeof processRequestMessages;
   processRequests: typeof processRequests;
   processTypes: typeof processTypes;
+  reportTemplates: typeof reportTemplates;
   savedFilters: typeof savedFilters;
   seedCaseStatuses: typeof seedCaseStatuses;
   seedCboCodes: typeof seedCboCodes;
