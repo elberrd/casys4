@@ -96,6 +96,7 @@ export function countReportContentPages(
   contentPageHeightPx: number,
 ): number {
   if (contentHeightPx <= 0 || contentPageHeightPx <= 0) return 1;
-  if (contentHeightPx <= contentPageHeightPx + 1) return 1;
+  const epsilon = Math.max(2, contentPageHeightPx * 0.008);
+  if (contentHeightPx <= contentPageHeightPx + epsilon) return 1;
   return Math.ceil(contentHeightPx / contentPageHeightPx);
 }

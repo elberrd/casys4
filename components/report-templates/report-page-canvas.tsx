@@ -90,8 +90,10 @@ export function ReportPageCanvas({
 
     const observed = new Set<Element>();
     const observer = new ResizeObserver(() => {
+      const stack = content.closest("[data-report-page-stack]");
+      const sheet = stack?.querySelector<HTMLElement>("[data-report-page-sheet]");
       const prose = content.querySelector<HTMLElement>(".ProseMirror");
-      if (!prose) {
+      if (!prose || !sheet) {
         setPageCount(1);
         return;
       }
@@ -99,14 +101,12 @@ export function ReportPageCanvas({
         observer.observe(prose);
         observed.add(prose);
       }
-      const pageWidth = content.offsetWidth;
-      const pageHeight =
-        pageWidth * (REPORT_PAGE_HEIGHT_MM / REPORT_PAGE_WIDTH_MM);
+      const pageHeight = sheet.getBoundingClientRect().height;
       const contentPageHeight =
         pageHeight * (REPORT_CONTENT_HEIGHT_MM / REPORT_PAGE_HEIGHT_MM);
-      let contentHeight = prose.scrollHeight;
+      let contentHeight = prose.getBoundingClientRect().height;
       prose.querySelectorAll<HTMLElement>(".report-page-gap").forEach((gap) => {
-        contentHeight -= gap.offsetHeight;
+        contentHeight -= gap.getBoundingClientRect().height;
       });
       setPageCount(countReportContentPages(contentHeight, contentPageHeight));
     });
