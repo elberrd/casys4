@@ -167,9 +167,12 @@ export const ReportVariable = Node.create<{
           ) {
             return false;
           }
-          return commands.updateAttributes(this.name, {
-            [attr]: !selection.node.attrs[attr],
-          });
+          const pos = selection.from;
+          const nextValue = !selection.node.attrs[attr];
+          return (
+            commands.updateAttributes(this.name, { [attr]: nextValue }) &&
+            commands.setNodeSelection(pos)
+          );
         },
     };
   },
