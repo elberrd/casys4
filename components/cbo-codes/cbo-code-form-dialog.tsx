@@ -87,10 +87,10 @@ export function CboCodeFormDialog({
   // Update form when cboCode data loads
   if (cboCode && form.getValues().code === "" && cboCodeId) {
     form.reset({
-      code: cboCode.code,
+      code: cboCode.code ?? "",
       title: cboCode.title,
       activity: cboCode.activity ?? "",
-      description: cboCode.description,
+      description: cboCode.description ?? "",
     });
   }
 
@@ -101,18 +101,18 @@ export function CboCodeFormDialog({
       if (cboCodeId) {
         await updateCboCode({
           id: cboCodeId,
-          code: data.code,
+          code: data.code ?? "",
           title: data.title,
-          activity: data.activity,
-          description: data.description,
+          activity: data.activity ?? "",
+          description: data.description ?? "",
         });
         toast.success(t("updatedSuccess"));
       } else {
         await createCboCode({
-          code: data.code,
+          code: data.code ?? "",
           title: data.title,
-          activity: data.activity,
-          description: data.description,
+          activity: data.activity ?? "",
+          description: data.description ?? "",
         });
         toast.success(t("createdSuccess"));
       }

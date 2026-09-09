@@ -1,8 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
+import {
+  buildCboCodeDocument,
+  mergeCboCodeDocument,
+} from "./lib/cboCodeDocument";
 import { normalizeString } from "./lib/stringUtils";
 
 export const list = query({
@@ -59,14 +62,15 @@ export const create = mutation({
     activity: v.optional(v.string()),
     description: v.optional(v.string()),
   },
+  returns: v.id("cboCodes"),
   handler: async (ctx, args) => {
     const adminProfile = await requireAdmin(ctx);
+    const document = buildCboCodeDocument(args);
 
-    // Check for duplicate code only if code is provided
-    if (args.code) {
+    if (document.code) {
       const existing = await ctx.db
         .query("cboCodes")
-        .withIndex("by_code", (q) => q.eq("code", args.code))
+        .withIndex("by_code", (q) => q.eq("code", document.code))
         .first();
 
       if (existing) {
@@ -74,12 +78,7 @@ export const create = mutation({
       }
     }
 
-    const cboCodeId = await ctx.db.insert("cboCodes", {
-      code: args.code,
-      title: args.title,
-      activity: args.activity,
-      description: args.description,
-    });
+    const cboCodeId = await ctx.db.insert("cboCodes", document);
 
     await logActivitySafely(ctx, {
       userId: adminProfile.userId,
@@ -87,8 +86,8 @@ export const create = mutation({
       entityType: "cboCode",
       entityId: cboCodeId,
       details: {
-        code: args.code,
-        title: args.title,
+        code: document.code ?? null,
+        title: document.title,
       },
     });
 
@@ -107,41 +106,45 @@ export const update = mutation({
     activity: v.optional(v.string()),
     description: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const adminProfile = await requireAdmin(ctx);
 
-    const { id, ...updateData } = args;
-    const existing = await ctx.db.get(id);
-    if (!existing) {
+    const current = await ctx.db.get(args.id);
+    if (!current) {
       throw new Error("CBO code not found");
     }
 
-    // Check for duplicate code (excluding current record) only if code is provided
-    if (args.code) {
-      const existing = await ctx.db
+    const next = mergeCboCodeDocument(current, args);
+
+    if (next.code) {
+      const duplicate = await ctx.db
         .query("cboCodes")
-        .withIndex("by_code", (q) => q.eq("code", args.code))
+        .withIndex("by_code", (q) => q.eq("code", next.code))
         .first();
 
-      if (existing && existing._id !== id) {
+      if (duplicate && duplicate._id !== args.id) {
         throw new Error("A CBO code with this code already exists");
       }
     }
 
-    await ctx.db.patch(id, updateData);
+    // Replace with schema fields only. Patching leftover extra fields on
+    // older CBO documents fails Convex schema validation with a generic
+    // "Server Error" on the client.
+    await ctx.db.replace(args.id, next);
 
     const changes = buildChangedFields(
       {
-        code: existing.code,
-        title: existing.title,
-        activity: existing.activity,
-        description: existing.description,
+        code: current.code ?? null,
+        title: current.title,
+        activity: current.activity ?? null,
+        description: current.description ?? null,
       },
       {
-        code: updateData.code,
-        title: updateData.title,
-        activity: updateData.activity,
-        description: updateData.description,
+        code: next.code ?? null,
+        title: next.title,
+        activity: next.activity ?? null,
+        description: next.description ?? null,
       }
     );
 
@@ -150,13 +153,15 @@ export const update = mutation({
         userId: adminProfile.userId,
         action: "updated",
         entityType: "cboCode",
-        entityId: id,
+        entityId: args.id,
         details: {
-          title: existing.title,
+          title: current.title,
           changes,
         },
       });
     }
+
+    return null;
   },
 });
 

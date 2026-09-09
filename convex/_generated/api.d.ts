@@ -44,6 +44,7 @@ import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_cachedGet from "../lib/cachedGet.js";
 import type * as lib_cboActivities from "../lib/cboActivities.js";
+import type * as lib_cboCodeDocument from "../lib/cboCodeDocument.js";
 import type * as lib_clientDocumentVisibility from "../lib/clientDocumentVisibility.js";
 import type * as lib_countryCodeNormalization from "../lib/countryCodeNormalization.js";
 import type * as lib_createIndividualProcess from "../lib/createIndividualProcess.js";
@@ -185,6 +186,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/cachedGet": typeof lib_cachedGet;
   "lib/cboActivities": typeof lib_cboActivities;
+  "lib/cboCodeDocument": typeof lib_cboCodeDocument;
   "lib/clientDocumentVisibility": typeof lib_clientDocumentVisibility;
   "lib/countryCodeNormalization": typeof lib_countryCodeNormalization;
   "lib/createIndividualProcess": typeof lib_createIndividualProcess;
