@@ -442,3 +442,12 @@ test("builds a DOCX from filled report HTML with bold title and DECLARO", async 
   assert.match(xml, /w:b\b/);
   assert.match(xml, /w:u\b/);
 });
+
+test("unbolded variable chip stays plain after substitution", () => {
+  const html =
+    '<p><span data-type="report-variable" data-key="personName">Nome do indivíduo</span></p>';
+  const result = substituteReportVariables(html, {
+    personName: "Oran Alder Mc Gee",
+  });
+  assert.equal(result, "<p>Oran Alder Mc Gee</p>");
+});
