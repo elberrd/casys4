@@ -79,6 +79,7 @@ export function ReportPaperPreview({
           <ReportPageSheet
             key={index}
             clip
+            showMarginGuides={false}
             pageLabel={pageBreakLabel?.(index + 1)}
           >
             <div
