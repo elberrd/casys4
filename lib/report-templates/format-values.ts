@@ -485,7 +485,7 @@ export function buildReportVariableValues(args: {
       process.monthlyAmountToReceive != null
         ? `R$ ${formatMoney(process.monthlyAmountToReceive, i18n.locale)}`
         : "",
-    passportNumber: display(passport?.passportNumber),
+    passportNumber: declarationText(passport?.passportNumber),
     issuingCountry: passport?.issuingCountry?.name
       ? i18n.translateCountry(passport.issuingCountry.name)
       : "",

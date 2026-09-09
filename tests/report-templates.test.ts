@@ -375,6 +375,8 @@ test("flags empty declaration chips as missing fields", () => {
   assert.equal(values.bornWord, "nascida");
   assert.equal(values.childWord, "filha");
   assert.equal(values.holderWord, "portadora");
+  assert.equal(values.passportNumber, "______");
+  assert.equal(values.issuingCountryOfficial, "______");
   const missing = missingUsedReportVariables(
     CRIMINAL_BACKGROUND_REPORT_HTML,
     values,
@@ -382,4 +384,5 @@ test("flags empty declaration chips as missing fields", () => {
   assert.ok(missing.includes("nationalityShort"));
   assert.ok(missing.includes("maritalStatusText"));
   assert.ok(missing.includes("passportNumber"));
+  assert.ok(missing.includes("issuingCountryOfficial"));
 });
