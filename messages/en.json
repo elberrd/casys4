@@ -2191,6 +2191,7 @@
   },
   "ProcessReports": {
     "menuLabel": "Reports",
+    "noActiveTemplates": "No active reports",
     "previewTitle": "Report preview",
     "generating": "Generating report...",
     "close": "Close",
@@ -2295,6 +2296,7 @@
     "previewTab": "Final preview",
     "previewAriaLabel": "Final report preview",
     "downloadPdf": "Download PDF",
+    "downloadDocx": "Download DOCX",
     "saveAndAttach": "Save and attach PDF",
     "attachPdf": "Attach the PDF to the document",
     "selectDocumentToAttach": "Select a document to attach",
@@ -2302,13 +2304,15 @@
     "attachedSuccess": "PDF attached to the document",
     "errorLoad": "Could not load the report",
     "errorDownload": "Could not generate the PDF",
+    "errorDownloadDocx": "Could not generate the DOCX",
     "errorAttach": "Could not attach the PDF",
     "groups": {
       "header": "Header",
       "process": "Process Information",
       "person": "Person Information",
       "passport": "Passport Information",
-      "history": "Progress History"
+      "history": "Progress History",
+      "document": "Document text"
     },
     "variables": {
       "personName": "Individual name",
@@ -2353,7 +2357,23 @@
       "passportFile": "Passport File",
       "statusHistory": "Progress History",
       "currentStatus": "Progress Status",
-      "currentStatusDateTime": "Date and Time"
+      "currentStatusDateTime": "Date and Time",
+      "personNameUpper": "Individual name (uppercase)",
+      "nationalityShort": "Nationality (declaration text)",
+      "maritalStatusText": "Marital status (declaration text)",
+      "bornWord": "Born (gendered)",
+      "childWord": "Son/daughter",
+      "holderWord": "Passport holder (gendered)",
+      "birthDateLong": "Date of birth (long form)",
+      "fatherNameUpper": "Father's name (uppercase)",
+      "motherNameUpper": "Mother's name (uppercase)",
+      "issueDateLong": "Issue date (long form)",
+      "expiryDateLong": "Expiry date (long form)",
+      "issuingCountryOfficial": "Issuing country (official name)",
+      "legalFrameworkPlain": "Legal basis (without period)",
+      "visaReceiptPlace": "Visa receipt location",
+      "todayLong": "Today's date (long form)",
+      "locationDate": "Declaration place and date"
     }
   },
   "States": {

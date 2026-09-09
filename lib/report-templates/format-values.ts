@@ -1,9 +1,20 @@
+import { getOfficialCountryNameOrFallback } from "@/lib/data/country-official-names-pt";
 import { calculateAge, formatDate } from "@/lib/format-field-value";
 import { getPassportValidityStatus } from "@/lib/passport";
+import {
+  countryShortName,
+  filenameFromName,
+  genderedWord,
+  maritalStatusPt,
+  toUpperName,
+} from "@/lib/process-reports/criminal-background-declaration";
+import { formatLongDatePt } from "@/lib/process-reports/pt-dates";
+import { REPORT_PLACEHOLDER } from "@/lib/process-reports/types";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatCPF } from "@/lib/utils/document-masks";
 import { getFullName } from "@/lib/utils/person-names";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
+import { isCriminalBackgroundReportName } from "./built-in-templates";
 import type { ReportVariableKey } from "./variables";
 
 export interface ReportPersonName {
@@ -44,7 +55,11 @@ export interface ReportProcessSource {
         motherName?: string | null;
         email?: string | null;
         profession?: string | null;
-        nationality?: { name?: string | null } | null;
+        nationality?: {
+          name?: string | null;
+          code?: string | null;
+          fullName?: string | null;
+        } | null;
         birthCity?: {
           name?: string | null;
           state?: { code?: string | null } | null;
@@ -66,7 +81,11 @@ export interface ReportProcessSource {
     passportNumber?: string | null;
     issueDate?: string | null;
     expiryDate?: string | null;
-    issuingCountry?: { name?: string | null } | null;
+    issuingCountry?: {
+      name?: string | null;
+      code?: string | null;
+      fullName?: string | null;
+    } | null;
     storageId?: unknown;
     fileUrl?: string | null;
   } | null;
@@ -243,13 +262,46 @@ function formatMaritalStatus(
   return translated === key ? maritalStatus : translated;
 }
 
+export interface ReportFormatExtras {
+  todayIso?: string;
+  visaReceiptCityName?: string | null;
+  visaReceiptStateCode?: string | null;
+  nationalityCode?: string | null;
+  nationalityName?: string | null;
+  nationalityFullName?: string | null;
+  issuingCountryCode?: string | null;
+  issuingCountryName?: string | null;
+  issuingCountryFullName?: string | null;
+}
+
+function declarationText(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed : REPORT_PLACEHOLDER;
+}
+
+function stripTrailingPeriod(value: string): string {
+  return value.replace(/\s+$/u, "").replace(/\.+$/u, "");
+}
+
+export function suggestedReportFilename(args: {
+  templateName: string;
+  personName: string;
+  todayIso: string;
+}): string {
+  if (isCriminalBackgroundReportName(args.templateName)) {
+    return filenameFromName(args.personName || "candidato", args.todayIso);
+  }
+  return args.templateName;
+}
+
 export function buildReportVariableValues(args: {
   process: ReportProcessSource;
   statuses: readonly ReportStatusEntry[];
   passportFileUploaded: boolean;
   i18n: ReportI18n;
+  extras?: ReportFormatExtras;
 }): Record<ReportVariableKey, string> {
-  const { process, statuses, passportFileUploaded, i18n } = args;
+  const { process, statuses, passportFileUploaded, i18n, extras } = args;
   const person = process.person;
   const passport = process.passport;
 
@@ -313,6 +365,71 @@ export function buildReportVariableValues(args: {
     .filter(Boolean)
     .join("\n");
 
+  const sex = person?.sex ?? null;
+  const nationalityCode =
+    extras?.nationalityCode ?? person?.nationality?.code ?? null;
+  const nationalityName =
+    extras?.nationalityName ?? person?.nationality?.name ?? null;
+  const nationalityFullName =
+    extras?.nationalityFullName ?? person?.nationality?.fullName ?? null;
+  const issuingCountryCode =
+    extras?.issuingCountryCode ??
+    passport?.issuingCountry?.code ??
+    nationalityCode;
+  const issuingCountryName =
+    extras?.issuingCountryName ??
+    passport?.issuingCountry?.name ??
+    nationalityName;
+  const issuingCountryFullName =
+    extras?.issuingCountryFullName ??
+    passport?.issuingCountry?.fullName ??
+    nationalityFullName;
+
+  const personNameUpper = personName
+    ? toUpperName(personName)
+    : REPORT_PLACEHOLDER;
+  const nationalityShort = declarationText(
+    countryShortName(nationalityCode, nationalityName),
+  );
+  const maritalStatusText = declarationText(
+    maritalStatusPt(person?.maritalStatus, sex),
+  );
+  const birthDateLong = declarationText(formatLongDatePt(person?.birthDate));
+  const fatherNameUpper = person?.fatherName?.trim()
+    ? toUpperName(person.fatherName)
+    : REPORT_PLACEHOLDER;
+  const motherNameUpper = person?.motherName?.trim()
+    ? toUpperName(person.motherName)
+    : REPORT_PLACEHOLDER;
+  const issueDateLong = declarationText(formatLongDatePt(passport?.issueDate));
+  const expiryDateLong = declarationText(formatLongDatePt(passport?.expiryDate));
+  const issuingCountryOfficial = declarationText(
+    getOfficialCountryNameOrFallback(
+      issuingCountryCode,
+      issuingCountryName,
+      issuingCountryFullName,
+    ),
+  );
+  const legalFrameworkRaw = display(process.legalFramework?.name);
+  const legalFrameworkPlain = legalFrameworkRaw
+    ? stripTrailingPeriod(legalFrameworkRaw)
+    : REPORT_PLACEHOLDER;
+
+  const cityName = extras?.visaReceiptCityName?.trim() ?? "";
+  const stateCode = extras?.visaReceiptStateCode?.trim() ?? "";
+  const visaReceiptPlace =
+    cityName && stateCode
+      ? `${cityName}/${stateCode}`
+      : cityName || "";
+  const todayLongRaw = extras?.todayIso
+    ? formatLongDatePt(extras.todayIso) ?? extras.todayIso
+    : "";
+  const locationDate = todayLongRaw
+    ? visaReceiptPlace
+      ? `${visaReceiptPlace}, ${todayLongRaw}.`
+      : `${todayLongRaw}.`
+    : REPORT_PLACEHOLDER;
+
   return {
     personName: display(personName),
     referenceNumber: display(process.collectiveProcess?.referenceNumber),
@@ -368,7 +485,7 @@ export function buildReportVariableValues(args: {
       process.monthlyAmountToReceive != null
         ? `R$ ${formatMoney(process.monthlyAmountToReceive, i18n.locale)}`
         : "",
-    passportNumber: display(passport?.passportNumber),
+    passportNumber: declarationText(passport?.passportNumber),
     issuingCountry: passport?.issuingCountry?.name
       ? i18n.translateCountry(passport.issuingCountry.name)
       : "",
@@ -389,5 +506,21 @@ export function buildReportVariableValues(args: {
     currentStatusDateTime: currentStatus
       ? formatStatusDateTime(currentStatus, i18n)
       : "",
+    personNameUpper,
+    nationalityShort,
+    maritalStatusText,
+    bornWord: genderedWord("nascido", "nascida", sex),
+    childWord: genderedWord("filho", "filha", sex),
+    holderWord: genderedWord("portador", "portadora", sex),
+    birthDateLong,
+    fatherNameUpper,
+    motherNameUpper,
+    issueDateLong,
+    expiryDateLong,
+    issuingCountryOfficial,
+    legalFrameworkPlain,
+    visaReceiptPlace,
+    todayLong: todayLongRaw || REPORT_PLACEHOLDER,
+    locationDate,
   };
 }

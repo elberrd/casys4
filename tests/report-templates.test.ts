@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildReportVariableValues } from "../lib/report-templates/format-values";
 import {
-  extractReportVariableKeys,
-  substituteReportVariables,
-} from "../lib/report-templates/substitute";
+  CRIMINAL_BACKGROUND_REPORT_HTML,
+  CRIMINAL_BACKGROUND_REPORT_NAME,
+} from "../lib/report-templates/built-in-templates";
+import {
+  buildReportVariableValues,
+  suggestedReportFilename,
+} from "../lib/report-templates/format-values";
+import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import {
   buildIsolatedReportHtml,
   sanitizeReportHtmlForPdf,
 } from "../lib/report-templates/html-to-pdf";
+import JSZip from "jszip";
 import {
   countReportPages,
   countReportContentPages,
@@ -18,6 +23,11 @@ import {
   reportPageStackHeightMm,
   REPORT_PAGE_WIDTH_PX,
 } from "../lib/report-templates/page-layout";
+import {
+  extractReportVariableKeys,
+  missingUsedReportVariables,
+  substituteReportVariables,
+} from "../lib/report-templates/substitute";
 import {
   isReportVariableKey,
   REPORT_VARIABLES,
@@ -75,6 +85,8 @@ test("variable catalog uses stable keys and UI-oriented groups", () => {
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "monthlyAmountToReceive"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "passportNumber"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "statusHistory"));
+  assert.ok(REPORT_VARIABLES.some((item) => item.key === "personNameUpper"));
+  assert.ok(variablesByGroup("document").some((item) => item.key === "locationDate"));
 });
 
 test("substitutes chips using client-facing keys, not database names", () => {
@@ -257,4 +269,176 @@ test("fits zoom to the available desk width", () => {
   assert.equal(fitReportZoom(REPORT_PAGE_WIDTH_PX + 64), 100);
   assert.equal(fitReportZoom(200), 50);
   assert.equal(fitReportZoom(5000), 150);
+});
+
+test("formats declaration variables in Portuguese regardless of UI locale", () => {
+  const values = buildReportVariableValues({
+    process: {
+      legalFramework: { name: "Resolução Normativa 30/2018 (RN 02/2017)." },
+      person: {
+        givenNames: "Oran",
+        middleName: "Alder",
+        surname: "Mc Gee",
+        sex: "Male",
+        maritalStatus: "Married",
+        birthDate: "1979-08-18",
+        fatherName: "Gary W Mc Gee",
+        motherName: "Sara Lee",
+        nationality: { name: "United States", code: "US" },
+      },
+      passport: {
+        passportNumber: "A54269887",
+        issuingCountry: { name: "United States", code: "US" },
+        issueDate: "2024-11-21",
+        expiryDate: "2034-11-20",
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-08",
+      visaReceiptCityName: null,
+      visaReceiptStateCode: null,
+      nationalityCode: "US",
+      nationalityName: "United States",
+      issuingCountryCode: "US",
+      issuingCountryName: "United States",
+      issuingCountryFullName: "Estados Unidos da América",
+    },
+  });
+
+  assert.equal(values.personNameUpper, "ORAN ALDER MC GEE");
+  assert.equal(values.nationalityShort, "Estados Unidos");
+  assert.equal(values.maritalStatusText, "casado");
+  assert.equal(values.bornWord, "nascido");
+  assert.equal(values.childWord, "filho");
+  assert.equal(values.holderWord, "portador");
+  assert.equal(values.birthDateLong, "18 de agosto de 1979");
+  assert.equal(values.fatherNameUpper, "GARY W MC GEE");
+  assert.equal(values.motherNameUpper, "SARA LEE");
+  assert.equal(values.issueDateLong, "21 de novembro de 2024");
+  assert.equal(values.expiryDateLong, "20 de novembro de 2034");
+  assert.equal(values.issuingCountryOfficial, "Estados Unidos da América");
+  assert.equal(
+    values.legalFrameworkPlain,
+    "Resolução Normativa 30/2018 (RN 02/2017)",
+  );
+  assert.equal(values.visaReceiptPlace, "");
+  assert.equal(values.todayLong, "08 de setembro de 2026");
+  assert.equal(values.locationDate, "08 de setembro de 2026.");
+
+  const filled = substituteReportVariables(
+    CRIMINAL_BACKGROUND_REPORT_HTML,
+    values,
+  );
+  assert.match(filled, /<strong><u>DECLARAÇÃO<\/u><\/strong>/);
+  assert.match(filled, /<strong>ORAN ALDER MC GEE<\/strong>/);
+  assert.match(filled, /nacional da Estados Unidos/);
+  assert.match(filled, /<strong>DECLARO<\/strong>/);
+  assert.match(
+    filled,
+    /com base no Resolução Normativa 30\/2018 \(RN 02\/2017\)\./,
+  );
+  assert.equal(extractReportVariableKeys(filled).length, 0);
+
+  const missing = missingUsedReportVariables(
+    CRIMINAL_BACKGROUND_REPORT_HTML,
+    values,
+  );
+  assert.equal(missing.includes("visaReceiptPlace"), false);
+  assert.equal(missing.includes("personNameUpper"), false);
+
+  assert.equal(
+    suggestedReportFilename({
+      templateName: CRIMINAL_BACKGROUND_REPORT_NAME,
+      personName: values.personName,
+      todayIso: "2026-09-08",
+    }),
+    "ORAN_ALDER_MC_GEE - aus ant crim - 08_set_2026",
+  );
+});
+
+test("flags empty declaration chips as missing fields", () => {
+  const values = buildReportVariableValues({
+    process: {
+      person: {
+        givenNames: "Maria",
+        surname: "Silva",
+        sex: "Female",
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: { todayIso: "2026-09-08" },
+  });
+
+  assert.equal(values.bornWord, "nascida");
+  assert.equal(values.childWord, "filha");
+  assert.equal(values.holderWord, "portadora");
+  assert.equal(values.passportNumber, "______");
+  assert.equal(values.issuingCountryOfficial, "______");
+  const missing = missingUsedReportVariables(
+    CRIMINAL_BACKGROUND_REPORT_HTML,
+    values,
+  );
+  assert.ok(missing.includes("nationalityShort"));
+  assert.ok(missing.includes("maritalStatusText"));
+  assert.ok(missing.includes("passportNumber"));
+  assert.ok(missing.includes("issuingCountryOfficial"));
+});
+
+test("builds a DOCX from filled report HTML with bold title and DECLARO", async () => {
+  const values = buildReportVariableValues({
+    process: {
+      legalFramework: { name: "Resolução Normativa 30/2018 (RN 02/2017)" },
+      person: {
+        givenNames: "Oran",
+        middleName: "Alder",
+        surname: "Mc Gee",
+        sex: "Male",
+        maritalStatus: "Married",
+        birthDate: "1979-08-18",
+        fatherName: "Gary W Mc Gee",
+        motherName: "Sara Lee",
+        nationality: { name: "United States", code: "US" },
+      },
+      passport: {
+        passportNumber: "A54269887",
+        issuingCountry: { name: "United States", code: "US" },
+        issueDate: "2024-11-21",
+        expiryDate: "2034-11-20",
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-08",
+      nationalityCode: "US",
+      nationalityName: "United States",
+      issuingCountryCode: "US",
+      issuingCountryName: "United States",
+      issuingCountryFullName: "Estados Unidos da América",
+    },
+  });
+  const filled = substituteReportVariables(
+    CRIMINAL_BACKGROUND_REPORT_HTML,
+    values,
+  );
+  const blob = await htmlToDocxBlob(filled);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4b);
+
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = await zip.file("word/document.xml")?.async("string");
+  assert.ok(xml);
+  assert.match(xml, /DECLARAÇÃO/);
+  assert.match(xml, /ORAN ALDER MC GEE/);
+  assert.match(xml, /DECLARO/);
+  assert.match(xml, /A54269887/);
+  assert.match(xml, /w:b\b/);
+  assert.match(xml, /w:u\b/);
 });

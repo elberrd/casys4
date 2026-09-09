@@ -2216,6 +2216,7 @@
   },
   "ProcessReports": {
     "menuLabel": "Relatórios",
+    "noActiveTemplates": "Nenhum relatório ativo",
     "previewTitle": "Pré-visualização do relatório",
     "generating": "Gerando relatório...",
     "close": "Fechar",
@@ -2320,6 +2321,7 @@
     "previewTab": "Visualização final",
     "previewAriaLabel": "Visualização final do relatório",
     "downloadPdf": "Baixar PDF",
+    "downloadDocx": "Baixar DOCX",
     "saveAndAttach": "Salvar e anexar PDF",
     "attachPdf": "Anexar o PDF ao documento",
     "selectDocumentToAttach": "Selecione o documento para anexar",
@@ -2327,13 +2329,15 @@
     "attachedSuccess": "PDF anexado ao documento",
     "errorLoad": "Não foi possível carregar o relatório",
     "errorDownload": "Não foi possível gerar o PDF",
+    "errorDownloadDocx": "Não foi possível gerar o DOCX",
     "errorAttach": "Não foi possível anexar o PDF",
     "groups": {
       "header": "Cabeçalho",
       "process": "Informações do Processo",
       "person": "Informações da Pessoa",
       "passport": "Informações do Passaporte",
-      "history": "Histórico do Andamento"
+      "history": "Histórico do Andamento",
+      "document": "Texto do documento"
     },
     "variables": {
       "personName": "Nome do indivíduo",
@@ -2378,7 +2382,23 @@
       "passportFile": "Arquivo do Passaporte",
       "statusHistory": "Histórico do Andamento",
       "currentStatus": "Status do Andamento",
-      "currentStatusDateTime": "Data e Hora"
+      "currentStatusDateTime": "Data e Hora",
+      "personNameUpper": "Nome do indivíduo (maiúsculas)",
+      "nationalityShort": "Nacionalidade (texto da declaração)",
+      "maritalStatusText": "Estado civil (texto da declaração)",
+      "bornWord": "Nascido/nascida",
+      "childWord": "Filho/filha",
+      "holderWord": "Portador/portadora",
+      "birthDateLong": "Data de nascimento (por extenso)",
+      "fatherNameUpper": "Nome do pai (maiúsculas)",
+      "motherNameUpper": "Nome da mãe (maiúsculas)",
+      "issueDateLong": "Data de emissão (por extenso)",
+      "expiryDateLong": "Data de validade (por extenso)",
+      "issuingCountryOfficial": "País emissor (nome oficial)",
+      "legalFrameworkPlain": "Amparo legal (sem ponto final)",
+      "visaReceiptPlace": "Local de Recebimento do Visto",
+      "todayLong": "Data de hoje (por extenso)",
+      "locationDate": "Local e data da declaração"
     }
   },
   "States": {
