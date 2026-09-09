@@ -31,6 +31,10 @@ export async function logActivitySafely(
   }
 }
 
+function toConvexJsonValue(value: unknown): unknown {
+  return value === undefined ? null : value;
+}
+
 export function buildChangedFields(
   before: Record<string, unknown>,
   after: Record<string, unknown>
@@ -41,8 +45,8 @@ export function buildChangedFields(
     const beforeValue = before[key];
     if (beforeValue !== afterValue) {
       changes[key] = {
-        before: beforeValue,
-        after: afterValue,
+        before: toConvexJsonValue(beforeValue),
+        after: toConvexJsonValue(afterValue),
       };
     }
   }
