@@ -173,7 +173,20 @@ export function ReportTemplateFormPage({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          const target = event.target;
+          if (
+            target instanceof HTMLElement &&
+            target.closest(".ProseMirror")
+          ) {
+            event.preventDefault();
+          }
+        }}
+        className="space-y-6"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">

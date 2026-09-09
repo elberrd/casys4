@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { ReportVariable, type ReportVariableFormatAttr } from "@/components/report-templates/report-variable-extension";
+import {
+  useEditor,
+  useEditorState,
+  EditorContent,
+  type Editor,
+} from "@tiptap/react";
+import {
+  ReportVariable,
+  isReportVariableFormatActive,
+  type ReportVariableFormatAttr,
+} from "@/components/report-templates/report-variable-extension";
+import { ReportEnterToLineBreak } from "@/components/report-templates/report-enter-extension";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontSize, Color, LineHeight } from "@tiptap/extension-text-style";
 import { TextAlign } from "@tiptap/extension-text-align";
@@ -112,13 +122,6 @@ function toggleInlineFormat(editor: Editor, attr: ReportVariableFormatAttr) {
   chain.toggleStrike().run();
 }
 
-function isInlineFormatActive(editor: Editor, attr: ReportVariableFormatAttr) {
-  if (editor.isActive("reportVariable")) {
-    return Boolean(editor.getAttributes("reportVariable")[attr]);
-  }
-  return editor.isActive(attr);
-}
-
 function ToolbarButton({
   active,
   disabled,
@@ -165,6 +168,30 @@ function EditorToolbar({
   noVariablesFoundLabel: string;
 }) {
   const t = useTranslations("ReportTemplates");
+  const toolbarState = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      heading1: current.isActive("heading", { level: 1 }),
+      heading2: current.isActive("heading", { level: 2 }),
+      heading3: current.isActive("heading", { level: 3 }),
+      bold: isReportVariableFormatActive(current, "bold"),
+      italic: isReportVariableFormatActive(current, "italic"),
+      underline: isReportVariableFormatActive(current, "underline"),
+      strike: isReportVariableFormatActive(current, "strike"),
+      subscript: current.isActive("subscript"),
+      superscript: current.isActive("superscript"),
+      fontSize: (current.getAttributes("textStyle").fontSize as string | undefined) ?? "",
+      lineHeight:
+        (current.getAttributes("textStyle").lineHeight as string | undefined) ?? "",
+      alignLeft: current.isActive({ textAlign: "left" }),
+      alignCenter: current.isActive({ textAlign: "center" }),
+      alignRight: current.isActive({ textAlign: "right" }),
+      justify: current.isActive({ textAlign: "justify" }),
+      bulletList: current.isActive("bulletList"),
+      orderedList: current.isActive("orderedList"),
+      blockquote: current.isActive("blockquote"),
+    }),
+  });
   const [variableQuery, setVariableQuery] = useState("");
   const normalizedQuery = variableQuery.trim().toLowerCase();
   const filteredGroups = variableGroups
@@ -196,7 +223,7 @@ function EditorToolbar({
       </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border" />
       <ToolbarButton
-        active={editor.isActive("heading", { level: 1 })}
+        active={toolbarState.heading1}
         disabled={disabled}
         title={t("toolbar.heading1")}
         onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
@@ -204,7 +231,7 @@ function EditorToolbar({
         <Heading1 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("heading", { level: 2 })}
+        active={toolbarState.heading2}
         disabled={disabled}
         title={t("toolbar.heading2")}
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -212,7 +239,7 @@ function EditorToolbar({
         <Heading2 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("heading", { level: 3 })}
+        active={toolbarState.heading3}
         disabled={disabled}
         title={t("toolbar.heading3")}
         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
@@ -221,7 +248,7 @@ function EditorToolbar({
       </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border" />
       <ToolbarButton
-        active={isInlineFormatActive(editor, "bold")}
+        active={toolbarState.bold}
         disabled={disabled}
         title={t("toolbar.bold")}
         onClick={() => toggleInlineFormat(editor, "bold")}
@@ -229,7 +256,7 @@ function EditorToolbar({
         <Bold className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={isInlineFormatActive(editor, "italic")}
+        active={toolbarState.italic}
         disabled={disabled}
         title={t("toolbar.italic")}
         onClick={() => toggleInlineFormat(editor, "italic")}
@@ -237,7 +264,7 @@ function EditorToolbar({
         <Italic className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={isInlineFormatActive(editor, "underline")}
+        active={toolbarState.underline}
         disabled={disabled}
         title={t("toolbar.underline")}
         onClick={() => toggleInlineFormat(editor, "underline")}
@@ -245,7 +272,7 @@ function EditorToolbar({
         <UnderlineIcon className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={isInlineFormatActive(editor, "strike")}
+        active={toolbarState.strike}
         disabled={disabled}
         title={t("toolbar.strikethrough")}
         onClick={() => toggleInlineFormat(editor, "strike")}
@@ -253,7 +280,7 @@ function EditorToolbar({
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("subscript")}
+        active={toolbarState.subscript}
         disabled={disabled}
         title={t("toolbar.subscript")}
         onClick={() => editor.chain().toggleSubscript().run()}
@@ -261,7 +288,7 @@ function EditorToolbar({
         <SubscriptIcon className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("superscript")}
+        active={toolbarState.superscript}
         disabled={disabled}
         title={t("toolbar.superscript")}
         onClick={() => editor.chain().toggleSuperscript().run()}
@@ -271,7 +298,7 @@ function EditorToolbar({
       <select
         className="h-8 rounded-md border bg-background px-2 text-xs"
         disabled={disabled}
-        value={editor.getAttributes("textStyle").fontSize ?? ""}
+        value={toolbarState.fontSize}
         onChange={(event) => {
           const size = event.target.value;
           if (!size) {
@@ -292,7 +319,7 @@ function EditorToolbar({
       <select
         className="h-8 rounded-md border bg-background px-2 text-xs"
         disabled={disabled}
-        value={editor.getAttributes("textStyle").lineHeight ?? ""}
+        value={toolbarState.lineHeight}
         onChange={(event) => {
           const lineHeight = event.target.value;
           if (!lineHeight) {
@@ -360,7 +387,7 @@ function EditorToolbar({
       </Popover>
       <div className="mx-1 h-4 w-px bg-border" />
       <ToolbarButton
-        active={editor.isActive({ textAlign: "left" })}
+        active={toolbarState.alignLeft}
         disabled={disabled}
         title={t("toolbar.alignLeft")}
         onClick={() => editor.chain().focus().setTextAlign("left").run()}
@@ -368,7 +395,7 @@ function EditorToolbar({
         <AlignLeft className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive({ textAlign: "center" })}
+        active={toolbarState.alignCenter}
         disabled={disabled}
         title={t("toolbar.alignCenter")}
         onClick={() => editor.chain().focus().setTextAlign("center").run()}
@@ -376,7 +403,7 @@ function EditorToolbar({
         <AlignCenter className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive({ textAlign: "right" })}
+        active={toolbarState.alignRight}
         disabled={disabled}
         title={t("toolbar.alignRight")}
         onClick={() => editor.chain().focus().setTextAlign("right").run()}
@@ -384,7 +411,7 @@ function EditorToolbar({
         <AlignRight className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive({ textAlign: "justify" })}
+        active={toolbarState.justify}
         disabled={disabled}
         title={t("toolbar.justify")}
         onClick={() => editor.chain().focus().setTextAlign("justify").run()}
@@ -393,7 +420,7 @@ function EditorToolbar({
       </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border" />
       <ToolbarButton
-        active={editor.isActive("bulletList")}
+        active={toolbarState.bulletList}
         disabled={disabled}
         title={t("toolbar.bulletList")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -401,7 +428,7 @@ function EditorToolbar({
         <List className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("orderedList")}
+        active={toolbarState.orderedList}
         disabled={disabled}
         title={t("toolbar.numberedList")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -409,7 +436,7 @@ function EditorToolbar({
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        active={editor.isActive("blockquote")}
+        active={toolbarState.blockquote}
         disabled={disabled}
         title={t("toolbar.quote")}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -527,6 +554,7 @@ export function ReportRichTextEditor({
   const t = useTranslations("ReportTemplates");
   const [zoom, setZoom] = useState(100);
   const [zoomMode, setZoomMode] = useState<"fit" | number>("fit");
+  const lastEmittedHtml = useRef(value);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -546,15 +574,24 @@ export function ReportRichTextEditor({
       Subscript,
       Superscript,
       ReportVariable.configure({ getLabel: getVariableLabel }),
+      ReportEnterToLineBreak,
       ReportPageGap,
     ],
     content: value,
     editable: !disabled,
     immediatelyRender: false,
     onUpdate: ({ editor: current }) => {
-      onChange(current.getHTML());
+      const html = current.getHTML();
+      lastEmittedHtml.current = html;
+      onChange(html);
     },
     editorProps: {
+      handleKeyDown: (_view, event) => {
+        if (event.key === "Enter") {
+          event.stopPropagation();
+        }
+        return false;
+      },
       attributes: {
         class: cn(
           "report-page-editor max-w-none bg-transparent focus:outline-none",
@@ -571,9 +608,14 @@ export function ReportRichTextEditor({
   });
 
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value, { emitUpdate: false });
+    if (!editor) return;
+    if (value === lastEmittedHtml.current) return;
+    if (value === editor.getHTML()) {
+      lastEmittedHtml.current = value;
+      return;
     }
+    editor.commands.setContent(value, { emitUpdate: false });
+    lastEmittedHtml.current = value;
   }, [value, editor]);
 
   useEffect(() => {
