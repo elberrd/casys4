@@ -81,7 +81,7 @@ export function CboActivitiesFields({ cboCodes }: CboActivitiesFieldsProps) {
           <FormItem>
             <FormLabel>{t("cbo")}</FormLabel>
             <div className="flex items-start gap-2">
-              <FormControl>
+              <FormControl className="min-w-0 flex-1">
                 <Combobox
                   options={cboOptions}
                   value={field.value || ""}
@@ -101,6 +101,7 @@ export function CboActivitiesFields({ cboCodes }: CboActivitiesFieldsProps) {
                       variant="outline"
                       size="icon"
                       className="h-10 w-10 shrink-0"
+                      title={t("copyCboActivities")}
                       onClick={() => copyFromSelectedCbo(field.value || "", true)}
                       aria-label={t("copyCboActivities")}
                     >
