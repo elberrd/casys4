@@ -38,20 +38,26 @@ function plain(text: string, extra?: { bold?: boolean }): ReportRun {
   return { text, bold: extra?.bold }
 }
 
-function countryShortName(code: string | null, fallbackName: string | null): string {
+export function countryShortName(
+  code: string | null | undefined,
+  fallbackName: string | null | undefined,
+): string {
   if (code && COUNTRY_SHORT_PT[code]) return COUNTRY_SHORT_PT[code]
   return fallbackName?.trim() ?? ""
 }
 
-function genderedWord(
+export function genderedWord(
   male: string,
   female: string,
-  sex: string | null,
+  sex: string | null | undefined,
 ): string {
-  return isFemale(sex) ? female : male
+  return isFemale(sex ?? null) ? female : male
 }
 
-function maritalStatusPt(status: string | null, sex: string | null): string {
+export function maritalStatusPt(
+  status: string | null | undefined,
+  sex: string | null | undefined,
+): string {
   if (!status) return ""
   const entry = MARITAL_STATUS_PT[status]
   if (!entry) return status.toLowerCase()
@@ -60,7 +66,7 @@ function maritalStatusPt(status: string | null, sex: string | null): string {
   return entry.default
 }
 
-function toUpperName(name: string): string {
+export function toUpperName(name: string): string {
   return name.trim().toLocaleUpperCase("pt-BR")
 }
 
@@ -123,7 +129,7 @@ function parentsClause(
   }
 }
 
-function filenameFromName(name: string, todayIso: string): string {
+export function filenameFromName(name: string, todayIso: string): string {
   const slug = toUpperName(name)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

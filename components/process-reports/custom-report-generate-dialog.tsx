@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
-import { Download, Loader2, Paperclip } from "lucide-react";
+import { Download, FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -23,8 +24,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Combobox } from "@/components/ui/combobox";
 import { ReportRichTextEditor } from "@/components/report-templates/report-rich-text-editor";
 import { ReportPaperPreview } from "@/components/report-templates/report-paper-preview";
-import { buildReportVariableValues } from "@/lib/report-templates/format-values";
-import { substituteReportVariables } from "@/lib/report-templates/substitute";
+import { isCriminalBackgroundReportName } from "@/lib/report-templates/built-in-templates";
+import {
+  buildReportVariableValues,
+  suggestedReportFilename,
+} from "@/lib/report-templates/format-values";
+import { todayIsoInSaoPaulo } from "@/lib/process-reports/pt-dates";
+import {
+  missingUsedReportVariables,
+  substituteReportVariables,
+} from "@/lib/report-templates/substitute";
+import type { ReportVariableKey } from "@/lib/report-templates/variables";
 import {
   htmlToPdfBlob,
   sanitizeReportFilename,
@@ -59,6 +69,7 @@ export function CustomReportGenerateDialog({
   const tPeople = useTranslations("People");
   const tPassports = useTranslations("Passports");
   const tCommon = useTranslations("Common");
+  const tReports = useTranslations("ProcessReports");
   const locale = useLocale();
 
   const [editedHtml, setEditedHtml] = useState("");
@@ -69,6 +80,7 @@ export function CustomReportGenerateDialog({
   >(attachTarget?.documentTypeId);
   const [isSaving, setIsSaving] = useState<"download" | "attach" | null>(null);
   const [mobileTab, setMobileTab] = useState("edit");
+  const [todayIso, setTodayIso] = useState(() => todayIsoInSaoPaulo());
   const initializedRef = useRef(false);
 
   const template = useQuery(
@@ -87,9 +99,17 @@ export function CustomReportGenerateDialog({
     api.documentsDelivered.list,
     open ? { individualProcessId: processId } : "skip",
   );
+  const declarationSource = useQuery(
+    api.processReports.getDeclarationSource,
+    open ? { individualProcessId: processId } : "skip",
+  );
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadDocument = useMutation(api.documentsDelivered.upload);
+
+  useEffect(() => {
+    if (open) setTodayIso(todayIsoInSaoPaulo());
+  }, [open]);
 
   const values = useMemo(() => {
     if (!process) return null;
@@ -108,11 +128,24 @@ export function CustomReportGenerateDialog({
         tCommon: (key) => tCommon(key as never),
         translateCountry: (name) => translateCountryName(name, locale),
       },
+      extras: {
+        todayIso,
+        visaReceiptCityName: declarationSource?.cityName,
+        visaReceiptStateCode: declarationSource?.stateCode,
+        nationalityCode: declarationSource?.nationalityCode,
+        nationalityName: declarationSource?.nationalityName,
+        nationalityFullName: declarationSource?.nationalityFullName,
+        issuingCountryCode: declarationSource?.issuingCountryCode,
+        issuingCountryName: declarationSource?.issuingCountryName,
+        issuingCountryFullName: declarationSource?.issuingCountryFullName,
+      },
     });
   }, [
     process,
     statuses,
     deliveredDocuments,
+    declarationSource,
+    todayIso,
     locale,
     tProcess,
     tPeople,
@@ -120,19 +153,42 @@ export function CustomReportGenerateDialog({
     tCommon,
   ]);
 
+  const missingFields = useMemo(() => {
+    if (!template || !values) return [];
+    const missing: ReportVariableKey[] = missingUsedReportVariables(
+      template.contentHtml,
+      values,
+    );
+    if (
+      isCriminalBackgroundReportName(template.name) &&
+      !values.visaReceiptPlace.trim() &&
+      !missing.includes("visaReceiptPlace")
+    ) {
+      missing.push("visaReceiptPlace");
+    }
+    return missing;
+  }, [template, values]);
+
   useEffect(() => {
     if (!open) {
       initializedRef.current = false;
       setMobileTab("edit");
       return;
     }
-    if (!template || !values || initializedRef.current) return;
+    if (!template || !values || declarationSource === undefined || initializedRef.current)
+      return;
     initializedRef.current = true;
     setEditedHtml(substituteReportVariables(template.contentHtml, values));
-    setFilename(template.name);
+    setFilename(
+      suggestedReportFilename({
+        templateName: template.name,
+        personName: values.personName,
+        todayIso,
+      }),
+    );
     setAttachEnabled(Boolean(attachTarget));
     setSelectedDocumentTypeId(attachTarget?.documentTypeId);
-  }, [open, template, values, attachTarget]);
+  }, [open, template, values, attachTarget, todayIso, declarationSource]);
 
   const attachOptions = useMemo(() => {
     if (!template || !deliveredDocuments) return [];
@@ -249,7 +305,8 @@ export function CustomReportGenerateDialog({
     (template === undefined ||
       process === undefined ||
       statuses === undefined ||
-      deliveredDocuments === undefined);
+      deliveredDocuments === undefined ||
+      declarationSource === undefined);
   const loadFailed = open && (template === null || process === null);
 
   return (
@@ -286,6 +343,23 @@ export function CustomReportGenerateDialog({
                   onChange={(event) => setFilename(event.target.value)}
                 />
               </div>
+              {missingFields.length > 0 && (
+                <Alert>
+                  <FileText />
+                  <AlertTitle>{tReports("missingFieldsTitle")}</AlertTitle>
+                  <AlertDescription>
+                    {tReports("missingFieldsDescription")}{" "}
+                    {missingFields
+                      .map((field) =>
+                        field === "visaReceiptPlace"
+                          ? tReports("missingFields.visaReceiptPlace")
+                          : t(`variables.${field}`),
+                      )
+                      .join(", ")}
+                    .
+                  </AlertDescription>
+                </Alert>
+              )}
               {(attachTarget || attachOptions.length > 0) && (
                 <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
                   <label className="flex items-center gap-2 text-sm">

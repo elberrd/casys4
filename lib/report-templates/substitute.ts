@@ -1,3 +1,4 @@
+import { REPORT_PLACEHOLDER } from "@/lib/process-reports/types";
 import { isReportVariableKey, type ReportVariableKey } from "./variables";
 
 const ALLOWED_CHIP_STYLE_PROPERTIES = new Set([
@@ -131,4 +132,19 @@ export function extractReportVariableKeys(html: string): ReportVariableKey[] {
   }
 
   return [...keys];
+}
+
+function isEmptyReportValue(value: string | undefined): boolean {
+  const trimmed = value?.trim() ?? "";
+  return trimmed === "" || trimmed === REPORT_PLACEHOLDER;
+}
+
+/** Variable keys present in the template whose filled value is blank. */
+export function missingUsedReportVariables(
+  html: string,
+  values: Partial<Record<ReportVariableKey, string>>,
+): ReportVariableKey[] {
+  return extractReportVariableKeys(html).filter((key) =>
+    isEmptyReportValue(values[key]),
+  );
 }

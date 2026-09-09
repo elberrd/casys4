@@ -4,6 +4,7 @@ export const REPORT_VARIABLE_GROUP_IDS = [
   "person",
   "passport",
   "history",
+  "document",
 ] as const;
 
 export type ReportVariableGroupId = (typeof REPORT_VARIABLE_GROUP_IDS)[number];
@@ -52,6 +53,22 @@ export const REPORT_VARIABLE_KEYS = [
   "statusHistory",
   "currentStatus",
   "currentStatusDateTime",
+  "personNameUpper",
+  "nationalityShort",
+  "maritalStatusText",
+  "bornWord",
+  "childWord",
+  "holderWord",
+  "birthDateLong",
+  "fatherNameUpper",
+  "motherNameUpper",
+  "issueDateLong",
+  "expiryDateLong",
+  "issuingCountryOfficial",
+  "legalFrameworkPlain",
+  "visaReceiptPlace",
+  "todayLong",
+  "locationDate",
 ] as const;
 
 export type ReportVariableKey = (typeof REPORT_VARIABLE_KEYS)[number];
@@ -105,6 +122,22 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "statusHistory", group: "history" },
   { key: "currentStatus", group: "history" },
   { key: "currentStatusDateTime", group: "history" },
+  { key: "personNameUpper", group: "document" },
+  { key: "nationalityShort", group: "document" },
+  { key: "maritalStatusText", group: "document" },
+  { key: "bornWord", group: "document" },
+  { key: "childWord", group: "document" },
+  { key: "holderWord", group: "document" },
+  { key: "birthDateLong", group: "document" },
+  { key: "fatherNameUpper", group: "document" },
+  { key: "motherNameUpper", group: "document" },
+  { key: "issueDateLong", group: "document" },
+  { key: "expiryDateLong", group: "document" },
+  { key: "issuingCountryOfficial", group: "document" },
+  { key: "legalFrameworkPlain", group: "document" },
+  { key: "visaReceiptPlace", group: "document" },
+  { key: "todayLong", group: "document" },
+  { key: "locationDate", group: "document" },
 ];
 
 export function isReportVariableKey(value: string): value is ReportVariableKey {

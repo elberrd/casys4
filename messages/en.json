@@ -2191,6 +2191,7 @@
   },
   "ProcessReports": {
     "menuLabel": "Reports",
+    "noActiveTemplates": "No active reports",
     "previewTitle": "Report preview",
     "generating": "Generating report...",
     "close": "Close",
@@ -2308,7 +2309,8 @@
       "process": "Process Information",
       "person": "Person Information",
       "passport": "Passport Information",
-      "history": "Progress History"
+      "history": "Progress History",
+      "document": "Document text"
     },
     "variables": {
       "personName": "Individual name",
@@ -2353,7 +2355,23 @@
       "passportFile": "Passport File",
       "statusHistory": "Progress History",
       "currentStatus": "Progress Status",
-      "currentStatusDateTime": "Date and Time"
+      "currentStatusDateTime": "Date and Time",
+      "personNameUpper": "Individual name (uppercase)",
+      "nationalityShort": "Nationality (declaration text)",
+      "maritalStatusText": "Marital status (declaration text)",
+      "bornWord": "Born (gendered)",
+      "childWord": "Son/daughter",
+      "holderWord": "Passport holder (gendered)",
+      "birthDateLong": "Date of birth (long form)",
+      "fatherNameUpper": "Father's name (uppercase)",
+      "motherNameUpper": "Mother's name (uppercase)",
+      "issueDateLong": "Issue date (long form)",
+      "expiryDateLong": "Expiry date (long form)",
+      "issuingCountryOfficial": "Issuing country (official name)",
+      "legalFrameworkPlain": "Legal basis (without period)",
+      "visaReceiptPlace": "Visa receipt location",
+      "todayLong": "Today's date (long form)",
+      "locationDate": "Declaration place and date"
     }
   },
   "States": {
