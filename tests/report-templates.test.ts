@@ -93,6 +93,19 @@ test("variable catalog uses stable keys and UI-oriented groups", () => {
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "companyEmploymentPlace"));
 });
 
+test("resolves the spaced alias atividade CBO to the process field", () => {
+  const html =
+    '<p><span data-type="report-variable" data-key="atividade CBO">Atividade CBO</span> {{atividade CBO}}</p>';
+  const result = substituteReportVariables(html, {
+    atividadeCBO: "i) Selecionar materiais",
+  });
+  assert.equal(
+    result,
+    "<p>i) Selecionar materiais i) Selecionar materiais</p>",
+  );
+  assert.deepEqual(extractReportVariableKeys(html), ["atividadeCBO"]);
+});
+
 test("substitutes chips using client-facing keys, not database names", () => {
   const html =
     '<p>Nacionalidade: <span data-type="report-variable" data-key="nationality">Nacionalidade</span></p>';

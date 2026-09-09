@@ -168,6 +168,20 @@ export function isReportVariableKey(value: string): value is ReportVariableKey {
   return (REPORT_VARIABLE_KEYS as readonly string[]).includes(value);
 }
 
+/** Human labels and spaced names that map onto camelCase keys. */
+const REPORT_VARIABLE_KEY_ALIASES: Record<string, ReportVariableKey> = {
+  "atividade cbo": "atividadeCBO",
+};
+
+/** Resolves a chip/`{{token}}` name, including aliases like `atividade CBO`. */
+export function resolveReportVariableKey(
+  raw: string,
+): ReportVariableKey | null {
+  const key = raw.trim();
+  if (isReportVariableKey(key)) return key;
+  return REPORT_VARIABLE_KEY_ALIASES[key.toLowerCase()] ?? null;
+}
+
 /** Optional chips may be blank without blocking generation (e.g. no corporate group). */
 export const OPTIONAL_REPORT_VARIABLE_KEYS = [
   "companyGroup",
