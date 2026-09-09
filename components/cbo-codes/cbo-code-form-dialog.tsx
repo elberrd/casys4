@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
@@ -84,15 +84,17 @@ export function CboCodeFormDialog({
     isSubmitting: isSubmitting,
   });
 
-  // Update form when cboCode data loads
-  if (cboCode && form.getValues().code === "" && cboCodeId) {
+  useEffect(() => {
+    if (!open) return;
+    if (cboCodeId && !cboCode) return;
+
     form.reset({
-      code: cboCode.code ?? "",
-      title: cboCode.title,
-      activity: cboCode.activity ?? "",
-      description: cboCode.description ?? "",
+      code: cboCode?.code ?? "",
+      title: cboCode?.title ?? "",
+      activity: cboCode?.activity ?? "",
+      description: cboCode?.description ?? "",
     });
-  }
+  }, [open, cboCode, cboCodeId, form]);
 
   const onSubmit = async (data: CboCodeFormData) => {
     try {
