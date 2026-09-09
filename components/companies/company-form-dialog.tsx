@@ -19,6 +19,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -86,6 +87,7 @@ export function CompanyFormDialog({
       addressComplement: "",
       addressNeighborhood: "",
       addressPostalCode: "",
+      groupName: "",
       cityId: "" as Id<"cities">,
       phoneNumber: "",
       email: "",
@@ -127,6 +129,7 @@ export function CompanyFormDialog({
         addressComplement: company.addressComplement ?? "",
         addressNeighborhood: company.addressNeighborhood ?? "",
         addressPostalCode: company.addressPostalCode ?? "",
+        groupName: company.groupName ?? "",
         cityId: company.cityId,
         phoneNumber: company.phoneNumber,
         email: company.email,
@@ -147,6 +150,7 @@ export function CompanyFormDialog({
         addressComplement: "",
         addressNeighborhood: "",
         addressPostalCode: "",
+        groupName: "",
         cityId: "" as Id<"cities">,
         phoneNumber: "",
         email: "",
@@ -174,6 +178,7 @@ export function CompanyFormDialog({
         cityId: data.cityId === "" ? undefined : data.cityId,
         contactPersonId: data.contactPersonId === "" ? undefined : data.contactPersonId,
         notes: data.notes || undefined,
+        groupName: data.groupName || undefined,
       }
 
       let savedCompanyId: Id<"companies">
@@ -265,6 +270,21 @@ export function CompanyFormDialog({
                   <FormControl>
                     <Input placeholder="Acme Corporation" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="groupName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("groupName")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t("groupNamePlaceholder")} {...field} />
+                  </FormControl>
+                  <FormDescription>{t("groupNameHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

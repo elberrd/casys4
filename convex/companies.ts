@@ -175,6 +175,7 @@ export const create = mutation({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    groupName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -199,6 +200,7 @@ export const create = mutation({
       contactPersonId: args.contactPersonId,
       isActive: args.isActive ?? true,
       notes: args.notes,
+      groupName: args.groupName,
       createdAt: now,
       updatedAt: now,
     });
@@ -252,6 +254,7 @@ export const update = mutation({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    groupName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin role
@@ -281,6 +284,7 @@ export const update = mutation({
       contactPersonId: data.contactPersonId,
       isActive: data.isActive ?? true,
       notes: data.notes,
+      groupName: data.groupName,
       updatedAt: Date.now(),
     });
 

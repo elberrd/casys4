@@ -136,7 +136,7 @@ export function CboCodeFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleUnsavedOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>
             {cboCodeId ? t("editTitle") : t("createTitle")}
@@ -191,8 +191,13 @@ export function CboCodeFormDialog({
                 <FormItem>
                   <FormLabel>{t("activity")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Textarea
+                      {...field}
+                      rows={8}
+                      className="min-h-[180px] resize-y"
+                    />
                   </FormControl>
+                  <FormDescription>{t("activityHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

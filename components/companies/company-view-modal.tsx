@@ -81,6 +81,7 @@ export function CompanyViewModal({
       icon: <Building2 className="h-5 w-5" />,
       fields: [
         createField(t("name"), company.name),
+        createField(t("groupName"), company.groupName || "-"),
         createField(t("taxId"), company.taxId || "-"),
         ...(company.openingDate ? [createField(t("openingDate"), formatDate(company.openingDate), undefined, {
           icon: <Calendar className="h-4 w-4" />,

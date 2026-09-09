@@ -74,6 +74,7 @@ export const individualProcessSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+  cboActivities: z.string().optional().or(z.literal("")),
   qualification: z
     .enum(["medio", "tecnico", "mestrado", "superior", "naoPossui"])
     .optional()

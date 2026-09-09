@@ -32,6 +32,7 @@ export const companySchema = z.object({
     .regex(cepRegex, "Invalid CEP format. Use XXXXX-XXX")
     .optional()
     .or(z.literal("")),
+  groupName: z.string().optional().or(z.literal("")),
   cityId: z
     .custom<Id<"cities">>((val) => typeof val === "string", {
       message: "City ID must be valid",

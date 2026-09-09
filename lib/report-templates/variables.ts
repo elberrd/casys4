@@ -69,6 +69,18 @@ export const REPORT_VARIABLE_KEYS = [
   "visaReceiptPlace",
   "todayLong",
   "locationDate",
+  "atividadeCBO",
+  "cboTitle",
+  "cboTitleUpper",
+  "professionalExperienceSinceLong",
+  "companyGroup",
+  "companyGroupClause",
+  "companyCity",
+  "companyCityClause",
+  "companyEmploymentPlace",
+  "userApplicantName",
+  "srPhrase",
+  "employeeWord",
 ] as const;
 
 export type ReportVariableKey = (typeof REPORT_VARIABLE_KEYS)[number];
@@ -138,10 +150,34 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "visaReceiptPlace", group: "document" },
   { key: "todayLong", group: "document" },
   { key: "locationDate", group: "document" },
+  { key: "atividadeCBO", group: "document" },
+  { key: "cboTitle", group: "document" },
+  { key: "cboTitleUpper", group: "document" },
+  { key: "professionalExperienceSinceLong", group: "document" },
+  { key: "companyGroup", group: "document" },
+  { key: "companyGroupClause", group: "document" },
+  { key: "companyCity", group: "document" },
+  { key: "companyCityClause", group: "document" },
+  { key: "companyEmploymentPlace", group: "document" },
+  { key: "userApplicantName", group: "document" },
+  { key: "srPhrase", group: "document" },
+  { key: "employeeWord", group: "document" },
 ];
 
 export function isReportVariableKey(value: string): value is ReportVariableKey {
   return (REPORT_VARIABLE_KEYS as readonly string[]).includes(value);
+}
+
+/** Optional chips may be blank without blocking generation (e.g. no corporate group). */
+export const OPTIONAL_REPORT_VARIABLE_KEYS = [
+  "companyGroup",
+  "companyGroupClause",
+  "companyCity",
+  "companyCityClause",
+] as const;
+
+export function isOptionalReportVariableKey(value: string): boolean {
+  return (OPTIONAL_REPORT_VARIABLE_KEYS as readonly string[]).includes(value);
 }
 
 export function variablesByGroup(

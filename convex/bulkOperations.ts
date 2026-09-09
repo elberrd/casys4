@@ -18,6 +18,7 @@ import { logStatusChange } from "./lib/processHistory";
 import { isValidIndividualStatusTransition } from "./lib/statusValidation";
 import { internal } from "./_generated/api";
 import { formatNowDateTime } from "./lib/statusDateTime";
+import { resolveCboActivities } from "./lib/cboActivities";
 import { resolveOfficialCountryName } from "../lib/data/country-official-names-pt";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -312,6 +313,8 @@ export const bulkCreateIndividualProcesses = mutation({
     // For backward compatibility, derive status string from case status if not provided
     const statusString = args.status || caseStatus.code;
 
+    const copiedCboActivities = await resolveCboActivities(ctx, args.cboId);
+
     const results = {
       successful: [] as Id<"individualProcesses">[],
       failed: [] as { personId: Id<"people">; reason: string }[],
@@ -356,6 +359,7 @@ export const bulkCreateIndividualProcesses = mutation({
           status: statusString, // DEPRECATED: Keep for backward compatibility
           legalFrameworkId: args.legalFrameworkId,
           cboId: args.cboId,
+          cboActivities: copiedCboActivities,
           deadlineDate: args.deadlineDate,
           isActive: true,
           createdAt: Date.now(),

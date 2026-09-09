@@ -7,6 +7,7 @@ import {
   getClientCurrentCompanyIds,
 } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
+import { resolveCboActivities } from "./lib/cboActivities";
 import {
   autoReuseCompanyDocuments,
   generateDocumentChecklist,
@@ -736,6 +737,19 @@ export const get = query({
       };
     }
 
+    let enrichedCompanyApplicant = null;
+    if (companyApplicant) {
+      const city = companyApplicant.cityId
+        ? await ctx.db.get(companyApplicant.cityId)
+        : null;
+      const state = city?.stateId ? await ctx.db.get(city.stateId) : null;
+      enrichedCompanyApplicant = {
+        ...companyApplicant,
+        city,
+        state,
+      };
+    }
+
     // If consulate exists, enrich it with city, state, and country
     let enrichedConsulate = null;
     if (consulate) {
@@ -827,7 +841,7 @@ export const get = query({
       caseStatus, // NEW: Include full case status object with name, nameEn, color, etc.
       passport: enrichedPassport,
       applicant: enrichedApplicant, // DEPRECATED: Include applicant with company
-      companyApplicant, // NEW: Include company applicant
+      companyApplicant: enrichedCompanyApplicant, // Company applicant with city/state/group
       userApplicant: enrichedUserApplicant, // NEW: Include user applicant with company
       consulate: enrichedConsulate, // Include consulate with city, state, country
       processType, // Include process type details
@@ -856,6 +870,7 @@ export const create = mutation({
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     funcao: v.optional(v.string()),
     cboId: v.optional(v.id("cboCodes")),
+    cboActivities: v.optional(v.string()),
     qualification: v.optional(v.string()),
     professionalExperienceSince: v.optional(v.string()),
     mreOfficeNumber: v.optional(v.string()),
@@ -949,6 +964,12 @@ export const create = mutation({
       });
     }
 
+    const cboActivities = await resolveCboActivities(
+      ctx,
+      args.cboId,
+      args.cboActivities,
+    );
+
     const processId = await ctx.db.insert("individualProcesses", {
       collectiveProcessId: args.collectiveProcessId,
       dateProcess: args.dateProcess, // Process date (ISO format YYYY-MM-DD)
@@ -965,6 +986,7 @@ export const create = mutation({
       legalFrameworkId: args.legalFrameworkId,
       funcao: args.funcao,
       cboId: args.cboId,
+      cboActivities,
       qualification: args.qualification,
       professionalExperienceSince: args.professionalExperienceSince,
       mreOfficeNumber: args.mreOfficeNumber,
@@ -1205,6 +1227,7 @@ export const createFromExisting = mutation({
       consulateId: sourceProcess.consulateId, // Consulado
       passportId: sourceProcess.passportId, // Passaporte
       cboId: sourceProcess.cboId, // CBO
+      cboActivities: sourceProcess.cboActivities, // Editable CBO activities copy
       funcao: sourceProcess.funcao, // Função
       qualification: sourceProcess.qualification, // Qualificação
       professionalExperienceSince: sourceProcess.professionalExperienceSince, // Experiência profissional
@@ -1517,6 +1540,7 @@ export const update = mutation({
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     funcao: v.optional(v.string()),
     cboId: v.optional(v.id("cboCodes")),
+    cboActivities: v.optional(v.string()),
     qualification: v.optional(v.string()),
     professionalExperienceSince: v.optional(v.string()),
     mreOfficeNumber: v.optional(v.string()),
@@ -1735,6 +1759,16 @@ export const update = mutation({
       updates.legalFrameworkId = args.legalFrameworkId;
     if (args.funcao !== undefined) updates.funcao = args.funcao;
     if (args.cboId !== undefined) updates.cboId = args.cboId;
+    if (args.cboActivities !== undefined) {
+      updates.cboActivities = args.cboActivities;
+    } else if (
+      args.cboId !== undefined &&
+      args.cboId !== process.cboId &&
+      !process.cboActivities?.trim()
+    ) {
+      const copied = await resolveCboActivities(ctx, args.cboId);
+      if (copied) updates.cboActivities = copied;
+    }
     if (args.qualification !== undefined)
       updates.qualification = args.qualification;
     if (args.professionalExperienceSince !== undefined)

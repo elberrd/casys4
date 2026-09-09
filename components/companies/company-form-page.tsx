@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -76,6 +77,7 @@ export function CompanyFormPage({
       addressComplement: "",
       addressNeighborhood: "",
       addressPostalCode: "",
+      groupName: "",
       cityId: "" as Id<"cities">,
       phoneNumber: "",
       email: "",
@@ -101,6 +103,7 @@ export function CompanyFormPage({
         addressComplement: company.addressComplement ?? "",
         addressNeighborhood: company.addressNeighborhood ?? "",
         addressPostalCode: company.addressPostalCode ?? "",
+        groupName: company.groupName ?? "",
         cityId: company.cityId,
         phoneNumber: company.phoneNumber,
         email: company.email,
@@ -131,6 +134,7 @@ export function CompanyFormPage({
         cityId: companyData.cityId === "" ? undefined : companyData.cityId,
         contactPersonId: companyData.contactPersonId === "" ? undefined : companyData.contactPersonId,
         notes: companyData.notes || undefined,
+        groupName: companyData.groupName || undefined,
       }
 
       let savedCompanyId: Id<"companies">
@@ -239,6 +243,21 @@ export function CompanyFormPage({
                   <FormControl>
                     <Input placeholder="Acme Corporation" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="groupName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("groupName")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t("groupNamePlaceholder")} {...field} />
+                  </FormControl>
+                  <FormDescription>{t("groupNameHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

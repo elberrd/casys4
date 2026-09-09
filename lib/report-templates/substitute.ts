@@ -1,5 +1,5 @@
 import { REPORT_PLACEHOLDER } from "@/lib/process-reports/types";
-import { isReportVariableKey, type ReportVariableKey } from "./variables";
+import { isOptionalReportVariableKey, isReportVariableKey, type ReportVariableKey } from "./variables";
 
 const ALLOWED_CHIP_STYLE_PROPERTIES = new Set([
   "background",
@@ -144,7 +144,7 @@ export function missingUsedReportVariables(
   html: string,
   values: Partial<Record<ReportVariableKey, string>>,
 ): ReportVariableKey[] {
-  return extractReportVariableKeys(html).filter((key) =>
-    isEmptyReportValue(values[key]),
+  return extractReportVariableKeys(html).filter(
+    (key) => !isOptionalReportVariableKey(key) && isEmptyReportValue(values[key]),
   );
 }
