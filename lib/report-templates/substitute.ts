@@ -1,5 +1,9 @@
 import { REPORT_PLACEHOLDER } from "@/lib/process-reports/types";
-import { isReportVariableKey, type ReportVariableKey } from "./variables";
+import {
+  isOptionalReportVariableKey,
+  resolveReportVariableKey,
+  type ReportVariableKey,
+} from "./variables";
 
 const ALLOWED_CHIP_STYLE_PROPERTIES = new Set([
   "background",
@@ -28,11 +32,9 @@ function lookupValue(
   values: Partial<Record<ReportVariableKey, string>>,
   rawKey: string,
 ): string {
-  const key = rawKey.trim();
-  if (isReportVariableKey(key)) {
-    return values[key] ?? "";
-  }
-  return "";
+  const key = resolveReportVariableKey(rawKey);
+  if (!key) return "";
+  return values[key] ?? "";
 }
 
 function readAttribute(tag: string, name: string): string {
@@ -114,8 +116,8 @@ export function extractReportVariableKeys(html: string): ReportVariableKey[] {
   const chipRegex = /data-key="([^"]*)"/gi;
   let chipMatch = chipRegex.exec(html);
   while (chipMatch) {
-    const key = chipMatch[1]?.trim() ?? "";
-    if (isReportVariableKey(key)) {
+    const key = resolveReportVariableKey(chipMatch[1] ?? "");
+    if (key) {
       keys.add(key);
     }
     chipMatch = chipRegex.exec(html);
@@ -124,8 +126,8 @@ export function extractReportVariableKeys(html: string): ReportVariableKey[] {
   const tokenRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
   let tokenMatch = tokenRegex.exec(html);
   while (tokenMatch) {
-    const key = tokenMatch[1]?.trim() ?? "";
-    if (isReportVariableKey(key)) {
+    const key = resolveReportVariableKey(tokenMatch[1] ?? "");
+    if (key) {
       keys.add(key);
     }
     tokenMatch = tokenRegex.exec(html);
@@ -144,7 +146,7 @@ export function missingUsedReportVariables(
   html: string,
   values: Partial<Record<ReportVariableKey, string>>,
 ): ReportVariableKey[] {
-  return extractReportVariableKeys(html).filter((key) =>
-    isEmptyReportValue(values[key]),
+  return extractReportVariableKeys(html).filter(
+    (key) => !isOptionalReportVariableKey(key) && isEmptyReportValue(values[key]),
   );
 }

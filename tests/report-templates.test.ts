@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   CRIMINAL_BACKGROUND_REPORT_HTML,
   CRIMINAL_BACKGROUND_REPORT_NAME,
+  PROFESSIONAL_EXPERIENCE_REPORT_HTML,
+  PROFESSIONAL_EXPERIENCE_REPORT_NAME,
 } from "../lib/report-templates/built-in-templates";
 import {
   buildReportVariableValues,
@@ -86,7 +88,22 @@ test("variable catalog uses stable keys and UI-oriented groups", () => {
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "passportNumber"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "statusHistory"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "personNameUpper"));
-  assert.ok(variablesByGroup("document").some((item) => item.key === "locationDate"));
+  assert.ok(REPORT_VARIABLES.some((item) => item.key === "locationDate"));
+  assert.ok(REPORT_VARIABLES.some((item) => item.key === "atividadeCBO"));
+  assert.ok(REPORT_VARIABLES.some((item) => item.key === "companyEmploymentPlace"));
+});
+
+test("resolves the spaced alias atividade CBO to the process field", () => {
+  const html =
+    '<p><span data-type="report-variable" data-key="atividade CBO">Atividade CBO</span> {{atividade CBO}}</p>';
+  const result = substituteReportVariables(html, {
+    atividadeCBO: "i) Selecionar materiais",
+  });
+  assert.equal(
+    result,
+    "<p>i) Selecionar materiais i) Selecionar materiais</p>",
+  );
+  assert.deepEqual(extractReportVariableKeys(html), ["atividadeCBO"]);
 });
 
 test("substitutes chips using client-facing keys, not database names", () => {
@@ -450,4 +467,112 @@ test("unbolded variable chip stays plain after substitution", () => {
     personName: "Oran Alder Mc Gee",
   });
   assert.equal(result, "<p>Oran Alder Mc Gee</p>");
+});
+
+test("fills the professional experience declaration from process CBO activities", () => {
+  const values = buildReportVariableValues({
+    process: {
+      professionalExperienceSince: "2020-08-01",
+      cboActivities:
+        "i) Selecionar, preparar e aplicar materiais.\nii) Avaliar peças com precisão técnica.",
+      person: {
+        givenNames: "Can",
+        middleName: "Aslan",
+        surname: "Durkaya",
+        sex: "Male",
+      },
+      userApplicant: {
+        givenNames: "Firat",
+        surname: "Galipogullari",
+      },
+      cbo: {
+        code: "3121-05",
+        title: "Técnico de matéria-prima e material",
+      },
+      companyApplicant: {
+        name: "CADDELL CONSTRUCTION CO. (DE) LLC",
+        groupName: "CADDELL",
+        city: { name: "Montgomery" },
+        state: { code: "AL" },
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-02",
+      visaReceiptCityName: "Rio de Janeiro",
+      visaReceiptStateCode: "RJ",
+    },
+  });
+
+  assert.equal(values.srPhrase, "o Sr.");
+  assert.equal(values.employeeWord, "funcionário");
+  assert.equal(values.personNameUpper, "CAN ASLAN DURKAYA");
+  assert.equal(values.cboTitleUpper, "TÉCNICO DE MATÉRIA-PRIMA E MATERIAL");
+  assert.equal(values.professionalExperienceSinceLong, "01 de agosto de 2020");
+  assert.equal(values.companyCity, "Montgomery/AL");
+  assert.equal(
+    values.companyGroupClause,
+    " que pertence ao grupo de empresas CADDELL",
+  );
+  assert.equal(
+    values.companyEmploymentPlace,
+    "CADDELL CONSTRUCTION CO. (DE) LLC, Montgomery/AL que pertence ao grupo de empresas CADDELL",
+  );
+  assert.match(values.atividadeCBO, /Selecionar, preparar/);
+  assert.equal(values.userApplicantName, "Firat Galipogullari");
+  assert.equal(values.locationDate, "Rio de Janeiro/RJ, 02 de setembro de 2026.");
+
+  const filled = substituteReportVariables(
+    PROFESSIONAL_EXPERIENCE_REPORT_HTML,
+    values,
+  );
+  assert.match(filled, /DECLARAÇÃO DE EXPERIÊNCIA PROFISSIONAL/);
+  assert.match(filled, /o Sr\./);
+  assert.match(filled, /CAN ASLAN DURKAYA/);
+  assert.match(filled, /CADDELL CONSTRUCTION CO/);
+  assert.match(filled, /grupo de empresas CADDELL/);
+  assert.match(filled, /01 de agosto de 2020/);
+  assert.match(filled, /TÉCNICO DE MATÉRIA-PRIMA E MATERIAL/);
+  assert.match(filled, /Selecionar, preparar/);
+  assert.match(filled, /Firat Galipogullari/);
+  assert.match(filled, /Representante legal/);
+  assert.equal(extractReportVariableKeys(filled).length, 0);
+
+  const withoutGroup = buildReportVariableValues({
+    process: {
+      companyApplicant: {
+        name: "Empresa Sem Grupo Ltda",
+        city: { name: "São Paulo" },
+        state: { code: "SP" },
+      },
+      person: { givenNames: "Maria", surname: "Silva", sex: "Female" },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+  });
+  assert.equal(withoutGroup.srPhrase, "a Sra.");
+  assert.equal(withoutGroup.employeeWord, "funcionária");
+  assert.equal(withoutGroup.companyGroupClause, "");
+  assert.equal(
+    withoutGroup.companyEmploymentPlace,
+    "Empresa Sem Grupo Ltda, São Paulo/SP",
+  );
+  const missing = missingUsedReportVariables(
+    PROFESSIONAL_EXPERIENCE_REPORT_HTML,
+    withoutGroup,
+  );
+  assert.equal(missing.includes("companyGroupClause"), false);
+  assert.ok(missing.includes("atividadeCBO"));
+
+  assert.equal(
+    suggestedReportFilename({
+      templateName: PROFESSIONAL_EXPERIENCE_REPORT_NAME,
+      personName: values.personName,
+      todayIso: "2026-09-02",
+    }),
+    "CAN_ASLAN_DURKAYA - exp prof - 02_set_2026",
+  );
 });

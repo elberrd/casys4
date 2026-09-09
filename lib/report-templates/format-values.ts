@@ -8,13 +8,13 @@ import {
   maritalStatusPt,
   toUpperName,
 } from "@/lib/process-reports/criminal-background-declaration";
-import { formatLongDatePt } from "@/lib/process-reports/pt-dates";
+import { formatFilenameDatePt, formatLongDatePt } from "@/lib/process-reports/pt-dates";
 import { REPORT_PLACEHOLDER } from "@/lib/process-reports/types";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatCPF } from "@/lib/utils/document-masks";
 import { getFullName } from "@/lib/utils/person-names";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
-import { isCriminalBackgroundReportName } from "./built-in-templates";
+import { isCriminalBackgroundReportName, isProfessionalExperienceReportName } from "./built-in-templates";
 import type { ReportVariableKey } from "./variables";
 
 export interface ReportPersonName {
@@ -29,6 +29,7 @@ export interface ReportProcessSource {
   protocolNumber?: string | null;
   qualification?: string | null;
   professionalExperienceSince?: string | null;
+  cboActivities?: string | null;
   visaReceiptLocation?: "brazil" | "abroad" | string | null;
   residenceCountryName?: string | null;
   residenceCity?: string | null;
@@ -71,10 +72,19 @@ export interface ReportProcessSource {
         company?: { name?: string | null } | null;
       })
     | null;
-  cbo?: { code?: string | null; title?: string | null } | null;
+  cbo?: {
+    code?: string | null;
+    title?: string | null;
+    activity?: string | null;
+  } | null;
   processType?: { name?: string | null } | null;
   legalFramework?: { name?: string | null } | null;
-  companyApplicant?: { name?: string | null } | null;
+  companyApplicant?: {
+    name?: string | null;
+    groupName?: string | null;
+    city?: { name?: string | null } | null;
+    state?: { code?: string | null; name?: string | null } | null;
+  } | null;
   consulate?: { city?: { name?: string | null } | null } | null;
   collectiveProcess?: { referenceNumber?: string | null } | null;
   passport?: {
@@ -283,6 +293,27 @@ function stripTrailingPeriod(value: string): string {
   return value.replace(/\s+$/u, "").replace(/\.+$/u, "");
 }
 
+function formatCompanyCity(process: ReportProcessSource): string {
+  const cityName = process.companyApplicant?.city?.name?.trim() ?? "";
+  if (!cityName) return "";
+  const stateCode =
+    process.companyApplicant?.state?.code?.trim() ||
+    process.companyApplicant?.state?.name?.trim() ||
+    "";
+  return stateCode ? `${cityName}/${stateCode}` : cityName;
+}
+
+function formatCompanyEmploymentPlace(process: ReportProcessSource): string {
+  const name = process.companyApplicant?.name?.trim() ?? "";
+  if (!name) return "";
+  const city = formatCompanyCity(process);
+  const group = process.companyApplicant?.groupName?.trim() ?? "";
+  let result = name;
+  if (city) result += `, ${city}`;
+  if (group) result += ` que pertence ao grupo de empresas ${group}`;
+  return result;
+}
+
 export function suggestedReportFilename(args: {
   templateName: string;
   personName: string;
@@ -290,6 +321,14 @@ export function suggestedReportFilename(args: {
 }): string {
   if (isCriminalBackgroundReportName(args.templateName)) {
     return filenameFromName(args.personName || "candidato", args.todayIso);
+  }
+  if (isProfessionalExperienceReportName(args.templateName)) {
+    const slug = toUpperName(args.personName || "candidato")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return `${slug || "candidato"} - exp prof - ${formatFilenameDatePt(args.todayIso)}`;
   }
   return args.templateName;
 }
@@ -311,10 +350,26 @@ export function buildReportVariableValues(args: {
       ? `${getFullName(process.userApplicant)} - ${process.userApplicant.company.name}`
       : getFullName(process.userApplicant)
     : "";
+  const userApplicantName = process.userApplicant
+    ? getFullName(process.userApplicant)
+    : "";
 
   const cbo = process.cbo
     ? [process.cbo.code, process.cbo.title].filter(Boolean).join(" - ")
     : "";
+  const cboTitle = display(process.cbo?.title);
+  const cboTitleUpper = cboTitle ? toUpperName(cboTitle) : "";
+  const companyCity = formatCompanyCity(process);
+  const companyGroup = display(process.companyApplicant?.groupName);
+  const companyCityClause = companyCity ? `, ${companyCity}` : "";
+  const companyGroupClause = companyGroup
+    ? ` que pertence ao grupo de empresas ${companyGroup}`
+    : "";
+  const companyEmploymentPlace = formatCompanyEmploymentPlace(process);
+  const professionalExperienceSinceLong = process.professionalExperienceSince
+    ? formatLongDatePt(process.professionalExperienceSince) ?? ""
+    : "";
+  const atividadeCBO = display(process.cboActivities);
 
   const processStatus =
     process.processStatus === "Anterior"
@@ -522,5 +577,17 @@ export function buildReportVariableValues(args: {
     visaReceiptPlace,
     todayLong: todayLongRaw || REPORT_PLACEHOLDER,
     locationDate,
+    atividadeCBO,
+    cboTitle,
+    cboTitleUpper,
+    professionalExperienceSinceLong,
+    companyGroup,
+    companyGroupClause,
+    companyCity,
+    companyCityClause,
+    companyEmploymentPlace,
+    userApplicantName: display(userApplicantName),
+    srPhrase: genderedWord("o Sr.", "a Sra.", sex),
+    employeeWord: genderedWord("funcionário", "funcionária", sex),
   };
 }

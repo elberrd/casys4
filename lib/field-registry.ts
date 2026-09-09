@@ -41,6 +41,7 @@ export const FIELD_REGISTRY: Record<EntityType, FieldRegistryEntry[]> = {
   ],
   individualProcess: [
     { fieldPath: "funcao", label: "Funcao / Duty", labelEn: "Function / Duty", fieldType: "text" },
+    { fieldPath: "cboActivities", label: "Atividades CBO", labelEn: "CBO activities", fieldType: "text" },
     { fieldPath: "monthlyAmountToReceive", label: "Salario mensal (BRL)", labelEn: "Monthly salary (BRL)", fieldType: "number" },
     { fieldPath: "firstEntryDate", label: "Data do 1o ingresso no Brasil", labelEn: "Date of 1st entry in Brazil", fieldType: "date" },
     { fieldPath: "qualification", label: "Escolaridade", labelEn: "Education", fieldType: "select" },
@@ -55,6 +56,7 @@ export const FIELD_REGISTRY: Record<EntityType, FieldRegistryEntry[]> = {
   company: [
     { fieldPath: "taxId", label: "CNPJ", labelEn: "Tax ID (CNPJ)", fieldType: "text" },
     { fieldPath: "name", label: "Razao social", labelEn: "Company name", fieldType: "text" },
+    { fieldPath: "groupName", label: "Grupo empresarial", labelEn: "Corporate group", fieldType: "text" },
     { fieldPath: "email", label: "E-mail da empresa", labelEn: "Company email", fieldType: "text" },
     { fieldPath: "phoneNumber", label: "Telefone da empresa", labelEn: "Company phone", fieldType: "text" },
   ],

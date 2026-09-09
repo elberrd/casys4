@@ -175,6 +175,7 @@ export default defineSchema({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    groupName: v.optional(v.string()), // Optional corporate group (some companies have none)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -468,6 +469,7 @@ export default defineSchema({
     legalFrameworkId: v.optional(v.id("legalFrameworks")),
     funcao: v.optional(v.string()), // Função field for individual process (different from people.cargo)
     cboId: v.optional(v.id("cboCodes")),
+    cboActivities: v.optional(v.string()), // Editable copy of the selected CBO activities for this process
     qualification: v.optional(v.string()), // Valid values: "medio", "tecnico", "mestrado", "superior", "naoPossui"
     professionalExperienceSince: v.optional(v.string()), // ISO date format YYYY-MM-DD - Professional experience start date
     firstEntryDate: v.optional(v.string()), // ISO YYYY-MM-DD - Date of first entry into Brazil

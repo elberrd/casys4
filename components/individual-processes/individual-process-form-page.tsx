@@ -43,6 +43,7 @@ import {
 } from "@/components/process-requests/residence-select";
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
+import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
 import { useTranslations, useLocale } from "next-intl";
 import {
   individualProcessSchema,
@@ -124,6 +125,7 @@ export function IndividualProcessFormPage({
       legalFrameworkId: "" as Id<"legalFrameworks">,
       funcao: "",
       cboId: "",
+      cboActivities: "",
       qualification: "",
       professionalExperienceSince: "",
       mreOfficeNumber: "",
@@ -316,6 +318,7 @@ export function IndividualProcessFormPage({
         legalFrameworkId: individualProcess.legalFrameworkId,
         funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
+        cboActivities: individualProcess.cboActivities ?? "",
         qualification: (individualProcess.qualification ?? "") as
           | ""
           | "medio"
@@ -403,6 +406,11 @@ export function IndividualProcessFormPage({
       }
       if (currentValues.cboId !== (individualProcess.cboId ?? "")) {
         updates.cboId = individualProcess.cboId ?? "";
+      }
+      if (
+        currentValues.cboActivities !== (individualProcess.cboActivities ?? "")
+      ) {
+        updates.cboActivities = individualProcess.cboActivities ?? "";
       }
       if (
         currentValues.qualification !== (individualProcess.qualification ?? "")
@@ -510,6 +518,7 @@ export function IndividualProcessFormPage({
         legalFrameworkId: "" as Id<"legalFrameworks">,
         funcao: "",
         cboId: "",
+        cboActivities: "",
         qualification: "",
         professionalExperienceSince: "",
         mreOfficeNumber: "",
@@ -622,6 +631,7 @@ export function IndividualProcessFormPage({
         legalFrameworkId: data.legalFrameworkId || undefined,
         funcao: data.funcao || undefined,
         cboId: data.cboId || undefined,
+        cboActivities: data.cboActivities || undefined,
         qualification: data.qualification || undefined,
         professionalExperienceSince:
           data.professionalExperienceSince || undefined,
@@ -966,24 +976,7 @@ export function IndividualProcessFormPage({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="cboId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("cbo")}</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={cboOptions}
-                        value={field.value || ""}
-                        onValueChange={field.onChange}
-                        placeholder={t("selectCbo")}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <CboActivitiesFields cboCodes={cboCodes} />
 
               <FormField
                 control={form.control}

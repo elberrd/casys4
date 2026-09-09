@@ -59,6 +59,7 @@ import { Calculator, Loader2, RefreshCw } from "lucide-react";
 import { fetchExchangeRate } from "@/lib/api/exchange-rate";
 import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
 
 interface IndividualProcessFormDialogProps {
   open: boolean;
@@ -121,6 +122,7 @@ export function IndividualProcessFormDialog({
       legalFrameworkId: "" as Id<"legalFrameworks">,
       funcao: "",
       cboId: "",
+      cboActivities: "",
       qualification: "",
       professionalExperienceSince: "",
       mreOfficeNumber: "",
@@ -231,6 +233,7 @@ export function IndividualProcessFormDialog({
         legalFrameworkId: individualProcess.legalFrameworkId,
         funcao: individualProcess.funcao ?? "",
         cboId: individualProcess.cboId ?? "",
+        cboActivities: individualProcess.cboActivities ?? "",
         qualification: (individualProcess.qualification ?? "") as
           | ""
           | "medio"
@@ -280,6 +283,7 @@ export function IndividualProcessFormDialog({
         legalFrameworkId: "" as Id<"legalFrameworks">,
         funcao: "",
         cboId: "",
+        cboActivities: "",
         qualification: "",
         professionalExperienceSince: "",
         mreOfficeNumber: "",
@@ -370,6 +374,7 @@ export function IndividualProcessFormDialog({
         legalFrameworkId: data.legalFrameworkId || undefined,
         funcao: data.funcao || undefined,
         cboId: data.cboId || undefined,
+        cboActivities: data.cboActivities || undefined,
         qualification: data.qualification || undefined,
         professionalExperienceSince:
           data.professionalExperienceSince || undefined,
@@ -635,24 +640,7 @@ export function IndividualProcessFormDialog({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="cboId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("cbo")}</FormLabel>
-                        <FormControl>
-                          <Combobox
-                            options={cboOptions}
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            placeholder={t("selectCbo")}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CboActivitiesFields cboCodes={cboCodes} />
 
                   <FormField
                     control={form.control}

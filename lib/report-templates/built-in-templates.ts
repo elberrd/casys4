@@ -30,3 +30,24 @@ export const CRIMINAL_BACKGROUND_REPORT_HTML = [
   `<p style="text-align: center">${chip("locationDate", "Local e data da declaração")}</p>`,
   `<p style="text-align: center; margin-top: 4em">${chip("personNameUpper", "Nome do indivíduo (maiúsculas)", { bold: true })}</p>`,
 ].join("");
+
+export const PROFESSIONAL_EXPERIENCE_REPORT_NAME =
+  "Declaração de experiência profissional";
+
+export const PROFESSIONAL_EXPERIENCE_REPORT_DESCRIPTION =
+  "Declaração de experiência profissional com atividades CBO do processo individual e grupo empresarial opcional.";
+
+export function isProfessionalExperienceReportName(name: string): boolean {
+  return name.trim() === PROFESSIONAL_EXPERIENCE_REPORT_NAME;
+}
+
+/** TipTap HTML for the professional experience declaration. */
+export const PROFESSIONAL_EXPERIENCE_REPORT_HTML = [
+  `<p style="text-align: center; margin-bottom: 2.5em"><strong><u>DECLARAÇÃO DE EXPERIÊNCIA PROFISSIONAL</u></strong></p>`,
+  `<p style="text-align: justify; text-indent: 2em; margin-bottom: 2em">Declaramos, para todos os efeitos, que ${chip("srPhrase", "o Sr./a Sra.")} ${chip("personNameUpper", "Nome do indivíduo (maiúsculas)", { bold: true })} é ${chip("employeeWord", "funcionário/funcionária")} da ${chip("companyEmploymentPlace", "Empresa, cidade e grupo", { bold: true })} desde ${chip("professionalExperienceSinceLong", "Experiência profissional (por extenso)")}, atuando como ${chip("cboTitleUpper", "Título CBO (maiúsculas)", { bold: true })} desenvolvendo as seguintes atividades:</p>`,
+  `<p style="text-align: justify; margin-bottom: 2.5em">${chip("atividadeCBO", "Atividade CBO")}</p>`,
+  `<p style="text-align: center">${chip("locationDate", "Local e data da declaração")}</p>`,
+  `<p style="text-align: center; margin-top: 4em">${chip("userApplicantName", "Nome do solicitante")}</p>`,
+  `<p style="text-align: center">Representante legal</p>`,
+  `<p style="text-align: center">Por: ${chip("companyApplicant", "Empresa Requerente")}</p>`,
+].join("");
