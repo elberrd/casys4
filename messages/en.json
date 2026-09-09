@@ -2296,6 +2296,7 @@
     "previewTab": "Final preview",
     "previewAriaLabel": "Final report preview",
     "downloadPdf": "Download PDF",
+    "downloadDocx": "Download DOCX",
     "saveAndAttach": "Save and attach PDF",
     "attachPdf": "Attach the PDF to the document",
     "selectDocumentToAttach": "Select a document to attach",
@@ -2303,6 +2304,7 @@
     "attachedSuccess": "PDF attached to the document",
     "errorLoad": "Could not load the report",
     "errorDownload": "Could not generate the PDF",
+    "errorDownloadDocx": "Could not generate the DOCX",
     "errorAttach": "Could not attach the PDF",
     "groups": {
       "header": "Header",

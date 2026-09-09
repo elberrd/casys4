@@ -9,10 +9,12 @@ import {
   buildReportVariableValues,
   suggestedReportFilename,
 } from "../lib/report-templates/format-values";
+import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import {
   buildIsolatedReportHtml,
   sanitizeReportHtmlForPdf,
 } from "../lib/report-templates/html-to-pdf";
+import JSZip from "jszip";
 import {
   countReportPages,
   countReportContentPages,
@@ -385,4 +387,58 @@ test("flags empty declaration chips as missing fields", () => {
   assert.ok(missing.includes("maritalStatusText"));
   assert.ok(missing.includes("passportNumber"));
   assert.ok(missing.includes("issuingCountryOfficial"));
+});
+
+test("builds a DOCX from filled report HTML with bold title and DECLARO", async () => {
+  const values = buildReportVariableValues({
+    process: {
+      legalFramework: { name: "Resolução Normativa 30/2018 (RN 02/2017)" },
+      person: {
+        givenNames: "Oran",
+        middleName: "Alder",
+        surname: "Mc Gee",
+        sex: "Male",
+        maritalStatus: "Married",
+        birthDate: "1979-08-18",
+        fatherName: "Gary W Mc Gee",
+        motherName: "Sara Lee",
+        nationality: { name: "United States", code: "US" },
+      },
+      passport: {
+        passportNumber: "A54269887",
+        issuingCountry: { name: "United States", code: "US" },
+        issueDate: "2024-11-21",
+        expiryDate: "2034-11-20",
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-08",
+      nationalityCode: "US",
+      nationalityName: "United States",
+      issuingCountryCode: "US",
+      issuingCountryName: "United States",
+      issuingCountryFullName: "Estados Unidos da América",
+    },
+  });
+  const filled = substituteReportVariables(
+    CRIMINAL_BACKGROUND_REPORT_HTML,
+    values,
+  );
+  const blob = await htmlToDocxBlob(filled);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4b);
+
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = await zip.file("word/document.xml")?.async("string");
+  assert.ok(xml);
+  assert.match(xml, /DECLARAÇÃO/);
+  assert.match(xml, /ORAN ALDER MC GEE/);
+  assert.match(xml, /DECLARO/);
+  assert.match(xml, /A54269887/);
+  assert.match(xml, /w:b\b/);
+  assert.match(xml, /w:u\b/);
 });

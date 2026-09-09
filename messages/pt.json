@@ -2321,6 +2321,7 @@
     "previewTab": "Visualização final",
     "previewAriaLabel": "Visualização final do relatório",
     "downloadPdf": "Baixar PDF",
+    "downloadDocx": "Baixar DOCX",
     "saveAndAttach": "Salvar e anexar PDF",
     "attachPdf": "Anexar o PDF ao documento",
     "selectDocumentToAttach": "Selecione o documento para anexar",
@@ -2328,6 +2329,7 @@
     "attachedSuccess": "PDF anexado ao documento",
     "errorLoad": "Não foi possível carregar o relatório",
     "errorDownload": "Não foi possível gerar o PDF",
+    "errorDownloadDocx": "Não foi possível gerar o DOCX",
     "errorAttach": "Não foi possível anexar o PDF",
     "groups": {
       "header": "Cabeçalho",

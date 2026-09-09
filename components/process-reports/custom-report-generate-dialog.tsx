@@ -40,6 +40,7 @@ import {
   sanitizeReportFilename,
   triggerBlobDownload,
 } from "@/lib/report-templates/html-to-pdf";
+import { htmlToDocxBlob } from "@/lib/report-templates/html-to-docx";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { hasPassportFile } from "@/lib/passport";
 
@@ -78,7 +79,9 @@ export function CustomReportGenerateDialog({
   const [selectedDocumentTypeId, setSelectedDocumentTypeId] = useState<
     Id<"documentTypes"> | undefined
   >(attachTarget?.documentTypeId);
-  const [isSaving, setIsSaving] = useState<"download" | "attach" | null>(null);
+  const [isSaving, setIsSaving] = useState<"pdf" | "docx" | "attach" | null>(
+    null,
+  );
   const [mobileTab, setMobileTab] = useState("edit");
   const [todayIso, setTodayIso] = useState(() => todayIsoInSaoPaulo());
   const initializedRef = useRef(false);
@@ -221,23 +224,43 @@ export function CustomReportGenerateDialog({
     onOpenChange(nextOpen);
   };
 
+  const fileBaseName = () =>
+    sanitizeReportFilename(filename || template?.name || t("title"));
+
   const buildPdf = async () => {
     const blob = await htmlToPdfBlob(editedHtml);
-    const name = sanitizeReportFilename(filename || template?.name || t("title"));
+    const name = fileBaseName();
     return {
       blob,
       filename: name.endsWith(".pdf") ? name : `${name}.pdf`,
     };
   };
 
-  const handleDownload = async () => {
-    setIsSaving("download");
+  const handleDownloadPdf = async () => {
+    setIsSaving("pdf");
     try {
       const { blob, filename: pdfName } = await buildPdf();
       triggerBlobDownload(blob, pdfName);
     } catch (error) {
       console.error(error);
       toast.error(t("errorDownload"));
+    } finally {
+      setIsSaving(null);
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    setIsSaving("docx");
+    try {
+      const blob = await htmlToDocxBlob(editedHtml);
+      const name = fileBaseName();
+      triggerBlobDownload(
+        blob,
+        name.endsWith(".docx") ? name : `${name}.docx`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error(t("errorDownloadDocx"));
     } finally {
       setIsSaving(null);
     }
@@ -450,13 +473,26 @@ export function CustomReportGenerateDialog({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  onClick={handleDownload}
+                  className="gap-2"
+                  onClick={() => void handleDownloadDocx()}
                   disabled={isSaving !== null}
                 >
-                  {isSaving === "download" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isSaving === "docx" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className="mr-2 h-4 w-4" />
+                    <Download className="h-4 w-4" />
+                  )}
+                  {t("downloadDocx")}
+                </Button>
+                <Button
+                  className="gap-2"
+                  onClick={() => void handleDownloadPdf()}
+                  disabled={isSaving !== null}
+                >
+                  {isSaving === "pdf" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
                   )}
                   {t("downloadPdf")}
                 </Button>
