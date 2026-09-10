@@ -50,6 +50,9 @@ import {
   ChevronDown,
   ChevronRight,
   History,
+  Calendar,
+  ArrowDown,
+  ArrowUp,
   X,
   StickyNote,
   FileWarning,
@@ -65,7 +68,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatRelativeDate } from "@/lib/utils/date-utils";
+import { compareIsoDates, formatRelativeDate } from "@/lib/utils/date-utils";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -76,7 +79,7 @@ import {
   getFieldMetadata,
   getOrderedFilledFieldEntries,
 } from "@/lib/individual-process-fields";
-import { formatFieldValue, truncateString } from "@/lib/format-field-value";
+import { formatDate, formatFieldValue, truncateString } from "@/lib/format-field-value";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -166,6 +169,7 @@ interface IndividualProcess {
     code?: string;
     title: string;
   } | null;
+  dateProcess?: string;
   protocolNumber?: string;
   rnmNumber?: string;
   rnmDeadline?: string;
@@ -370,6 +374,7 @@ export function IndividualProcessesTable({
     professionalExperience: false,
     notes: true,
     progressDate: true,
+    dateProcess: true,
     nationality: true,
     cbo: true,
   };
@@ -1169,6 +1174,31 @@ export function IndividualProcessesTable({
         enableHiding: true,
       },
       {
+        id: "dateProcess",
+        accessorFn: (row) => row.dateProcess?.slice(0, 10) || undefined,
+        minSize: 130,
+        maxSize: 160,
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("dateProcess")} />
+        ),
+        cell: ({ row }) => {
+          const dateProcess = row.original.dateProcess;
+          if (!dateProcess) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          const datePart = dateProcess.slice(0, 10);
+          return (
+            <span className="text-sm">{formatDate(datePart, locale)}</span>
+          );
+        },
+        sortingFn: (rowA, rowB) =>
+          compareIsoDates(rowA.original.dateProcess, rowB.original.dateProcess),
+        sortUndefined: "last",
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
         id: "progressDate",
         accessorFn: (row) => {
           const activeStatus = row.activeStatus;
@@ -1896,6 +1926,7 @@ export function IndividualProcessesTable({
     ]);
 
     const headerByColumnId: Record<string, string> = {
+      dateProcess: t("dateProcess"),
       progressDate: t("progressDate"),
       person_fullName: t("personName"),
       nationality: t("nationality"),
@@ -2017,6 +2048,8 @@ export function IndividualProcessesTable({
       columnId: string,
     ): string => {
       switch (columnId) {
+        case "dateProcess":
+          return formatIsoDate(process.dateProcess);
         case "progressDate":
           return formatIsoDate(
             process.activeStatus?.date ||
@@ -2194,6 +2227,21 @@ export function IndividualProcessesTable({
     );
   }, [onRestoreNewestFirst]);
 
+  const requestDateSort = sorting.find((item) => item.id === "dateProcess");
+  const isSortingByRequestDate = Boolean(requestDateSort);
+
+  const handleSortByRequestDate = useCallback(() => {
+    const current = sorting.find((item) => item.id === "dateProcess");
+    if (current) {
+      setSorting([{ id: "dateProcess", desc: !current.desc }]);
+    } else {
+      setSorting([{ id: "dateProcess", desc: true }]);
+    }
+    setPagination((current) =>
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 },
+    );
+  }, [sorting, setSorting]);
+
   const showRestoreNewestFirst =
     Boolean(onRestoreNewestFirst) &&
     sorting.length > 0 &&
@@ -2222,6 +2270,36 @@ export function IndividualProcessesTable({
         {/* First row: Search, filter modes dropdown, and column visibility */}
         <div className="flex flex-wrap items-center gap-2">
           <DataGridFilter table={table} className="flex-1 min-w-[200px] max-w-sm" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "min-h-10 shrink-0 gap-2",
+                    isSortingByRequestDate && "border-amber-500",
+                  )}
+                  onClick={handleSortByRequestDate}
+                  aria-label={t("sorting.requestDateAriaLabel")}
+                  aria-pressed={isSortingByRequestDate}
+                >
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  <span>{t("sorting.requestDate")}</span>
+                  {isSortingByRequestDate &&
+                    (requestDateSort?.desc ? (
+                      <ArrowDown className="h-3.5 w-4" aria-hidden="true" />
+                    ) : (
+                      <ArrowUp className="h-3.5 w-4" aria-hidden="true" />
+                    ))}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t("sorting.requestDateTooltip")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {showRestoreNewestFirst && (
             <TooltipProvider>
               <Tooltip>
@@ -2392,6 +2470,7 @@ export function IndividualProcessesTable({
               "legalFramework_name": t("legalFramework"),
               "qualification": t("qualification"),
               "professionalExperience": t("professionalExperienceSince"),
+              "dateProcess": t("dateProcess"),
               "progressDate": t("progressDate"),
               "caseStatus.name": t("caseStatus"),
               "filledFields": t("filledFields"),
