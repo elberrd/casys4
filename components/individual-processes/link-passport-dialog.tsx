@@ -48,24 +48,33 @@ export function LinkPassportDialog({
     }
   }, [open, currentPassportId])
 
+  const linkPassportToProcess = async (passportId: Id<"passports">) => {
+    setIsSubmitting(true)
+    try {
+      await updateProcess({
+        id: individualProcessId,
+        passportId,
+      })
+      toast.success(tPassports("updatedSuccess"))
+      onOpenChange(false)
+    } catch {
+      toast.error(tPassports("errorUpdate"))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!selectedPassportId) {
       toast.error(t("selectPassport"))
       return
     }
-    setIsSubmitting(true)
-    try {
-      await updateProcess({
-        id: individualProcessId,
-        passportId: selectedPassportId as Id<"passports">,
-      })
-      toast.success(tPassports("updatedSuccess"))
-      onOpenChange(false)
-    } catch (error) {
-      toast.error(tPassports("errorUpdate"))
-    } finally {
-      setIsSubmitting(false)
-    }
+    await linkPassportToProcess(selectedPassportId as Id<"passports">)
+  }
+
+  const handlePassportCreated = (passportId: Id<"passports">) => {
+    setSelectedPassportId(passportId)
+    void linkPassportToProcess(passportId)
   }
 
   return (
@@ -84,6 +93,7 @@ export function LinkPassportDialog({
             individualProcessId={individualProcessId}
             value={selectedPassportId}
             onChange={setSelectedPassportId}
+            onCreated={handlePassportCreated}
             disabled={isSubmitting}
           />
         </div>
