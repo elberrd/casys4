@@ -967,7 +967,10 @@
     "sorting": {
       "mostRecent": "Most recent",
       "mostRecentTooltip": "Show the most recently added processes first",
-      "mostRecentAriaLabel": "Sort processes by most recently added"
+      "mostRecentAriaLabel": "Sort processes by most recently added",
+      "requestDate": "Request Date",
+      "requestDateTooltip": "Sort by request date. The button stays available even if the column is hidden.",
+      "requestDateAriaLabel": "Sort processes by request date"
     },
     "legalSupport": "Legal Support",
     "rnmToday": "Expires today",

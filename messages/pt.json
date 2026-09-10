@@ -967,7 +967,10 @@
     "sorting": {
       "mostRecent": "Mais recentes",
       "mostRecentTooltip": "Mostrar primeiro os últimos processos inseridos",
-      "mostRecentAriaLabel": "Ordenar processos pelos últimos inseridos"
+      "mostRecentAriaLabel": "Ordenar processos pelos últimos inseridos",
+      "requestDate": "Data da Solicitação",
+      "requestDateTooltip": "Ordenar pela data da solicitação. O botão continua disponível mesmo se a coluna estiver oculta.",
+      "requestDateAriaLabel": "Ordenar processos pela data da solicitação"
     },
     "legalSupport": "Amparo Legal",
     "rnmToday": "Vence hoje",

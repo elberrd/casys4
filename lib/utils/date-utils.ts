@@ -111,3 +111,21 @@ export function formatRelativeDate(
 
   return parts.join(", ");
 }
+
+/**
+ * Compares optional ISO date strings (YYYY-MM-DD) for table sorting.
+ * Missing dates sort after dated values in the ascending comparison.
+ */
+export function compareIsoDates(
+  dateA: string | undefined | null,
+  dateB: string | undefined | null,
+): number {
+  const normalizedA = dateA?.slice(0, 10) || "";
+  const normalizedB = dateB?.slice(0, 10) || "";
+
+  if (!normalizedA && !normalizedB) return 0;
+  if (!normalizedA) return 1;
+  if (!normalizedB) return -1;
+
+  return normalizedA.localeCompare(normalizedB);
+}

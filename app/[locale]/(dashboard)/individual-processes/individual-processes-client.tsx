@@ -118,6 +118,7 @@ export function IndividualProcessesClient() {
     pendingDocs: true,
     nationality: true,
     cbo: true,
+    dateProcess: true,
   }
   const initialColumnVisibilityRef = useRef<VisibilityState>(initialColumnVisibility)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
