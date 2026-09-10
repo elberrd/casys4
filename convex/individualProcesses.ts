@@ -892,6 +892,26 @@ export const create = mutation({
     exchangeRateToBRL: v.optional(v.number()),
     salaryInBRL: v.optional(v.number()),
     monthlyAmountToReceive: v.optional(v.number()),
+    visaReceiptLocation: v.optional(
+      v.union(v.literal("brazil"), v.literal("abroad")),
+    ),
+    residenceCountryCode: v.optional(v.string()),
+    residenceCountryName: v.optional(v.string()),
+    residenceStateCode: v.optional(v.string()),
+    residenceCity: v.optional(v.string()),
+    residenceSince: v.optional(v.string()),
+    residenceAddressAbroad: v.optional(v.string()),
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
+    consularPost: v.optional(v.string()),
+    professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
     processStatus: v.optional(
       v.union(v.literal("Atual"), v.literal("Anterior")),
@@ -1007,6 +1027,24 @@ export const create = mutation({
       exchangeRateToBRL: args.exchangeRateToBRL,
       salaryInBRL: args.salaryInBRL,
       monthlyAmountToReceive: args.monthlyAmountToReceive,
+      visaReceiptLocation: args.visaReceiptLocation,
+      residenceCountryCode: args.residenceCountryCode,
+      residenceCountryName: args.residenceCountryName,
+      residenceStateCode: args.residenceStateCode,
+      residenceCity: args.residenceCity,
+      residenceSince: args.residenceSince,
+      residenceAddressAbroad: args.residenceAddressAbroad,
+      addressIsBrazil: args.addressIsBrazil,
+      addressStreet: args.addressStreet,
+      addressComplement: args.addressComplement,
+      addressCountryCode: args.addressCountryCode,
+      addressCountryName: args.addressCountryName,
+      addressStateCode: args.addressStateCode,
+      addressStateName: args.addressStateName,
+      addressCity: args.addressCity,
+      addressPostalCode: args.addressPostalCode,
+      consularPost: args.consularPost,
+      professionalExperience: args.professionalExperience,
       isActive:
         args.processStatus !== "Anterior" ? (args.isActive ?? true) : false,
       processStatus: desiredProcessStatus, // Default to "Atual" for new processes
@@ -1232,6 +1270,16 @@ export const createFromExisting = mutation({
       qualification: sourceProcess.qualification, // Qualificação
       professionalExperienceSince: sourceProcess.professionalExperienceSince, // Experiência profissional
       firstEntryDate: sourceProcess.firstEntryDate, // Data de primeira entrada
+      addressIsBrazil: sourceProcess.addressIsBrazil,
+      addressStreet: sourceProcess.addressStreet,
+      addressComplement: sourceProcess.addressComplement,
+      addressCountryCode: sourceProcess.addressCountryCode,
+      addressCountryName: sourceProcess.addressCountryName,
+      addressStateCode: sourceProcess.addressStateCode,
+      addressStateName: sourceProcess.addressStateName,
+      addressCity: sourceProcess.addressCity,
+      addressPostalCode: sourceProcess.addressPostalCode,
+      residenceAddressAbroad: sourceProcess.residenceAddressAbroad,
 
       // Fields to SET/RESET for new process
       dateProcess: currentDate, // Current date
@@ -1573,6 +1621,15 @@ export const update = mutation({
     residenceCity: v.optional(v.string()),
     residenceSince: v.optional(v.string()),
     residenceAddressAbroad: v.optional(v.string()),
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     consularPost: v.optional(v.string()),
     professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
@@ -1818,6 +1875,23 @@ export const update = mutation({
       updates.residenceSince = args.residenceSince;
     if (args.residenceAddressAbroad !== undefined)
       updates.residenceAddressAbroad = args.residenceAddressAbroad;
+    if (args.addressIsBrazil !== undefined)
+      updates.addressIsBrazil = args.addressIsBrazil;
+    if (args.addressStreet !== undefined)
+      updates.addressStreet = args.addressStreet;
+    if (args.addressComplement !== undefined)
+      updates.addressComplement = args.addressComplement;
+    if (args.addressCountryCode !== undefined)
+      updates.addressCountryCode = args.addressCountryCode;
+    if (args.addressCountryName !== undefined)
+      updates.addressCountryName = args.addressCountryName;
+    if (args.addressStateCode !== undefined)
+      updates.addressStateCode = args.addressStateCode;
+    if (args.addressStateName !== undefined)
+      updates.addressStateName = args.addressStateName;
+    if (args.addressCity !== undefined) updates.addressCity = args.addressCity;
+    if (args.addressPostalCode !== undefined)
+      updates.addressPostalCode = args.addressPostalCode;
     if (args.consularPost !== undefined)
       updates.consularPost = args.consularPost;
     if (args.professionalExperience !== undefined)

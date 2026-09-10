@@ -53,6 +53,11 @@ import {
   type PassportUploadStepHandle,
 } from "./passport-upload-step";
 import { ResidenceSelect } from "./residence-select";
+import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import {
+  formatCandidateAddress,
+  type CandidateAddressValue,
+} from "@/lib/utils/candidate-address";
 import { ExistingPersonBadge } from "./existing-person-badge";
 import { ClientDocumentChecklist } from "@/components/individual-processes/client-document-checklist";
 
@@ -110,6 +115,15 @@ interface CandidateFields {
   residenceCity?: string;
   residenceSince?: string;
   residenceAddressAbroad?: string;
+  addressIsBrazil?: boolean;
+  addressStreet?: string;
+  addressComplement?: string;
+  addressCountryCode?: string;
+  addressCountryName?: string;
+  addressStateCode?: string;
+  addressStateName?: string;
+  addressCity?: string;
+  addressPostalCode?: string;
   consularPost?: string;
   professionalExperience?: string;
 }
@@ -159,6 +173,15 @@ interface EnrichedRequestRow {
   residenceCity?: string | null;
   residenceSince?: string | null;
   residenceAddressAbroad?: string | null;
+  addressIsBrazil?: boolean | null;
+  addressStreet?: string | null;
+  addressComplement?: string | null;
+  addressCountryCode?: string | null;
+  addressCountryName?: string | null;
+  addressStateCode?: string | null;
+  addressStateName?: string | null;
+  addressCity?: string | null;
+  addressPostalCode?: string | null;
   consularPost?: string | null;
   professionalExperience?: string | null;
   person: {
@@ -228,6 +251,15 @@ function toSaveArgs(
     residenceCity: c.residenceCity,
     residenceSince: c.residenceSince,
     residenceAddressAbroad: c.residenceAddressAbroad,
+    addressIsBrazil: c.addressIsBrazil,
+    addressStreet: c.addressStreet,
+    addressComplement: c.addressComplement,
+    addressCountryCode: c.addressCountryCode,
+    addressCountryName: c.addressCountryName,
+    addressStateCode: c.addressStateCode,
+    addressStateName: c.addressStateName,
+    addressCity: c.addressCity,
+    addressPostalCode: c.addressPostalCode,
     consularPost: c.consularPost,
     professionalExperience: c.professionalExperience,
     // Person-level PII: send ONLY fields the user actually edited this session.
@@ -277,6 +309,15 @@ function rowToCandidate(row: EnrichedRequestRow): CandidateFields {
     residenceCity: row.residenceCity ?? undefined,
     residenceSince: row.residenceSince ?? undefined,
     residenceAddressAbroad: row.residenceAddressAbroad ?? undefined,
+    addressIsBrazil: row.addressIsBrazil ?? undefined,
+    addressStreet: row.addressStreet ?? undefined,
+    addressComplement: row.addressComplement ?? undefined,
+    addressCountryCode: row.addressCountryCode ?? undefined,
+    addressCountryName: row.addressCountryName ?? undefined,
+    addressStateCode: row.addressStateCode ?? undefined,
+    addressStateName: row.addressStateName ?? undefined,
+    addressCity: row.addressCity ?? undefined,
+    addressPostalCode: row.addressPostalCode ?? undefined,
     consularPost: row.consularPost ?? undefined,
     professionalExperience: row.professionalExperience ?? undefined,
   };
@@ -1277,6 +1318,7 @@ function PersonalDataStep({
   disabled: boolean;
 }) {
   const t = useTranslations("ProcessRequests");
+  const tAddress = useTranslations("CandidateAddress");
 
   const isExisting = Boolean(candidate.existingPerson);
 
@@ -1451,6 +1493,29 @@ function PersonalDataStep({
             consularPost: candidate.consularPost,
           }}
           onChange={(next) => onPatch(next)}
+          disabled={disabled}
+          hideAddressField
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="border-b pb-2 text-sm font-semibold tracking-tight">
+          {tAddress("title")}
+        </h3>
+        <CandidateAddressFields
+          value={{
+            addressIsBrazil: candidate.addressIsBrazil,
+            addressStreet: candidate.addressStreet,
+            addressComplement: candidate.addressComplement,
+            addressCountryCode: candidate.addressCountryCode,
+            addressCountryName: candidate.addressCountryName,
+            addressStateCode: candidate.addressStateCode,
+            addressStateName: candidate.addressStateName,
+            addressCity: candidate.addressCity,
+            addressPostalCode: candidate.addressPostalCode,
+            residenceAddressAbroad: candidate.residenceAddressAbroad,
+          }}
+          onChange={(next: CandidateAddressValue) => onPatch(next)}
           disabled={disabled}
         />
       </section>
@@ -1732,6 +1797,7 @@ function ReviewStep({
   receiptLocation: ReceiptLocation;
 }) {
   const t = useTranslations("ProcessRequests");
+  const tAddress = useTranslations("CandidateAddress");
 
   const numberToString = (value?: number) =>
     value !== undefined ? String(value) : undefined;
@@ -1812,6 +1878,10 @@ function ReviewStep({
                 <ReviewRow
                   label={t("consularPost")}
                   value={candidate.consularPost}
+                />
+                <ReviewRow
+                  label={tAddress("title")}
+                  value={formatCandidateAddress(candidate)}
                 />
               </div>
               {candidate.professionalExperience && (

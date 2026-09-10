@@ -37,6 +37,8 @@ export interface ResidenceSelectProps {
   receiptLocation?: "brazil" | "abroad";
   onChange: (value: ResidenceValue) => void;
   disabled?: boolean;
+  /** Hide the legacy free-text address; structured address is collected separately. */
+  hideAddressField?: boolean;
 }
 
 /** Minimal shapes from the `country-state-city` package we rely on. */
@@ -71,6 +73,7 @@ export function ResidenceSelect({
   receiptLocation,
   onChange,
   disabled = false,
+  hideAddressField = false,
 }: ResidenceSelectProps) {
   const t = useTranslations("ProcessRequests");
 
@@ -434,7 +437,8 @@ export function ResidenceSelect({
             )}
           </div>
 
-          {/* Address abroad */}
+          {/* Address abroad — kept only when the structured address section is not shown */}
+          {!hideAddressField && (
           <div className="space-y-2">
             <Label htmlFor="residence-address-abroad">
               {t("residenceAddressAbroad")}
@@ -451,6 +455,7 @@ export function ResidenceSelect({
               className={cn("resize-none")}
             />
           </div>
+          )}
         </div>
       )}
     </div>

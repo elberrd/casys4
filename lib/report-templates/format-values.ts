@@ -14,6 +14,7 @@ import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatCPF } from "@/lib/utils/document-masks";
 import { getFullName } from "@/lib/utils/person-names";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
+import { formatCandidateAddress } from "@/lib/utils/candidate-address";
 import { isCriminalBackgroundReportName, isProfessionalExperienceReportName } from "./built-in-templates";
 import type { ReportVariableKey } from "./variables";
 
@@ -35,6 +36,13 @@ export interface ReportProcessSource {
   residenceCity?: string | null;
   residenceSince?: string | null;
   residenceAddressAbroad?: string | null;
+  addressStreet?: string | null;
+  addressComplement?: string | null;
+  addressCountryName?: string | null;
+  addressStateName?: string | null;
+  addressStateCode?: string | null;
+  addressCity?: string | null;
+  addressPostalCode?: string | null;
   consularPost?: string | null;
   professionalExperience?: string | null;
   deadlineUnit?: string | null;
@@ -511,6 +519,15 @@ export function buildReportVariableValues(args: {
     residence: formatResidence(process, i18n),
     consularPost: display(process.consularPost),
     residenceAddressAbroad: display(process.residenceAddressAbroad),
+    candidateAddress: formatCandidateAddress({
+      addressStreet: process.addressStreet ?? undefined,
+      addressComplement: process.addressComplement ?? undefined,
+      addressCountryName: process.addressCountryName ?? undefined,
+      addressStateName: process.addressStateName ?? undefined,
+      addressStateCode: process.addressStateCode ?? undefined,
+      addressCity: process.addressCity ?? undefined,
+      addressPostalCode: process.addressPostalCode ?? undefined,
+    }),
     professionalExperience: display(process.professionalExperience),
     cpf: person?.cpf ? formatCPF(person.cpf) : "",
     nationality: person?.nationality?.name

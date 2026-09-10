@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format-field-value";
+import { formatCandidateAddress } from "@/lib/utils/candidate-address";
 import { RequestStatusBadge } from "@/components/process-requests/request-status-badge";
 import type { ProcessRequestDetail } from "@/components/process-requests/types";
 
@@ -39,6 +40,7 @@ function Field({
 
 export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
   const t = useTranslations("ProcessRequests");
+  const tAddress = useTranslations("CandidateAddress");
   const tBreadcrumbs = useTranslations("Breadcrumbs");
   const locale = useLocale();
   const router = useRouter();
@@ -417,6 +419,23 @@ export function RequestDetailClient({ requestId }: RequestDetailClientProps) {
                   <Field
                     label={t("residenceAddressAbroad")}
                     value={activeRequest.residenceAddressAbroad}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {(activeRequest.addressStreet ||
+              activeRequest.addressCity ||
+              activeRequest.addressPostalCode ||
+              activeRequest.addressCountryName) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">{tAddress("title")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Field
+                    label={tAddress("title")}
+                    value={formatCandidateAddress(activeRequest)}
                   />
                 </CardContent>
               </Card>

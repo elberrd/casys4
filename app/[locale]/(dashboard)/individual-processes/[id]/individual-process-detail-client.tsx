@@ -47,6 +47,7 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
+import { formatCandidateAddress } from "@/lib/utils/candidate-address";
 import { getFullName } from "@/lib/utils/person-names";
 import {
   getPassportValidityStatus,
@@ -593,6 +594,11 @@ export function IndividualProcessDetailClient({
                 <div className="text-sm font-medium">{t("consularPost")}</div>
                 <div className="text-sm">
                   {individualProcess.consularPost || "-"}
+                </div>
+
+                <div className="text-sm font-medium">{t("candidateAddress")}</div>
+                <div className="text-sm whitespace-pre-line">
+                  {formatCandidateAddress(individualProcess) || "-"}
                 </div>
 
                 <div className="text-sm font-medium">

@@ -60,6 +60,11 @@ import { fetchExchangeRate } from "@/lib/api/exchange-rate";
 import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
+import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import {
+  EMPTY_CANDIDATE_ADDRESS_FORM,
+  type CandidateAddressValue,
+} from "@/lib/utils/candidate-address";
 
 interface IndividualProcessFormDialogProps {
   open: boolean;
@@ -143,6 +148,8 @@ export function IndividualProcessFormDialog({
       exchangeRateToBRL: undefined,
       salaryInBRL: undefined,
       monthlyAmountToReceive: undefined,
+      ...EMPTY_CANDIDATE_ADDRESS_FORM,
+      residenceAddressAbroad: "",
       isActive: true, // DEPRECATED: Use processStatus instead
       processStatus: "Atual" as const,
     },
@@ -174,6 +181,60 @@ export function IndividualProcessFormDialog({
   const selectedCurrency = form.watch("lastSalaryCurrency");
   const lastSalaryAmount = form.watch("lastSalaryAmount");
   const exchangeRate = form.watch("exchangeRateToBRL");
+  const addressIsBrazil = form.watch("addressIsBrazil");
+  const addressStreet = form.watch("addressStreet");
+  const addressComplement = form.watch("addressComplement");
+  const addressCountryCode = form.watch("addressCountryCode");
+  const addressCountryName = form.watch("addressCountryName");
+  const addressStateCode = form.watch("addressStateCode");
+  const addressStateName = form.watch("addressStateName");
+  const addressCity = form.watch("addressCity");
+  const addressPostalCode = form.watch("addressPostalCode");
+  const residenceAddressAbroad = form.watch("residenceAddressAbroad");
+
+  const addressValue: CandidateAddressValue = {
+    addressIsBrazil: addressIsBrazil === true,
+    addressStreet: addressStreet || undefined,
+    addressComplement: addressComplement || undefined,
+    addressCountryCode: addressCountryCode || undefined,
+    addressCountryName: addressCountryName || undefined,
+    addressStateCode: addressStateCode || undefined,
+    addressStateName: addressStateName || undefined,
+    addressCity: addressCity || undefined,
+    addressPostalCode: addressPostalCode || undefined,
+    residenceAddressAbroad: residenceAddressAbroad || undefined,
+  };
+
+  const handleAddressChange = (next: CandidateAddressValue) => {
+    form.setValue("addressIsBrazil", next.addressIsBrazil === true, {
+      shouldDirty: true,
+    });
+    form.setValue("addressStreet", next.addressStreet ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressComplement", next.addressComplement ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCountryCode", next.addressCountryCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCountryName", next.addressCountryName ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressStateCode", next.addressStateCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressStateName", next.addressStateName ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCity", next.addressCity ?? "", { shouldDirty: true });
+    form.setValue("addressPostalCode", next.addressPostalCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("residenceAddressAbroad", next.residenceAddressAbroad ?? "", {
+      shouldDirty: true,
+    });
+  };
 
   // Check if conversion can be calculated
   const canCalculateConversion = Boolean(
@@ -261,6 +322,16 @@ export function IndividualProcessFormDialog({
         exchangeRateToBRL: individualProcess.exchangeRateToBRL,
         salaryInBRL: individualProcess.salaryInBRL,
         monthlyAmountToReceive: individualProcess.monthlyAmountToReceive,
+        addressIsBrazil: individualProcess.addressIsBrazil === true,
+        addressStreet: individualProcess.addressStreet ?? "",
+        addressComplement: individualProcess.addressComplement ?? "",
+        addressCountryCode: individualProcess.addressCountryCode ?? "",
+        addressCountryName: individualProcess.addressCountryName ?? "",
+        addressStateCode: individualProcess.addressStateCode ?? "",
+        addressStateName: individualProcess.addressStateName ?? "",
+        addressCity: individualProcess.addressCity ?? "",
+        addressPostalCode: individualProcess.addressPostalCode ?? "",
+        residenceAddressAbroad: individualProcess.residenceAddressAbroad ?? "",
         isActive: individualProcess.isActive,
         processStatus:
           individualProcess.processStatus ??
@@ -304,6 +375,8 @@ export function IndividualProcessFormDialog({
         exchangeRateToBRL: undefined,
         salaryInBRL: undefined,
         monthlyAmountToReceive: undefined,
+        ...EMPTY_CANDIDATE_ADDRESS_FORM,
+        residenceAddressAbroad: "",
         isActive: true,
         processStatus: "Atual" as const,
       });
@@ -400,6 +473,15 @@ export function IndividualProcessFormDialog({
         residenceCity: data.residenceCity || undefined,
         residenceSince: data.residenceSince || undefined,
         residenceAddressAbroad: data.residenceAddressAbroad || undefined,
+        addressIsBrazil: data.addressIsBrazil === true,
+        addressStreet: data.addressStreet || undefined,
+        addressComplement: data.addressComplement || undefined,
+        addressCountryCode: data.addressCountryCode || undefined,
+        addressCountryName: data.addressCountryName || undefined,
+        addressStateCode: data.addressStateCode || undefined,
+        addressStateName: data.addressStateName || undefined,
+        addressCity: data.addressCity || undefined,
+        addressPostalCode: data.addressPostalCode || undefined,
         professionalExperience: data.professionalExperience || undefined,
       };
 
@@ -1358,6 +1440,14 @@ export function IndividualProcessFormDialog({
                     )}
                   />
                 )}
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
+                  <CandidateAddressFields
+                    value={addressValue}
+                    onChange={handleAddressChange}
+                  />
+                </div>
 
                 <DialogFooter>
                   <Button

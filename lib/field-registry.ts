@@ -46,6 +46,13 @@ export const FIELD_REGISTRY: Record<EntityType, FieldRegistryEntry[]> = {
     { fieldPath: "firstEntryDate", label: "Data do 1o ingresso no Brasil", labelEn: "Date of 1st entry in Brazil", fieldType: "date" },
     { fieldPath: "qualification", label: "Escolaridade", labelEn: "Education", fieldType: "select" },
     { fieldPath: "professionalExperienceSince", label: "Experiencia profissional desde", labelEn: "Professional experience since", fieldType: "date" },
+    { fieldPath: "residenceAddressAbroad", label: "Endereco no exterior (legado)", labelEn: "Address abroad (legacy)", fieldType: "text" },
+    { fieldPath: "addressStreet", label: "Logradouro", labelEn: "Street", fieldType: "text" },
+    { fieldPath: "addressComplement", label: "Complemento", labelEn: "Complement", fieldType: "text" },
+    { fieldPath: "addressCountryName", label: "Pais do endereco", labelEn: "Address country", fieldType: "text" },
+    { fieldPath: "addressStateName", label: "Estado do endereco", labelEn: "Address state", fieldType: "text" },
+    { fieldPath: "addressCity", label: "Cidade do endereco", labelEn: "Address city", fieldType: "text" },
+    { fieldPath: "addressPostalCode", label: "CEP", labelEn: "Postal code", fieldType: "text" },
   ],
   passport: [
     { fieldPath: "passportNumber", label: "Numero do passaporte", labelEn: "Passport number", fieldType: "text" },

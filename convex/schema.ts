@@ -503,7 +503,17 @@ export default defineSchema({
     residenceStateCode: v.optional(v.string()), // Optional state/province code (from country-state-city)
     residenceCity: v.optional(v.string()), // City of residence abroad (denormalized name)
     residenceSince: v.optional(v.string()), // ISO date YYYY-MM-DD - since when the candidate lives at the abroad residence
-    residenceAddressAbroad: v.optional(v.string()), // Free-text foreign residence street address
+    residenceAddressAbroad: v.optional(v.string()), // DEPRECATED: Free-text address; use structured candidate address fields
+    // Structured candidate address (street / complement / country / state / city / postal code)
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     consularPost: v.optional(v.string()), // Brazilian consular post where the visa will be collected (driven by residence country)
     professionalExperience: v.optional(v.string()), // Free-text professional experience narrative
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
