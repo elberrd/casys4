@@ -126,7 +126,11 @@ export function PassportFormDialog({
       form.reset();
       onOpenChange(false);
     },
-    isSubmitting: form.formState.isSubmitting,
+    isSubmitting:
+      form.formState.isSubmitting ||
+      isUploading ||
+      isAiProcessing ||
+      pendingPassportAttachmentId !== undefined,
   });
 
   const watchedPassportNumber = form.watch("passportNumber");
@@ -147,6 +151,28 @@ export function PassportFormDialog({
   const status = getPassportValidityStatus(expiryDate);
 
   useEffect(() => {
+    if (!open) {
+      setSelectedFile(null);
+      setPreparedStorageId(undefined);
+      setIsUploading(false);
+      setIsAiProcessing(false);
+      setPendingPassportAttachmentId(undefined);
+      form.reset({
+        personId: personId ?? "",
+        passportNumber: "",
+        issuingCountryId: "",
+        issueDate: "",
+        expiryDate: "",
+        fileUrl: "",
+        isActive: true,
+      });
+      return;
+    }
+
+    if (passportId && !passport) {
+      return;
+    }
+
     if (passport) {
       form.reset({
         personId: passport.personId,
@@ -157,21 +183,19 @@ export function PassportFormDialog({
         fileUrl: passport.fileUrl ?? "",
         isActive: passport.isActive,
       });
-    } else if (personId) {
-      form.setValue("personId", personId);
+      return;
     }
-  }, [passport, personId, form]);
 
-  // Clear the picked file whenever the dialog closes so it doesn't linger.
-  useEffect(() => {
-    if (!open) {
-      setSelectedFile(null);
-      setPreparedStorageId(undefined);
-      setIsUploading(false);
-      setIsAiProcessing(false);
-      setPendingPassportAttachmentId(undefined);
-    }
-  }, [open]);
+    form.reset({
+      personId: personId ?? "",
+      passportNumber: "",
+      issuingCountryId: "",
+      issueDate: "",
+      expiryDate: "",
+      fileUrl: "",
+      isActive: true,
+    });
+  }, [open, passport, passportId, personId, form]);
 
   const currentFileUrl = form.watch("fileUrl");
 
@@ -217,13 +241,11 @@ export function PassportFormDialog({
       setPendingPassportAttachmentId(undefined);
       setSelectedFile(null);
       setPreparedStorageId(undefined);
-      if (onSuccess) {
-        onSuccess(savedPassportId);
-      } else {
-        onOpenChange(false);
-      }
+      form.reset(form.getValues());
+      onSuccess?.(savedPassportId);
+      onOpenChange(false);
     },
-    [onOpenChange, onSuccess],
+    [form, onOpenChange, onSuccess],
   );
 
   const completePassportSave = useCallback(() => {
@@ -310,6 +332,7 @@ export function PassportFormDialog({
           showCloseButton={
             !isAiProcessing && pendingPassportAttachmentId === undefined
           }
+          onCloseAutoFocus={(event) => event.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle>

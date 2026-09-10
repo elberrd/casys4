@@ -23,6 +23,7 @@ interface PassportSelectorProps {
   individualProcessId?: Id<"individualProcesses">
   value: string
   onChange: (value: string) => void
+  onCreated?: (passportId: Id<"passports">) => void
   disabled?: boolean
 }
 
@@ -42,6 +43,7 @@ export function PassportSelector({
   individualProcessId,
   value,
   onChange,
+  onCreated,
   disabled = false,
 }: PassportSelectorProps) {
   const t = useTranslations("Passports")
@@ -58,21 +60,10 @@ export function PassportSelector({
   const hasPassports = passports.length > 0
 
   const handleAddPassportSuccess = (newPassportId?: Id<"passports">) => {
-    console.log(
-      "[PassportSelector] handleAddPassportSuccess called with:",
-      newPassportId,
-    )
-    // Automatically select the newly created passport BEFORE closing dialog
     if (newPassportId) {
-      console.log("[PassportSelector] Calling onChange with:", newPassportId)
       onChange(newPassportId)
-      console.log("[PassportSelector] onChange called")
-    } else {
-      console.log(
-        "[PassportSelector] No passport ID provided, not calling onChange",
-      )
+      onCreated?.(newPassportId)
     }
-    // Close dialog after setting the value
     setAddPassportOpen(false)
   }
 
@@ -84,84 +75,76 @@ export function PassportSelector({
     )
   }
 
-  if (!hasPassports) {
-    return (
-      <div className="space-y-2">
-        <div className="text-sm text-muted-foreground">
-          {tIndividual("personHasNoPassports")}
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setAddPassportOpen(true)}
-          disabled={disabled}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          {t("addPassport")}
-        </Button>
-
-        <PassportFormDialog
-          open={addPassportOpen}
-          onOpenChange={setAddPassportOpen}
-          personId={personId as Id<"people">}
-          individualProcessId={individualProcessId}
-          onSuccess={handleAddPassportSuccess}
-        />
-      </div>
-    )
-  }
-
   return (
     <>
-      <div className="space-y-2">
-        <Select value={value} onValueChange={onChange} disabled={disabled}>
-          <SelectTrigger>
-            <SelectValue placeholder={tIndividual("selectPassport")} />
-          </SelectTrigger>
-          <SelectContent>
-            {passports.map((passport) => (
-              <SelectItem key={passport._id} value={passport._id}>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">
-                    {passport.passportNumber}
-                  </span>
-                  {passport.issuingCountry && (
-                    <span className="text-muted-foreground">
-                      {getCountryName(passport.issuingCountry.code) ||
-                        passport.issuingCountry.name}
+      {/* Keep a single form dialog mounted across empty/list views so creating
+          the first passport does not remount an empty "Criar Passaporte" modal. */}
+      {hasPassports ? (
+        <div className="space-y-2">
+          <Select value={value} onValueChange={onChange} disabled={disabled}>
+            <SelectTrigger>
+              <SelectValue placeholder={tIndividual("selectPassport")} />
+            </SelectTrigger>
+            <SelectContent>
+              {passports.map((passport) => (
+                <SelectItem key={passport._id} value={passport._id}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">
+                      {passport.passportNumber}
                     </span>
-                  )}
-                  {passport.status && (
-                    <Badge
-                      variant={getStatusVariant(passport.status)}
-                      className="text-xs"
-                    >
-                      {t(`status${passport.status.replace(" ", "")}`)}
-                    </Badge>
-                  )}
-                  {passport.isActive && (
-                    <Badge variant="default" className="text-xs">
-                      {t("active")}
-                    </Badge>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+                    {passport.issuingCountry && (
+                      <span className="text-muted-foreground">
+                        {getCountryName(passport.issuingCountry.code) ||
+                          passport.issuingCountry.name}
+                      </span>
+                    )}
+                    {passport.status && (
+                      <Badge
+                        variant={getStatusVariant(passport.status)}
+                        className="text-xs"
+                      >
+                        {t(`status${passport.status.replace(" ", "")}`)}
+                      </Badge>
+                    )}
+                    {passport.isActive && (
+                      <Badge variant="default" className="text-xs">
+                        {t("active")}
+                      </Badge>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setAddPassportOpen(true)}
-          disabled={disabled}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          {t("addPassport")}
-        </Button>
-      </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setAddPassportOpen(true)}
+            disabled={disabled}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {t("addPassport")}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="text-sm text-muted-foreground">
+            {tIndividual("personHasNoPassports")}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setAddPassportOpen(true)}
+            disabled={disabled}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {t("addPassport")}
+          </Button>
+        </div>
+      )}
 
       <PassportFormDialog
         open={addPassportOpen}
