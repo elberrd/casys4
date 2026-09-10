@@ -35,6 +35,15 @@ export interface ProcessRequestListItem {
   residenceCity?: string;
   residenceSince?: string;
   residenceAddressAbroad?: string;
+  addressIsBrazil?: boolean;
+  addressStreet?: string;
+  addressComplement?: string;
+  addressCountryCode?: string;
+  addressCountryName?: string;
+  addressStateCode?: string;
+  addressStateName?: string;
+  addressCity?: string;
+  addressPostalCode?: string;
   consularPost?: string;
   professionalExperience?: string;
   createdAt: number;

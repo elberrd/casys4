@@ -41,6 +41,8 @@ import {
   ResidenceSelect,
   type ResidenceValue,
 } from "@/components/process-requests/residence-select";
+import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import type { CandidateAddressValue } from "@/lib/utils/candidate-address";
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
 import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
@@ -153,6 +155,15 @@ export function IndividualProcessFormPage({
       residenceCity: "",
       residenceSince: "",
       residenceAddressAbroad: "",
+      addressIsBrazil: false,
+      addressStreet: "",
+      addressComplement: "",
+      addressCountryCode: "",
+      addressCountryName: "",
+      addressStateCode: "",
+      addressStateName: "",
+      addressCity: "",
+      addressPostalCode: "",
       consularPost: "",
       professionalExperience: "",
       isActive: true,
@@ -188,6 +199,15 @@ export function IndividualProcessFormPage({
   const residenceSince = form.watch("residenceSince");
   const residenceAddressAbroad = form.watch("residenceAddressAbroad");
   const consularPost = form.watch("consularPost");
+  const addressIsBrazil = form.watch("addressIsBrazil");
+  const addressStreet = form.watch("addressStreet");
+  const addressComplement = form.watch("addressComplement");
+  const addressCountryCode = form.watch("addressCountryCode");
+  const addressCountryName = form.watch("addressCountryName");
+  const addressStateCode = form.watch("addressStateCode");
+  const addressStateName = form.watch("addressStateName");
+  const addressCity = form.watch("addressCity");
+  const addressPostalCode = form.watch("addressPostalCode");
 
   const residenceValue: ResidenceValue = {
     visaReceiptLocation: visaReceiptLocation || undefined,
@@ -209,6 +229,50 @@ export function IndividualProcessFormPage({
     form.setValue("residenceSince", next.residenceSince ?? "");
     form.setValue("residenceAddressAbroad", next.residenceAddressAbroad ?? "");
     form.setValue("consularPost", next.consularPost ?? "");
+  };
+
+  const addressValue: CandidateAddressValue = {
+    addressIsBrazil: addressIsBrazil === true,
+    addressStreet: addressStreet || undefined,
+    addressComplement: addressComplement || undefined,
+    addressCountryCode: addressCountryCode || undefined,
+    addressCountryName: addressCountryName || undefined,
+    addressStateCode: addressStateCode || undefined,
+    addressStateName: addressStateName || undefined,
+    addressCity: addressCity || undefined,
+    addressPostalCode: addressPostalCode || undefined,
+    residenceAddressAbroad: residenceAddressAbroad || undefined,
+  };
+
+  const handleAddressChange = (next: CandidateAddressValue) => {
+    form.setValue("addressIsBrazil", next.addressIsBrazil === true, {
+      shouldDirty: true,
+    });
+    form.setValue("addressStreet", next.addressStreet ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressComplement", next.addressComplement ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCountryCode", next.addressCountryCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCountryName", next.addressCountryName ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressStateCode", next.addressStateCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressStateName", next.addressStateName ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressCity", next.addressCity ?? "", { shouldDirty: true });
+    form.setValue("addressPostalCode", next.addressPostalCode ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("residenceAddressAbroad", next.residenceAddressAbroad ?? "", {
+      shouldDirty: true,
+    });
   };
 
   // Watch salary fields for currency conversion
@@ -353,6 +417,15 @@ export function IndividualProcessFormPage({
         residenceCity: individualProcess.residenceCity ?? "",
         residenceSince: individualProcess.residenceSince ?? "",
         residenceAddressAbroad: individualProcess.residenceAddressAbroad ?? "",
+        addressIsBrazil: individualProcess.addressIsBrazil === true,
+        addressStreet: individualProcess.addressStreet ?? "",
+        addressComplement: individualProcess.addressComplement ?? "",
+        addressCountryCode: individualProcess.addressCountryCode ?? "",
+        addressCountryName: individualProcess.addressCountryName ?? "",
+        addressStateCode: individualProcess.addressStateCode ?? "",
+        addressStateName: individualProcess.addressStateName ?? "",
+        addressCity: individualProcess.addressCity ?? "",
+        addressPostalCode: individualProcess.addressPostalCode ?? "",
         consularPost: individualProcess.consularPost ?? "",
         professionalExperience: individualProcess.professionalExperience ?? "",
         isActive: individualProcess.isActive,
@@ -546,6 +619,15 @@ export function IndividualProcessFormPage({
         residenceCity: "",
         residenceSince: "",
         residenceAddressAbroad: "",
+        addressIsBrazil: false,
+        addressStreet: "",
+        addressComplement: "",
+        addressCountryCode: "",
+        addressCountryName: "",
+        addressStateCode: "",
+        addressStateName: "",
+        addressCity: "",
+        addressPostalCode: "",
         consularPost: "",
         professionalExperience: "",
         isActive: true,
@@ -660,6 +742,15 @@ export function IndividualProcessFormPage({
         residenceCity: data.residenceCity || undefined,
         residenceSince: data.residenceSince || undefined,
         residenceAddressAbroad: data.residenceAddressAbroad || undefined,
+        addressIsBrazil: data.addressIsBrazil === true,
+        addressStreet: data.addressStreet || undefined,
+        addressComplement: data.addressComplement || undefined,
+        addressCountryCode: data.addressCountryCode || undefined,
+        addressCountryName: data.addressCountryName || undefined,
+        addressStateCode: data.addressStateCode || undefined,
+        addressStateName: data.addressStateName || undefined,
+        addressCity: data.addressCity || undefined,
+        addressPostalCode: data.addressPostalCode || undefined,
         consularPost: data.consularPost || undefined,
         professionalExperience: data.professionalExperience || undefined,
       };
@@ -1345,6 +1436,15 @@ export function IndividualProcessFormPage({
               <ResidenceSelect
                 value={residenceValue}
                 onChange={handleResidenceChange}
+                hideAddressField
+              />
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
+              <CandidateAddressFields
+                value={addressValue}
+                onChange={handleAddressChange}
               />
             </div>
 

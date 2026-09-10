@@ -29,6 +29,7 @@ export const REPORT_VARIABLE_KEYS = [
   "residence",
   "consularPost",
   "residenceAddressAbroad",
+  "candidateAddress",
   "professionalExperience",
   "cpf",
   "nationality",
@@ -110,6 +111,7 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "residence", group: "process" },
   { key: "consularPost", group: "process" },
   { key: "residenceAddressAbroad", group: "process" },
+  { key: "candidateAddress", group: "process" },
   { key: "professionalExperience", group: "process" },
   { key: "cpf", group: "person" },
   { key: "nationality", group: "person" },
@@ -188,6 +190,7 @@ export const OPTIONAL_REPORT_VARIABLE_KEYS = [
   "companyGroupClause",
   "companyCity",
   "companyCityClause",
+  "candidateAddress",
 ] as const;
 
 export function isOptionalReportVariableKey(value: string): boolean {
