@@ -29,6 +29,7 @@ interface ReportPageSheetProps {
   pageLabel?: string;
   className?: string;
   clip?: boolean;
+  showMarginGuides?: boolean;
   children?: ReactNode;
 }
 
@@ -37,6 +38,7 @@ export function ReportPageSheet({
   pageLabel,
   className,
   clip = false,
+  showMarginGuides = true,
   children,
 }: ReportPageSheetProps) {
   return (
@@ -53,7 +55,7 @@ export function ReportPageSheet({
         boxSizing: "border-box",
       }}
     >
-      <ReportPageMarginGuides />
+      {showMarginGuides ? <ReportPageMarginGuides /> : null}
       {pageLabel ? (
         <span className="pointer-events-none absolute right-3 bottom-2.5 z-20 text-[10px] font-medium tracking-wide text-neutral-400">
           {pageLabel}
