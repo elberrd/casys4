@@ -491,7 +491,7 @@ test("fills the professional experience declaration from process CBO activities"
       },
       companyApplicant: {
         name: "CADDELL CONSTRUCTION CO. (DE) LLC",
-        groupName: "CADDELL",
+        companyGroup: { name: "CADDELL" },
         city: { name: "Montgomery" },
         state: { code: "AL" },
       },
@@ -559,6 +559,42 @@ test("fills the professional experience declaration from process CBO activities"
   assert.equal(
     withoutGroup.companyEmploymentPlace,
     "Empresa Sem Grupo Ltda, São Paulo/SP",
+  );
+
+  const fromLegacyGroupName = buildReportVariableValues({
+    process: {
+      companyApplicant: {
+        name: "CADDELL CONSTRUCTION CO. (DE) LLC",
+        groupName: "CADDELL",
+        city: { name: "Montgomery" },
+        state: { code: "AL" },
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+  });
+  assert.equal(
+    fromLegacyGroupName.companyGroupClause,
+    " que pertence ao grupo de empresas CADDELL",
+  );
+
+  const prefersRelatedGroup = buildReportVariableValues({
+    process: {
+      companyApplicant: {
+        name: "ACME Ltda",
+        groupName: "OLD",
+        companyGroup: { name: "NEW" },
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+  });
+  assert.equal(prefersRelatedGroup.companyGroup, "NEW");
+  assert.equal(
+    prefersRelatedGroup.companyGroupClause,
+    " que pertence ao grupo de empresas NEW",
   );
   const missing = missingUsedReportVariables(
     PROFESSIONAL_EXPERIENCE_REPORT_HTML,

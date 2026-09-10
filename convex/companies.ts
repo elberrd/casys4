@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserProfile, requireAdmin, requireActiveUserProfile } from "./lib/auth";
 import { internal } from "./_generated/api";
@@ -8,6 +8,25 @@ import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+async function resolveCompanyGroupAssignment(
+  ctx: MutationCtx,
+  companyGroupId: Id<"companyGroups"> | undefined,
+): Promise<{
+  companyGroupId: Id<"companyGroups"> | undefined;
+  groupName: string | undefined;
+}> {
+  if (!companyGroupId) {
+    return { companyGroupId: undefined, groupName: undefined };
+  }
+
+  const group = await ctx.db.get(companyGroupId);
+  if (!group) {
+    throw new Error("Company group not found");
+  }
+
+  return { companyGroupId, groupName: group.name };
 }
 
 /**
@@ -69,12 +88,16 @@ export const list = query({
         const contactPerson = company.contactPersonId
           ? await cachedGet(company.contactPersonId)
           : null;
+        const companyGroup = company.companyGroupId
+          ? await cachedGet(company.companyGroupId)
+          : null;
 
         return {
           ...company,
           city,
           state,
           country,
+          companyGroup,
           contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
         };
       })
@@ -143,12 +166,16 @@ export const get = query({
     const contactPerson = company.contactPersonId
       ? await ctx.db.get(company.contactPersonId)
       : null;
+    const companyGroup = company.companyGroupId
+      ? await ctx.db.get(company.companyGroupId)
+      : null;
 
     return {
       ...company,
       city,
       state,
       country,
+      companyGroup,
       contactPerson: contactPerson ? { ...contactPerson, fullName: getFullName(contactPerson) } : null,
     };
   },
@@ -175,11 +202,16 @@ export const create = mutation({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    companyGroupId: v.optional(v.id("companyGroups")),
     groupName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Require admin role
     const userProfile = await requireAdmin(ctx);
+    const groupAssignment = await resolveCompanyGroupAssignment(
+      ctx,
+      args.companyGroupId,
+    );
 
     const now = Date.now();
 
@@ -200,7 +232,8 @@ export const create = mutation({
       contactPersonId: args.contactPersonId,
       isActive: args.isActive ?? true,
       notes: args.notes,
-      groupName: args.groupName,
+      companyGroupId: groupAssignment.companyGroupId,
+      groupName: groupAssignment.groupName ?? args.groupName,
       createdAt: now,
       updatedAt: now,
     });
@@ -254,6 +287,7 @@ export const update = mutation({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    companyGroupId: v.optional(v.id("companyGroups")),
     groupName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -266,6 +300,10 @@ export const update = mutation({
     }
 
     const { id, ...data } = args;
+    const groupAssignment = await resolveCompanyGroupAssignment(
+      ctx,
+      data.companyGroupId,
+    );
 
     await ctx.db.patch(id, {
       name: data.name,
@@ -284,7 +322,8 @@ export const update = mutation({
       contactPersonId: data.contactPersonId,
       isActive: data.isActive ?? true,
       notes: data.notes,
-      groupName: data.groupName,
+      companyGroupId: groupAssignment.companyGroupId,
+      groupName: groupAssignment.groupName,
       updatedAt: Date.now(),
     });
 
@@ -320,6 +359,18 @@ export const update = mutation({
       }
       if (data.isActive !== company.isActive) {
         changedFields.isActive = { before: company.isActive, after: data.isActive };
+      }
+      if (groupAssignment.companyGroupId !== company.companyGroupId) {
+        const [oldGroup, newGroup] = await Promise.all([
+          company.companyGroupId ? ctx.db.get(company.companyGroupId) : null,
+          groupAssignment.companyGroupId
+            ? ctx.db.get(groupAssignment.companyGroupId)
+            : null,
+        ]);
+        changedFields.companyGroupId = {
+          before: oldGroup?.name ?? company.groupName ?? null,
+          after: newGroup?.name ?? null,
+        };
       }
 
       if (Object.keys(changedFields).length > 0 && userProfile.userId) {

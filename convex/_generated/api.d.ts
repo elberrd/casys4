@@ -17,6 +17,7 @@ import type * as cboCodes from "../cboCodes.js";
 import type * as cities from "../cities.js";
 import type * as collectiveProcesses from "../collectiveProcesses.js";
 import type * as companies from "../companies.js";
+import type * as companyGroups from "../companyGroups.js";
 import type * as consulates from "../consulates.js";
 import type * as countries from "../countries.js";
 import type * as cron from "../cron.js";
@@ -159,6 +160,7 @@ declare const fullApi: ApiFromModules<{
   cities: typeof cities;
   collectiveProcesses: typeof collectiveProcesses;
   companies: typeof companies;
+  companyGroups: typeof companyGroups;
   consulates: typeof consulates;
   countries: typeof countries;
   cron: typeof cron;

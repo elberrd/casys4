@@ -175,12 +175,25 @@ export default defineSchema({
     contactPersonId: v.optional(v.id("people")),
     isActive: v.optional(v.boolean()),
     notes: v.optional(v.string()),
-    groupName: v.optional(v.string()), // Optional corporate group (some companies have none)
+    companyGroupId: v.optional(v.id("companyGroups")),
+    groupName: v.optional(v.string()), // Denormalized from companyGroups.name (legacy + report fallback)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_city", ["cityId"])
     .index("by_taxId", ["taxId"])
+    .index("by_active", ["isActive"])
+    .index("by_companyGroup", ["companyGroupId"]),
+
+  // Corporate groups that one or more companies may belong to
+  companyGroups: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_name", ["name"])
     .index("by_active", ["isActive"]),
 
   // Economic Activities - Support data for company business activities
