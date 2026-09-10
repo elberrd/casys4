@@ -117,7 +117,16 @@ export default defineSchema({
     motherName: v.optional(v.string()),
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
-    address: v.optional(v.string()),
+    address: v.optional(v.string()), // DEPRECATED: Free-text address; use structured address fields
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
     residenceSince: v.optional(v.string()), // YYYY-MM - since when residing in current city
     photoUrl: v.optional(v.string()),
