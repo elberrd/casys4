@@ -82,6 +82,7 @@ export interface ReportProcessSource {
   companyApplicant?: {
     name?: string | null;
     groupName?: string | null;
+    companyGroup?: { name?: string | null } | null;
     city?: { name?: string | null } | null;
     state?: { code?: string | null; name?: string | null } | null;
   } | null;
@@ -303,11 +304,17 @@ function formatCompanyCity(process: ReportProcessSource): string {
   return stateCode ? `${cityName}/${stateCode}` : cityName;
 }
 
+function resolveCompanyGroupName(process: ReportProcessSource): string {
+  const related = process.companyApplicant?.companyGroup?.name?.trim() ?? "";
+  if (related) return related;
+  return process.companyApplicant?.groupName?.trim() ?? "";
+}
+
 function formatCompanyEmploymentPlace(process: ReportProcessSource): string {
   const name = process.companyApplicant?.name?.trim() ?? "";
   if (!name) return "";
   const city = formatCompanyCity(process);
-  const group = process.companyApplicant?.groupName?.trim() ?? "";
+  const group = resolveCompanyGroupName(process);
   let result = name;
   if (city) result += `, ${city}`;
   if (group) result += ` que pertence ao grupo de empresas ${group}`;
@@ -360,7 +367,7 @@ export function buildReportVariableValues(args: {
   const cboTitle = display(process.cbo?.title);
   const cboTitleUpper = cboTitle ? toUpperName(cboTitle) : "";
   const companyCity = formatCompanyCity(process);
-  const companyGroup = display(process.companyApplicant?.groupName);
+  const companyGroup = display(resolveCompanyGroupName(process));
   const companyCityClause = companyCity ? `, ${companyCity}` : "";
   const companyGroupClause = companyGroup
     ? ` que pertence ao grupo de empresas ${companyGroup}`

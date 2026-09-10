@@ -35,7 +35,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "next-intl"
-import { companySchema, CompanyFormData } from "@/lib/validations/companies"
+import { companySchema, CompanyFormData, resolveCompanyGroupFormId } from "@/lib/validations/companies"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
 import { EconomicActivityQuickCreateDialog } from "@/components/economic-activities"
@@ -66,6 +66,7 @@ export function CompanyFormDialog({
   const cities = useQuery(api.cities.listWithRelations, {}) ?? []
   const people = useQuery(api.people.search, { query: "" }) ?? []
   const economicActivities = useQuery(api.economicActivities.listActive, {}) ?? []
+  const companyGroups = useQuery(api.companyGroups.listActive, {}) ?? []
   const companyEconomicActivities = useQuery(
     api.companies.getEconomicActivities,
     companyId ? { companyId } : "skip"
@@ -73,6 +74,7 @@ export function CompanyFormDialog({
   const createCompany = useMutation(api.companies.create)
   const updateCompany = useMutation(api.companies.update)
   const setEconomicActivities = useMutation(api.companies.setEconomicActivities)
+  const createCompanyGroup = useMutation(api.companyGroups.create)
 
   const form = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
@@ -87,7 +89,7 @@ export function CompanyFormDialog({
       addressComplement: "",
       addressNeighborhood: "",
       addressPostalCode: "",
-      groupName: "",
+      companyGroupId: "" as Id<"companyGroups"> | "",
       cityId: "" as Id<"cities">,
       phoneNumber: "",
       email: "",
@@ -129,7 +131,7 @@ export function CompanyFormDialog({
         addressComplement: company.addressComplement ?? "",
         addressNeighborhood: company.addressNeighborhood ?? "",
         addressPostalCode: company.addressPostalCode ?? "",
-        groupName: company.groupName ?? "",
+        companyGroupId: resolveCompanyGroupFormId(company, companyGroups),
         cityId: company.cityId,
         phoneNumber: company.phoneNumber,
         email: company.email,
@@ -150,7 +152,7 @@ export function CompanyFormDialog({
         addressComplement: "",
         addressNeighborhood: "",
         addressPostalCode: "",
-        groupName: "",
+        companyGroupId: "",
         cityId: "" as Id<"cities">,
         phoneNumber: "",
         email: "",
@@ -160,25 +162,26 @@ export function CompanyFormDialog({
         notes: "",
       })
     }
-  }, [company, companyId, companyEconomicActivities, form])
+  }, [company, companyId, companyEconomicActivities, companyGroups, form])
 
   const onSubmit = async (data: CompanyFormData) => {
     try {
       // Clean optional fields and convert empty strings to undefined
+      const { economicActivityIds, companyGroupId, ...companyData } = data
       const submitData = {
-        ...data,
-        openingDate: data.openingDate || undefined,
-        website: data.website || undefined,
-        address: data.address || undefined,
-        addressStreet: data.addressStreet || undefined,
-        addressNumber: data.addressNumber || undefined,
-        addressComplement: data.addressComplement || undefined,
-        addressNeighborhood: data.addressNeighborhood || undefined,
-        addressPostalCode: data.addressPostalCode || undefined,
-        cityId: data.cityId === "" ? undefined : data.cityId,
-        contactPersonId: data.contactPersonId === "" ? undefined : data.contactPersonId,
-        notes: data.notes || undefined,
-        groupName: data.groupName || undefined,
+        ...companyData,
+        openingDate: companyData.openingDate || undefined,
+        website: companyData.website || undefined,
+        address: companyData.address || undefined,
+        addressStreet: companyData.addressStreet || undefined,
+        addressNumber: companyData.addressNumber || undefined,
+        addressComplement: companyData.addressComplement || undefined,
+        addressNeighborhood: companyData.addressNeighborhood || undefined,
+        addressPostalCode: companyData.addressPostalCode || undefined,
+        cityId: companyData.cityId === "" ? undefined : companyData.cityId,
+        contactPersonId: companyData.contactPersonId === "" ? undefined : companyData.contactPersonId,
+        notes: companyData.notes || undefined,
+        companyGroupId: companyGroupId === "" ? undefined : companyGroupId,
       }
 
       let savedCompanyId: Id<"companies">
@@ -197,10 +200,10 @@ export function CompanyFormDialog({
       }
 
       // Save economic activities
-      if (data.economicActivityIds && data.economicActivityIds.length > 0) {
+      if (economicActivityIds && economicActivityIds.length > 0) {
         await setEconomicActivities({
           companyId: savedCompanyId,
-          economicActivityIds: data.economicActivityIds,
+          economicActivityIds,
         })
       }
 
@@ -229,6 +232,28 @@ export function CompanyFormDialog({
     value: activity._id,
     label: activity.name,
   }))
+
+  const companyGroupOptions = companyGroups.map((group) => ({
+    value: group._id,
+    label: group.name,
+  }))
+
+  const handleCreateCompanyGroup = async (groupName: string): Promise<Id<"companyGroups">> => {
+    try {
+      const groupId = await createCompanyGroup({ name: groupName, isActive: true })
+      toast({
+        title: t('companyGroupCreatedSuccess'),
+      })
+      return groupId
+    } catch (error) {
+      toast({
+        title: t('errorCreateCompanyGroup'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+      throw error
+    }
+  }
 
   const handleCreateEconomicActivity = async (activityName: string): Promise<Id<"economicActivities">> => {
     return new Promise((resolve) => {
@@ -277,12 +302,20 @@ export function CompanyFormDialog({
 
             <FormField
               control={form.control}
-              name="groupName"
+              name="companyGroupId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("groupName")}</FormLabel>
                   <FormControl>
-                    <Input placeholder={t("groupNamePlaceholder")} {...field} />
+                    <Combobox
+                      options={companyGroupOptions}
+                      value={field.value || ""}
+                      onValueChange={(value) => field.onChange(value ?? "")}
+                      placeholder={t("selectCompanyGroup")}
+                      emptyText={t("noCompanyGroupFound")}
+                      onCreateNew={handleCreateCompanyGroup}
+                      createNewText={t("createNewCompanyGroup")}
+                    />
                   </FormControl>
                   <FormDescription>{t("groupNameHint")}</FormDescription>
                   <FormMessage />

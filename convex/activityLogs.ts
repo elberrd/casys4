@@ -38,6 +38,10 @@ const ID_FIELD_RESOLVERS: Record<
       return city?.name || doc.address || null;
     },
   },
+  companyGroupId: {
+    table: "companyGroups",
+    resolve: (doc) => doc.name,
+  },
   companyApplicantId: {
     table: "companies",
     resolve: (doc) => doc.name,
@@ -165,6 +169,7 @@ const ENTITY_TYPE_GROUPS: Record<string, string[]> = {
   note: ["note", "notes"],
   savedfilter: ["savedFilter", "savedFilters"],
   economicactivity: ["economicActivity", "economicActivities"],
+  companygroup: ["companyGroup", "companyGroups"],
   country: ["country", "countries"],
   state: ["state", "states"],
   city: ["city", "cities"],

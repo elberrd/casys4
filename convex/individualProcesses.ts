@@ -743,10 +743,14 @@ export const get = query({
         ? await ctx.db.get(companyApplicant.cityId)
         : null;
       const state = city?.stateId ? await ctx.db.get(city.stateId) : null;
+      const companyGroup = companyApplicant.companyGroupId
+        ? await ctx.db.get(companyApplicant.companyGroupId)
+        : null;
       enrichedCompanyApplicant = {
         ...companyApplicant,
         city,
         state,
+        companyGroup,
       };
     }
 

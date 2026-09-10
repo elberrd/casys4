@@ -60,8 +60,18 @@ export function CompanyInfoCard({ companyId }: CompanyInfoCardProps) {
           </Badge>
         </div>
       </CardHeader>
-      <CardContent>
+          <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(company.companyGroup?.name || company.groupName) && (
+            <div className="flex items-start gap-3">
+              <Building2 className="h-4 w-4 mt-1 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{t('groupName')}</p>
+                <p className="text-sm">{company.companyGroup?.name || company.groupName}</p>
+              </div>
+            </div>
+          )}
+
           {/* Tax ID (CNPJ) */}
           {company.taxId && (
             <div className="flex items-start gap-3">

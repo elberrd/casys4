@@ -33,6 +33,12 @@ export const companySchema = z.object({
     .optional()
     .or(z.literal("")),
   groupName: z.string().optional().or(z.literal("")),
+  companyGroupId: z
+    .custom<Id<"companyGroups">>((val) => typeof val === "string", {
+      message: "Company group ID must be valid",
+    })
+    .optional()
+    .or(z.literal("")),
   cityId: z
     .custom<Id<"cities">>((val) => typeof val === "string", {
       message: "City ID must be valid",
@@ -53,6 +59,22 @@ export const companySchema = z.object({
 });
 
 export type CompanyFormData = z.infer<typeof companySchema>;
+
+export function resolveCompanyGroupFormId(
+  company: {
+    companyGroupId?: Id<"companyGroups"> | null;
+    groupName?: string | null;
+  },
+  groups: Array<{ _id: Id<"companyGroups">; name: string }>,
+): Id<"companyGroups"> | "" {
+  if (company.companyGroupId) return company.companyGroupId;
+  const name = company.groupName?.trim();
+  if (!name) return "";
+  const match = groups.find(
+    (group) => group.name.trim().toLowerCase() === name.toLowerCase(),
+  );
+  return match?._id ?? "";
+}
 
 // Quick-create schema - minimal required fields for inline company creation
 export const companyQuickCreateSchema = z.object({

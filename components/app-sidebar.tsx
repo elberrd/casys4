@@ -215,6 +215,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           icon: Briefcase,
         },
         {
+          title: t("companyGroups"),
+          url: "/company-groups",
+        },
+        {
           title: t("consulates"),
           url: "/consulates",
         },
