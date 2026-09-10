@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -57,6 +58,7 @@ export function ReportTemplateFormPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const documentTypes = useQuery(api.documentTypes.listActive, {});
+  const legalFrameworks = useQuery(api.legalFrameworks.listActive, {});
   const existingTemplate = useQuery(
     api.reportTemplates.get,
     templateId ? { id: templateId } : "skip",
@@ -72,6 +74,7 @@ export function ReportTemplateFormPage({
       description: "",
       contentHtml: "<p></p>",
       isActive: true,
+      legalFrameworkId: "",
       documentTypeIds: [],
     },
   });
@@ -83,6 +86,7 @@ export function ReportTemplateFormPage({
         description: existingTemplate.description ?? "",
         contentHtml: existingTemplate.contentHtml,
         isActive: existingTemplate.isActive,
+        legalFrameworkId: existingTemplate.legalFrameworkId ?? "",
         documentTypeIds: existingTemplate.documentTypes.map(
           (documentType) => documentType._id,
         ),
@@ -110,6 +114,14 @@ export function ReportTemplateFormPage({
     return match ? t(`variables.${match.key}`) : key;
   };
 
+  const selectedLegalFrameworkId = form.watch("legalFrameworkId");
+  const selectedProcessTypes = useQuery(
+    api.legalFrameworks.getProcessTypes,
+    selectedLegalFrameworkId
+      ? { legalFrameworkId: selectedLegalFrameworkId as Id<"legalFrameworks"> }
+      : "skip",
+  );
+
   const documentTypeOptions = useMemo(
     () =>
       (documentTypes ?? [])
@@ -121,6 +133,23 @@ export function ReportTemplateFormPage({
     [documentTypes],
   );
 
+  const legalFrameworkOptions = useMemo(() => {
+    const options = (legalFrameworks ?? []).map((framework) => ({
+      value: framework._id,
+      label: framework.name,
+    }));
+    const currentId = existingTemplate?.legalFrameworkId;
+    const currentName = existingTemplate?.legalFramework?.name;
+    if (
+      currentId &&
+      currentName &&
+      !options.some((option) => option.value === currentId)
+    ) {
+      options.push({ value: currentId, label: currentName });
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+  }, [legalFrameworks, existingTemplate]);
+
   const onSubmit = async (data: ReportTemplateFormData) => {
     try {
       setIsSubmitting(true);
@@ -129,6 +158,9 @@ export function ReportTemplateFormPage({
         description: data.description || undefined,
         contentHtml: data.contentHtml,
         isActive: data.isActive,
+        legalFrameworkId: data.legalFrameworkId
+          ? (data.legalFrameworkId as Id<"legalFrameworks">)
+          : undefined,
         documentTypeIds: data.documentTypeIds as Id<"documentTypes">[],
       };
 
@@ -152,7 +184,11 @@ export function ReportTemplateFormPage({
     }
   };
 
-  if (documentTypes === undefined || (mode === "edit" && existingTemplate === undefined)) {
+  if (
+    documentTypes === undefined ||
+    legalFrameworks === undefined ||
+    (mode === "edit" && existingTemplate === undefined)
+  ) {
     return (
       <div className="flex h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -245,6 +281,52 @@ export function ReportTemplateFormPage({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="legalFrameworkId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("legalFramework")}</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={legalFrameworkOptions}
+                      value={field.value || undefined}
+                      onValueChange={(value) => field.onChange(value ?? "")}
+                      placeholder={t("selectLegalFramework")}
+                      searchPlaceholder={t("searchLegalFrameworks")}
+                      emptyText={t("noLegalFrameworksFound")}
+                      clearButtonAriaLabel={t("clearLegalFramework")}
+                    />
+                  </FormControl>
+                  <FormDescription>{t("legalFrameworkHelp")}</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {selectedLegalFrameworkId ? (
+              <div className="space-y-2">
+                <FormLabel>{t("authorizationType")}</FormLabel>
+                {selectedProcessTypes === undefined ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {tCommon("loading")}
+                  </div>
+                ) : selectedProcessTypes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">-</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedProcessTypes.map((processType) => (
+                      <Badge key={processType._id} variant="outline">
+                        {processType.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-muted-foreground text-sm">
+                  {t("authorizationTypeHelp")}
+                </p>
+              </div>
+            ) : null}
             <FormField
               control={form.control}
               name="documentTypeIds"

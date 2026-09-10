@@ -25,6 +25,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { ReportRichTextEditor } from "@/components/report-templates/report-rich-text-editor";
 import { ReportPaperPreview } from "@/components/report-templates/report-paper-preview";
 import { isCriminalBackgroundReportName } from "@/lib/report-templates/built-in-templates";
+import { reportTemplateMatchesProcessLegalFramework } from "@/lib/report-templates/legal-framework-match";
 import {
   buildReportVariableValues,
   suggestedReportFilename,
@@ -94,6 +95,15 @@ export function CustomReportGenerateDialog({
     api.individualProcesses.get,
     open ? { id: processId } : "skip",
   );
+  const templateAllowed =
+    template === undefined || process === undefined
+      ? undefined
+      : template !== null &&
+        process !== null &&
+        reportTemplateMatchesProcessLegalFramework(
+          template.legalFrameworkId,
+          process.legalFrameworkId,
+        );
   const statuses = useQuery(
     api.individualProcessStatuses.getStatusHistory,
     open ? { individualProcessId: processId } : "skip",
@@ -330,7 +340,9 @@ export function CustomReportGenerateDialog({
       statuses === undefined ||
       deliveredDocuments === undefined ||
       declarationSource === undefined);
-  const loadFailed = open && (template === null || process === null);
+  const loadFailed =
+    open &&
+    (template === null || process === null || templateAllowed === false);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

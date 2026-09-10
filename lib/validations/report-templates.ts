@@ -5,6 +5,7 @@ export const reportTemplateFormSchema = z.object({
   description: z.string().optional().or(z.literal("")),
   contentHtml: z.string(),
   isActive: z.boolean(),
+  legalFrameworkId: z.string().optional().or(z.literal("")),
   documentTypeIds: z.array(z.string()),
 });
 

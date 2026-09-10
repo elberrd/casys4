@@ -36,6 +36,8 @@ export interface ReportTemplateListItem {
   name: string;
   description?: string;
   isActive: boolean;
+  legalFramework: { _id: Id<"legalFrameworks">; name: string } | null;
+  authorizationTypes: Array<{ _id: Id<"processTypes">; name: string }>;
   documentTypes: Array<{ _id: Id<"documentTypes">; name: string }>;
 }
 
@@ -81,6 +83,48 @@ export function ReportTemplatesTable({
         cell: ({ row }) => (
           <DataGridHighlightedCell text={row.original.name} />
         ),
+      },
+      {
+        id: "legalFramework",
+        accessorFn: (row) => row.legalFramework?.name ?? "",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("legalFramework")} />
+        ),
+        cell: ({ row }) => {
+          const legalFramework = row.original.legalFramework;
+          if (!legalFramework) {
+            return (
+              <span className="text-muted-foreground">{t("noLegalFramework")}</span>
+            );
+          }
+          return (
+            <Badge variant="outline">{legalFramework.name}</Badge>
+          );
+        },
+      },
+      {
+        id: "authorizationTypes",
+        accessorFn: (row) =>
+          row.authorizationTypes.map((item) => item.name).join(" "),
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("authorizationType")} />
+        ),
+        cell: ({ row }) => {
+          const authorizationTypes = row.original.authorizationTypes;
+          if (authorizationTypes.length === 0) {
+            return <span className="text-muted-foreground">-</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {authorizationTypes.map((authorizationType) => (
+                <Badge key={authorizationType._id} variant="outline">
+                  {authorizationType.name}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
+        enableSorting: false,
       },
       {
         accessorKey: "documentTypes",

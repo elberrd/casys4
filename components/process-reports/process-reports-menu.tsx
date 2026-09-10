@@ -22,7 +22,9 @@ interface ProcessReportsMenuProps {
 export function ProcessReportsMenu({ processId }: ProcessReportsMenuProps) {
   const t = useTranslations("ProcessReports")
   const tProcess = useTranslations("IndividualProcesses")
-  const templates = useQuery(api.reportTemplates.listActiveSummaries, {})
+  const templates = useQuery(api.reportTemplates.listActiveSummaries, {
+    individualProcessId: processId,
+  })
   const [customTemplateId, setCustomTemplateId] =
     useState<Id<"reportTemplates"> | null>(null)
 
