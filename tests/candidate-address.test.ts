@@ -5,7 +5,9 @@ import { getBrazilStateName } from "../lib/data/brazil-states";
 import {
   applyBrazilCheckbox,
   applyCepLookupResult,
+  EMPTY_CANDIDATE_ADDRESS_FORM,
   formatCandidateAddress,
+  isBrazilAddressSelected,
   personAddressFormFromRecord,
   personAddressValueFromForm,
 } from "../lib/utils/candidate-address";
@@ -125,6 +127,23 @@ test("formats a structured candidate address for display", () => {
   assert.equal(
     formatted,
     "Avenida Paulista, Apto 12, São Paulo - São Paulo, 01310100, Brasil",
+  );
+});
+
+test("empty address form starts with Brazil checked so CEP search is ready", () => {
+  assert.equal(EMPTY_CANDIDATE_ADDRESS_FORM.addressIsBrazil, true);
+  assert.equal(EMPTY_CANDIDATE_ADDRESS_FORM.addressCountryCode, "BR");
+  assert.equal(isBrazilAddressSelected({}), true);
+  assert.equal(isBrazilAddressSelected({ addressIsBrazil: false }), false);
+  assert.equal(
+    isBrazilAddressSelected({ addressCountryCode: "US" }),
+    false,
+  );
+  assert.equal(personAddressFormFromRecord(null).addressIsBrazil, true);
+  assert.equal(personAddressFormFromRecord(null).addressCountryCode, "BR");
+  assert.equal(
+    personAddressFormFromRecord({ addressIsBrazil: false }).addressIsBrazil,
+    false,
   );
 });
 

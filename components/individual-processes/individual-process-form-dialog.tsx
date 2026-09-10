@@ -63,8 +63,10 @@ import { CboActivitiesFields } from "@/components/individual-processes/cbo-activ
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
 import {
   EMPTY_CANDIDATE_ADDRESS_FORM,
+  isBrazilAddressSelected,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
+import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
 
 interface IndividualProcessFormDialogProps {
   open: boolean;
@@ -322,10 +324,20 @@ export function IndividualProcessFormDialog({
         exchangeRateToBRL: individualProcess.exchangeRateToBRL,
         salaryInBRL: individualProcess.salaryInBRL,
         monthlyAmountToReceive: individualProcess.monthlyAmountToReceive,
-        addressIsBrazil: individualProcess.addressIsBrazil === true,
+        addressIsBrazil: isBrazilAddressSelected({
+          addressIsBrazil: individualProcess.addressIsBrazil,
+          addressCountryCode: individualProcess.addressCountryCode,
+        }),
         addressStreet: individualProcess.addressStreet ?? "",
         addressComplement: individualProcess.addressComplement ?? "",
-        addressCountryCode: individualProcess.addressCountryCode ?? "",
+        addressCountryCode:
+          individualProcess.addressCountryCode ||
+          (isBrazilAddressSelected({
+            addressIsBrazil: individualProcess.addressIsBrazil,
+            addressCountryCode: individualProcess.addressCountryCode,
+          })
+            ? BRAZIL_COUNTRY_CODE
+            : ""),
         addressCountryName: individualProcess.addressCountryName ?? "",
         addressStateCode: individualProcess.addressStateCode ?? "",
         addressStateName: individualProcess.addressStateName ?? "",

@@ -16,16 +16,31 @@ export type CandidateAddressValue = {
 };
 
 export const EMPTY_CANDIDATE_ADDRESS_FORM = {
-  addressIsBrazil: false as boolean,
+  addressIsBrazil: true as boolean,
   addressStreet: "",
   addressComplement: "",
-  addressCountryCode: "",
+  addressCountryCode: BRAZIL_COUNTRY_CODE,
   addressCountryName: "",
   addressStateCode: "",
   addressStateName: "",
   addressCity: "",
   addressPostalCode: "",
 };
+
+/** Unset means Brazil so CEP search is ready; the user can uncheck. */
+export function isBrazilAddressSelected(
+  value: CandidateAddressValue,
+): boolean {
+  if (value.addressIsBrazil === false) return false;
+  if (value.addressIsBrazil === true) return true;
+  if (
+    value.addressCountryCode &&
+    value.addressCountryCode !== BRAZIL_COUNTRY_CODE
+  ) {
+    return false;
+  }
+  return true;
+}
 
 export type PersonAddressFormSlice = {
   addressIsBrazil: boolean;
@@ -59,11 +74,17 @@ export function personAddressFormFromRecord(source?: {
   addressPostalCode?: string | null;
   address?: string | null;
 } | null): PersonAddressFormSlice {
+  const addressIsBrazil = isBrazilAddressSelected({
+    addressIsBrazil: source?.addressIsBrazil,
+    addressCountryCode: source?.addressCountryCode ?? undefined,
+  });
   return {
-    addressIsBrazil: source?.addressIsBrazil === true,
+    addressIsBrazil,
     addressStreet: source?.addressStreet ?? "",
     addressComplement: source?.addressComplement ?? "",
-    addressCountryCode: source?.addressCountryCode ?? "",
+    addressCountryCode:
+      source?.addressCountryCode ||
+      (addressIsBrazil ? BRAZIL_COUNTRY_CODE : ""),
     addressCountryName: source?.addressCountryName ?? "",
     addressStateCode: source?.addressStateCode ?? "",
     addressStateName: source?.addressStateName ?? "",
@@ -94,7 +115,7 @@ export function personAddressFormFromValue(
   next: CandidateAddressValue,
 ): PersonAddressFormSlice {
   return {
-    addressIsBrazil: next.addressIsBrazil === true,
+    addressIsBrazil: isBrazilAddressSelected(next),
     addressStreet: next.addressStreet ?? "",
     addressComplement: next.addressComplement ?? "",
     addressCountryCode: next.addressCountryCode ?? "",
@@ -120,12 +141,6 @@ export function candidateAddressFromPerson(person?: {
   address?: string | null;
 } | null): CandidateAddressValue {
   return personAddressValueFromForm(personAddressFormFromRecord(person));
-}
-
-export function isBrazilAddressSelected(
-  value: CandidateAddressValue,
-): boolean {
-  return value.addressIsBrazil === true;
 }
 
 export function applyBrazilCheckbox(args: {

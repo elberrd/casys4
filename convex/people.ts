@@ -670,7 +670,9 @@ export const update = mutation({
       ...(data.fatherName ? { fatherName: data.fatherName } : {}),
       ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
       ...(data.address ? { address: data.address } : {}),
-      ...(data.addressIsBrazil === true ? { addressIsBrazil: true } : {}),
+      ...(typeof data.addressIsBrazil === "boolean"
+        ? { addressIsBrazil: data.addressIsBrazil }
+        : {}),
       ...(data.addressStreet ? { addressStreet: data.addressStreet } : {}),
       ...(data.addressComplement
         ? { addressComplement: data.addressComplement }

@@ -466,7 +466,7 @@ export function PersonFormPage({
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
         address: data.address || undefined,
-        addressIsBrazil: data.addressIsBrazil === true ? true : undefined,
+        addressIsBrazil: data.addressIsBrazil,
         addressStreet: data.addressStreet || undefined,
         addressComplement: data.addressComplement || undefined,
         addressCountryCode: data.addressCountryCode || undefined,

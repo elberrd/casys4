@@ -92,6 +92,15 @@ export function CandidateAddressFields({
   const countryCode = value.addressCountryCode;
   const stateCode = value.addressStateCode;
 
+  React.useEffect(() => {
+    if (!isBrazil || countryCode) return;
+    onChange({
+      ...value,
+      addressCountryCode: BRAZIL_COUNTRY_CODE,
+      addressCountryName: brazilCountryName,
+    });
+  }, [brazilCountryName, countryCode, isBrazil, onChange, value]);
+
   const merge = React.useCallback(
     (patch: Partial<CandidateAddressValue>) => {
       onChange({ ...value, ...patch });
