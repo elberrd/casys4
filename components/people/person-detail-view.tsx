@@ -30,6 +30,11 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/format-field-value";
 import { getFullName } from "@/lib/utils/person-names";
+import {
+  formatCandidateAddress,
+  candidateAddressFromPerson,
+} from "@/lib/utils/candidate-address";
+import { CandidateAddressDetailRows } from "@/components/individual-processes/candidate-address-fields";
 
 interface PersonDetailViewProps {
   personId: Id<"people">;
@@ -265,7 +270,9 @@ export function PersonDetailView({
             )}
 
             {/* Current Address */}
-            {(person.address || person.currentCity) && (
+            {(person.address ||
+              person.currentCity ||
+              formatCandidateAddress(person)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -273,24 +280,17 @@ export function PersonDetailView({
                     {t("currentAddress")}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {person.address && (
-                    <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {t("address")}
-                      </p>
-                      <p className="text-base mt-1">{person.address}</p>
-                    </div>
-                  )}
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1">
+                  <CandidateAddressDetailRows
+                    value={candidateAddressFromPerson(person)}
+                  />
                   {person.currentCity && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {t("currentCity")}
-                      </p>
-                      <p className="text-base mt-1">
+                    <>
+                      <div className="text-sm font-medium">{t("currentCity")}</div>
+                      <div className="text-sm">
                         {person.currentCity.name}
-                      </p>
-                    </div>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>

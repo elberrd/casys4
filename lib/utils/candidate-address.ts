@@ -27,6 +27,101 @@ export const EMPTY_CANDIDATE_ADDRESS_FORM = {
   addressPostalCode: "",
 };
 
+export type PersonAddressFormSlice = {
+  addressIsBrazil: boolean;
+  addressStreet: string;
+  addressComplement: string;
+  addressCountryCode: string;
+  addressCountryName: string;
+  addressStateCode: string;
+  addressStateName: string;
+  addressCity: string;
+  addressPostalCode: string;
+  address: string;
+};
+
+export function emptyPersonAddressForm(): PersonAddressFormSlice {
+  return {
+    ...EMPTY_CANDIDATE_ADDRESS_FORM,
+    address: "",
+  };
+}
+
+export function personAddressFormFromRecord(source?: {
+  addressIsBrazil?: boolean;
+  addressStreet?: string | null;
+  addressComplement?: string | null;
+  addressCountryCode?: string | null;
+  addressCountryName?: string | null;
+  addressStateCode?: string | null;
+  addressStateName?: string | null;
+  addressCity?: string | null;
+  addressPostalCode?: string | null;
+  address?: string | null;
+} | null): PersonAddressFormSlice {
+  return {
+    addressIsBrazil: source?.addressIsBrazil === true,
+    addressStreet: source?.addressStreet ?? "",
+    addressComplement: source?.addressComplement ?? "",
+    addressCountryCode: source?.addressCountryCode ?? "",
+    addressCountryName: source?.addressCountryName ?? "",
+    addressStateCode: source?.addressStateCode ?? "",
+    addressStateName: source?.addressStateName ?? "",
+    addressCity: source?.addressCity ?? "",
+    addressPostalCode: source?.addressPostalCode ?? "",
+    address: source?.address ?? "",
+  };
+}
+
+export function personAddressValueFromForm(
+  data: PersonAddressFormSlice,
+): CandidateAddressValue {
+  return {
+    addressIsBrazil: data.addressIsBrazil,
+    addressStreet: data.addressStreet,
+    addressComplement: data.addressComplement,
+    addressCountryCode: data.addressCountryCode,
+    addressCountryName: data.addressCountryName,
+    addressStateCode: data.addressStateCode,
+    addressStateName: data.addressStateName,
+    addressCity: data.addressCity,
+    addressPostalCode: data.addressPostalCode,
+    residenceAddressAbroad: data.address,
+  };
+}
+
+export function personAddressFormFromValue(
+  next: CandidateAddressValue,
+): PersonAddressFormSlice {
+  return {
+    addressIsBrazil: next.addressIsBrazil === true,
+    addressStreet: next.addressStreet ?? "",
+    addressComplement: next.addressComplement ?? "",
+    addressCountryCode: next.addressCountryCode ?? "",
+    addressCountryName: next.addressCountryName ?? "",
+    addressStateCode: next.addressStateCode ?? "",
+    addressStateName: next.addressStateName ?? "",
+    addressCity: next.addressCity ?? "",
+    addressPostalCode: next.addressPostalCode ?? "",
+    address: next.residenceAddressAbroad ?? "",
+  };
+}
+
+export function candidateAddressFromPerson(person?: {
+  addressIsBrazil?: boolean;
+  addressStreet?: string | null;
+  addressComplement?: string | null;
+  addressCountryCode?: string | null;
+  addressCountryName?: string | null;
+  addressStateCode?: string | null;
+  addressStateName?: string | null;
+  addressCity?: string | null;
+  addressPostalCode?: string | null;
+  address?: string | null;
+} | null): CandidateAddressValue {
+  return personAddressValueFromForm(personAddressFormFromRecord(person));
+}
+
 export function isBrazilAddressSelected(
   value: CandidateAddressValue,
 ): boolean {

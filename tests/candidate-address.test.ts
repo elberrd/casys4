@@ -6,6 +6,8 @@ import {
   applyBrazilCheckbox,
   applyCepLookupResult,
   formatCandidateAddress,
+  personAddressFormFromRecord,
+  personAddressValueFromForm,
 } from "../lib/utils/candidate-address";
 import {
   isCompleteCep,
@@ -123,5 +125,22 @@ test("formats a structured candidate address for display", () => {
   assert.equal(
     formatted,
     "Avenida Paulista, Apto 12, São Paulo - São Paulo, 01310100, Brasil",
+  );
+});
+
+test("maps a person record onto the structured address form", () => {
+  const next = personAddressFormFromRecord({
+    addressIsBrazil: true,
+    addressStreet: "Avenida Paulista",
+    addressCity: "São Paulo",
+    address: "old free text",
+  });
+
+  assert.equal(next.addressIsBrazil, true);
+  assert.equal(next.addressStreet, "Avenida Paulista");
+  assert.equal(next.address, "old free text");
+  assert.equal(
+    personAddressValueFromForm(next).residenceAddressAbroad,
+    "old free text",
   );
 });

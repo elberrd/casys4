@@ -40,6 +40,7 @@ import { IndividualProcessStatusesSubtable } from "@/components/individual-proce
 import { ProcessNotesSection } from "@/components/notes/process-notes-section";
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section";
 import { PersonFormDialog } from "@/components/people/person-form-dialog";
+import { CandidateAddressDetailRows } from "@/components/individual-processes/candidate-address-fields";
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog";
 import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog";
 import { formatDate, calculateAge } from "@/lib/format-field-value";
@@ -47,7 +48,10 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
-import { formatCandidateAddress } from "@/lib/utils/candidate-address";
+import {
+  formatCandidateAddress,
+  candidateAddressFromPerson,
+} from "@/lib/utils/candidate-address";
 import { getFullName } from "@/lib/utils/person-names";
 import {
   getPassportValidityStatus,
@@ -748,6 +752,10 @@ export function IndividualProcessDetailClient({
                 <div className="text-sm break-all">
                   {individualProcess.person?.email || "-"}
                 </div>
+
+                <CandidateAddressDetailRows
+                  value={candidateAddressFromPerson(individualProcess.person)}
+                />
 
                 <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople("profession")}
