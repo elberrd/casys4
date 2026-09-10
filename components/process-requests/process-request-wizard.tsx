@@ -55,6 +55,7 @@ import {
 import { ResidenceSelect } from "./residence-select";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
 import {
+  EMPTY_CANDIDATE_ADDRESS_FORM,
   formatCandidateAddress,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
@@ -631,6 +632,7 @@ export function ProcessRequestWizard({
             personOwned: r.personOwned,
             presence: r.presence,
             touched: {},
+            ...EMPTY_CANDIDATE_ADDRESS_FORM,
             ...receiptLocationPatch(frameworkReceiptLocation ?? "abroad"),
             // Prefill Dados Pessoais from the owned-gated snapshot (null when the
             // person is protected / cross-tenant → fields stay empty).

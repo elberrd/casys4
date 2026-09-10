@@ -361,6 +361,15 @@ export const create = mutation({
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     address: v.optional(v.string()),
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
     residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
@@ -593,6 +602,15 @@ export const update = mutation({
     fatherName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     address: v.optional(v.string()),
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
     residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
@@ -652,6 +670,29 @@ export const update = mutation({
       ...(data.fatherName ? { fatherName: data.fatherName } : {}),
       ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
       ...(data.address ? { address: data.address } : {}),
+      ...(typeof data.addressIsBrazil === "boolean"
+        ? { addressIsBrazil: data.addressIsBrazil }
+        : {}),
+      ...(data.addressStreet ? { addressStreet: data.addressStreet } : {}),
+      ...(data.addressComplement
+        ? { addressComplement: data.addressComplement }
+        : {}),
+      ...(data.addressCountryCode
+        ? { addressCountryCode: data.addressCountryCode }
+        : {}),
+      ...(data.addressCountryName
+        ? { addressCountryName: data.addressCountryName }
+        : {}),
+      ...(data.addressStateCode
+        ? { addressStateCode: data.addressStateCode }
+        : {}),
+      ...(data.addressStateName
+        ? { addressStateName: data.addressStateName }
+        : {}),
+      ...(data.addressCity ? { addressCity: data.addressCity } : {}),
+      ...(data.addressPostalCode
+        ? { addressPostalCode: data.addressPostalCode }
+        : {}),
       ...(data.currentCityId ? { currentCityId: data.currentCityId } : {}),
       ...(data.residenceSince ? { residenceSince: data.residenceSince } : {}),
       ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),

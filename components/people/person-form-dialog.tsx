@@ -33,6 +33,14 @@ import { Combobox } from "@/components/ui/combobox"
 import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog"
 import { Separator } from "@/components/ui/separator"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
+import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields"
+import {
+  emptyPersonAddressForm,
+  personAddressFormFromRecord,
+  personAddressFormFromValue,
+  personAddressValueFromForm,
+  type CandidateAddressValue,
+} from "@/lib/utils/candidate-address"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
 import {
@@ -123,7 +131,7 @@ export function PersonFormDialog({
       motherName: "",
       fatherName: "",
       phoneNumber: "",
-      address: "",
+      ...emptyPersonAddressForm(),
       currentCityId: "" as Id<"cities">,
       photoUrl: "",
       notes: "",
@@ -146,6 +154,45 @@ export function PersonFormDialog({
     },
     isSubmitting: form.formState.isSubmitting,
   })
+
+  const addressValue = personAddressValueFromForm({
+    addressIsBrazil: form.watch("addressIsBrazil") === true,
+    addressStreet: form.watch("addressStreet") ?? "",
+    addressComplement: form.watch("addressComplement") ?? "",
+    addressCountryCode: form.watch("addressCountryCode") ?? "",
+    addressCountryName: form.watch("addressCountryName") ?? "",
+    addressStateCode: form.watch("addressStateCode") ?? "",
+    addressStateName: form.watch("addressStateName") ?? "",
+    addressCity: form.watch("addressCity") ?? "",
+    addressPostalCode: form.watch("addressPostalCode") ?? "",
+    address: form.watch("address") ?? "",
+  })
+
+  const handleAddressChange = (next: CandidateAddressValue) => {
+    const slice = personAddressFormFromValue(next)
+    form.setValue("addressIsBrazil", slice.addressIsBrazil, { shouldDirty: true })
+    form.setValue("addressStreet", slice.addressStreet, { shouldDirty: true })
+    form.setValue("addressComplement", slice.addressComplement, {
+      shouldDirty: true,
+    })
+    form.setValue("addressCountryCode", slice.addressCountryCode, {
+      shouldDirty: true,
+    })
+    form.setValue("addressCountryName", slice.addressCountryName, {
+      shouldDirty: true,
+    })
+    form.setValue("addressStateCode", slice.addressStateCode, {
+      shouldDirty: true,
+    })
+    form.setValue("addressStateName", slice.addressStateName, {
+      shouldDirty: true,
+    })
+    form.setValue("addressCity", slice.addressCity, { shouldDirty: true })
+    form.setValue("addressPostalCode", slice.addressPostalCode, {
+      shouldDirty: true,
+    })
+    form.setValue("address", slice.address, { shouldDirty: true })
+  }
 
   // Watch CPF field for real-time validation
   const cpfValue = form.watch('cpf')
@@ -176,7 +223,7 @@ export function PersonFormDialog({
         motherName: person.motherName,
         fatherName: person.fatherName,
         phoneNumber: person.phoneNumber,
-        address: person.address,
+        ...personAddressFormFromRecord(person),
         currentCityId: person.currentCityId,
         photoUrl: person.photoUrl ?? "",
         notes: person.notes ?? "",
@@ -198,7 +245,7 @@ export function PersonFormDialog({
         motherName: "",
         fatherName: "",
         phoneNumber: "",
-        address: "",
+        ...emptyPersonAddressForm(),
         currentCityId: "" as Id<"cities">,
         photoUrl: "",
         notes: "",
@@ -361,6 +408,15 @@ export function PersonFormDialog({
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
         address: data.address || undefined,
+        addressIsBrazil: data.addressIsBrazil,
+        addressStreet: data.addressStreet || undefined,
+        addressComplement: data.addressComplement || undefined,
+        addressCountryCode: data.addressCountryCode || undefined,
+        addressCountryName: data.addressCountryName || undefined,
+        addressStateCode: data.addressStateCode || undefined,
+        addressStateName: data.addressStateName || undefined,
+        addressCity: data.addressCity || undefined,
+        addressPostalCode: data.addressPostalCode || undefined,
         currentCityId: data.currentCityId === "" ? undefined : data.currentCityId,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
@@ -414,7 +470,7 @@ export function PersonFormDialog({
     <>
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto max-w-2xl"
+        className="max-h-[90vh] overflow-y-auto max-w-3xl"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
@@ -751,18 +807,10 @@ export function PersonFormDialog({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('address')}</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Street address" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+              <CandidateAddressFields
+                value={addressValue}
+                onChange={handleAddressChange}
+                disabled={form.formState.isSubmitting}
               />
 
               <FormField

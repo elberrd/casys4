@@ -42,7 +42,12 @@ import {
   type ResidenceValue,
 } from "@/components/process-requests/residence-select";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
-import type { CandidateAddressValue } from "@/lib/utils/candidate-address";
+import {
+  EMPTY_CANDIDATE_ADDRESS_FORM,
+  isBrazilAddressSelected,
+  type CandidateAddressValue,
+} from "@/lib/utils/candidate-address";
+import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
 import { InitialStatusForm } from "@/components/individual-processes/initial-status-form";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
 import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
@@ -155,15 +160,7 @@ export function IndividualProcessFormPage({
       residenceCity: "",
       residenceSince: "",
       residenceAddressAbroad: "",
-      addressIsBrazil: false,
-      addressStreet: "",
-      addressComplement: "",
-      addressCountryCode: "",
-      addressCountryName: "",
-      addressStateCode: "",
-      addressStateName: "",
-      addressCity: "",
-      addressPostalCode: "",
+      ...EMPTY_CANDIDATE_ADDRESS_FORM,
       consularPost: "",
       professionalExperience: "",
       isActive: true,
@@ -417,10 +414,20 @@ export function IndividualProcessFormPage({
         residenceCity: individualProcess.residenceCity ?? "",
         residenceSince: individualProcess.residenceSince ?? "",
         residenceAddressAbroad: individualProcess.residenceAddressAbroad ?? "",
-        addressIsBrazil: individualProcess.addressIsBrazil === true,
+        addressIsBrazil: isBrazilAddressSelected({
+          addressIsBrazil: individualProcess.addressIsBrazil,
+          addressCountryCode: individualProcess.addressCountryCode,
+        }),
         addressStreet: individualProcess.addressStreet ?? "",
         addressComplement: individualProcess.addressComplement ?? "",
-        addressCountryCode: individualProcess.addressCountryCode ?? "",
+        addressCountryCode:
+          individualProcess.addressCountryCode ||
+          (isBrazilAddressSelected({
+            addressIsBrazil: individualProcess.addressIsBrazil,
+            addressCountryCode: individualProcess.addressCountryCode,
+          })
+            ? BRAZIL_COUNTRY_CODE
+            : ""),
         addressCountryName: individualProcess.addressCountryName ?? "",
         addressStateCode: individualProcess.addressStateCode ?? "",
         addressStateName: individualProcess.addressStateName ?? "",
@@ -619,15 +626,7 @@ export function IndividualProcessFormPage({
         residenceCity: "",
         residenceSince: "",
         residenceAddressAbroad: "",
-        addressIsBrazil: false,
-        addressStreet: "",
-        addressComplement: "",
-        addressCountryCode: "",
-        addressCountryName: "",
-        addressStateCode: "",
-        addressStateName: "",
-        addressCity: "",
-        addressPostalCode: "",
+        ...EMPTY_CANDIDATE_ADDRESS_FORM,
         consularPost: "",
         professionalExperience: "",
         isActive: true,

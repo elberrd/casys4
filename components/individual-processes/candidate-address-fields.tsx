@@ -92,6 +92,15 @@ export function CandidateAddressFields({
   const countryCode = value.addressCountryCode;
   const stateCode = value.addressStateCode;
 
+  React.useEffect(() => {
+    if (!isBrazil || countryCode) return;
+    onChange({
+      ...value,
+      addressCountryCode: BRAZIL_COUNTRY_CODE,
+      addressCountryName: brazilCountryName,
+    });
+  }, [brazilCountryName, countryCode, isBrazil, onChange, value]);
+
   const merge = React.useCallback(
     (patch: Partial<CandidateAddressValue>) => {
       onChange({ ...value, ...patch });
@@ -482,6 +491,51 @@ export function CandidateAddressFields({
         />
       </div>
     </div>
+  );
+}
+
+export function CandidateAddressDetailRows({
+  value,
+}: {
+  value: CandidateAddressValue;
+}) {
+  const t = useTranslations("CandidateAddress");
+  const tCommon = useTranslations("Common");
+  const postalCode = value.addressPostalCode?.trim() ?? "";
+  const formattedPostal =
+    postalCode.replace(/\D/g, "").length === 8
+      ? postalCode.replace(/\D/g, "").replace(/(\d{5})(\d{3})/, "$1-$2")
+      : postalCode;
+  const stateLabel = value.addressStateName || value.addressStateCode;
+
+  const rows: Array<{ label: string; value: string }> = [
+    {
+      label: t("isBrazil"),
+      value: value.addressIsBrazil === true ? tCommon("yes") : tCommon("no"),
+    },
+    { label: t("postalCode"), value: formattedPostal },
+    { label: t("country"), value: value.addressCountryName ?? "" },
+    { label: t("state"), value: stateLabel ?? "" },
+    { label: t("city"), value: value.addressCity ?? "" },
+    { label: t("street"), value: value.addressStreet ?? "" },
+    { label: t("complement"), value: value.addressComplement ?? "" },
+    {
+      label: t("deprecatedAddressLabel"),
+      value: value.residenceAddressAbroad ?? "",
+    },
+  ];
+
+  return (
+    <>
+      {rows.map((row) => (
+        <React.Fragment key={row.label}>
+          <div className="text-sm font-medium">{row.label}</div>
+          <div className="text-sm whitespace-pre-line">
+            {row.value.trim() ? row.value : "-"}
+          </div>
+        </React.Fragment>
+      ))}
+    </>
   );
 }
 
