@@ -168,10 +168,40 @@ export function CandidateAddressFields({
     };
   }, [countryCode, stateCode, statesLoaded, states.length]);
 
-  const countryOptions: ComboboxOption[] = countries.map((country) => ({
-    value: country.isoCode,
-    label: country.name,
-  }));
+  const countryOptions: ComboboxOption[] = React.useMemo(() => {
+    const options = countries.map((country) => ({
+      value: country.isoCode,
+      label: country.name,
+    }));
+
+    const ensure = (code: string, name: string) => {
+      if (!code) return;
+      if (!options.some((option) => option.value === code)) {
+        options.unshift({
+          value: code,
+          label: name || code,
+        });
+      }
+    };
+
+    if (isBrazil) {
+      ensure(BRAZIL_COUNTRY_CODE, brazilCountryName);
+    }
+    if (value.addressCountryCode) {
+      ensure(
+        value.addressCountryCode,
+        value.addressCountryName || value.addressCountryCode,
+      );
+    }
+
+    return options;
+  }, [
+    brazilCountryName,
+    countries,
+    isBrazil,
+    value.addressCountryCode,
+    value.addressCountryName,
+  ]);
 
   const stateOptions: ComboboxOption[] = React.useMemo(() => {
     const options = states.map((state) => ({
@@ -359,6 +389,7 @@ export function CandidateAddressFields({
             loading={dbCountries === undefined}
             loadingText={t("loadingCountries")}
             disabled={disabled || isBrazil}
+            showClearButton={!isBrazil}
           />
         </div>
       </div>
