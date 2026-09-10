@@ -174,7 +174,7 @@ export function DocumentChecklistCard({
   })
   const linkedReports = useQuery(
     api.reportTemplates.listActiveSummaries,
-    userRole === "admin" ? {} : "skip",
+    userRole === "admin" ? { individualProcessId } : "skip",
   )
 
   type ChecklistDocument = NonNullable<

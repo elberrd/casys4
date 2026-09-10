@@ -996,17 +996,21 @@ export default defineSchema({
 
   // Admin-authored rich-text report templates for individual processes.
   // Variables in contentHtml are TipTap nodes keyed by client-facing field ids.
+  // Optional legalFrameworkId: a report may be generic (unset) or scoped to one
+  // legal framework. One framework can be linked to many reports.
   reportTemplates: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
     contentHtml: v.string(),
     isActive: v.boolean(),
+    legalFrameworkId: v.optional(v.id("legalFrameworks")),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_active", ["isActive"])
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    .index("by_legalFramework", ["legalFrameworkId"]),
 
   // Optional many-to-many link between a report template and document types.
   // When a process document matches a linked type, staff can generate the
