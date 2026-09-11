@@ -363,7 +363,9 @@ export const create = mutation({
     address: v.optional(v.string()),
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -604,7 +606,9 @@ export const update = mutation({
     address: v.optional(v.string()),
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -674,8 +678,12 @@ export const update = mutation({
         ? { addressIsBrazil: data.addressIsBrazil }
         : {}),
       ...(data.addressStreet ? { addressStreet: data.addressStreet } : {}),
+      ...(data.addressNumber ? { addressNumber: data.addressNumber } : {}),
       ...(data.addressComplement
         ? { addressComplement: data.addressComplement }
+        : {}),
+      ...(data.addressNeighborhood
+        ? { addressNeighborhood: data.addressNeighborhood }
         : {}),
       ...(data.addressCountryCode
         ? { addressCountryCode: data.addressCountryCode }

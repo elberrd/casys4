@@ -118,7 +118,9 @@ interface CandidateFields {
   residenceAddressAbroad?: string;
   addressIsBrazil?: boolean;
   addressStreet?: string;
+  addressNumber?: string;
   addressComplement?: string;
+  addressNeighborhood?: string;
   addressCountryCode?: string;
   addressCountryName?: string;
   addressStateCode?: string;
@@ -176,7 +178,9 @@ interface EnrichedRequestRow {
   residenceAddressAbroad?: string | null;
   addressIsBrazil?: boolean | null;
   addressStreet?: string | null;
+  addressNumber?: string | null;
   addressComplement?: string | null;
+  addressNeighborhood?: string | null;
   addressCountryCode?: string | null;
   addressCountryName?: string | null;
   addressStateCode?: string | null;
@@ -254,7 +258,9 @@ function toSaveArgs(
     residenceAddressAbroad: c.residenceAddressAbroad,
     addressIsBrazil: c.addressIsBrazil,
     addressStreet: c.addressStreet,
+    addressNumber: c.addressNumber,
     addressComplement: c.addressComplement,
+    addressNeighborhood: c.addressNeighborhood,
     addressCountryCode: c.addressCountryCode,
     addressCountryName: c.addressCountryName,
     addressStateCode: c.addressStateCode,
@@ -312,7 +318,9 @@ function rowToCandidate(row: EnrichedRequestRow): CandidateFields {
     residenceAddressAbroad: row.residenceAddressAbroad ?? undefined,
     addressIsBrazil: row.addressIsBrazil ?? undefined,
     addressStreet: row.addressStreet ?? undefined,
+    addressNumber: row.addressNumber ?? undefined,
     addressComplement: row.addressComplement ?? undefined,
+    addressNeighborhood: row.addressNeighborhood ?? undefined,
     addressCountryCode: row.addressCountryCode ?? undefined,
     addressCountryName: row.addressCountryName ?? undefined,
     addressStateCode: row.addressStateCode ?? undefined,
@@ -1508,7 +1516,9 @@ function PersonalDataStep({
           value={{
             addressIsBrazil: candidate.addressIsBrazil,
             addressStreet: candidate.addressStreet,
+            addressNumber: candidate.addressNumber,
             addressComplement: candidate.addressComplement,
+            addressNeighborhood: candidate.addressNeighborhood,
             addressCountryCode: candidate.addressCountryCode,
             addressCountryName: candidate.addressCountryName,
             addressStateCode: candidate.addressStateCode,

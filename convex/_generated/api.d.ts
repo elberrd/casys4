@@ -37,6 +37,7 @@ import type * as economicActivities from "../economicActivities.js";
 import type * as exchangeRates from "../exchangeRates.js";
 import type * as exports from "../exports.js";
 import type * as http from "../http.js";
+import type * as individualProcessAddresses from "../individualProcessAddresses.js";
 import type * as individualProcessStatuses from "../individualProcessStatuses.js";
 import type * as individualProcesses from "../individualProcesses.js";
 import type * as legalFrameworkInfoRequirements from "../legalFrameworkInfoRequirements.js";
@@ -55,6 +56,7 @@ import type * as lib_documentReceiptTiming from "../lib/documentReceiptTiming.js
 import type * as lib_documentStatus from "../lib/documentStatus.js";
 import type * as lib_documentValidity from "../lib/documentValidity.js";
 import type * as lib_exigenciaDocumentVersions from "../lib/exigenciaDocumentVersions.js";
+import type * as lib_individualProcessAddresses from "../lib/individualProcessAddresses.js";
 import type * as lib_individualProcessTiming from "../lib/individualProcessTiming.js";
 import type * as lib_notificationHelpers from "../lib/notificationHelpers.js";
 import type * as lib_passportDocumentSync from "../lib/passportDocumentSync.js";
@@ -180,6 +182,7 @@ declare const fullApi: ApiFromModules<{
   exchangeRates: typeof exchangeRates;
   exports: typeof exports;
   http: typeof http;
+  individualProcessAddresses: typeof individualProcessAddresses;
   individualProcessStatuses: typeof individualProcessStatuses;
   individualProcesses: typeof individualProcesses;
   legalFrameworkInfoRequirements: typeof legalFrameworkInfoRequirements;
@@ -198,6 +201,7 @@ declare const fullApi: ApiFromModules<{
   "lib/documentStatus": typeof lib_documentStatus;
   "lib/documentValidity": typeof lib_documentValidity;
   "lib/exigenciaDocumentVersions": typeof lib_exigenciaDocumentVersions;
+  "lib/individualProcessAddresses": typeof lib_individualProcessAddresses;
   "lib/individualProcessTiming": typeof lib_individualProcessTiming;
   "lib/notificationHelpers": typeof lib_notificationHelpers;
   "lib/passportDocumentSync": typeof lib_passportDocumentSync;
