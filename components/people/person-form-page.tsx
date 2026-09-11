@@ -168,7 +168,9 @@ export function PersonFormPage({
   const addressValue = personAddressValueFromForm({
     addressIsBrazil: form.watch("addressIsBrazil") === true,
     addressStreet: form.watch("addressStreet") ?? "",
+    addressNumber: form.watch("addressNumber") ?? "",
     addressComplement: form.watch("addressComplement") ?? "",
+    addressNeighborhood: form.watch("addressNeighborhood") ?? "",
     addressCountryCode: form.watch("addressCountryCode") ?? "",
     addressCountryName: form.watch("addressCountryName") ?? "",
     addressStateCode: form.watch("addressStateCode") ?? "",
@@ -182,7 +184,11 @@ export function PersonFormPage({
     const slice = personAddressFormFromValue(next)
     form.setValue("addressIsBrazil", slice.addressIsBrazil, { shouldDirty: true })
     form.setValue("addressStreet", slice.addressStreet, { shouldDirty: true })
+    form.setValue("addressNumber", slice.addressNumber, { shouldDirty: true })
     form.setValue("addressComplement", slice.addressComplement, {
+      shouldDirty: true,
+    })
+    form.setValue("addressNeighborhood", slice.addressNeighborhood, {
       shouldDirty: true,
     })
     form.setValue("addressCountryCode", slice.addressCountryCode, {
@@ -468,7 +474,9 @@ export function PersonFormPage({
         address: data.address || undefined,
         addressIsBrazil: data.addressIsBrazil,
         addressStreet: data.addressStreet || undefined,
+        addressNumber: data.addressNumber || undefined,
         addressComplement: data.addressComplement || undefined,
+        addressNeighborhood: data.addressNeighborhood || undefined,
         addressCountryCode: data.addressCountryCode || undefined,
         addressCountryName: data.addressCountryName || undefined,
         addressStateCode: data.addressStateCode || undefined,

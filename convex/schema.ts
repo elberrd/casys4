@@ -120,7 +120,9 @@ export default defineSchema({
     address: v.optional(v.string()), // DEPRECATED: Free-text address; use structured address fields
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -526,10 +528,13 @@ export default defineSchema({
     residenceCity: v.optional(v.string()), // City of residence abroad (denormalized name)
     residenceSince: v.optional(v.string()), // ISO date YYYY-MM-DD - since when the candidate lives at the abroad residence
     residenceAddressAbroad: v.optional(v.string()), // DEPRECATED: Free-text address; use structured candidate address fields
-    // Structured candidate address (street / complement / country / state / city / postal code)
+    // Structured candidate address (denormalized snapshot of the current
+    // individualProcessAddresses row marked isCurrent).
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -594,6 +599,32 @@ export default defineSchema({
     .index("by_requestStatus", ["requestStatus"]) // Client request workflow filtering
     .index("by_requestedBy", ["requestedBy"]) // A client's own requests
     .index("by_requestGroup", ["requestGroupId"]), // Multi-candidate request batch
+
+  // Multiple structured addresses per individual process. Exactly one row
+  // with isCurrent=true is allowed whenever the process has any address.
+  individualProcessAddresses: defineTable({
+    individualProcessId: v.id("individualProcesses"),
+    isCurrent: v.boolean(),
+    addressIsBrazil: v.optional(v.boolean()),
+    addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
+    addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
+    addressCountryCode: v.optional(v.string()),
+    addressCountryName: v.optional(v.string()),
+    addressStateCode: v.optional(v.string()),
+    addressStateName: v.optional(v.string()),
+    addressCity: v.optional(v.string()),
+    addressPostalCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+  })
+    .index("by_individualProcess", ["individualProcessId"])
+    .index("by_individualProcess_and_isCurrent", [
+      "individualProcessId",
+      "isCurrent",
+    ]),
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

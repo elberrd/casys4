@@ -33,6 +33,7 @@ test("parses a ViaCEP success payload", () => {
     cep: "01310-100",
     logradouro: "Avenida Paulista",
     complemento: "de 1047 a 1865 - lado ímpar",
+    bairro: "Bela Vista",
     localidade: "São Paulo",
     uf: "SP",
   });
@@ -40,6 +41,7 @@ test("parses a ViaCEP success payload", () => {
   assert.deepEqual(parsed, {
     street: "Avenida Paulista",
     complement: "de 1047 a 1865 - lado ímpar",
+    neighborhood: "Bela Vista",
     city: "São Paulo",
     stateCode: "SP",
     stateName: "São Paulo",
@@ -56,6 +58,7 @@ test("parses a BrasilAPI CEP payload", () => {
   const parsed = parseBrasilApiCepResponse({
     cep: "01310100",
     street: "Avenida Paulista",
+    neighborhood: "Bela Vista",
     city: "São Paulo",
     state: "SP",
   });
@@ -63,6 +66,7 @@ test("parses a BrasilAPI CEP payload", () => {
   assert.equal(parsed?.city, "São Paulo");
   assert.equal(parsed?.stateCode, "SP");
   assert.equal(parsed?.street, "Avenida Paulista");
+  assert.equal(parsed?.neighborhood, "Bela Vista");
 });
 
 test("checking Brazil locks the country to BR", () => {
@@ -98,6 +102,7 @@ test("CEP lookup fills street, city, state and country", () => {
     lookup: {
       street: "Avenida Paulista",
       complement: "",
+      neighborhood: "Bela Vista",
       city: "São Paulo",
       stateCode: "SP",
       stateName: "São Paulo",
@@ -111,13 +116,16 @@ test("CEP lookup fills street, city, state and country", () => {
   assert.equal(next.addressStateCode, "SP");
   assert.equal(next.addressCountryCode, "BR");
   assert.equal(next.addressComplement, "Apto 12");
+  assert.equal(next.addressNeighborhood, "Bela Vista");
   assert.equal(next.addressIsBrazil, true);
 });
 
 test("formats a structured candidate address for display", () => {
   const formatted = formatCandidateAddress({
     addressStreet: "Avenida Paulista",
+    addressNumber: "1578",
     addressComplement: "Apto 12",
+    addressNeighborhood: "Bela Vista",
     addressCity: "São Paulo",
     addressStateName: "São Paulo",
     addressPostalCode: "01310100",
@@ -126,7 +134,7 @@ test("formats a structured candidate address for display", () => {
 
   assert.equal(
     formatted,
-    "Avenida Paulista, Apto 12, São Paulo - São Paulo, 01310100, Brasil",
+    "Avenida Paulista, 1578, Apto 12, Bela Vista, São Paulo - São Paulo, 01310100, Brasil",
   );
 });
 
