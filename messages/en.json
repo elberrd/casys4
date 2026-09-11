@@ -1337,6 +1337,7 @@
     "professionalExperienceSince": "Professional Experience Period",
     "professionalExperienceSinceLabel": "Since",
     "candidateAddress": "Candidate address",
+    "currentAddress": "Current address",
     "addresses": {
       "title": "Addresses",
       "description": "A process can have multiple addresses. The one marked as current is the official address.",

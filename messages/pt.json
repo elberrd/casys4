@@ -1337,6 +1337,7 @@
     "professionalExperienceSince": "Período da Experiência profissional",
     "professionalExperienceSinceLabel": "Desde",
     "candidateAddress": "Endereço do candidato",
+    "currentAddress": "Endereço atual",
     "addresses": {
       "title": "Endereços",
       "description": "Um processo pode ter vários endereços. O marcado como atual é o endereço oficial.",
