@@ -29,6 +29,11 @@ import {
   normalizeStatusDateTime,
 } from "./lib/statusDateTime";
 import { hasDocumentContent } from "./lib/documentReceiptTiming";
+import {
+  copyProcessAddresses,
+  deleteProcessAddresses,
+  upsertCurrentAddressFromFields,
+} from "./lib/individualProcessAddresses";
 
 function getFullName(person: {
   givenNames: string;
@@ -907,7 +912,9 @@ export const create = mutation({
     residenceAddressAbroad: v.optional(v.string()),
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -1040,7 +1047,9 @@ export const create = mutation({
       residenceAddressAbroad: args.residenceAddressAbroad,
       addressIsBrazil: args.addressIsBrazil,
       addressStreet: args.addressStreet,
+      addressNumber: args.addressNumber,
       addressComplement: args.addressComplement,
+      addressNeighborhood: args.addressNeighborhood,
       addressCountryCode: args.addressCountryCode,
       addressCountryName: args.addressCountryName,
       addressStateCode: args.addressStateCode,
@@ -1056,6 +1065,15 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    const createdProcess = await ctx.db.get(processId);
+    if (createdProcess) {
+      await upsertCurrentAddressFromFields(ctx, {
+        process: createdProcess,
+        fields: args,
+        createdBy: userId,
+      });
+    }
 
     // Create initial status record in the new status system with current date
     try {
@@ -1276,7 +1294,9 @@ export const createFromExisting = mutation({
       firstEntryDate: sourceProcess.firstEntryDate, // Data de primeira entrada
       addressIsBrazil: sourceProcess.addressIsBrazil,
       addressStreet: sourceProcess.addressStreet,
+      addressNumber: sourceProcess.addressNumber,
       addressComplement: sourceProcess.addressComplement,
+      addressNeighborhood: sourceProcess.addressNeighborhood,
       addressCountryCode: sourceProcess.addressCountryCode,
       addressCountryName: sourceProcess.addressCountryName,
       addressStateCode: sourceProcess.addressStateCode,
@@ -1299,6 +1319,12 @@ export const createFromExisting = mutation({
       // NOT copied: collectiveProcessId, dou* fields, mreOfficeNumber, protocolNumber,
       // rnmNumber, rnmProtocol, rnmDeadline, appointmentDateTime, deadline fields,
       // salary fields, urgent, completedAt
+    });
+
+    await copyProcessAddresses(ctx, {
+      sourceProcessId: args.sourceProcessId,
+      targetProcessId: newProcessId,
+      createdBy: userId,
     });
 
     // Create initial "Em Preparação" status record
@@ -1627,7 +1653,9 @@ export const update = mutation({
     residenceAddressAbroad: v.optional(v.string()),
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
+    addressNumber: v.optional(v.string()),
     addressComplement: v.optional(v.string()),
+    addressNeighborhood: v.optional(v.string()),
     addressCountryCode: v.optional(v.string()),
     addressCountryName: v.optional(v.string()),
     addressStateCode: v.optional(v.string()),
@@ -1883,8 +1911,12 @@ export const update = mutation({
       updates.addressIsBrazil = args.addressIsBrazil;
     if (args.addressStreet !== undefined)
       updates.addressStreet = args.addressStreet;
+    if (args.addressNumber !== undefined)
+      updates.addressNumber = args.addressNumber;
     if (args.addressComplement !== undefined)
       updates.addressComplement = args.addressComplement;
+    if (args.addressNeighborhood !== undefined)
+      updates.addressNeighborhood = args.addressNeighborhood;
     if (args.addressCountryCode !== undefined)
       updates.addressCountryCode = args.addressCountryCode;
     if (args.addressCountryName !== undefined)
@@ -1920,6 +1952,29 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, updates);
+
+    const addressFieldsTouched =
+      args.addressIsBrazil !== undefined ||
+      args.addressStreet !== undefined ||
+      args.addressNumber !== undefined ||
+      args.addressComplement !== undefined ||
+      args.addressNeighborhood !== undefined ||
+      args.addressCountryCode !== undefined ||
+      args.addressCountryName !== undefined ||
+      args.addressStateCode !== undefined ||
+      args.addressStateName !== undefined ||
+      args.addressCity !== undefined ||
+      args.addressPostalCode !== undefined;
+    if (addressFieldsTouched) {
+      const patchedProcess = await ctx.db.get(id);
+      if (patchedProcess) {
+        await upsertCurrentAddressFromFields(ctx, {
+          process: patchedProcess,
+          fields: patchedProcess,
+          createdBy: userProfile.userId,
+        });
+      }
+    }
 
     const shouldReconcileChecklist =
       (args.legalFrameworkId !== undefined &&
@@ -2344,6 +2399,8 @@ export const remove = mutation({
     ]);
 
     // CASCADE DELETE: Delete all related data
+    const deletedAddressesCount = await deleteProcessAddresses(ctx, id);
+
     // 1. Delete related documents delivered
     const documentsDelivered = await ctx.db
       .query("documentsDelivered")
@@ -2415,6 +2472,7 @@ export const remove = mutation({
             statuses: statuses.length,
             history: history.length,
             tasks: tasks.length,
+            addresses: deletedAddressesCount,
           },
         },
       });

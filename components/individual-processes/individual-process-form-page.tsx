@@ -42,6 +42,7 @@ import {
   type ResidenceValue,
 } from "@/components/process-requests/residence-select";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import {
   EMPTY_CANDIDATE_ADDRESS_FORM,
   isBrazilAddressSelected,
@@ -198,7 +199,9 @@ export function IndividualProcessFormPage({
   const consularPost = form.watch("consularPost");
   const addressIsBrazil = form.watch("addressIsBrazil");
   const addressStreet = form.watch("addressStreet");
+  const addressNumber = form.watch("addressNumber");
   const addressComplement = form.watch("addressComplement");
+  const addressNeighborhood = form.watch("addressNeighborhood");
   const addressCountryCode = form.watch("addressCountryCode");
   const addressCountryName = form.watch("addressCountryName");
   const addressStateCode = form.watch("addressStateCode");
@@ -231,7 +234,9 @@ export function IndividualProcessFormPage({
   const addressValue: CandidateAddressValue = {
     addressIsBrazil: addressIsBrazil === true,
     addressStreet: addressStreet || undefined,
+    addressNumber: addressNumber || undefined,
     addressComplement: addressComplement || undefined,
+    addressNeighborhood: addressNeighborhood || undefined,
     addressCountryCode: addressCountryCode || undefined,
     addressCountryName: addressCountryName || undefined,
     addressStateCode: addressStateCode || undefined,
@@ -248,7 +253,13 @@ export function IndividualProcessFormPage({
     form.setValue("addressStreet", next.addressStreet ?? "", {
       shouldDirty: true,
     });
+    form.setValue("addressNumber", next.addressNumber ?? "", {
+      shouldDirty: true,
+    });
     form.setValue("addressComplement", next.addressComplement ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressNeighborhood", next.addressNeighborhood ?? "", {
       shouldDirty: true,
     });
     form.setValue("addressCountryCode", next.addressCountryCode ?? "", {
@@ -419,7 +430,9 @@ export function IndividualProcessFormPage({
           addressCountryCode: individualProcess.addressCountryCode,
         }),
         addressStreet: individualProcess.addressStreet ?? "",
+        addressNumber: individualProcess.addressNumber ?? "",
         addressComplement: individualProcess.addressComplement ?? "",
+        addressNeighborhood: individualProcess.addressNeighborhood ?? "",
         addressCountryCode:
           individualProcess.addressCountryCode ||
           (isBrazilAddressSelected({
@@ -743,7 +756,9 @@ export function IndividualProcessFormPage({
         residenceAddressAbroad: data.residenceAddressAbroad || undefined,
         addressIsBrazil: data.addressIsBrazil === true,
         addressStreet: data.addressStreet || undefined,
+        addressNumber: data.addressNumber || undefined,
         addressComplement: data.addressComplement || undefined,
+        addressNeighborhood: data.addressNeighborhood || undefined,
         addressCountryCode: data.addressCountryCode || undefined,
         addressCountryName: data.addressCountryName || undefined,
         addressStateCode: data.addressStateCode || undefined,
@@ -757,10 +772,40 @@ export function IndividualProcessFormPage({
       if (individualProcessId) {
         // Process identity and current/previous classification have dedicated
         // flows. This form can update the requester without promoting an old
-        // process back to current.
-        const { personId, collectiveProcessId, processStatus, ...updateData } =
-          submitData;
-        void [personId, collectiveProcessId, processStatus];
+        // process back to current. Addresses are managed in the addresses table.
+        const {
+          personId,
+          collectiveProcessId,
+          processStatus,
+          addressIsBrazil,
+          addressStreet,
+          addressNumber,
+          addressComplement,
+          addressNeighborhood,
+          addressCountryCode,
+          addressCountryName,
+          addressStateCode,
+          addressStateName,
+          addressCity,
+          addressPostalCode,
+          ...updateData
+        } = submitData;
+        void [
+          personId,
+          collectiveProcessId,
+          processStatus,
+          addressIsBrazil,
+          addressStreet,
+          addressNumber,
+          addressComplement,
+          addressNeighborhood,
+          addressCountryCode,
+          addressCountryName,
+          addressStateCode,
+          addressStateName,
+          addressCity,
+          addressPostalCode,
+        ];
         await updateIndividualProcess({
           id: individualProcessId,
           ...updateData,
@@ -1440,11 +1485,21 @@ export function IndividualProcessFormPage({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
-              <CandidateAddressFields
-                value={addressValue}
-                onChange={handleAddressChange}
-              />
+              {individualProcessId ? (
+                <IndividualProcessAddressesTable
+                  individualProcessId={individualProcessId}
+                  canEdit
+                />
+              ) : (
+                <>
+                  <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
+                  <CandidateAddressFields
+                    value={addressValue}
+                    onChange={handleAddressChange}
+                    showLegacyField={false}
+                  />
+                </>
+              )}
             </div>
 
             {/* Professional Experience Section */}

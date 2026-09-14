@@ -4,7 +4,9 @@ import type { BrazilianCepAddress } from "@/lib/utils/viacep";
 export type CandidateAddressValue = {
   addressIsBrazil?: boolean;
   addressStreet?: string;
+  addressNumber?: string;
   addressComplement?: string;
+  addressNeighborhood?: string;
   addressCountryCode?: string;
   addressCountryName?: string;
   addressStateCode?: string;
@@ -18,7 +20,9 @@ export type CandidateAddressValue = {
 export const EMPTY_CANDIDATE_ADDRESS_FORM = {
   addressIsBrazil: true as boolean,
   addressStreet: "",
+  addressNumber: "",
   addressComplement: "",
+  addressNeighborhood: "",
   addressCountryCode: BRAZIL_COUNTRY_CODE,
   addressCountryName: "",
   addressStateCode: "",
@@ -45,7 +49,9 @@ export function isBrazilAddressSelected(
 export type PersonAddressFormSlice = {
   addressIsBrazil: boolean;
   addressStreet: string;
+  addressNumber: string;
   addressComplement: string;
+  addressNeighborhood: string;
   addressCountryCode: string;
   addressCountryName: string;
   addressStateCode: string;
@@ -62,10 +68,12 @@ export function emptyPersonAddressForm(): PersonAddressFormSlice {
   };
 }
 
-export function personAddressFormFromRecord(source?: {
-  addressIsBrazil?: boolean;
+export type StructuredAddressSource = {
+  addressIsBrazil?: boolean | null;
   addressStreet?: string | null;
+  addressNumber?: string | null;
   addressComplement?: string | null;
+  addressNeighborhood?: string | null;
   addressCountryCode?: string | null;
   addressCountryName?: string | null;
   addressStateCode?: string | null;
@@ -73,15 +81,21 @@ export function personAddressFormFromRecord(source?: {
   addressCity?: string | null;
   addressPostalCode?: string | null;
   address?: string | null;
-} | null): PersonAddressFormSlice {
+};
+
+export function personAddressFormFromRecord(
+  source?: StructuredAddressSource | null,
+): PersonAddressFormSlice {
   const addressIsBrazil = isBrazilAddressSelected({
-    addressIsBrazil: source?.addressIsBrazil,
+    addressIsBrazil: source?.addressIsBrazil ?? undefined,
     addressCountryCode: source?.addressCountryCode ?? undefined,
   });
   return {
     addressIsBrazil,
     addressStreet: source?.addressStreet ?? "",
+    addressNumber: source?.addressNumber ?? "",
     addressComplement: source?.addressComplement ?? "",
+    addressNeighborhood: source?.addressNeighborhood ?? "",
     addressCountryCode:
       source?.addressCountryCode ||
       (addressIsBrazil ? BRAZIL_COUNTRY_CODE : ""),
@@ -100,7 +114,9 @@ export function personAddressValueFromForm(
   return {
     addressIsBrazil: data.addressIsBrazil,
     addressStreet: data.addressStreet,
+    addressNumber: data.addressNumber,
     addressComplement: data.addressComplement,
+    addressNeighborhood: data.addressNeighborhood,
     addressCountryCode: data.addressCountryCode,
     addressCountryName: data.addressCountryName,
     addressStateCode: data.addressStateCode,
@@ -117,7 +133,9 @@ export function personAddressFormFromValue(
   return {
     addressIsBrazil: isBrazilAddressSelected(next),
     addressStreet: next.addressStreet ?? "",
+    addressNumber: next.addressNumber ?? "",
     addressComplement: next.addressComplement ?? "",
+    addressNeighborhood: next.addressNeighborhood ?? "",
     addressCountryCode: next.addressCountryCode ?? "",
     addressCountryName: next.addressCountryName ?? "",
     addressStateCode: next.addressStateCode ?? "",
@@ -128,18 +146,9 @@ export function personAddressFormFromValue(
   };
 }
 
-export function candidateAddressFromPerson(person?: {
-  addressIsBrazil?: boolean;
-  addressStreet?: string | null;
-  addressComplement?: string | null;
-  addressCountryCode?: string | null;
-  addressCountryName?: string | null;
-  addressStateCode?: string | null;
-  addressStateName?: string | null;
-  addressCity?: string | null;
-  addressPostalCode?: string | null;
-  address?: string | null;
-} | null): CandidateAddressValue {
+export function candidateAddressFromPerson(
+  person?: StructuredAddressSource | null,
+): CandidateAddressValue {
   return personAddressValueFromForm(personAddressFormFromRecord(person));
 }
 
@@ -178,6 +187,8 @@ export function applyCepLookupResult(args: {
     addressCountryName: args.brazilCountryName,
     addressStreet: args.lookup.street || args.value.addressStreet || "",
     addressComplement: complement,
+    addressNeighborhood:
+      args.lookup.neighborhood || args.value.addressNeighborhood || "",
     addressStateCode: args.lookup.stateCode,
     addressStateName: args.lookup.stateName,
     addressCity: args.lookup.city,
@@ -185,16 +196,38 @@ export function applyCepLookupResult(args: {
   };
 }
 
+export function hasStructuredAddressContent(
+  value: CandidateAddressValue | StructuredAddressSource | null | undefined,
+): boolean {
+  if (!value) return false;
+  return [
+    value.addressStreet,
+    value.addressNumber,
+    value.addressComplement,
+    value.addressNeighborhood,
+    value.addressCity,
+    value.addressPostalCode,
+    value.addressCountryName,
+    value.addressStateName,
+  ].some((part) => typeof part === "string" && part.trim().length > 0);
+}
+
 export function formatCandidateAddress(
   value: CandidateAddressValue,
 ): string {
-  const line1 = [value.addressStreet, value.addressComplement]
+  const streetAndNumber = [value.addressStreet, value.addressNumber]
     .map((part) => part?.trim())
     .filter(Boolean)
     .join(", ");
 
+  const line1 = [streetAndNumber, value.addressComplement]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+
+  const neighborhood = value.addressNeighborhood?.trim() || "";
   const stateLabel = value.addressStateName || value.addressStateCode;
-  const locality = [value.addressCity, stateLabel]
+  const cityState = [value.addressCity, stateLabel]
     .map((part) => part?.trim())
     .filter(Boolean)
     .join(" - ");
@@ -202,5 +235,7 @@ export function formatCandidateAddress(
   const postal = value.addressPostalCode?.trim();
   const country = value.addressCountryName?.trim();
 
-  return [line1, locality, postal, country].filter(Boolean).join(", ");
+  return [line1, neighborhood, cityState, postal, country]
+    .filter(Boolean)
+    .join(", ");
 }

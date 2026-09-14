@@ -41,6 +41,7 @@ import { ProcessNotesSection } from "@/components/notes/process-notes-section";
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section";
 import { PersonFormDialog } from "@/components/people/person-form-dialog";
 import { CandidateAddressDetailRows } from "@/components/individual-processes/candidate-address-fields";
+import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog";
 import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog";
 import { formatDate, calculateAge } from "@/lib/format-field-value";
@@ -48,10 +49,7 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
-import {
-  formatCandidateAddress,
-  candidateAddressFromPerson,
-} from "@/lib/utils/candidate-address";
+import { formatCandidateAddress } from "@/lib/utils/candidate-address";
 import { getFullName } from "@/lib/utils/person-names";
 import {
   getPassportValidityStatus,
@@ -109,6 +107,10 @@ export function IndividualProcessDetailClient({
   const individualProcess = useQuery(api.individualProcesses.get, {
     id: processId,
   });
+  const currentAddress = useQuery(
+    api.individualProcessAddresses.getCurrent,
+    { individualProcessId: processId },
+  );
   const currentUser = useQuery(api.userProfiles.getCurrentUser);
   const deliveredDocuments = useQuery(
     api.documentsDelivered.list,
@@ -602,7 +604,9 @@ export function IndividualProcessDetailClient({
 
                 <div className="text-sm font-medium">{t("candidateAddress")}</div>
                 <div className="text-sm whitespace-pre-line">
-                  {formatCandidateAddress(individualProcess) || "-"}
+                  {formatCandidateAddress(
+                    currentAddress ?? individualProcess,
+                  ) || "-"}
                 </div>
 
                 <div className="text-sm font-medium">
@@ -753,8 +757,15 @@ export function IndividualProcessDetailClient({
                   {individualProcess.person?.email || "-"}
                 </div>
 
+                <div className="col-span-full mt-2 flex items-center gap-2">
+                  <span className="text-sm font-semibold">
+                    {t("currentAddress")}
+                  </span>
+                  <Badge variant="success">{t("addresses.current")}</Badge>
+                </div>
                 <CandidateAddressDetailRows
-                  value={candidateAddressFromPerson(individualProcess.person)}
+                  value={currentAddress ?? individualProcess}
+                  showLegacyField={false}
                 />
 
                 <div className="text-sm font-medium flex items-center gap-1">
@@ -831,6 +842,15 @@ export function IndividualProcessDetailClient({
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardContent className="pt-6">
+            <IndividualProcessAddressesTable
+              individualProcessId={processId}
+              canEdit={isAdmin}
+            />
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
           {/* Status History - Interactive Table */}

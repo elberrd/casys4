@@ -37,7 +37,9 @@ export interface ReportProcessSource {
   residenceSince?: string | null;
   residenceAddressAbroad?: string | null;
   addressStreet?: string | null;
+  addressNumber?: string | null;
   addressComplement?: string | null;
+  addressNeighborhood?: string | null;
   addressCountryName?: string | null;
   addressStateName?: string | null;
   addressStateCode?: string | null;
@@ -528,7 +530,9 @@ export function buildReportVariableValues(args: {
     residenceAddressAbroad: display(process.residenceAddressAbroad),
     candidateAddress: formatCandidateAddress({
       addressStreet: process.addressStreet ?? undefined,
+      addressNumber: process.addressNumber ?? undefined,
       addressComplement: process.addressComplement ?? undefined,
+      addressNeighborhood: process.addressNeighborhood ?? undefined,
       addressCountryName: process.addressCountryName ?? undefined,
       addressStateName: process.addressStateName ?? undefined,
       addressStateCode: process.addressStateCode ?? undefined,

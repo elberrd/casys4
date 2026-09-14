@@ -6,6 +6,7 @@ export const CEP_DIGIT_COUNT = 8;
 export type BrazilianCepAddress = {
   street: string;
   complement: string;
+  neighborhood: string;
   city: string;
   stateCode: string;
   stateName: string;
@@ -16,6 +17,7 @@ type ViaCepResponse = {
   cep?: string;
   logradouro?: string;
   complemento?: string;
+  bairro?: string;
   localidade?: string;
   uf?: string;
   erro?: boolean | string;
@@ -25,6 +27,7 @@ type BrasilApiCepResponse = {
   cep?: string;
   street?: string;
   complement?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
 };
@@ -53,6 +56,7 @@ export function parseViaCepResponse(
   return {
     street: asTrimmedString(data.logradouro),
     complement: asTrimmedString(data.complemento),
+    neighborhood: asTrimmedString(data.bairro),
     city,
     stateCode,
     stateName: getBrazilStateName(stateCode),
@@ -72,6 +76,7 @@ export function parseBrasilApiCepResponse(
   return {
     street: asTrimmedString(data.street),
     complement: asTrimmedString(data.complement),
+    neighborhood: asTrimmedString(data.neighborhood),
     city,
     stateCode,
     stateName: getBrazilStateName(stateCode),

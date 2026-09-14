@@ -61,6 +61,7 @@ import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import {
   EMPTY_CANDIDATE_ADDRESS_FORM,
   isBrazilAddressSelected,
@@ -185,7 +186,9 @@ export function IndividualProcessFormDialog({
   const exchangeRate = form.watch("exchangeRateToBRL");
   const addressIsBrazil = form.watch("addressIsBrazil");
   const addressStreet = form.watch("addressStreet");
+  const addressNumber = form.watch("addressNumber");
   const addressComplement = form.watch("addressComplement");
+  const addressNeighborhood = form.watch("addressNeighborhood");
   const addressCountryCode = form.watch("addressCountryCode");
   const addressCountryName = form.watch("addressCountryName");
   const addressStateCode = form.watch("addressStateCode");
@@ -197,7 +200,9 @@ export function IndividualProcessFormDialog({
   const addressValue: CandidateAddressValue = {
     addressIsBrazil: addressIsBrazil === true,
     addressStreet: addressStreet || undefined,
+    addressNumber: addressNumber || undefined,
     addressComplement: addressComplement || undefined,
+    addressNeighborhood: addressNeighborhood || undefined,
     addressCountryCode: addressCountryCode || undefined,
     addressCountryName: addressCountryName || undefined,
     addressStateCode: addressStateCode || undefined,
@@ -214,7 +219,13 @@ export function IndividualProcessFormDialog({
     form.setValue("addressStreet", next.addressStreet ?? "", {
       shouldDirty: true,
     });
+    form.setValue("addressNumber", next.addressNumber ?? "", {
+      shouldDirty: true,
+    });
     form.setValue("addressComplement", next.addressComplement ?? "", {
+      shouldDirty: true,
+    });
+    form.setValue("addressNeighborhood", next.addressNeighborhood ?? "", {
       shouldDirty: true,
     });
     form.setValue("addressCountryCode", next.addressCountryCode ?? "", {
@@ -329,7 +340,9 @@ export function IndividualProcessFormDialog({
           addressCountryCode: individualProcess.addressCountryCode,
         }),
         addressStreet: individualProcess.addressStreet ?? "",
+        addressNumber: individualProcess.addressNumber ?? "",
         addressComplement: individualProcess.addressComplement ?? "",
+        addressNeighborhood: individualProcess.addressNeighborhood ?? "",
         addressCountryCode:
           individualProcess.addressCountryCode ||
           (isBrazilAddressSelected({
@@ -487,7 +500,9 @@ export function IndividualProcessFormDialog({
         residenceAddressAbroad: data.residenceAddressAbroad || undefined,
         addressIsBrazil: data.addressIsBrazil === true,
         addressStreet: data.addressStreet || undefined,
+        addressNumber: data.addressNumber || undefined,
         addressComplement: data.addressComplement || undefined,
+        addressNeighborhood: data.addressNeighborhood || undefined,
         addressCountryCode: data.addressCountryCode || undefined,
         addressCountryName: data.addressCountryName || undefined,
         addressStateCode: data.addressStateCode || undefined,
@@ -498,10 +513,39 @@ export function IndividualProcessFormDialog({
       };
 
       if (individualProcessId) {
-        // A identidade e o status têm fluxos dedicados; o solicitante é editável.
-        const { personId, collectiveProcessId, processStatus, ...updateData } =
-          submitData;
-        void [personId, collectiveProcessId, processStatus];
+        const {
+          personId,
+          collectiveProcessId,
+          processStatus,
+          addressIsBrazil,
+          addressStreet,
+          addressNumber,
+          addressComplement,
+          addressNeighborhood,
+          addressCountryCode,
+          addressCountryName,
+          addressStateCode,
+          addressStateName,
+          addressCity,
+          addressPostalCode,
+          ...updateData
+        } = submitData;
+        void [
+          personId,
+          collectiveProcessId,
+          processStatus,
+          addressIsBrazil,
+          addressStreet,
+          addressNumber,
+          addressComplement,
+          addressNeighborhood,
+          addressCountryCode,
+          addressCountryName,
+          addressStateCode,
+          addressStateName,
+          addressCity,
+          addressPostalCode,
+        ];
         await updateIndividualProcess({
           id: individualProcessId,
           ...updateData,
@@ -1454,11 +1498,21 @@ export function IndividualProcessFormDialog({
                 )}
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
-                  <CandidateAddressFields
-                    value={addressValue}
-                    onChange={handleAddressChange}
-                  />
+                  {individualProcessId ? (
+                    <IndividualProcessAddressesTable
+                      individualProcessId={individualProcessId}
+                      canEdit
+                    />
+                  ) : (
+                    <>
+                      <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
+                      <CandidateAddressFields
+                        value={addressValue}
+                        onChange={handleAddressChange}
+                        showLegacyField={false}
+                      />
+                    </>
+                  )}
                 </div>
 
                 <DialogFooter>

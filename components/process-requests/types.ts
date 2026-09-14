@@ -37,7 +37,9 @@ export interface ProcessRequestListItem {
   residenceAddressAbroad?: string;
   addressIsBrazil?: boolean;
   addressStreet?: string;
+  addressNumber?: string;
   addressComplement?: string;
+  addressNeighborhood?: string;
   addressCountryCode?: string;
   addressCountryName?: string;
   addressStateCode?: string;

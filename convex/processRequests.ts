@@ -10,6 +10,7 @@ import {
 import { personOwnedByClient, gatePersonPII } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import { runProcessCreationSideEffects } from "./lib/createIndividualProcess";
+import { upsertCurrentAddressFromFields } from "./lib/individualProcessAddresses";
 import {
   autoReuseCompanyDocuments,
   generateDocumentChecklist,
@@ -70,7 +71,9 @@ const editableProcessFields = {
   residenceAddressAbroad: v.optional(v.string()),
   addressIsBrazil: v.optional(v.boolean()),
   addressStreet: v.optional(v.string()),
+  addressNumber: v.optional(v.string()),
   addressComplement: v.optional(v.string()),
+  addressNeighborhood: v.optional(v.string()),
   addressCountryCode: v.optional(v.string()),
   addressCountryName: v.optional(v.string()),
   addressStateCode: v.optional(v.string()),
@@ -667,6 +670,29 @@ async function saveDraftCandidate(
     patch.processTypeId = await deriveProcessTypeId(ctx, rest.legalFrameworkId);
   }
   await ctx.db.patch(id, { ...patch, updatedAt: now });
+
+  const addressTouched =
+    rest.addressIsBrazil !== undefined ||
+    rest.addressStreet !== undefined ||
+    rest.addressNumber !== undefined ||
+    rest.addressComplement !== undefined ||
+    rest.addressNeighborhood !== undefined ||
+    rest.addressCountryCode !== undefined ||
+    rest.addressCountryName !== undefined ||
+    rest.addressStateCode !== undefined ||
+    rest.addressStateName !== undefined ||
+    rest.addressCity !== undefined ||
+    rest.addressPostalCode !== undefined;
+  if (addressTouched) {
+    const patchedProcess = await ctx.db.get(id);
+    if (patchedProcess) {
+      await upsertCurrentAddressFromFields(ctx, {
+        process: patchedProcess,
+        fields: rest,
+        createdBy: userProfile.userId,
+      });
+    }
+  }
 }
 
 /** Save one draft candidate while preserving the legacy public API. */

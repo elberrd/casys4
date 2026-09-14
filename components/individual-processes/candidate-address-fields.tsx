@@ -40,12 +40,14 @@ export interface CandidateAddressFieldsProps {
   value: CandidateAddressValue;
   onChange: (value: CandidateAddressValue) => void;
   disabled?: boolean;
+  showLegacyField?: boolean;
 }
 
 export function CandidateAddressFields({
   value,
   onChange,
   disabled = false,
+  showLegacyField = true,
 }: CandidateAddressFieldsProps) {
   const t = useTranslations("CandidateAddress");
   const { toast } = useToast();
@@ -437,30 +439,61 @@ export function CandidateAddressFields({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="candidate-address-street">{t("street")}</Label>
-        <Input
-          id="candidate-address-street"
-          value={value.addressStreet ?? ""}
-          onChange={(event) => merge({ addressStreet: event.target.value })}
-          placeholder={t("streetPlaceholder")}
-          disabled={disabled}
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr,1fr]">
+        <div className="space-y-2">
+          <Label htmlFor="candidate-address-street">{t("street")}</Label>
+          <Input
+            id="candidate-address-street"
+            value={value.addressStreet ?? ""}
+            onChange={(event) => merge({ addressStreet: event.target.value })}
+            placeholder={t("streetPlaceholder")}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="candidate-address-number">{t("number")}</Label>
+          <Input
+            id="candidate-address-number"
+            value={value.addressNumber ?? ""}
+            onChange={(event) => merge({ addressNumber: event.target.value })}
+            placeholder={t("numberPlaceholder")}
+            disabled={disabled}
+          />
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="candidate-address-complement">{t("complement")}</Label>
-        <Input
-          id="candidate-address-complement"
-          value={value.addressComplement ?? ""}
-          onChange={(event) =>
-            merge({ addressComplement: event.target.value })
-          }
-          placeholder={t("complementPlaceholder")}
-          disabled={disabled}
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="candidate-address-neighborhood">
+            {t("neighborhood")}
+          </Label>
+          <Input
+            id="candidate-address-neighborhood"
+            value={value.addressNeighborhood ?? ""}
+            onChange={(event) =>
+              merge({ addressNeighborhood: event.target.value })
+            }
+            placeholder={t("neighborhoodPlaceholder")}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="candidate-address-complement">{t("complement")}</Label>
+          <Input
+            id="candidate-address-complement"
+            value={value.addressComplement ?? ""}
+            onChange={(event) =>
+              merge({ addressComplement: event.target.value })
+            }
+            placeholder={t("complementPlaceholder")}
+            disabled={disabled}
+          />
+        </div>
       </div>
 
+      {showLegacyField && (
       <div
         className={cn(
           "space-y-2 rounded-md border border-yellow-400 bg-yellow-50 p-4",
@@ -490,14 +523,17 @@ export function CandidateAddressFields({
           className="resize-none bg-yellow-50/60 dark:bg-yellow-950/20"
         />
       </div>
+      )}
     </div>
   );
 }
 
 export function CandidateAddressDetailRows({
   value,
+  showLegacyField = true,
 }: {
   value: CandidateAddressValue;
+  showLegacyField?: boolean;
 }) {
   const t = useTranslations("CandidateAddress");
   const tCommon = useTranslations("Common");
@@ -518,12 +554,17 @@ export function CandidateAddressDetailRows({
     { label: t("state"), value: stateLabel ?? "" },
     { label: t("city"), value: value.addressCity ?? "" },
     { label: t("street"), value: value.addressStreet ?? "" },
+    { label: t("number"), value: value.addressNumber ?? "" },
+    { label: t("neighborhood"), value: value.addressNeighborhood ?? "" },
     { label: t("complement"), value: value.addressComplement ?? "" },
-    {
+  ];
+
+  if (showLegacyField) {
+    rows.push({
       label: t("deprecatedAddressLabel"),
       value: value.residenceAddressAbroad ?? "",
-    },
-  ];
+    });
+  }
 
   return (
     <>
