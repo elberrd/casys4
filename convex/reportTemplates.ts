@@ -58,6 +58,7 @@ const reportTemplateSummaryValidator = v.object({
   name: v.string(),
   legalFrameworkId: v.optional(v.id("legalFrameworks")),
   documentTypeIds: v.array(v.id("documentTypes")),
+  documentTypes: v.array(documentTypeSummaryValidator),
 });
 
 async function getLinkedDocumentTypes(
@@ -288,6 +289,7 @@ export const listActiveSummaries = query({
         name: template.name,
         legalFrameworkId: template.legalFrameworkId,
         documentTypeIds: documentTypes.map((documentType) => documentType._id),
+        documentTypes,
       });
     }
     return items;

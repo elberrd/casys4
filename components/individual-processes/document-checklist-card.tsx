@@ -84,6 +84,8 @@ import { PendingDocumentsPdfDialog } from "./pending-documents-pdf-dialog"
 import { StatusDocumentsDialog } from "./status-documents-dialog"
 import { DocumentWaitTimeBadge } from "./document-wait-time-badge"
 import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
+import { LinkedReportsMenu } from "@/components/process-reports/linked-reports-menu"
+import { reportsForDocumentType } from "@/lib/report-templates/attach-targets"
 import type {
   PdfReportMode,
   ProcessInfoForReport,
@@ -265,9 +267,7 @@ export function DocumentChecklistCard({
   )
 
   const reportsForType = (documentTypeId: Id<"documentTypes">) =>
-    (linkedReports ?? []).filter((report) =>
-      report.documentTypeIds.includes(documentTypeId),
-    )
+    reportsForDocumentType(linkedReports ?? [], documentTypeId)
 
   const [dialogs, setDialogs] = useState<DialogState>({
     upload: { open: false, document: null },
@@ -818,48 +818,26 @@ export function DocumentChecklistCard({
     if (userRole !== "admin" || isHistoricalVersion || !doc.documentTypeId) {
       return null
     }
-    const reports = reportsForType(doc.documentTypeId)
+    const documentTypeId = doc.documentTypeId
+    const reports = reportsForType(documentTypeId)
     if (reports.length === 0) return null
 
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 cursor-pointer gap-1"
-            onClick={(e) => e.stopPropagation()}
-            title={t("linkedReports")}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            {t("linkedReports")}
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          {reports.map((report) => (
-            <DropdownMenuItem
-              key={report._id}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (!doc.documentTypeId) return
-                setAttachTarget({
-                  documentTypeId: doc.documentTypeId,
-                  documentRequirementId: doc.documentRequirementId,
-                  documentName:
-                    doc.documentType?.name ||
-                    doc.documentName ||
-                    doc.fileName ||
-                    t("looseDocument"),
-                })
-                setGenerateTemplateId(report._id)
-              }}
-            >
-              {report.name}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <LinkedReportsMenu
+        reports={reports}
+        onSelect={(templateId) => {
+          setAttachTarget({
+            documentTypeId,
+            documentRequirementId: doc.documentRequirementId,
+            documentName:
+              doc.documentType?.name ||
+              doc.documentName ||
+              doc.fileName ||
+              t("looseDocument"),
+          })
+          setGenerateTemplateId(templateId)
+        }}
+      />
     )
   }
 
