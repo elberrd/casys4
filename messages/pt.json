@@ -2449,6 +2449,8 @@
     "downloadDocx": "Baixar DOCX",
     "saveAndAttach": "Salvar e anexar PDF",
     "attachPdf": "Anexar o PDF ao documento",
+    "attachPdfHelp": "Opcional. Escolha um dos tipos de documento vinculados a este relatório. Se o processo ainda não tiver o arquivo, o PDF será adicionado.",
+    "attachPdfTo": "O PDF será anexado em: {name}",
     "selectDocumentToAttach": "Selecione o documento para anexar",
     "generatedFromTemplate": "Gerado a partir do relatório {name}",
     "attachedSuccess": "PDF anexado ao documento",
@@ -3140,6 +3142,7 @@
   "DocumentUpload": {
     "title": "Enviar Documento",
     "selectFile": "Selecionar Arquivo",
+    "reportButton": "Relatório",
     "upload": "Enviar",
     "uploading": "Enviando...",
     "allowedFormats": "Formatos permitidos",

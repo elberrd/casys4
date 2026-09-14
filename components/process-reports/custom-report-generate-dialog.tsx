@@ -44,6 +44,7 @@ import {
 import { htmlToDocxBlob } from "@/lib/report-templates/html-to-docx";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { hasPassportFile } from "@/lib/passport";
+import { buildReportAttachOptions } from "@/lib/report-templates/attach-targets";
 
 export interface ReportAttachTarget {
   documentTypeId: Id<"documentTypes">;
@@ -57,6 +58,7 @@ interface CustomReportGenerateDialogProps {
   processId: Id<"individualProcesses">;
   templateId: Id<"reportTemplates"> | null;
   attachTarget?: ReportAttachTarget | null;
+  onAttached?: () => void;
 }
 
 export function CustomReportGenerateDialog({
@@ -65,6 +67,7 @@ export function CustomReportGenerateDialog({
   processId,
   templateId,
   attachTarget = null,
+  onAttached,
 }: CustomReportGenerateDialogProps) {
   const t = useTranslations("ReportTemplates");
   const tProcess = useTranslations("IndividualProcesses");
@@ -204,24 +207,18 @@ export function CustomReportGenerateDialog({
   }, [open, template, values, attachTarget, todayIso, declarationSource]);
 
   const attachOptions = useMemo(() => {
-    if (!template || !deliveredDocuments) return [];
-    const linkedIds = new Set(template.documentTypes.map((item) => item._id));
-    return deliveredDocuments
-      .filter(
-        (document) =>
-          document.documentTypeId &&
-          linkedIds.has(document.documentTypeId) &&
-          document.isLatest !== false,
-      )
-      .map((document) => ({
-        value: document.documentTypeId as Id<"documentTypes">,
-        label:
-          document.documentType?.name ||
-          document.documentName ||
-          document.fileName,
-        documentRequirementId: document.documentRequirementId,
-      }));
+    if (!template) return [];
+    return buildReportAttachOptions({
+      documentTypes: template.documentTypes,
+      processDocuments: deliveredDocuments ?? [],
+    }).map((option) => ({
+      value: option.documentTypeId,
+      label: option.label,
+      documentRequirementId: option.documentRequirementId,
+    }));
   }, [template, deliveredDocuments]);
+
+  const canAttach = Boolean(attachTarget) || attachOptions.length > 0;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -323,6 +320,7 @@ export function CustomReportGenerateDialog({
 
       toast.success(t("attachedSuccess"));
       handleOpenChange(false);
+      onAttached?.();
     } catch (error) {
       console.error(error);
       toast.error(t("errorAttach"), {
@@ -395,23 +393,34 @@ export function CustomReportGenerateDialog({
                   </AlertDescription>
                 </Alert>
               )}
-              {(attachTarget || attachOptions.length > 0) && (
-                <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={attachEnabled}
-                      onCheckedChange={(checked) =>
-                        setAttachEnabled(checked === true)
-                      }
-                    />
-                    {t("attachPdf")}
-                  </label>
+              {canAttach && (
+                <div className="flex flex-col gap-3 rounded-lg border p-3">
                   {attachTarget ? (
                     <p className="text-sm text-muted-foreground">
-                      {attachTarget.documentName}
+                      {t("attachPdfTo", { name: attachTarget.documentName })}
                     </p>
                   ) : (
-                    <div className="min-w-0 flex-1">
+                    <>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={attachEnabled}
+                          onCheckedChange={(checked) => {
+                            const enabled = checked === true;
+                            setAttachEnabled(enabled);
+                            if (
+                              enabled &&
+                              !selectedDocumentTypeId &&
+                              attachOptions.length === 1
+                            ) {
+                              setSelectedDocumentTypeId(attachOptions[0]?.value);
+                            }
+                          }}
+                        />
+                        {t("attachPdf")}
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        {t("attachPdfHelp")}
+                      </p>
                       <Combobox
                         options={attachOptions.map((option) => ({
                           value: option.value,
@@ -425,8 +434,10 @@ export function CustomReportGenerateDialog({
                         }
                         placeholder={t("selectDocumentToAttach")}
                         disabled={!attachEnabled}
+                        popoverModal
+                        isolateListScroll
                       />
-                    </div>
+                    </>
                   )}
                 </div>
               )}
@@ -508,10 +519,14 @@ export function CustomReportGenerateDialog({
                   )}
                   {t("downloadPdf")}
                 </Button>
-                {(attachTarget || attachOptions.length > 0) && (
+                {canAttach && (
                   <Button
-                    onClick={handleAttach}
-                    disabled={isSaving !== null || !attachEnabled}
+                    onClick={() => void handleAttach()}
+                    disabled={
+                      isSaving !== null ||
+                      (!attachTarget &&
+                        (!attachEnabled || !selectedDocumentTypeId))
+                    }
                   >
                     {isSaving === "attach" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

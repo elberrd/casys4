@@ -40,6 +40,9 @@ import {
 } from "./document-waiting-start-date-field"
 import { orderDocumentUploadConditions } from "@/lib/document-upload-conditions"
 import { AwaitingSignatureField } from "./document-signature-options"
+import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
+import { LinkedReportsMenu } from "@/components/process-reports/linked-reports-menu"
+import { reportsForDocumentType } from "@/lib/report-templates/attach-targets"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -101,6 +104,8 @@ export function DocumentUploadDialog({
   const [autoApprove, setAutoApprove] = useState(false)
   const [awaitingSignature, setAwaitingSignature] = useState(false)
   const [bypassConditions, setBypassConditions] = useState(false)
+  const [generateTemplateId, setGenerateTemplateId] =
+    useState<Id<"reportTemplates"> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     waitingStartDate,
@@ -123,6 +128,10 @@ export function DocumentUploadDialog({
     }
   }, [open, existingVersionNotes])
 
+  useEffect(() => {
+    if (!open) setGenerateTemplateId(null)
+  }, [open])
+
   // Fetch conditions for this document type
   const conditions = useQuery(
     api.documentTypeConditions.listActiveByDocumentType,
@@ -142,6 +151,14 @@ export function DocumentUploadDialog({
           excludeProcessId: individualProcessId,
         }
       : "skip"
+  )
+  const linkedReports = useQuery(
+    api.reportTemplates.listActiveSummaries,
+    open && canEditReceivedDate ? { individualProcessId } : "skip",
+  )
+  const reportsForThisType = reportsForDocumentType(
+    linkedReports ?? [],
+    documentTypeId,
   )
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl)
@@ -344,7 +361,14 @@ export function DocumentUploadDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog
+      open={open && generateTemplateId === null}
+      onOpenChange={(nextOpen) => {
+        if (generateTemplateId !== null) return
+        onOpenChange(nextOpen)
+      }}
+    >
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -392,7 +416,18 @@ export function DocumentUploadDialog({
 
           {/* File input */}
           <div className="space-y-2">
-            <Label htmlFor="file">{t("selectFile")}</Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <Label htmlFor="file">{t("selectFile")}</Label>
+              {reportsForThisType.length > 0 && (
+                <LinkedReportsMenu
+                  reports={reportsForThisType}
+                  triggerLabel={t("reportButton")}
+                  triggerClassName="h-8 w-full gap-2 sm:w-auto"
+                  disabled={isUploading}
+                  onSelect={(templateId) => setGenerateTemplateId(templateId)}
+                />
+              )}
+            </div>
             <Input
               id="file"
               type="file"
@@ -712,5 +747,24 @@ export function DocumentUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+      <CustomReportGenerateDialog
+        open={generateTemplateId !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setGenerateTemplateId(null)
+        }}
+        processId={individualProcessId}
+        templateId={generateTemplateId}
+        attachTarget={{
+          documentTypeId,
+          documentRequirementId,
+          documentName: documentInfo?.name || t("title"),
+        }}
+        onAttached={() => {
+          setGenerateTemplateId(null)
+          onOpenChange(false)
+          onSuccess?.()
+        }}
+      />
+    </>
   )
 }

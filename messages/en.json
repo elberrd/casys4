@@ -2424,6 +2424,8 @@
     "downloadDocx": "Download DOCX",
     "saveAndAttach": "Save and attach PDF",
     "attachPdf": "Attach the PDF to the document",
+    "attachPdfHelp": "Optional. Choose one of the document types linked to this report. If the process does not have the file yet, the PDF will be added.",
+    "attachPdfTo": "The PDF will be attached to: {name}",
     "selectDocumentToAttach": "Select a document to attach",
     "generatedFromTemplate": "Generated from report {name}",
     "attachedSuccess": "PDF attached to the document",
@@ -3115,6 +3117,7 @@
   "DocumentUpload": {
     "title": "Upload Document",
     "selectFile": "Select File",
+    "reportButton": "Report",
     "upload": "Upload",
     "uploading": "Uploading...",
     "allowedFormats": "Allowed formats",

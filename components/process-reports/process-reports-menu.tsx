@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
+import { formatLinkedDocumentTypeNames } from "@/lib/report-templates/attach-targets"
 
 interface ProcessReportsMenuProps {
   processId: Id<"individualProcesses">
@@ -38,18 +39,31 @@ export function ProcessReportsMenu({ processId }: ProcessReportsMenuProps) {
             <ChevronDown className="h-3 w-3" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+        <DropdownMenuContent align="end" className="max-h-96 w-80 overflow-y-auto">
           {templates === undefined ? null : templates.length === 0 ? (
             <DropdownMenuItem disabled>{t("noActiveTemplates")}</DropdownMenuItem>
           ) : (
-            templates.map((template) => (
-              <DropdownMenuItem
-                key={template._id}
-                onClick={() => setCustomTemplateId(template._id)}
-              >
-                {template.name}
-              </DropdownMenuItem>
-            ))
+            templates.map((template) => {
+              const linkedNames = formatLinkedDocumentTypeNames(
+                template.documentTypes,
+              )
+              return (
+                <DropdownMenuItem
+                  key={template._id}
+                  className="items-start whitespace-normal"
+                  onClick={() => setCustomTemplateId(template._id)}
+                >
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="leading-snug">{template.name}</span>
+                    {linkedNames ? (
+                      <span className="text-muted-foreground text-xs leading-snug">
+                        {linkedNames}
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuItem>
+              )
+            })
           )}
         </DropdownMenuContent>
       </DropdownMenu>
