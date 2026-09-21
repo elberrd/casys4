@@ -156,7 +156,7 @@ function parseHtml(html: string): HtmlNode[] {
     if (!parent) break;
 
     if (match[4] !== undefined) {
-      const text = decodeEntities(match[4]).replace(/\s+/g, " ");
+      const text = decodeEntities(match[4]);
       if (text) {
         parent.children.push({ tag: "#text", attrs: {}, children: [], text });
       }

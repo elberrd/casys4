@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
-import { Download, FileText, Loader2, Paperclip } from "lucide-react";
+import { Download, FilePenLine, FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { useRouter } from "@/i18n/routing";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,15 +27,9 @@ import { ReportRichTextEditor } from "@/components/report-templates/report-rich-
 import { ReportPaperPreview } from "@/components/report-templates/report-paper-preview";
 import { isCriminalBackgroundReportName } from "@/lib/report-templates/built-in-templates";
 import { reportTemplateMatchesProcessLegalFramework } from "@/lib/report-templates/legal-framework-match";
-import {
-  buildReportVariableValues,
-  suggestedReportFilename,
-} from "@/lib/report-templates/format-values";
+import { buildReportVariableValues } from "@/lib/report-templates/format-values";
 import { todayIsoInSaoPaulo } from "@/lib/process-reports/pt-dates";
-import {
-  missingUsedReportVariables,
-  substituteReportVariables,
-} from "@/lib/report-templates/substitute";
+import { missingUsedReportVariables } from "@/lib/report-templates/substitute";
 import type { ReportVariableKey } from "@/lib/report-templates/variables";
 import {
   htmlToPdfBlob,
@@ -45,6 +40,10 @@ import { htmlToDocxBlob } from "@/lib/report-templates/html-to-docx";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { hasPassportFile } from "@/lib/passport";
 import { buildReportAttachOptions } from "@/lib/report-templates/attach-targets";
+import {
+  resolveProcessReportEditorContent,
+  shouldPersistProcessReportEdit,
+} from "@/lib/report-templates/process-report-edit";
 
 export interface ReportAttachTarget {
   documentTypeId: Id<"documentTypes">;
@@ -76,9 +75,11 @@ export function CustomReportGenerateDialog({
   const tCommon = useTranslations("Common");
   const tReports = useTranslations("ProcessReports");
   const locale = useLocale();
+  const router = useRouter();
 
   const [editedHtml, setEditedHtml] = useState("");
   const [filename, setFilename] = useState("");
+  const [fromSavedEdit, setFromSavedEdit] = useState(false);
   const [attachEnabled, setAttachEnabled] = useState(Boolean(attachTarget));
   const [selectedDocumentTypeId, setSelectedDocumentTypeId] = useState<
     Id<"documentTypes"> | undefined
@@ -86,13 +87,27 @@ export function CustomReportGenerateDialog({
   const [isSaving, setIsSaving] = useState<"pdf" | "docx" | "attach" | null>(
     null,
   );
-  const [mobileTab, setMobileTab] = useState("edit");
+  const [activeTab, setActiveTab] = useState("edit");
   const [todayIso, setTodayIso] = useState(() => todayIsoInSaoPaulo());
   const initializedRef = useRef(false);
+  const editedHtmlRef = useRef(editedHtml);
+  const filenameRef = useRef(filename);
+  const lastPersistedRef = useRef({ html: "", filename: "" });
+  editedHtmlRef.current = editedHtml;
+  filenameRef.current = filename;
 
   const template = useQuery(
     api.reportTemplates.get,
     open && templateId ? { id: templateId } : "skip",
+  );
+  const savedEdit = useQuery(
+    api.processReportEdits.getByProcessAndTemplate,
+    open && templateId
+      ? {
+          individualProcessId: processId,
+          reportTemplateId: templateId,
+        }
+      : "skip",
   );
   const process = useQuery(
     api.individualProcesses.get,
@@ -122,6 +137,8 @@ export function CustomReportGenerateDialog({
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);
   const uploadDocument = useMutation(api.documentsDelivered.upload);
+  const saveEdit = useMutation(api.processReportEdits.save);
+  const clearEdit = useMutation(api.processReportEdits.clear);
 
   useEffect(() => {
     if (open) setTodayIso(todayIsoInSaoPaulo());
@@ -188,23 +205,82 @@ export function CustomReportGenerateDialog({
   useEffect(() => {
     if (!open) {
       initializedRef.current = false;
-      setMobileTab("edit");
+      setActiveTab("edit");
+      setFromSavedEdit(false);
       return;
     }
-    if (!template || !values || declarationSource === undefined || initializedRef.current)
+    if (
+      !template ||
+      !values ||
+      declarationSource === undefined ||
+      savedEdit === undefined ||
+      initializedRef.current
+    ) {
       return;
+    }
     initializedRef.current = true;
-    setEditedHtml(substituteReportVariables(template.contentHtml, values));
-    setFilename(
-      suggestedReportFilename({
-        templateName: template.name,
-        personName: values.personName,
-        todayIso,
-      }),
-    );
+    const resolved = resolveProcessReportEditorContent({
+      saved: savedEdit,
+      templateHtml: template.contentHtml,
+      templateName: template.name,
+      values,
+      todayIso,
+    });
+    setEditedHtml(resolved.html);
+    setFilename(resolved.filename);
+    setFromSavedEdit(resolved.fromSavedEdit);
+    lastPersistedRef.current = {
+      html: resolved.html,
+      filename: resolved.filename,
+    };
     setAttachEnabled(Boolean(attachTarget));
     setSelectedDocumentTypeId(attachTarget?.documentTypeId);
-  }, [open, template, values, attachTarget, todayIso, declarationSource]);
+  }, [open, template, values, attachTarget, todayIso, declarationSource, savedEdit]);
+
+  const persistIfDirty = () => {
+    if (!templateId || !initializedRef.current) return;
+    const html = editedHtmlRef.current;
+    const name = filenameRef.current;
+    if (
+      !shouldPersistProcessReportEdit({
+        html,
+        filename: name,
+        lastPersistedHtml: lastPersistedRef.current.html,
+        lastPersistedFilename: lastPersistedRef.current.filename,
+      })
+    ) {
+      return;
+    }
+    lastPersistedRef.current = { html, filename: name };
+    void saveEdit({
+      individualProcessId: processId,
+      reportTemplateId: templateId,
+      contentHtml: html,
+      filename: name,
+    }).catch((error) => {
+      console.error(error);
+    });
+  };
+
+  useEffect(() => {
+    if (!open || !initializedRef.current || !templateId) return;
+    if (
+      !shouldPersistProcessReportEdit({
+        html: editedHtml,
+        filename,
+        lastPersistedHtml: lastPersistedRef.current.html,
+        lastPersistedFilename: lastPersistedRef.current.filename,
+      })
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      persistIfDirty();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+    // persistIfDirty reads refs; html/filename/open are the triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editedHtml, filename, open, templateId]);
 
   const attachOptions = useMemo(() => {
     if (!template) return [];
@@ -220,15 +296,50 @@ export function CustomReportGenerateDialog({
 
   const canAttach = Boolean(attachTarget) || attachOptions.length > 0;
 
+  const resetLocalState = () => {
+    setEditedHtml("");
+    setFilename("");
+    setIsSaving(null);
+    setAttachEnabled(false);
+    setSelectedDocumentTypeId(undefined);
+    setFromSavedEdit(false);
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setEditedHtml("");
-      setFilename("");
-      setIsSaving(null);
-      setAttachEnabled(false);
-      setSelectedDocumentTypeId(undefined);
+      persistIfDirty();
+      initializedRef.current = false;
+      resetLocalState();
     }
     onOpenChange(nextOpen);
+  };
+
+  const handleUseOriginalTemplate = () => {
+    if (!template || !values || !templateId) return;
+    const resolved = resolveProcessReportEditorContent({
+      saved: null,
+      templateHtml: template.contentHtml,
+      templateName: template.name,
+      values,
+      todayIso,
+    });
+    setEditedHtml(resolved.html);
+    setFilename(resolved.filename);
+    setFromSavedEdit(false);
+    lastPersistedRef.current = {
+      html: resolved.html,
+      filename: resolved.filename,
+    };
+    void clearEdit({
+      individualProcessId: processId,
+      reportTemplateId: templateId,
+    });
+  };
+
+  const handleEditOriginal = () => {
+    if (!templateId) return;
+    persistIfDirty();
+    router.push(`/report-templates/${templateId}/edit`);
   };
 
   const fileBaseName = () =>
@@ -246,6 +357,7 @@ export function CustomReportGenerateDialog({
   const handleDownloadPdf = async () => {
     setIsSaving("pdf");
     try {
+      persistIfDirty();
       const { blob, filename: pdfName } = await buildPdf();
       triggerBlobDownload(blob, pdfName);
     } catch (error) {
@@ -259,6 +371,7 @@ export function CustomReportGenerateDialog({
   const handleDownloadDocx = async () => {
     setIsSaving("docx");
     try {
+      persistIfDirty();
       const blob = await htmlToDocxBlob(editedHtml);
       const name = fileBaseName();
       triggerBlobDownload(
@@ -289,6 +402,7 @@ export function CustomReportGenerateDialog({
 
     setIsSaving("attach");
     try {
+      persistIfDirty();
       const { blob, filename: pdfName } = await buildPdf();
       const uploadUrl = await generateUploadUrl();
       const result = await fetch(uploadUrl, {
@@ -337,7 +451,8 @@ export function CustomReportGenerateDialog({
       process === undefined ||
       statuses === undefined ||
       deliveredDocuments === undefined ||
-      declarationSource === undefined);
+      declarationSource === undefined ||
+      savedEdit === undefined);
   const loadFailed =
     open &&
     (template === null || process === null || templateAllowed === false);
@@ -346,12 +461,26 @@ export function CustomReportGenerateDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         variant="fullscreen"
-        className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0"
+        className="inset-2 flex max-h-none flex-col gap-0 overflow-hidden p-0"
       >
-        <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>
-            {template?.name ?? t("generateTitle")}
-          </DialogTitle>
+        <DialogHeader className="mb-0 space-y-0 px-4 pt-4 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+            <DialogTitle className="text-base">
+              {template?.name ?? t("generateTitle")}
+            </DialogTitle>
+            {templateId && !isLoading && !loadFailed && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleEditOriginal}
+              >
+                <FilePenLine className="h-4 w-4" />
+                {t("editOriginalReport")}
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {isLoading ? (
@@ -360,24 +489,90 @@ export function CustomReportGenerateDialog({
             {t("generating")}
           </div>
         ) : loadFailed ? (
-          <div className="px-6 py-12 text-center text-sm text-destructive">
+          <div className="px-4 py-12 text-center text-sm text-destructive">
             {t("errorLoad")}
           </div>
         ) : (
           <>
-            <div className="space-y-3 px-6 pb-3">
-              <div>
-                <Label htmlFor="custom-report-filename" className="mb-1 text-xs text-muted-foreground">
-                  {t("filenameLabel")}
-                </Label>
-                <Input
-                  id="custom-report-filename"
-                  value={filename}
-                  onChange={(event) => setFilename(event.target.value)}
-                />
+            <div className="px-4 pb-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label
+                    htmlFor="custom-report-filename"
+                    className="mb-1 text-xs text-muted-foreground"
+                  >
+                    {t("filenameLabel")}
+                  </Label>
+                  <Input
+                    id="custom-report-filename"
+                    value={filename}
+                    onChange={(event) => setFilename(event.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                {canAttach && (
+                  <div className="flex flex-col justify-end gap-1.5">
+                    {attachTarget ? (
+                      <p className="pb-1 text-xs text-muted-foreground">
+                        {t("attachPdfTo", { name: attachTarget.documentName })}
+                      </p>
+                    ) : (
+                      <>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={attachEnabled}
+                            onCheckedChange={(checked) => {
+                              const enabled = checked === true;
+                              setAttachEnabled(enabled);
+                              if (
+                                enabled &&
+                                !selectedDocumentTypeId &&
+                                attachOptions.length === 1
+                              ) {
+                                setSelectedDocumentTypeId(attachOptions[0]?.value);
+                              }
+                            }}
+                          />
+                          {t("attachPdf")}
+                        </label>
+                        {attachEnabled && (
+                          <Combobox
+                            options={attachOptions.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                            value={selectedDocumentTypeId}
+                            onValueChange={(value) =>
+                              setSelectedDocumentTypeId(
+                                value as Id<"documentTypes"> | undefined,
+                              )
+                            }
+                            placeholder={t("selectDocumentToAttach")}
+                            popoverModal
+                            isolateListScroll
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
+              {fromSavedEdit && (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{t("continuingPreviousEdit")}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7"
+                    onClick={handleUseOriginalTemplate}
+                  >
+                    {t("useOriginalTemplate")}
+                  </Button>
+                </div>
+              )}
               {missingFields.length > 0 && (
-                <Alert>
+                <Alert className="mt-2 py-2">
                   <FileText />
                   <AlertTitle>{tReports("missingFieldsTitle")}</AlertTitle>
                   <AlertDescription>
@@ -393,103 +588,45 @@ export function CustomReportGenerateDialog({
                   </AlertDescription>
                 </Alert>
               )}
-              {canAttach && (
-                <div className="flex flex-col gap-3 rounded-lg border p-3">
-                  {attachTarget ? (
-                    <p className="text-sm text-muted-foreground">
-                      {t("attachPdfTo", { name: attachTarget.documentName })}
-                    </p>
-                  ) : (
-                    <>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={attachEnabled}
-                          onCheckedChange={(checked) => {
-                            const enabled = checked === true;
-                            setAttachEnabled(enabled);
-                            if (
-                              enabled &&
-                              !selectedDocumentTypeId &&
-                              attachOptions.length === 1
-                            ) {
-                              setSelectedDocumentTypeId(attachOptions[0]?.value);
-                            }
-                          }}
-                        />
-                        {t("attachPdf")}
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        {t("attachPdfHelp")}
-                      </p>
-                      <Combobox
-                        options={attachOptions.map((option) => ({
-                          value: option.value,
-                          label: option.label,
-                        }))}
-                        value={selectedDocumentTypeId}
-                        onValueChange={(value) =>
-                          setSelectedDocumentTypeId(
-                            value as Id<"documentTypes"> | undefined,
-                          )
-                        }
-                        placeholder={t("selectDocumentToAttach")}
-                        disabled={!attachEnabled}
-                        popoverModal
-                        isolateListScroll
-                      />
-                    </>
-                  )}
-                </div>
-              )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col px-6 pb-2">
-              <Tabs
-                value={mobileTab}
-                onValueChange={setMobileTab}
-                className="mb-3 lg:hidden"
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="flex min-h-0 flex-1 flex-col px-4 pb-2"
+            >
+              <TabsList>
+                <TabsTrigger value="edit">{t("editTab")}</TabsTrigger>
+                <TabsTrigger value="preview">{t("previewTab")}</TabsTrigger>
+              </TabsList>
+              <div
+                className={cn(
+                  "mt-2 min-h-0 flex-1 flex-col overflow-hidden",
+                  activeTab === "edit" ? "flex" : "hidden",
+                )}
               >
-                <TabsList>
-                  <TabsTrigger value="edit">{t("editTab")}</TabsTrigger>
-                  <TabsTrigger value="preview">{t("previewTab")}</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-2">
-                <div
-                  className={cn(
-                    "min-h-0 flex-col overflow-hidden",
-                    mobileTab === "edit" ? "flex" : "hidden lg:flex",
-                  )}
-                >
-                  <p className="mb-2 hidden text-xs font-medium uppercase tracking-wide text-muted-foreground lg:block">
-                    {t("editTab")}
-                  </p>
-                  <ReportRichTextEditor
-                    value={editedHtml}
-                    onChange={setEditedHtml}
-                    className="min-h-0 flex-1"
-                  />
-                </div>
-                <div
-                  className={cn(
-                    "min-h-0 flex-col overflow-hidden",
-                    mobileTab === "preview" ? "flex" : "hidden lg:flex",
-                  )}
-                >
-                  <p className="mb-2 hidden text-xs font-medium uppercase tracking-wide text-muted-foreground lg:block">
-                    {t("previewTab")}
-                  </p>
-                  <ReportPaperPreview
-                    html={editedHtml}
-                    className="h-full min-h-[48vh]"
-                    ariaLabel={t("previewAriaLabel")}
-                    pageBreakLabel={(page) => t("toolbar.pageBreak", { page })}
-                  />
-                </div>
+                <ReportRichTextEditor
+                  value={editedHtml}
+                  onChange={setEditedHtml}
+                  className="min-h-0 flex-1"
+                />
               </div>
-            </div>
+              <div
+                className={cn(
+                  "mt-2 min-h-0 flex-1 flex-col overflow-hidden",
+                  activeTab === "preview" ? "flex" : "hidden",
+                )}
+              >
+                <ReportPaperPreview
+                  html={editedHtml}
+                  className="h-full min-h-0"
+                  ariaLabel={t("previewAriaLabel")}
+                  pageBreakLabel={(page) => t("toolbar.pageBreak", { page })}
+                />
+              </div>
+            </Tabs>
 
-            <DialogFooter className="gap-2 border-t px-6 py-4 sm:justify-between">
+            <DialogFooter className="gap-2 border-t px-4 py-3 pt-3 sm:justify-between">
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 {tCommon("close")}
               </Button>

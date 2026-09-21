@@ -1090,6 +1090,20 @@ export default defineSchema({
       "documentTypeId",
     ]),
 
+  // Last edited HTML for a generated process report, keyed by process + template.
+  // Lets staff reopen client corrections instead of starting from the blank template.
+  processReportEdits: defineTable({
+    individualProcessId: v.id("individualProcesses"),
+    reportTemplateId: v.id("reportTemplates"),
+    contentHtml: v.string(),
+    filename: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  }).index("by_individualProcess_and_reportTemplate", [
+    "individualProcessId",
+    "reportTemplateId",
+  ]),
+
   // Saved filter presets for users
   savedFilters: defineTable({
     name: v.string(), // User-defined filter name

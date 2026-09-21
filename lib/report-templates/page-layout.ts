@@ -25,6 +25,8 @@ export const REPORT_DOCUMENT_CSS = `
   font-family: "Times New Roman", Times, serif;
   font-size: 16px;
   line-height: 1.6;
+  white-space: pre-wrap;
+  tab-size: 4;
 `;
 
 export function reportDocumentCss(selector: string): string {

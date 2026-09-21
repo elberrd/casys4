@@ -1,30 +1,58 @@
 import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 
-function insertLineBreak(editor: Editor): boolean {
-  const { selection } = editor.state;
-  if ("node" in selection && (selection as { node?: { type: { name: string } } }).node) {
-    return editor.chain().setTextSelection(selection.to).setHardBreak().run();
+export const REPORT_TAB_CHAR = "\t";
+
+export function isReportEditorTabEvent(event: {
+  key: string;
+  altKey?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+}): boolean {
+  return (
+    event.key === "Tab" &&
+    event.altKey !== true &&
+    event.ctrlKey !== true &&
+    event.metaKey !== true
+  );
+}
+
+export function shouldStopReportEditorKeyPropagation(event: {
+  key: string;
+}): boolean {
+  return event.key === "Tab" || event.key === "Enter";
+}
+
+export function insertReportTab(editor: Editor): boolean {
+  if (editor.can().sinkListItem("listItem")) {
+    return editor.commands.sinkListItem("listItem");
   }
-  return editor.commands.setHardBreak();
+  return editor.chain().insertContent(REPORT_TAB_CHAR).run();
+}
+
+export function outdentReportTab(editor: Editor): boolean {
+  if (editor.can().liftListItem("listItem")) {
+    return editor.commands.liftListItem("listItem");
+  }
+  return true;
 }
 
 /**
- * Enter inserts a line break (`<br>`), matching the previous Shift+Enter
- * behavior so authors do not need a modifier key to go to the next line.
+ * Tab inserts a real tab (or indents a list). Enter is left to TipTap so it
+ * splits the block like a normal text editor. Callers must stop Tab/Enter from
+ * bubbling so a surrounding dialog cannot steal them.
  */
-export const ReportEnterToLineBreak = Extension.create({
-  name: "reportEnterToLineBreak",
+export const ReportEditorKeys = Extension.create({
+  name: "reportEditorKeys",
   priority: 1000,
 
   addKeyboardShortcuts() {
     return {
-      Enter: () => {
-        if (insertLineBreak(this.editor)) {
-          return true;
-        }
-        return this.editor.commands.splitBlock();
-      },
+      Tab: () => insertReportTab(this.editor),
+      "Shift-Tab": () => outdentReportTab(this.editor),
     };
   },
 });
+
+/** @deprecated Use ReportEditorKeys. Kept so existing imports keep compiling. */
+export const ReportEnterToLineBreak = ReportEditorKeys;
