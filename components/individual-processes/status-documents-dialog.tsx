@@ -41,6 +41,7 @@ import {
   FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { statusDateToIsoDate } from "@/lib/document-wait-time";
 import {
   Tooltip,
   TooltipContent,
@@ -93,6 +94,8 @@ export function StatusDocumentsDialog({
   const t = useTranslations("IndividualProcesses");
   const tDoc = useTranslations("DocumentChecklist");
   const tCommon = useTranslations("Common");
+  const exigenciaWaitingStartDate =
+    caseStatusCode === "exigencia" ? statusDateToIsoDate(date) : undefined;
 
   const [activeSubDialog, setActiveSubDialog] = useState<ActiveSubDialog>(null);
   const [reviewDocumentId, setReviewDocumentId] = useState<Id<"documentsDelivered"> | null>(null);
@@ -551,6 +554,7 @@ export function StatusDocumentsDialog({
           individualProcessId={individualProcessId}
           defaultStatusId={individualProcessStatusId}
           canEditReceivedDate={userRole === "admin"}
+          waitingStartDateDefault={exigenciaWaitingStartDate}
           onSuccess={closeSubDialog}
         />
       )}
@@ -563,6 +567,7 @@ export function StatusDocumentsDialog({
           individualProcessId={individualProcessId}
           defaultStatusId={individualProcessStatusId}
           canEditReceivedDate={userRole === "admin"}
+          waitingStartDateDefault={exigenciaWaitingStartDate}
           onSuccess={closeSubDialog}
         />
       )}

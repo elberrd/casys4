@@ -8,7 +8,10 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { timestampToIsoDate } from "@/lib/document-wait-time";
+import {
+  getWaitingStartDateOverride,
+  timestampToIsoDate,
+} from "@/lib/document-wait-time";
 
 import { documentTimingDateSchema } from "./document-received-date-field";
 
@@ -65,11 +68,13 @@ export function useDocumentWaitingStartDate({
   canEdit,
   individualProcessId,
   documentId,
+  waitingStartDateDefault,
 }: {
   open: boolean;
   canEdit: boolean;
   individualProcessId: Id<"individualProcesses">;
   documentId?: Id<"documentsDelivered">;
+  waitingStartDateDefault?: string;
 }) {
   const defaults = useQuery(
     api.documentsDelivered.getWaitingStartDefaults,
@@ -80,9 +85,14 @@ export function useDocumentWaitingStartDate({
         }
       : "skip",
   );
-  const defaultWaitingStartDate = defaults
+  const backendWaitingStartDate = defaults
     ? timestampToIsoDate(defaults.waitingStartedAt)
     : "";
+  const defaultWaitingStartDate =
+    waitingStartDateDefault &&
+    documentTimingDateSchema.safeParse(waitingStartDateDefault).success
+      ? waitingStartDateDefault
+      : backendWaitingStartDate;
   const [waitingStartDate, setWaitingStartDate] = useState("");
 
   useEffect(() => {
@@ -95,14 +105,13 @@ export function useDocumentWaitingStartDate({
     waitingStartDate,
     setWaitingStartDate,
     defaultWaitingStartDate,
-    isWaitingStartDateLoading: canEdit && defaults === undefined,
+    isWaitingStartDateLoading: canEdit && !defaultWaitingStartDate,
     isWaitingStartDateValid:
       !canEdit || documentTimingDateSchema.safeParse(waitingStartDate).success,
-    waitingStartDateOverride:
-      canEdit &&
-      waitingStartDate &&
-      waitingStartDate !== defaultWaitingStartDate
-        ? waitingStartDate
-        : undefined,
+    waitingStartDateOverride: getWaitingStartDateOverride({
+      canEdit,
+      waitingStartDate,
+      backendWaitingStartedAt: defaults?.waitingStartedAt,
+    }),
   };
 }
