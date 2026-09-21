@@ -92,3 +92,55 @@ export function timestampToIsoDate(timestamp: number): string {
   const { year, month, day } = getDateParts(timestamp);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
+
+const ISO_CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Calendar date of an andamento event. Status dates are naive local datetimes
+ * (YYYY-MM-DD or YYYY-MM-DDTHH:mm) in America/Sao_Paulo, matching the histórico UI.
+ */
+export function statusDateToIsoDate(statusDate?: string): string | undefined {
+  if (!statusDate) return undefined;
+  const datePart = statusDate.includes("T") ? statusDate.slice(0, 10) : statusDate;
+  const match = ISO_CALENDAR_DATE.exec(datePart);
+  if (!match) return undefined;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return datePart;
+}
+
+/**
+ * Payload for upload mutations. Send the displayed wait-start when it differs
+ * from the backend default (process creation, or an existing document value).
+ * An exigência-row override is therefore persisted even if the admin does not edit it.
+ */
+export function getWaitingStartDateOverride({
+  canEdit,
+  waitingStartDate,
+  backendWaitingStartedAt,
+}: {
+  canEdit: boolean;
+  waitingStartDate: string;
+  backendWaitingStartedAt?: number;
+}): string | undefined {
+  if (!canEdit || waitingStartDate.length === 0) {
+    return undefined;
+  }
+  if (backendWaitingStartedAt === undefined) {
+    return waitingStartDate;
+  }
+  return waitingStartDate !== timestampToIsoDate(backendWaitingStartedAt)
+    ? waitingStartDate
+    : undefined;
+}

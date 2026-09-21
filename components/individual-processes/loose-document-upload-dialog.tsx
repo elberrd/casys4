@@ -42,6 +42,7 @@ interface LooseDocumentUploadDialogProps {
   onSuccess?: () => void;
   defaultStatusId?: Id<"individualProcessStatuses">;
   canEditReceivedDate?: boolean;
+  waitingStartDateDefault?: string;
 }
 
 export function LooseDocumentUploadDialog({
@@ -51,6 +52,7 @@ export function LooseDocumentUploadDialog({
   onSuccess,
   defaultStatusId,
   canEditReceivedDate = false,
+  waitingStartDateDefault,
 }: LooseDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -76,6 +78,7 @@ export function LooseDocumentUploadDialog({
     open,
     canEdit: canEditReceivedDate,
     individualProcessId,
+    waitingStartDateDefault,
   });
 
   const generateUploadUrl = useMutation(api.documentsDelivered.generateUploadUrl);

@@ -56,6 +56,7 @@ interface TypedDocumentUploadDialogProps {
   onSuccess?: () => void;
   defaultStatusId?: Id<"individualProcessStatuses">;
   canEditReceivedDate?: boolean;
+  waitingStartDateDefault?: string;
 }
 
 export function TypedDocumentUploadDialog({
@@ -65,6 +66,7 @@ export function TypedDocumentUploadDialog({
   onSuccess,
   defaultStatusId,
   canEditReceivedDate = false,
+  waitingStartDateDefault,
 }: TypedDocumentUploadDialogProps) {
   const t = useTranslations("DocumentUpload");
   const tCommon = useTranslations("Common");
@@ -94,6 +96,7 @@ export function TypedDocumentUploadDialog({
     open,
     canEdit: canEditReceivedDate,
     individualProcessId,
+    waitingStartDateDefault,
   });
 
   // Fetch all active document types
