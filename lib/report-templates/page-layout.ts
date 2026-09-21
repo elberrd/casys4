@@ -31,6 +31,10 @@ export const REPORT_DOCUMENT_CSS = `
 
 const NBSP = "\u00a0";
 
+/** Empty TipTap/ProseMirror blocks: <p></p>, <p><br></p>, trailing-break variants. */
+const EMPTY_REPORT_BLOCK_RE =
+  /<(p|h1|h2|h3)(\s[^>]*)?>(?:\s|&nbsp;|&#160;|<br\b[^>]*>)*<\/\1>/gi;
+
 export function preserveReportTextWhitespace(text: string): string {
   return text
     .replace(/\t/g, NBSP.repeat(4))
@@ -39,15 +43,24 @@ export function preserveReportTextWhitespace(text: string): string {
     .replace(/ $/g, NBSP);
 }
 
-/** Keep typed spaces/tabs in HTML that browsers would otherwise collapse. */
+export function preserveReportEmptyBlocks(html: string): string {
+  if (!html) return html;
+  return html.replace(
+    EMPTY_REPORT_BLOCK_RE,
+    (_match, tag: string, attrs = "") => `<${tag}${attrs}>${NBSP}</${tag}>`,
+  );
+}
+
+/** Keep typed spaces/tabs/blank paragraphs that browsers would otherwise collapse. */
 export function preserveReportHtmlWhitespace(html: string): string {
   if (!html) return html;
-  return html.replace(/>([^<]*)</g, (match, text: string) => {
+  const withSpaces = html.replace(/>([^<]*)</g, (match, text: string) => {
     if (!text.includes(" ") && !text.includes("\t")) {
       return match;
     }
     return `>${preserveReportTextWhitespace(text)}<`;
   });
+  return preserveReportEmptyBlocks(withSpaces);
 }
 
 export function reportDocumentCss(selector: string): string {
@@ -67,6 +80,12 @@ export function reportDocumentCss(selector: string): string {
     }
     ${selector} th { background: #f3f4f6; font-weight: 600; }
     ${selector} p { margin: 0 0 0.75em; }
+    ${selector} p:empty,
+    ${selector} h1:empty,
+    ${selector} h2:empty,
+    ${selector} h3:empty {
+      min-height: 1.6em;
+    }
     ${selector} h1, ${selector} h2, ${selector} h3 {
       margin: 0 0 0.6em;
       line-height: 1.25;

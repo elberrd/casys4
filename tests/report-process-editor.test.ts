@@ -9,6 +9,7 @@ import {
   shouldStopReportEditorKeyPropagation,
 } from "../components/report-templates/report-enter-extension";
 import {
+  preserveReportEmptyBlocks,
   preserveReportHtmlWhitespace,
   preserveReportTextWhitespace,
   reportDocumentCss,
@@ -60,6 +61,27 @@ test("preview HTML converts consecutive spaces and tabs so they survive collapse
   assert.equal(preserveReportTextWhitespace("A    B"), "A\u00a0\u00a0\u00a0\u00a0B");
   const pdfHtml = buildIsolatedReportHtml("<p>hello  world</p>");
   assert.match(pdfHtml, /hello\u00a0\u00a0world/);
+});
+
+test("preview HTML keeps empty paragraphs so blank lines do not collapse", () => {
+  assert.equal(preserveReportEmptyBlocks("<p></p>"), "<p>\u00a0</p>");
+  assert.equal(preserveReportEmptyBlocks("<p><br></p>"), "<p>\u00a0</p>");
+  assert.equal(
+    preserveReportEmptyBlocks('<p><br class="ProseMirror-trailingBreak"></p>'),
+    "<p>\u00a0</p>",
+  );
+  const preserved = preserveReportHtmlWhitespace(
+    '<p>R1_NEWLINE</p><p></p><p><br></p><p>R2_CHECK</p>',
+  );
+  assert.equal(
+    preserved,
+    "<p>R1_NEWLINE</p><p>\u00a0</p><p>\u00a0</p><p>R2_CHECK</p>",
+  );
+  const css = reportDocumentCss(".report-paper-preview");
+  assert.match(css, /p:empty/);
+  assert.match(css, /min-height:\s*1\.6em/);
+  const pdfHtml = buildIsolatedReportHtml("<p>before</p><p></p><p>after</p>");
+  assert.match(pdfHtml, /<p>before<\/p><p>\u00a0<\/p><p>after<\/p>/);
 });
 
 test("reopening a generated report loads the saved HTML instead of the template", () => {
