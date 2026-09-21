@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { Fragment as DirectFragment } from "prosemirror-model";
+import { Fragment as TiptapFragment } from "@tiptap/pm/model";
 import {
   isReportEditorTabEvent,
   shouldStopReportEditorKeyPropagation,
@@ -10,6 +12,10 @@ import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
 import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import JSZip from "jszip";
 import { resolveProcessReportEditorContent, shouldPersistProcessReportEdit } from "../lib/report-templates/process-report-edit";
+
+test("prosemirror-model is a single copy so Enter can split blocks", () => {
+  assert.equal(DirectFragment, TiptapFragment);
+});
 
 test("Tab and Enter inside the report editor must not bubble to a dialog", () => {
   assert.equal(shouldStopReportEditorKeyPropagation({ key: "Tab" }), true);

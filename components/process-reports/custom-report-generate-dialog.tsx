@@ -353,6 +353,8 @@ export function CustomReportGenerateDialog({
     void clearEdit({
       individualProcessId: processId,
       reportTemplateId: templateId,
+    }).catch((error) => {
+      console.error(error);
     });
   };
 
