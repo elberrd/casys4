@@ -15,6 +15,9 @@ import {
 } from "@/components/report-templates/report-variable-extension";
 import {
   ReportEditorKeys,
+  insertReportEnter,
+  insertReportHardBreak,
+  isReportEditorEnterEvent,
   shouldStopReportEditorKeyPropagation,
 } from "@/components/report-templates/report-enter-extension";
 import StarterKit from "@tiptap/starter-kit";
@@ -590,11 +593,20 @@ export function ReportRichTextEditor({
       onChange(html);
     },
     editorProps: {
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         if (shouldStopReportEditorKeyPropagation(event)) {
           event.stopPropagation();
         }
-        return false;
+        if (!isReportEditorEnterEvent(event)) {
+          return false;
+        }
+        event.preventDefault();
+        if (event.shiftKey) {
+          insertReportHardBreak(view);
+        } else {
+          insertReportEnter(view);
+        }
+        return true;
       },
       attributes: {
         class: cn(

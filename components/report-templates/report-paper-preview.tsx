@@ -10,6 +10,7 @@ import {
   REPORT_PAGE_MARGIN_Y_MM,
   REPORT_PAGE_WIDTH_MM,
   countReportContentPages,
+  preserveReportHtmlWhitespace,
   reportDocumentCss,
 } from "@/lib/report-templates/page-layout";
 
@@ -31,6 +32,7 @@ export function ReportPaperPreview({
 }: ReportPaperPreviewProps) {
   const measureRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(1);
+  const previewHtml = preserveReportHtmlWhitespace(html || "");
 
   useLayoutEffect(() => {
     const measure = measureRef.current;
@@ -62,13 +64,15 @@ export function ReportPaperPreview({
       <div
         ref={measureRef}
         aria-hidden
-        className="report-paper-preview pointer-events-none absolute top-0"
+        className="report-paper-preview pointer-events-none absolute top-0 whitespace-pre-wrap"
         style={{
           left: -10000,
           width: `${PREVIEW_CONTENT_WIDTH_MM}mm`,
           color: "#111827",
+          whiteSpace: "pre-wrap",
+          tabSize: 4,
         }}
-        dangerouslySetInnerHTML={{ __html: html || "" }}
+        dangerouslySetInnerHTML={{ __html: previewHtml }}
       />
       <div
         aria-label={ariaLabel}
@@ -90,12 +94,14 @@ export function ReportPaperPreview({
               }}
             >
               <div
-                className="report-paper-preview"
+                className="report-paper-preview whitespace-pre-wrap"
                 style={{
                   transform: `translateY(${-index * REPORT_CONTENT_HEIGHT_MM}mm)`,
                   color: "#111827",
+                  whiteSpace: "pre-wrap",
+                  tabSize: 4,
                 }}
-                dangerouslySetInnerHTML={{ __html: html || "" }}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             </div>
           </ReportPageSheet>

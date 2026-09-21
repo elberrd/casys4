@@ -7,6 +7,9 @@ export interface ProcessReportSavedEdit {
   filename: string;
 }
 
+// Preview deploys skip Convex (`scripts/vercel-build.sh`), so
+// processReportEdits is not on production Convex. Reopen (86akn4c1e) no-ops
+// there until a production Convex deploy; the UI already falls back to the template.
 export function resolveProcessReportEditorContent(args: {
   saved: ProcessReportSavedEdit | null;
   templateHtml: string;

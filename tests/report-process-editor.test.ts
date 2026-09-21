@@ -4,10 +4,15 @@ import test from "node:test";
 import { Fragment as DirectFragment } from "prosemirror-model";
 import { Fragment as TiptapFragment } from "@tiptap/pm/model";
 import {
+  isReportEditorEnterEvent,
   isReportEditorTabEvent,
   shouldStopReportEditorKeyPropagation,
 } from "../components/report-templates/report-enter-extension";
-import { reportDocumentCss } from "../lib/report-templates/page-layout";
+import {
+  preserveReportHtmlWhitespace,
+  preserveReportTextWhitespace,
+  reportDocumentCss,
+} from "../lib/report-templates/page-layout";
 import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
 import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import JSZip from "jszip";
@@ -31,11 +36,30 @@ test("Tab is treated as an editor key unless a modifier is held", () => {
   assert.equal(isReportEditorTabEvent({ key: "Enter" }), false);
 });
 
+test("Enter is treated as an editor key unless a modifier is held", () => {
+  assert.equal(isReportEditorEnterEvent({ key: "Enter" }), true);
+  assert.equal(isReportEditorEnterEvent({ key: "Enter", ctrlKey: true }), false);
+  assert.equal(isReportEditorEnterEvent({ key: "Enter", metaKey: true }), false);
+  assert.equal(isReportEditorEnterEvent({ key: "Enter", altKey: true }), false);
+  assert.equal(isReportEditorEnterEvent({ key: "Tab" }), false);
+});
+
 test("report document CSS keeps typed spaces, tabs, and line breaks", () => {
   const css = reportDocumentCss(".report-page-editor");
-  assert.match(css, /white-space:\s*pre-wrap/);
+  assert.match(css, /white-space:\s*pre-wrap\s*!important/);
   assert.match(css, /tab-size:\s*4/);
-  assert.match(buildIsolatedReportHtml("<p>a  b</p>"), /white-space:\s*pre-wrap/);
+  assert.match(css, /\.report-page-editor p/);
+  assert.match(buildIsolatedReportHtml("<p>a  b</p>"), /white-space:\s*pre-wrap\s*!important/);
+});
+
+test("preview HTML converts consecutive spaces and tabs so they survive collapse", () => {
+  const preserved = preserveReportHtmlWhitespace("<p>A    B\tC</p>");
+  assert.equal(preserved.includes("A B"), false);
+  assert.match(preserved, /A\u00a0\u00a0\u00a0\u00a0B/);
+  assert.match(preserved, /B\u00a0\u00a0\u00a0\u00a0C/);
+  assert.equal(preserveReportTextWhitespace("A    B"), "A\u00a0\u00a0\u00a0\u00a0B");
+  const pdfHtml = buildIsolatedReportHtml("<p>hello  world</p>");
+  assert.match(pdfHtml, /hello\u00a0\u00a0world/);
 });
 
 test("reopening a generated report loads the saved HTML instead of the template", () => {

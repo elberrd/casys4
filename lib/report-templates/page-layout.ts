@@ -25,13 +25,39 @@ export const REPORT_DOCUMENT_CSS = `
   font-family: "Times New Roman", Times, serif;
   font-size: 16px;
   line-height: 1.6;
-  white-space: pre-wrap;
+  white-space: pre-wrap !important;
   tab-size: 4;
 `;
+
+const NBSP = "\u00a0";
+
+export function preserveReportTextWhitespace(text: string): string {
+  return text
+    .replace(/\t/g, NBSP.repeat(4))
+    .replace(/ {2,}/g, (chunk) => NBSP.repeat(chunk.length))
+    .replace(/^ /g, NBSP)
+    .replace(/ $/g, NBSP);
+}
+
+/** Keep typed spaces/tabs in HTML that browsers would otherwise collapse. */
+export function preserveReportHtmlWhitespace(html: string): string {
+  if (!html) return html;
+  return html.replace(/>([^<]*)</g, (match, text: string) => {
+    if (!text.includes(" ") && !text.includes("\t")) {
+      return match;
+    }
+    return `>${preserveReportTextWhitespace(text)}<`;
+  });
+}
 
 export function reportDocumentCss(selector: string): string {
   return `
     ${selector} { ${REPORT_DOCUMENT_CSS} }
+    ${selector}, ${selector} p, ${selector} h1, ${selector} h2, ${selector} h3,
+    ${selector} li, ${selector} td, ${selector} th, ${selector} div, ${selector} span {
+      white-space: pre-wrap !important;
+      tab-size: 4;
+    }
     ${selector} table { border-collapse: collapse; width: 100%; margin: 12px 0; }
     ${selector} th, ${selector} td {
       border: 1px solid #d1d5db;
