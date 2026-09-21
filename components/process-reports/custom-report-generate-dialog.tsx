@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvex } from "convex/react";
 import { Download, FilePenLine, FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -76,6 +76,7 @@ export function CustomReportGenerateDialog({
   const tReports = useTranslations("ProcessReports");
   const locale = useLocale();
   const router = useRouter();
+  const convex = useConvex();
 
   const [editedHtml, setEditedHtml] = useState("");
   const [filename, setFilename] = useState("");
@@ -89,6 +90,10 @@ export function CustomReportGenerateDialog({
   );
   const [activeTab, setActiveTab] = useState("edit");
   const [todayIso, setTodayIso] = useState(() => todayIsoInSaoPaulo());
+  const [savedEdit, setSavedEdit] = useState<{
+    contentHtml: string;
+    filename: string;
+  } | null | undefined>(undefined);
   const initializedRef = useRef(false);
   const editedHtmlRef = useRef(editedHtml);
   const filenameRef = useRef(filename);
@@ -99,15 +104,6 @@ export function CustomReportGenerateDialog({
   const template = useQuery(
     api.reportTemplates.get,
     open && templateId ? { id: templateId } : "skip",
-  );
-  const savedEdit = useQuery(
-    api.processReportEdits.getByProcessAndTemplate,
-    open && templateId
-      ? {
-          individualProcessId: processId,
-          reportTemplateId: templateId,
-        }
-      : "skip",
   );
   const process = useQuery(
     api.individualProcesses.get,
@@ -143,6 +139,30 @@ export function CustomReportGenerateDialog({
   useEffect(() => {
     if (open) setTodayIso(todayIsoInSaoPaulo());
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !templateId) {
+      setSavedEdit(undefined);
+      return;
+    }
+    let cancelled = false;
+    void convex
+      .query(api.processReportEdits.getByProcessAndTemplate, {
+        individualProcessId: processId,
+        reportTemplateId: templateId,
+      })
+      .then(
+        (row) => {
+          if (!cancelled) setSavedEdit(row);
+        },
+        () => {
+          if (!cancelled) setSavedEdit(null);
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [open, templateId, processId, convex]);
 
   const values = useMemo(() => {
     if (!process) return null;
