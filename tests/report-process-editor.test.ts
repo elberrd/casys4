@@ -17,7 +17,13 @@ import {
 import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
 import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import JSZip from "jszip";
-import { resolveProcessReportEditorContent, shouldPersistProcessReportEdit } from "../lib/report-templates/process-report-edit";
+import {
+  pickLatestReportContent,
+  reportFilenameFromDocument,
+  resolveProcessReportEditorContent,
+  shouldPersistProcessReportEdit,
+  uploadDocumentKeepingHtmlFallback,
+} from "../lib/report-templates/process-report-edit";
 
 test("prosemirror-model is a single copy so Enter can split blocks", () => {
   assert.equal(DirectFragment, TiptapFragment);
@@ -113,6 +119,100 @@ test("first generation substitutes the template when no saved edit exists", () =
   assert.equal(resolved.fromSavedEdit, false);
   assert.equal(resolved.html, "<p>Relatório de Ada Lovelace</p>");
   assert.equal(resolved.filename, "Relatório livre");
+});
+
+test("reopen prefers an unsaved draft over the last approved version HTML", () => {
+  const resolved = resolveProcessReportEditorContent({
+    saved: { contentHtml: "<p>rascunho</p>", filename: "draft" },
+    attached: { contentHtml: "<p>aprovado</p>", filename: "v2" },
+    templateHtml: "<p>modelo</p>",
+    templateName: "Declaração",
+    values: { personName: "Ada Lovelace" },
+    todayIso: "2026-09-21",
+  });
+  assert.equal(resolved.html, "<p>rascunho</p>");
+  assert.equal(resolved.fromSavedEdit, true);
+});
+
+test("reopen loads the last approved version HTML when there is no draft", () => {
+  const resolved = resolveProcessReportEditorContent({
+    saved: null,
+    attached: { contentHtml: "<p>correção salva</p>", filename: "v3" },
+    templateHtml: "<p>modelo</p>",
+    templateName: "Declaração",
+    values: { personName: "Ada Lovelace" },
+    todayIso: "2026-09-21",
+  });
+  assert.equal(resolved.html, "<p>correção salva</p>");
+  assert.equal(resolved.filename, "v3");
+  assert.equal(resolved.fromSavedEdit, true);
+});
+
+test("pickLatestReportContent does not reuse HTML from another document type", () => {
+  const picked = pickLatestReportContent(
+    [
+      {
+        contentHtml: "<p>other</p>",
+        fileName: "other.pdf",
+        version: 9,
+        reportTemplateId: "other-tpl",
+        documentTypeId: "other-type",
+      },
+    ],
+    { reportTemplateId: "tpl" },
+  );
+  assert.equal(picked, null);
+});
+
+test("pickLatestReportContent uses the highest version with HTML for that template", () => {
+  const picked = pickLatestReportContent(
+    [
+      {
+        contentHtml: "<p>v1</p>",
+        fileName: "relatorio-v1.pdf",
+        version: 1,
+        reportTemplateId: "tpl",
+        documentTypeId: "type",
+      },
+      {
+        contentHtml: "<p>v3</p>",
+        fileName: "relatorio-v3.pdf",
+        version: 3,
+        reportTemplateId: "tpl",
+        documentTypeId: "type",
+      },
+      {
+        fileName: "upload.pdf",
+        version: 4,
+        documentTypeId: "type",
+      },
+    ],
+    { reportTemplateId: "tpl", documentTypeId: "type" },
+  );
+  assert.equal(picked?.contentHtml, "<p>v3</p>");
+  assert.equal(reportFilenameFromDocument(picked?.fileName ?? ""), "relatorio-v3");
+});
+
+test("upload keeps going without HTML fields when the server rejects them", async () => {
+  const calls: unknown[] = [];
+  const upload = async (args: { fileName: string; contentHtml?: string }) => {
+    calls.push(args);
+    if (args.contentHtml) {
+      throw new Error("ArgumentValidationError");
+    }
+    return "ok";
+  };
+  const result = await uploadDocumentKeepingHtmlFallback(upload, {
+    fileName: "a.pdf",
+    contentHtml: "<p>x</p>",
+    reportTemplateId: "tpl",
+  });
+  assert.equal(result, "ok");
+  assert.equal(calls.length, 2);
+  assert.equal(
+    (calls[1] as { contentHtml?: string }).contentHtml,
+    undefined,
+  );
 });
 
 test("docx keeps consecutive spaces from the editor instead of trimming them", async () => {

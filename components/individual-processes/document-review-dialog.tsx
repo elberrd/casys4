@@ -51,6 +51,7 @@ import {
   ShieldOff,
   Lock,
   FileSignature,
+  FilePenLine,
 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -68,6 +69,9 @@ import {
 } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { UploadNewVersionDialog } from "@/components/individual-processes/upload-new-version-dialog"
+import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
+import { LinkedReportsMenu } from "@/components/process-reports/linked-reports-menu"
+import { reportsForDocumentType } from "@/lib/report-templates/attach-targets"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import { LinkedFieldInput } from "./linked-field-input"
@@ -111,6 +115,8 @@ export function DocumentReviewDialog({
   const [editedValues, setEditedValues] = useState<Record<string, string | number>>({})
   const [selectedVersionId, setSelectedVersionId] = useState<Id<"documentsDelivered"> | null>(null)
   const [showUploadNewVersion, setShowUploadNewVersion] = useState(false)
+  const [editTemplateId, setEditTemplateId] =
+    useState<Id<"reportTemplates"> | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isEditingNotes, setIsEditingNotes] = useState(false)
@@ -189,6 +195,13 @@ export function DocumentReviewDialog({
   const updateWaitingStartedAt = useMutation(api.documentsDelivered.updateWaitingStartedAt)
   const toggleBypassConditions = useMutation(api.documentsDelivered.toggleBypassConditions)
 
+  const linkedReports = useQuery(
+    api.reportTemplates.listActiveSummaries,
+    open && userRole === "admin" && document
+      ? { individualProcessId: document.individualProcessId }
+      : "skip",
+  )
+
   const isManuallyAdded = document
     ? !document.documentTypeLegalFrameworkId && !document.documentRequirementId
     : false
@@ -250,6 +263,7 @@ export function DocumentReviewDialog({
       setEditedValues({})
       setSelectedVersionId(null)
       setShowUploadNewVersion(false)
+      setEditTemplateId(null)
       setIsIllegible(false)
       setIsEditingNotes(false)
       setEditingNotes("")
@@ -548,6 +562,18 @@ export function DocumentReviewDialog({
 
   const isReviewed = document.status === "approved" || document.status === "rejected"
   const canChangeStatus = userRole === "admin" && document.status !== "not_started"
+  const reportTemplatesForDoc = document.documentTypeId
+    ? reportsForDocumentType(linkedReports ?? [], document.documentTypeId)
+    : []
+  const storedTemplateId = document.reportTemplateId
+  const canEditReportContent =
+    userRole === "admin" &&
+    document.status === "approved" &&
+    Boolean(document.documentTypeId) &&
+    (Boolean(storedTemplateId) || reportTemplatesForDoc.length > 0)
+  const singleEditTemplateId =
+    storedTemplateId ??
+    (reportTemplatesForDoc.length === 1 ? reportTemplatesForDoc[0]?._id : undefined)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -596,21 +622,41 @@ export function DocumentReviewDialog({
               )}
             </div>
             {userRole === "admin" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => setShowUploadNewVersion(true)}
-              >
-                {document.status === "awaiting_signature" ? (
-                  <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400 sm:mr-1" />
-                ) : (
-                  <Upload className="h-4 w-4 sm:mr-1" />
-                )}
-                <span className="hidden sm:inline">
-                  {document.status === "awaiting_signature" ? t("attachSignedVersion") : t("newVersion")}
-                </span>
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                {canEditReportContent &&
+                  (singleEditTemplateId ? (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setEditTemplateId(singleEditTemplateId)}
+                    >
+                      <FilePenLine className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">{t("editContent")}</span>
+                    </Button>
+                  ) : (
+                    <LinkedReportsMenu
+                      reports={reportTemplatesForDoc}
+                      onSelect={setEditTemplateId}
+                      triggerLabel={t("editContent")}
+                    />
+                  ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setShowUploadNewVersion(true)}
+                >
+                  {document.status === "awaiting_signature" ? (
+                    <FileSignature className="h-4 w-4 text-indigo-600 dark:text-indigo-400 sm:mr-1" />
+                  ) : (
+                    <Upload className="h-4 w-4 sm:mr-1" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {document.status === "awaiting_signature" ? t("attachSignedVersion") : t("newVersion")}
+                  </span>
+                </Button>
+              </div>
             )}
           </div>
 
@@ -1750,6 +1796,26 @@ export function DocumentReviewDialog({
           currentStatus={document.status}
           canEditReceivedDate={userRole === "admin"}
           onSuccess={() => {
+            setSelectedVersionId(null)
+          }}
+        />
+      )}
+      {document && document.documentTypeId && (
+        <CustomReportGenerateDialog
+          open={editTemplateId !== null}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setEditTemplateId(null)
+          }}
+          processId={document.individualProcessId}
+          templateId={editTemplateId}
+          attachTarget={{
+            documentTypeId: document.documentTypeId,
+            documentRequirementId: document.documentRequirementId,
+            documentName:
+              document.documentType?.name ?? document.fileName,
+          }}
+          onAttached={() => {
+            setEditTemplateId(null)
             setSelectedVersionId(null)
           }}
         />

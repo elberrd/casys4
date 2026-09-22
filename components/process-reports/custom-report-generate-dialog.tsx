@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useConvex } from "convex/react";
-import { Download, FilePenLine, FileText, Loader2, Paperclip } from "lucide-react";
+import { Download, FilePenLine, FileText, Loader2, Paperclip, Save } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -43,6 +43,7 @@ import { buildReportAttachOptions } from "@/lib/report-templates/attach-targets"
 import {
   resolveProcessReportEditorContent,
   shouldPersistProcessReportEdit,
+  uploadDocumentKeepingHtmlFallback,
 } from "@/lib/report-templates/process-report-edit";
 
 export interface ReportAttachTarget {
@@ -94,6 +95,11 @@ export function CustomReportGenerateDialog({
     contentHtml: string;
     filename: string;
   } | null | undefined>(undefined);
+  const [attachedEdit, setAttachedEdit] = useState<{
+    contentHtml: string;
+    filename: string;
+  } | null | undefined>(undefined);
+  const [ignoreAttached, setIgnoreAttached] = useState(false);
   const initializedRef = useRef(false);
   const editedHtmlRef = useRef(editedHtml);
   const filenameRef = useRef(filename);
@@ -163,6 +169,38 @@ export function CustomReportGenerateDialog({
       cancelled = true;
     };
   }, [open, templateId, processId, convex]);
+
+  useEffect(() => {
+    if (!open || !templateId) {
+      setAttachedEdit(undefined);
+      setIgnoreAttached(false);
+      return;
+    }
+    let cancelled = false;
+    void convex
+      .query(api.documentsDelivered.getLatestReportHtml, {
+        individualProcessId: processId,
+        reportTemplateId: templateId,
+        documentTypeId: attachTarget?.documentTypeId,
+      })
+      .then(
+        (row) => {
+          if (!cancelled) {
+            setAttachedEdit(
+              row
+                ? { contentHtml: row.contentHtml, filename: row.filename }
+                : null,
+            );
+          }
+        },
+        () => {
+          if (!cancelled) setAttachedEdit(null);
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [open, templateId, processId, attachTarget?.documentTypeId, convex]);
 
   const values = useMemo(() => {
     if (!process) return null;
@@ -234,6 +272,7 @@ export function CustomReportGenerateDialog({
       !values ||
       declarationSource === undefined ||
       savedEdit === undefined ||
+      attachedEdit === undefined ||
       initializedRef.current
     ) {
       return;
@@ -241,6 +280,7 @@ export function CustomReportGenerateDialog({
     initializedRef.current = true;
     const resolved = resolveProcessReportEditorContent({
       saved: savedEdit,
+      attached: ignoreAttached ? null : attachedEdit,
       templateHtml: template.contentHtml,
       templateName: template.name,
       values,
@@ -255,7 +295,17 @@ export function CustomReportGenerateDialog({
     };
     setAttachEnabled(Boolean(attachTarget));
     setSelectedDocumentTypeId(attachTarget?.documentTypeId);
-  }, [open, template, values, attachTarget, todayIso, declarationSource, savedEdit]);
+  }, [
+    open,
+    template,
+    values,
+    attachTarget,
+    todayIso,
+    declarationSource,
+    savedEdit,
+    attachedEdit,
+    ignoreAttached,
+  ]);
 
   const persistIfDirty = () => {
     if (!templateId || !initializedRef.current) return;
@@ -315,6 +365,17 @@ export function CustomReportGenerateDialog({
   }, [template, deliveredDocuments]);
 
   const canAttach = Boolean(attachTarget) || attachOptions.length > 0;
+  const targetDocumentTypeId =
+    attachTarget?.documentTypeId ?? selectedDocumentTypeId;
+  const replacingExisting = Boolean(
+    targetDocumentTypeId &&
+      deliveredDocuments?.some(
+        (document) =>
+          document.documentTypeId === targetDocumentTypeId &&
+          document.isLatest !== false &&
+          document.status !== "not_started",
+      ),
+  );
 
   const resetLocalState = () => {
     setEditedHtml("");
@@ -323,6 +384,7 @@ export function CustomReportGenerateDialog({
     setAttachEnabled(false);
     setSelectedDocumentTypeId(undefined);
     setFromSavedEdit(false);
+    setIgnoreAttached(false);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -336,8 +398,10 @@ export function CustomReportGenerateDialog({
 
   const handleUseOriginalTemplate = () => {
     if (!template || !values || !templateId) return;
+    setIgnoreAttached(true);
     const resolved = resolveProcessReportEditorContent({
       saved: null,
+      attached: null,
       templateHtml: template.contentHtml,
       templateName: template.name,
       values,
@@ -439,7 +503,7 @@ export function CustomReportGenerateDialog({
         storageId: Id<"_storage">;
       };
 
-      await uploadDocument({
+      await uploadDocumentKeepingHtmlFallback(uploadDocument, {
         individualProcessId: processId,
         documentTypeId,
         documentRequirementId,
@@ -452,9 +516,13 @@ export function CustomReportGenerateDialog({
         versionNotes: t("generatedFromTemplate", {
           name: template?.name ?? "",
         }),
+        contentHtml: editedHtml,
+        reportTemplateId: templateId ?? undefined,
       });
 
-      toast.success(t("attachedSuccess"));
+      toast.success(
+        replacingExisting ? t("approvedVersionSuccess") : t("attachedSuccess"),
+      );
       handleOpenChange(false);
       onAttached?.();
     } catch (error) {
@@ -474,7 +542,8 @@ export function CustomReportGenerateDialog({
       statuses === undefined ||
       deliveredDocuments === undefined ||
       declarationSource === undefined ||
-      savedEdit === undefined);
+      savedEdit === undefined ||
+      attachedEdit === undefined);
   const loadFailed =
     open &&
     (template === null || process === null || templateAllowed === false);
@@ -536,7 +605,9 @@ export function CustomReportGenerateDialog({
                   <div className="flex flex-col justify-end gap-1.5">
                     {attachTarget ? (
                       <p className="pb-1 text-xs text-muted-foreground">
-                        {t("attachPdfTo", { name: attachTarget.documentName })}
+                        {replacingExisting
+                          ? t("saveApprovedVersionHint")
+                          : t("attachPdfTo", { name: attachTarget.documentName })}
                       </p>
                     ) : (
                       <>
@@ -689,10 +760,14 @@ export function CustomReportGenerateDialog({
                   >
                     {isSaving === "attach" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : replacingExisting ? (
+                      <Save className="mr-2 h-4 w-4" />
                     ) : (
                       <Paperclip className="mr-2 h-4 w-4" />
                     )}
-                    {t("saveAndAttach")}
+                    {replacingExisting
+                      ? t("saveApprovedVersion")
+                      : t("saveAndAttach")}
                   </Button>
                 )}
               </div>

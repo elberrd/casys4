@@ -7,11 +7,52 @@ export interface ProcessReportSavedEdit {
   filename: string;
 }
 
-// Preview deploys skip Convex (`scripts/vercel-build.sh`), so
-// processReportEdits is not on production Convex. Reopen (86akn4c1e) no-ops
-// there until a production Convex deploy; the UI already falls back to the template.
+export type ReportVersionContentSource = {
+  contentHtml?: string;
+  fileName: string;
+  version: number;
+  reportTemplateId?: string;
+  documentTypeId?: string;
+};
+
+/** Preview skips Convex deploy; these helpers still work once Ship deploys prod. */
+export function reportFilenameFromDocument(fileName: string): string {
+  return fileName.replace(/\.(pdf|docx)$/i, "");
+}
+
+export function pickLatestReportContent<T extends ReportVersionContentSource>(
+  documents: readonly T[],
+  filter: {
+    reportTemplateId?: string;
+    documentTypeId?: string;
+  },
+): T | null {
+  const withHtml = documents.filter((document) =>
+    Boolean(document.contentHtml?.trim()),
+  );
+  if (withHtml.length === 0) return null;
+
+  const byTemplate = filter.reportTemplateId
+    ? withHtml.filter(
+        (document) => document.reportTemplateId === filter.reportTemplateId,
+      )
+    : [];
+  const byType = filter.documentTypeId
+    ? withHtml.filter(
+        (document) => document.documentTypeId === filter.documentTypeId,
+      )
+    : [];
+  const pool = byTemplate.length > 0 ? byTemplate : byType;
+  if (pool.length === 0) return null;
+
+  return pool.reduce((latest, current) =>
+    current.version >= latest.version ? current : latest,
+  );
+}
+
 export function resolveProcessReportEditorContent(args: {
   saved: ProcessReportSavedEdit | null;
+  attached?: ProcessReportSavedEdit | null;
   templateHtml: string;
   templateName: string;
   values: Partial<Record<ReportVariableKey, string>>;
@@ -35,6 +76,14 @@ export function resolveProcessReportEditorContent(args: {
     };
   }
 
+  if (args.attached) {
+    return {
+      html: args.attached.contentHtml,
+      filename: args.attached.filename || suggested,
+      fromSavedEdit: true,
+    };
+  }
+
   return {
     html: substituteReportVariables(args.templateHtml, args.values),
     filename: suggested,
@@ -52,4 +101,19 @@ export function shouldPersistProcessReportEdit(args: {
     args.html !== args.lastPersistedHtml ||
     args.filename !== args.lastPersistedFilename
   );
+}
+
+export async function uploadDocumentKeepingHtmlFallback<TArgs extends object>(
+  upload: (args: TArgs) => Promise<unknown>,
+  args: TArgs,
+): Promise<unknown> {
+  try {
+    return await upload(args);
+  } catch (error) {
+    if (!("contentHtml" in args)) throw error;
+    const rest = { ...args };
+    delete (rest as { contentHtml?: string }).contentHtml;
+    delete (rest as { reportTemplateId?: string }).reportTemplateId;
+    return await upload(rest);
+  }
 }
