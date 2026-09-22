@@ -59,6 +59,18 @@ test("report document CSS keeps typed spaces, tabs, and line breaks", () => {
   assert.match(buildIsolatedReportHtml("<p>a  b</p>"), /white-space:\s*pre-wrap\s*!important/);
 });
 
+test("Enter paragraphs use Word-like single spacing in editor, preview, and PDF CSS", () => {
+  const editorCss = reportDocumentCss(".report-page-editor");
+  const previewCss = reportDocumentCss(".report-paper-preview");
+  const pdfHtml = buildIsolatedReportHtml("<p>linha 1</p><p>linha 2</p>");
+  assert.match(editorCss, /\.report-page-editor p \{ margin: 0; \}/);
+  assert.match(previewCss, /\.report-paper-preview p \{ margin: 0; \}/);
+  assert.match(pdfHtml, /#report-paper p \{ margin: 0; \}/);
+  assert.equal(/p \{ margin: 0 0 0\.75em/.test(editorCss), false);
+  assert.equal(/p \{ margin: 0 0 0\.75em/.test(previewCss), false);
+  assert.equal(/p \{ margin: 0 0 0\.75em/.test(pdfHtml), false);
+});
+
 test("preview HTML converts consecutive spaces and tabs so they survive collapse", () => {
   const preserved = preserveReportHtmlWhitespace("<p>A    B\tC</p>");
   assert.equal(preserved.includes("A B"), false);
@@ -221,6 +233,23 @@ test("docx keeps consecutive spaces from the editor instead of trimming them", a
   const xml = await zip.file("word/document.xml")?.async("string");
   assert.ok(xml);
   assert.match(xml ?? "", /hello {2}world/);
+});
+
+test("docx Enter paragraphs have no extra space after unless the HTML set a margin", async () => {
+  const tight = await htmlToDocxBlob("<p>linha 1</p><p>linha 2</p>");
+  const tightZip = await JSZip.loadAsync(await tight.arrayBuffer());
+  const tightXml = await tightZip.file("word/document.xml")?.async("string");
+  assert.ok(tightXml);
+  assert.match(tightXml ?? "", /w:after="0"/);
+  assert.equal(/w:after="160"/.test(tightXml ?? ""), false);
+
+  const spaced = await htmlToDocxBlob(
+    '<p style="margin-bottom: 2em">bloco</p><p>seguinte</p>',
+  );
+  const spacedZip = await JSZip.loadAsync(await spaced.arrayBuffer());
+  const spacedXml = await spacedZip.file("word/document.xml")?.async("string");
+  assert.ok(spacedXml);
+  assert.match(spacedXml ?? "", /w:after="[1-9]\d+"/);
 });
 
 test("saved edits persist only when HTML or filename actually changed", () => {

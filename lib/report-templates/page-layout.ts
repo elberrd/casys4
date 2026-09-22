@@ -79,7 +79,7 @@ export function reportDocumentCss(selector: string): string {
       vertical-align: top;
     }
     ${selector} th { background: #f3f4f6; font-weight: 600; }
-    ${selector} p { margin: 0 0 0.75em; }
+    ${selector} p { margin: 0; }
     ${selector} p:empty,
     ${selector} h1:empty,
     ${selector} h2:empty,
