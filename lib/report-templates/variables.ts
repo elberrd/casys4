@@ -102,6 +102,7 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "processType", group: "process" },
   { key: "legalFramework", group: "process" },
   { key: "companyApplicant", group: "process" },
+  { key: "companyCity", group: "process" },
   { key: "consulate", group: "process" },
   { key: "deadlineDate", group: "process" },
   { key: "protocolNumber", group: "process" },
@@ -158,7 +159,6 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "professionalExperienceSinceLong", group: "document" },
   { key: "companyGroup", group: "document" },
   { key: "companyGroupClause", group: "document" },
-  { key: "companyCity", group: "document" },
   { key: "companyCityClause", group: "document" },
   { key: "companyEmploymentPlace", group: "document" },
   { key: "userApplicantName", group: "document" },
@@ -173,6 +173,12 @@ export function isReportVariableKey(value: string): value is ReportVariableKey {
 /** Human labels and spaced names that map onto camelCase keys. */
 const REPORT_VARIABLE_KEY_ALIASES: Record<string, ReportVariableKey> = {
   "atividade cbo": "atividadeCBO",
+  "cidade da empresa": "companyCity",
+  "cidade da empresa solicitante": "companyCity",
+  "cidade da empresa requerente": "companyCity",
+  "cidade da empresa (cláusula)": "companyCityClause",
+  "cidade da empresa solicitante (cláusula)": "companyCityClause",
+  "applicant company city": "companyCity",
 };
 
 /** Resolves a chip/`{{token}}` name, including aliases like `atividade CBO`. */

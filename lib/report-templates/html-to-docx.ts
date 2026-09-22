@@ -217,6 +217,17 @@ function lineTwipsFromStyle(style: Record<string, string>): number | undefined {
   return lengthToTwips(raw);
 }
 
+function lineTwipsFromNode(node: HtmlNode): number | undefined {
+  const direct = lineTwipsFromStyle(parseStyle(node.attrs.style));
+  if (direct) return direct;
+  for (const child of node.children) {
+    if (child.tag === "#text") continue;
+    const nested = lineTwipsFromStyle(parseStyle(child.attrs.style));
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
 function applyTagMarks(tag: string, marks: Marks): Marks {
   const next = { ...marks };
   if (tag === "strong" || tag === "b") next.bold = true;
@@ -315,7 +326,7 @@ function paragraphFromBlock(
     spacing: {
       after: spacingAfter,
       before: spacingBefore,
-      line: lineTwipsFromStyle(style) ?? 360,
+      line: lineTwipsFromNode(node) ?? 360,
     },
     indent:
       firstLine || left

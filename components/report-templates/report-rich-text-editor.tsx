@@ -21,7 +21,12 @@ import {
   shouldStopReportEditorKeyPropagation,
 } from "@/components/report-templates/report-enter-extension";
 import StarterKit from "@tiptap/starter-kit";
-import { TextStyle, FontSize, Color, LineHeight } from "@tiptap/extension-text-style";
+import { TextStyle, FontSize, Color } from "@tiptap/extension-text-style";
+import {
+  ReportLineHeight,
+  getCurrentReportLineHeight,
+} from "@/components/report-templates/report-line-height-extension";
+import { REPORT_LINE_HEIGHTS } from "@/lib/report-templates/line-height";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
@@ -86,7 +91,14 @@ const PRESET_COLORS = [
 ];
 
 const FONT_SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
-const LINE_HEIGHTS = ["1.15", "1.5", "1.75", "2"];
+
+const LINE_HEIGHT_LABEL_KEYS = {
+  "1": "lineHeightSingle",
+  "1.15": "lineHeight115",
+  "1.5": "lineHeight15",
+  "1.75": "lineHeight175",
+  "2": "lineHeightDouble",
+} as const;
 
 export interface ReportEditorVariableGroup {
   id: ReportVariableGroupId;
@@ -112,6 +124,8 @@ function toggleInlineFormat(editor: Editor, attr: ReportVariableFormatAttr) {
   if (editor.commands.toggleReportVariableFormat(attr)) {
     return;
   }
+  const nextValue = !isReportVariableFormatActive(editor, attr);
+  editor.commands.setReportVariableFormatInRange(attr, nextValue);
   const chain = editor.chain();
   if (attr === "bold") {
     chain.toggleBold().run();
@@ -187,8 +201,7 @@ function EditorToolbar({
       subscript: current.isActive("subscript"),
       superscript: current.isActive("superscript"),
       fontSize: (current.getAttributes("textStyle").fontSize as string | undefined) ?? "",
-      lineHeight:
-        (current.getAttributes("textStyle").lineHeight as string | undefined) ?? "",
+      lineHeight: getCurrentReportLineHeight(current),
       alignLeft: current.isActive({ textAlign: "left" }),
       alignCenter: current.isActive({ textAlign: "center" }),
       alignRight: current.isActive({ textAlign: "right" }),
@@ -329,17 +342,17 @@ function EditorToolbar({
         onChange={(event) => {
           const lineHeight = event.target.value;
           if (!lineHeight) {
-            editor.chain().unsetLineHeight().run();
+            editor.chain().focus().unsetLineHeight().run();
             return;
           }
-          editor.chain().setLineHeight(lineHeight).run();
+          editor.chain().focus().setLineHeight(lineHeight).run();
         }}
         aria-label={t("toolbar.lineHeight")}
       >
-        <option value="">1.5</option>
-        {LINE_HEIGHTS.map((lineHeight) => (
+        <option value="">{t("toolbar.lineHeightDefault")}</option>
+        {REPORT_LINE_HEIGHTS.map((lineHeight) => (
           <option key={lineHeight} value={lineHeight}>
-            {lineHeight}
+            {t(`toolbar.${LINE_HEIGHT_LABEL_KEYS[lineHeight]}`)}
           </option>
         ))}
       </select>
@@ -570,7 +583,7 @@ export function ReportRichTextEditor({
       TextStyle,
       FontSize,
       Color,
-      LineHeight,
+      ReportLineHeight,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
       Placeholder.configure({ placeholder }),

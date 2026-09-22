@@ -14,6 +14,11 @@ import {
   preserveReportTextWhitespace,
   reportDocumentCss,
 } from "../lib/report-templates/page-layout";
+import {
+  REPORT_LINE_HEIGHTS,
+  REPORT_LINE_HEIGHT_SINGLE,
+  normalizeReportLineHeight,
+} from "../lib/report-templates/line-height";
 import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
 import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import JSZip from "jszip";
@@ -69,6 +74,14 @@ test("Enter paragraphs use Word-like single spacing in editor, preview, and PDF 
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(editorCss), false);
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(previewCss), false);
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(pdfHtml), false);
+});
+
+test("toolbar line-height options include espaçamento 1 (single)", () => {
+  assert.equal(REPORT_LINE_HEIGHTS[0], REPORT_LINE_HEIGHT_SINGLE);
+  assert.equal(normalizeReportLineHeight("1"), "1");
+  assert.equal(normalizeReportLineHeight("1.0"), "1");
+  assert.equal(normalizeReportLineHeight("100%"), "1");
+  assert.deepEqual([...REPORT_LINE_HEIGHTS], ["1", "1.15", "1.5", "1.75", "2"]);
 });
 
 test("preview HTML converts consecutive spaces and tabs so they survive collapse", () => {
@@ -250,6 +263,14 @@ test("docx Enter paragraphs have no extra space after unless the HTML set a marg
   const spacedXml = await spacedZip.file("word/document.xml")?.async("string");
   assert.ok(spacedXml);
   assert.match(spacedXml ?? "", /w:after="[1-9]\d+"/);
+});
+
+test("docx uses single line spacing when the paragraph has line-height 1", async () => {
+  const blob = await htmlToDocxBlob('<p style="line-height: 1">linha</p>');
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const xml = await zip.file("word/document.xml")?.async("string");
+  assert.ok(xml);
+  assert.match(xml ?? "", /w:line="240"/);
 });
 
 test("saved edits persist only when HTML or filename actually changed", () => {
