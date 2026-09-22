@@ -15,7 +15,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CheckCheck, X, AlertCircle, Search, ChevronRight } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CheckCheck, X, AlertCircle, Search, ChevronRight, Info } from "lucide-react";
 import { fuzzyMatch } from "@/lib/fuzzy-search";
 import { AuthorizationTypeQuickSelector } from "./authorization-type-quick-selector";
 import { cn } from "@/lib/utils";
@@ -287,6 +293,7 @@ export function LegalFrameworkAssociationSection({
   const noneSelected = value.length === 0;
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Label className="text-base font-medium">
@@ -417,12 +424,25 @@ export function LegalFrameworkAssociationSection({
                                 checked={isRequiredLf(lf._id)}
                                 onCheckedChange={() => toggleRequired(lf._id)}
                               />
-                              <Label
-                                htmlFor={`lf-required-${group.processTypeId}-${lf._id}`}
-                                className="cursor-pointer text-sm text-muted-foreground whitespace-nowrap"
-                              >
-                                {t("required")}
-                              </Label>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Label
+                                      htmlFor={`lf-required-${group.processTypeId}-${lf._id}`}
+                                      className="cursor-help text-sm text-muted-foreground whitespace-nowrap"
+                                    >
+                                      {t("required")}
+                                    </Label>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  className="max-w-[280px] text-xs"
+                                >
+                                  {t("requiredTooltip")}
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                           </div>
                         )}
@@ -445,5 +465,6 @@ export function LegalFrameworkAssociationSection({
         </p>
       )}
     </div>
+    </TooltipProvider>
   );
 }

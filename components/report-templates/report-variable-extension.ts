@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
-import { NodeSelection } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 
 type EditorState = Editor["state"];
 type EditorTransaction = EditorState["tr"];
@@ -19,47 +20,39 @@ export const FORMAT_MARK_NAME: Record<ReportVariableFormatAttr, string> = {
   strike: "strike",
 };
 
-const FORMAT_ANCESTOR_TAGS: Record<ReportVariableFormatAttr, readonly string[]> =
-  {
-    bold: ["STRONG", "B"],
-    italic: ["EM", "I"],
-    underline: ["U"],
-    strike: ["S", "STRIKE", "DEL"],
-  };
-
-const BLOCK_ANCESTOR_TAGS = new Set([
-  "P",
-  "DIV",
-  "LI",
-  "TD",
-  "TH",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "BLOCKQUOTE",
-  "PRE",
-]);
-
-function hasAncestorTag(
-  element: HTMLElement,
-  tags: readonly string[],
-): boolean {
-  let current: HTMLElement | null = element.parentElement;
-  while (current) {
-    if (tags.includes(current.tagName)) return true;
-    if (BLOCK_ANCESTOR_TAGS.has(current.tagName)) break;
-    current = current.parentElement;
-  }
-  return false;
-}
+const FORMAT_INNER_TAGS: Record<ReportVariableFormatAttr, readonly string[]> = {
+  bold: ["STRONG", "B"],
+  italic: ["EM", "I"],
+  underline: ["U"],
+  strike: ["S", "STRIKE", "DEL"],
+};
 
 function parseFormatAttr(
   element: HTMLElement,
   attr: ReportVariableFormatAttr,
 ): boolean {
   if (element.getAttribute(`data-${attr}`) === "true") return true;
-  return hasAncestorTag(element, FORMAT_ANCESTOR_TAGS[attr]);
+  const style = element.getAttribute("style")?.toLowerCase() ?? "";
+  if (attr === "bold" && /font-weight\s*:\s*(bold|[6-9]00)/.test(style)) {
+    return true;
+  }
+  if (attr === "italic" && /font-style\s*:\s*italic/.test(style)) {
+    return true;
+  }
+  if (
+    attr === "underline" &&
+    /text-decoration(?:-line)?\s*:[^;]*underline/.test(style)
+  ) {
+    return true;
+  }
+  if (
+    attr === "strike" &&
+    /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style)
+  ) {
+    return true;
+  }
+  const tags = FORMAT_INNER_TAGS[attr];
+  return tags.some((tag) => element.querySelector(tag.toLowerCase()) !== null);
 }
 
 function formatAttribute(attr: ReportVariableFormatAttr) {
@@ -77,6 +70,22 @@ function isReportVariableNode(
   node: { type: { name: string } } | null | undefined,
 ): node is PMNode {
   return node?.type.name === "reportVariable";
+}
+
+export function findReportVariablesInRange(
+  state: EditorState,
+  from: number,
+  to: number,
+): Array<{ node: PMNode; pos: number }> {
+  const found: Array<{ node: PMNode; pos: number }> = [];
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  state.doc.nodesBetween(start, Math.max(end, start + 1), (node, pos) => {
+    if (isReportVariableNode(node)) {
+      found.push({ node, pos });
+    }
+  });
+  return found;
 }
 
 /**
@@ -98,6 +107,29 @@ export function findSelectedReportVariable(
   const atFrom = state.doc.nodeAt(selection.from);
   if (isReportVariableNode(atFrom)) {
     return { node: atFrom, pos: selection.from };
+  }
+
+  if (selection.empty) {
+    const after = selection.$from.nodeAfter;
+    if (isReportVariableNode(after)) {
+      return { node: after, pos: selection.from };
+    }
+  } else {
+    const inRange = findReportVariablesInRange(
+      state,
+      selection.from,
+      selection.to,
+    );
+    if (inRange.length === 1) {
+      const chip = inRange[0];
+      if (
+        chip &&
+        selection.from >= chip.pos &&
+        selection.to <= chip.pos + chip.node.nodeSize
+      ) {
+        return chip;
+      }
+    }
   }
 
   return null;
@@ -150,10 +182,79 @@ function applyVariableFormat(
   }
   const mappedPos = tr.mapping.map(pos);
   tr = tr.setSelection(NodeSelection.create(tr.doc, mappedPos));
+  // Chip marks must not become storedMarks for the next typed character.
+  tr = tr.setStoredMarks([]);
   if (dispatch) {
     dispatch(tr);
   }
   return true;
+}
+
+function applyVariableFormatInRange(
+  state: EditorState,
+  dispatch: ((tr: EditorTransaction) => void) | undefined,
+  attr: ReportVariableFormatAttr,
+  nextValue: boolean,
+): boolean {
+  const chips = findReportVariablesInRange(
+    state,
+    state.selection.from,
+    state.selection.to,
+  );
+  if (chips.length === 0) return false;
+  const markType = state.schema.marks[FORMAT_MARK_NAME[attr]];
+  let tr = state.tr;
+  for (const chip of chips) {
+    const pos = tr.mapping.map(chip.pos);
+    const node = tr.doc.nodeAt(pos);
+    if (!isReportVariableNode(node)) continue;
+    const end = pos + node.nodeSize;
+    tr = tr.setNodeMarkup(pos, undefined, {
+      ...node.attrs,
+      [attr]: nextValue,
+    });
+    if (!markType) continue;
+    if (nextValue) {
+      tr = tr.addMark(pos, end, markType.create());
+    } else {
+      tr = tr.removeMark(pos, end, markType);
+    }
+  }
+  if (dispatch) {
+    dispatch(tr);
+  }
+  return true;
+}
+
+function selectReportVariableOnClick(
+  view: EditorView,
+  node: PMNode,
+  nodePos: number,
+): boolean {
+  if (!isReportVariableNode(node)) return false;
+  const tr = view.state.tr.setSelection(
+    NodeSelection.create(view.state.doc, nodePos),
+  );
+  view.dispatch(tr);
+  return true;
+}
+
+function clearChipStoredMarks(state: EditorState): EditorTransaction | null {
+  const { selection } = state;
+  if (!selection.empty) return null;
+  const before = selection.$from.nodeBefore;
+  if (!isReportVariableNode(before)) return null;
+  const after = selection.$from.nodeAfter;
+  const stored = state.storedMarks ?? selection.$from.marks();
+  if (stored.length === 0) return null;
+  const afterMarks = after?.marks ?? [];
+  const keep = stored.filter((mark) => {
+    const onChip = mark.isInSet(before.marks);
+    if (!onChip) return true;
+    return mark.isInSet(afterMarks);
+  });
+  if (keep.length === stored.length) return null;
+  return state.tr.setStoredMarks(keep);
 }
 
 declare module "@tiptap/core" {
@@ -170,9 +271,15 @@ declare module "@tiptap/core" {
       toggleReportVariableFormat: (
         attr: ReportVariableFormatAttr,
       ) => ReturnType;
+      setReportVariableFormatInRange: (
+        attr: ReportVariableFormatAttr,
+        nextValue: boolean,
+      ) => ReturnType;
     };
   }
 }
+
+const reportVariableMarksKey = new PluginKey("reportVariableMarks");
 
 export const ReportVariable = Node.create<{
   getLabel: (key: string) => string;
@@ -274,6 +381,11 @@ export const ReportVariable = Node.create<{
             found,
           );
         },
+      setReportVariableFormatInRange:
+        (attr, nextValue) =>
+        ({ state, dispatch }) => {
+          return applyVariableFormatInRange(state, dispatch, attr, nextValue);
+        },
     };
   },
 
@@ -285,5 +397,21 @@ export const ReportVariable = Node.create<{
       "Mod-Shift-s": () =>
         this.editor.commands.toggleReportVariableFormat("strike"),
     };
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: reportVariableMarksKey,
+        props: {
+          handleClickOn(view, _pos, node, nodePos) {
+            return selectReportVariableOnClick(view, node as PMNode, nodePos);
+          },
+        },
+        appendTransaction(_transactions, _oldState, newState) {
+          return clearChipStoredMarks(newState);
+        },
+      }),
+    ];
   },
 });

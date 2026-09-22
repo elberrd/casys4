@@ -33,6 +33,7 @@ import {
 import {
   isReportVariableKey,
   REPORT_VARIABLES,
+  resolveReportVariableKey,
   variablesByGroup,
 } from "../lib/report-templates/variables";
 
@@ -91,6 +92,22 @@ test("variable catalog uses stable keys and UI-oriented groups", () => {
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "locationDate"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "atividadeCBO"));
   assert.ok(REPORT_VARIABLES.some((item) => item.key === "companyEmploymentPlace"));
+  assert.ok(REPORT_VARIABLES.some((item) => item.key === "companyCity"));
+  assert.ok(variablesByGroup("process").some((item) => item.key === "companyCity"));
+});
+
+test("resolves cidade da empresa solicitante onto the applicant company city", () => {
+  assert.equal(
+    resolveReportVariableKey("cidade da empresa solicitante"),
+    "companyCity",
+  );
+  const html =
+    '<p><span data-type="report-variable" data-key="cidade da empresa solicitante">Cidade da empresa solicitante</span> {{cidade da empresa solicitante}}</p>';
+  const result = substituteReportVariables(html, {
+    companyCity: "Montgomery/AL",
+  });
+  assert.equal(result, "<p>Montgomery/AL Montgomery/AL</p>");
+  assert.deepEqual(extractReportVariableKeys(html), ["companyCity"]);
 });
 
 test("resolves the spaced alias atividade CBO to the process field", () => {
@@ -136,6 +153,20 @@ test("applies chip data-bold and data-italic to the filled value", () => {
     result,
     "<p>Nome: <strong><em>Oran Alder Mc Gee</em></strong></p>",
   );
+});
+
+test("applies bold from inner strong or font-weight on the personName chip", () => {
+  const innerStrong = substituteReportVariables(
+    '<p><span data-type="report-variable" data-key="personName"><strong>Nome do indivíduo</strong></span></p>',
+    { personName: "Oran Alder Mc Gee" },
+  );
+  assert.equal(innerStrong, "<p><strong>Oran Alder Mc Gee</strong></p>");
+
+  const fontWeight = substituteReportVariables(
+    '<p><span data-type="report-variable" data-key="personName" style="font-weight: 700">Nome do indivíduo</span></p>',
+    { personName: "Oran Alder Mc Gee" },
+  );
+  assert.match(fontWeight, /<strong>Oran Alder Mc Gee<\/strong>/);
 });
 
 test("applies chip underline and strike to the filled value", () => {
@@ -404,6 +435,41 @@ test("flags empty declaration chips as missing fields", () => {
   assert.ok(missing.includes("maritalStatusText"));
   assert.ok(missing.includes("passportNumber"));
   assert.ok(missing.includes("issuingCountryOfficial"));
+});
+
+test("fills passport chips from declaration extras when process.passport is missing", () => {
+  const values = buildReportVariableValues({
+    process: {
+      person: {
+        givenNames: "Ryo",
+        surname: "Kurasaki",
+        nationality: { name: "Japan", code: "JP" },
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-22",
+      passportNumber: "TT3235629",
+      passportIssueDate: "2018-04-10",
+      passportExpiryDate: "2028-04-10",
+      issuingCountryCode: "JP",
+      issuingCountryName: "Japan",
+      issuingCountryFullName: "Japão",
+    },
+  });
+
+  assert.equal(values.passportNumber, "TT3235629");
+  assert.equal(values.issueDateLong, "10 de abril de 2018");
+  assert.equal(values.expiryDateLong, "10 de abril de 2028");
+  assert.equal(values.issuingCountryOfficial, "Japão");
+  assert.equal(
+    missingUsedReportVariables(CRIMINAL_BACKGROUND_REPORT_HTML, values).includes(
+      "passportNumber",
+    ),
+    false,
+  );
 });
 
 test("builds a DOCX from filled report HTML with bold title and DECLARO", async () => {

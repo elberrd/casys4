@@ -14,6 +14,11 @@ import {
   preserveReportTextWhitespace,
   reportDocumentCss,
 } from "../lib/report-templates/page-layout";
+import {
+  REPORT_LINE_HEIGHTS,
+  REPORT_LINE_HEIGHT_SINGLE,
+  normalizeReportLineHeight,
+} from "../lib/report-templates/line-height";
 import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
 import { htmlToDocxBlob } from "../lib/report-templates/html-to-docx";
 import JSZip from "jszip";
@@ -24,6 +29,7 @@ import {
   shouldPersistProcessReportEdit,
   uploadDocumentKeepingHtmlFallback,
 } from "../lib/report-templates/process-report-edit";
+import { fillRemainingReportPlaceholders } from "../lib/report-templates/substitute";
 
 test("prosemirror-model is a single copy so Enter can split blocks", () => {
   assert.equal(DirectFragment, TiptapFragment);
@@ -69,6 +75,14 @@ test("Enter paragraphs use Word-like single spacing in editor, preview, and PDF 
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(editorCss), false);
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(previewCss), false);
   assert.equal(/p \{ margin: 0 0 0\.75em/.test(pdfHtml), false);
+});
+
+test("toolbar line-height options include espaçamento 1 (single)", () => {
+  assert.equal(REPORT_LINE_HEIGHTS[0], REPORT_LINE_HEIGHT_SINGLE);
+  assert.equal(normalizeReportLineHeight("1"), "1");
+  assert.equal(normalizeReportLineHeight("1.0"), "1");
+  assert.equal(normalizeReportLineHeight("100%"), "1");
+  assert.deepEqual([...REPORT_LINE_HEIGHTS], ["1", "1.15", "1.5", "1.75", "2"]);
 });
 
 test("preview HTML converts consecutive spaces and tabs so they survive collapse", () => {
@@ -117,6 +131,40 @@ test("reopening a generated report loads the saved HTML instead of the template"
   assert.equal(resolved.fromSavedEdit, true);
   assert.equal(resolved.html, "<p>correção do cliente</p>");
   assert.equal(resolved.filename, "declaracao-editada");
+});
+
+test("reopen injects a linked passport number into leftover placeholders", () => {
+  const templateHtml =
+    '<p>nº <span data-type="report-variable" data-key="passportNumber">Número</span> – emitido em <span data-type="report-variable" data-key="issueDateLong">Emissão</span> pela <span data-type="report-variable" data-key="issuingCountryOfficial">País</span>, válido até <span data-type="report-variable" data-key="expiryDateLong">Validade</span></p>';
+  const savedHtml =
+    "<p>nº ______ – emitido em ______ pela Japão, válido até ______</p>";
+  const resolved = resolveProcessReportEditorContent({
+    saved: { contentHtml: savedHtml, filename: "declaracao" },
+    templateHtml,
+    templateName: "Declaração",
+    values: {
+      passportNumber: "TT3235629",
+      issueDateLong: "10 de abril de 2018",
+      issuingCountryOfficial: "Japão",
+      expiryDateLong: "10 de abril de 2028",
+    },
+    todayIso: "2026-09-22",
+  });
+
+  assert.equal(resolved.fromSavedEdit, true);
+  assert.equal(
+    resolved.html,
+    "<p>nº TT3235629 – emitido em 10 de abril de 2018 pela Japão, válido até 10 de abril de 2028</p>",
+  );
+});
+
+test("placeholder fill does not overwrite a user edit without leftover blanks", () => {
+  const filled = fillRemainingReportPlaceholders(
+    "<p>correção manual do cliente</p>",
+    '<p><span data-type="report-variable" data-key="passportNumber">Número</span></p>',
+    { passportNumber: "TT3235629" },
+  );
+  assert.equal(filled, "<p>correção manual do cliente</p>");
 });
 
 test("first generation substitutes the template when no saved edit exists", () => {
@@ -250,6 +298,14 @@ test("docx Enter paragraphs have no extra space after unless the HTML set a marg
   const spacedXml = await spacedZip.file("word/document.xml")?.async("string");
   assert.ok(spacedXml);
   assert.match(spacedXml ?? "", /w:after="[1-9]\d+"/);
+});
+
+test("docx uses single line spacing when the paragraph has line-height 1", async () => {
+  const blob = await htmlToDocxBlob('<p style="line-height: 1">linha</p>');
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const xml = await zip.file("word/document.xml")?.async("string");
+  assert.ok(xml);
+  assert.match(xml ?? "", /w:line="240"/);
 });
 
 test("saved edits persist only when HTML or filename actually changed", () => {

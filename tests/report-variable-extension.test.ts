@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getSchema } from "@tiptap/core";
-import { EditorState, NodeSelection } from "@tiptap/pm/state";
+import { EditorState, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 
 import {
   ReportVariable,
+  findReportVariablesInRange,
   findSelectedReportVariable,
   variableHasFormat,
 } from "../components/report-templates/report-variable-extension";
@@ -85,4 +86,22 @@ test("can turn bold off by clearing the attr and the wrapping mark", () => {
   assert.ok(nextNode);
   assert.equal(nextNode.attrs.bold, false);
   assert.equal(variableHasFormat(next, nextNode, found.pos, "bold"), false);
+});
+
+test("finds a personName chip covered by a text selection", () => {
+  const base = createState({ bold: true });
+  const pos = 1;
+  const node = base.doc.nodeAt(pos);
+  assert.ok(node);
+  const state = EditorState.create({
+    schema: base.schema,
+    doc: base.doc,
+    selection: TextSelection.create(base.doc as never, pos, pos + node.nodeSize),
+  } as never);
+  const inRange = findReportVariablesInRange(state, pos, pos + node.nodeSize);
+  assert.equal(inRange.length, 1);
+  assert.equal(inRange[0]?.node.attrs.key, "personName");
+  const found = findSelectedReportVariable(state);
+  assert.ok(found);
+  assert.equal(found.node.attrs.key, "personName");
 });

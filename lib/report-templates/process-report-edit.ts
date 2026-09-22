@@ -1,5 +1,5 @@
 import { suggestedReportFilename } from "@/lib/report-templates/format-values";
-import { substituteReportVariables } from "@/lib/report-templates/substitute";
+import { fillRemainingReportPlaceholders } from "@/lib/report-templates/substitute";
 import type { ReportVariableKey } from "@/lib/report-templates/variables";
 
 export type { ReportVersionContentSource } from "./process-report-content";
@@ -31,26 +31,25 @@ export function resolveProcessReportEditorContent(args: {
     todayIso: args.todayIso,
   });
 
-  if (args.saved) {
-    return {
-      html: args.saved.contentHtml,
-      filename: args.saved.filename || suggested,
-      fromSavedEdit: true,
-    };
-  }
-
-  if (args.attached) {
-    return {
-      html: args.attached.contentHtml,
-      filename: args.attached.filename || suggested,
-      fromSavedEdit: true,
-    };
-  }
+  const sourceHtml = args.saved
+    ? args.saved.contentHtml
+    : args.attached
+      ? args.attached.contentHtml
+      : args.templateHtml;
+  const fromSavedEdit = Boolean(args.saved || args.attached);
 
   return {
-    html: substituteReportVariables(args.templateHtml, args.values),
-    filename: suggested,
-    fromSavedEdit: false,
+    html: fillRemainingReportPlaceholders(
+      sourceHtml,
+      args.templateHtml,
+      args.values,
+    ),
+    filename: args.saved
+      ? args.saved.filename || suggested
+      : args.attached
+        ? args.attached.filename || suggested
+        : suggested,
+    fromSavedEdit,
   };
 }
 

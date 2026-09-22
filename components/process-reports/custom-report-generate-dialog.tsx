@@ -229,6 +229,9 @@ export function CustomReportGenerateDialog({
         issuingCountryCode: declarationSource?.issuingCountryCode,
         issuingCountryName: declarationSource?.issuingCountryName,
         issuingCountryFullName: declarationSource?.issuingCountryFullName,
+        passportNumber: declarationSource?.passportNumber,
+        passportIssueDate: declarationSource?.passportIssueDate,
+        passportExpiryDate: declarationSource?.passportExpiryDate,
       },
     });
   }, [

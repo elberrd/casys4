@@ -63,17 +63,62 @@ function isTrueAttribute(tag: string, name: string): boolean {
   return readAttribute(tag, name).toLowerCase() === "true";
 }
 
-function wrapWithChipFormat(html: string, tag: string): string {
+function styleIndicatesBold(style: string): boolean {
+  return /font-weight\s*:\s*(bold|[6-9]00)/i.test(style);
+}
+
+function styleIndicatesItalic(style: string): boolean {
+  return /font-style\s*:\s*italic/i.test(style);
+}
+
+function styleIndicatesUnderline(style: string): boolean {
+  return /text-decoration(?:-line)?\s*:[^;]*underline/i.test(style);
+}
+
+function styleIndicatesStrike(style: string): boolean {
+  return /text-decoration(?:-line)?\s*:[^;]*line-through/i.test(style);
+}
+
+export function chipMarkupHasFormat(
+  tag: string,
+  innerHtml: string,
+  attr: "bold" | "italic" | "underline" | "strike",
+): boolean {
+  if (isTrueAttribute(tag, `data-${attr}`)) return true;
+  const style = readAttribute(tag, "style");
+  if (attr === "bold" && styleIndicatesBold(style)) return true;
+  if (attr === "italic" && styleIndicatesItalic(style)) return true;
+  if (attr === "underline" && styleIndicatesUnderline(style)) return true;
+  if (attr === "strike" && styleIndicatesStrike(style)) return true;
+  const inner = innerHtml.toLowerCase();
+  if (attr === "bold") return /<(strong|b)\b/.test(inner);
+  if (attr === "italic") return /<(em|i)\b/.test(inner);
+  if (attr === "underline") return /<u\b/.test(inner);
+  return /<(s|strike|del)\b/.test(inner);
+}
+
+function wrapWithChipFormat(
+  html: string,
+  tag: string,
+  innerHtml: string,
+): string {
   let result = html;
-  if (isTrueAttribute(tag, "data-strike")) result = `<s>${result}</s>`;
-  if (isTrueAttribute(tag, "data-underline")) result = `<u>${result}</u>`;
-  if (isTrueAttribute(tag, "data-italic")) result = `<em>${result}</em>`;
-  if (isTrueAttribute(tag, "data-bold")) result = `<strong>${result}</strong>`;
+  if (chipMarkupHasFormat(tag, innerHtml, "strike")) result = `<s>${result}</s>`;
+  if (chipMarkupHasFormat(tag, innerHtml, "underline")) {
+    result = `<u>${result}</u>`;
+  }
+  if (chipMarkupHasFormat(tag, innerHtml, "italic")) {
+    result = `<em>${result}</em>`;
+  }
+  if (chipMarkupHasFormat(tag, innerHtml, "bold")) {
+    result = `<strong>${result}</strong>`;
+  }
   return result;
 }
 
 function formattedSubstitutedValue(
   match: string,
+  innerHtml: string,
   values: Partial<Record<ReportVariableKey, string>>,
 ): string {
   const key = readAttribute(match, "data-key");
@@ -81,7 +126,7 @@ function formattedSubstitutedValue(
   if (value === "") return "";
 
   const escaped = escapeHtml(value).replace(/\n/g, "<br />");
-  const formatted = wrapWithChipFormat(escaped, match);
+  const formatted = wrapWithChipFormat(escaped, match, innerHtml);
   const style = sanitizeChipStyle(readAttribute(match, "style"));
   if (!style) return formatted;
   return `<span style="${escapeHtml(style)}">${formatted}</span>`;
@@ -99,8 +144,9 @@ export function substituteReportVariables(
   if (!html) return "";
 
   const withNodes = html.replace(
-    /<span\b[^>]*data-type="report-variable"[^>]*>[\s\S]*?<\/span>/gi,
-    (match) => formattedSubstitutedValue(match, values),
+    /<span\b([^>]*data-type="report-variable"[^>]*)>([\s\S]*?)<\/span>/gi,
+    (_full, rawAttrs: string, innerHtml: string) =>
+      formattedSubstitutedValue(`<span${rawAttrs}>`, innerHtml, values),
   );
 
   return withNodes.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_full, rawKey: string) => {
@@ -149,4 +195,48 @@ export function missingUsedReportVariables(
   return extractReportVariableKeys(html).filter(
     (key) => !isOptionalReportVariableKey(key) && isEmptyReportValue(values[key]),
   );
+}
+
+const PASSPORT_PLACEHOLDER_KEYS = new Set<ReportVariableKey>([
+  "passportNumber",
+  "issueDate",
+  "issueDateLong",
+  "expiryDate",
+  "expiryDateLong",
+  "issuingCountry",
+  "issuingCountryOfficial",
+]);
+
+function htmlContainsValue(html: string, value: string): boolean {
+  const escaped = escapeHtml(value);
+  return html.includes(value) || (escaped !== value && html.includes(escaped));
+}
+
+/**
+ * Substitutes leftover chips, then injects currently available passport values
+ * into leftover `______` slots from a previous generate (saved HTML freeze).
+ * Skips values already present so user edits and nationality fallbacks stay put.
+ */
+export function fillRemainingReportPlaceholders(
+  html: string,
+  templateHtml: string,
+  values: Partial<Record<ReportVariableKey, string>>,
+): string {
+  let next = substituteReportVariables(html, values);
+  const keys = extractReportVariableKeys(templateHtml).filter((key) =>
+    PASSPORT_PLACEHOLDER_KEYS.has(key),
+  );
+
+  for (const key of keys) {
+    const raw = values[key]?.trim() ?? "";
+    if (!raw || raw === REPORT_PLACEHOLDER) continue;
+    if (htmlContainsValue(next, raw)) continue;
+    if (!next.includes(REPORT_PLACEHOLDER)) break;
+    next = next.replace(
+      REPORT_PLACEHOLDER,
+      escapeHtml(raw).replace(/\n/g, "<br />"),
+    );
+  }
+
+  return next;
 }
