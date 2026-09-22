@@ -304,7 +304,7 @@ function paragraphFromBlock(
   const spacingAfter =
     lengthToTwips(style["margin-bottom"]) ??
     lengthToTwips(style.margin) ??
-    160;
+    0;
   const spacingBefore = lengthToTwips(style["margin-top"]);
   const firstLine = lengthToTwips(style["text-indent"]);
   const left =
