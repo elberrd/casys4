@@ -37,7 +37,7 @@ import {
 import {
   pickLatestReportContent,
   reportFilenameFromDocument,
-} from "../lib/report-templates/process-report-edit";
+} from "../lib/report-templates/process-report-content";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
