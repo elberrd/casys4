@@ -34,6 +34,10 @@ import {
   requiresSignedVersionForTransition,
   resolveDocumentUploadStatus,
 } from "./lib/documentStatus";
+import {
+  pickLatestReportContent,
+  reportFilenameFromDocument,
+} from "../lib/report-templates/process-report-edit";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
@@ -68,8 +72,10 @@ function getFullName(person: { givenNames: string; middleName?: string; surname?
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
 }
 
+type DocumentWithoutReportHtml = Omit<Doc<"documentsDelivered">, "contentHtml">;
+
 type ClientVisibleDocument = Omit<
-  Doc<"documentsDelivered">,
+  DocumentWithoutReportHtml,
   "waitingStartedAt" | "receivedAt" | "reviewedAt" | "uploadedAt"
 > & {
   waitingStartedAt?: undefined;
@@ -78,21 +84,31 @@ type ClientVisibleDocument = Omit<
   uploadedAt?: undefined;
 };
 
-type AdminVisibleDocument = Doc<"documentsDelivered"> & {
+type AdminVisibleDocument = DocumentWithoutReportHtml & {
   waitingStartedAt: number;
 };
+
+function omitReportHtml(
+  document: Doc<"documentsDelivered">,
+): DocumentWithoutReportHtml {
+  const { contentHtml: _reportHtml, ...documentWithoutHtml } = document;
+  void _reportHtml;
+  return documentWithoutHtml;
+}
 
 /**
  * Receipt timestamps are operational metadata. Clients may submit files, but
  * only administrators may receive these fields back from public queries.
+ * Report HTML stays off list/get payloads and is loaded via getLatestReportHtml.
  */
 function projectDocumentForViewer(
   document: Doc<"documentsDelivered">,
   viewerRole: "admin" | "client",
 ): AdminVisibleDocument | ClientVisibleDocument {
+  const documentWithoutHtml = omitReportHtml(document);
   if (viewerRole === "admin") {
     return {
-      ...document,
+      ...documentWithoutHtml,
       waitingStartedAt: getDocumentWaitingStartedAt(document),
     };
   }
@@ -103,7 +119,7 @@ function projectDocumentForViewer(
     reviewedAt: restrictedReviewedAt,
     uploadedAt: restrictedUploadedAt,
     ...clientVisibleDocument
-  } = document;
+  } = documentWithoutHtml;
 
   void restrictedWaitingStartedAt;
   void restrictedReceivedAt;
@@ -576,6 +592,61 @@ export const get = query({
   },
 });
 
+const latestReportHtmlValidator = v.object({
+  documentId: v.id("documentsDelivered"),
+  contentHtml: v.string(),
+  filename: v.string(),
+  reportTemplateId: v.optional(v.id("reportTemplates")),
+  version: v.number(),
+});
+
+/**
+ * Latest saved report HTML for a process template/document type.
+ * Used by Revisar Documento → Editar conteúdo and generate-reopen.
+ */
+export const getLatestReportHtml = query({
+  args: {
+    individualProcessId: v.id("individualProcesses"),
+    reportTemplateId: v.optional(v.id("reportTemplates")),
+    documentTypeId: v.optional(v.id("documentTypes")),
+  },
+  returns: v.union(latestReportHtmlValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    if (!args.reportTemplateId && !args.documentTypeId) {
+      return null;
+    }
+
+    const process = await ctx.db.get(args.individualProcessId);
+    if (!process || process.requestStatus === "draft") {
+      return null;
+    }
+
+    const documents = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) =>
+        q.eq("individualProcessId", args.individualProcessId),
+      )
+      .collect();
+
+    const latest = pickLatestReportContent(documents, {
+      reportTemplateId: args.reportTemplateId,
+      documentTypeId: args.documentTypeId,
+    });
+    if (!latest?.contentHtml) {
+      return null;
+    }
+
+    return {
+      documentId: latest._id,
+      contentHtml: latest.contentHtml,
+      filename: reportFilenameFromDocument(latest.fileName),
+      reportTemplateId: latest.reportTemplateId,
+      version: latest.version,
+    };
+  },
+});
+
 /**
  * Returns the authoritative waiting-start default for an administrative
  * document insertion UI. Existing placeholders resolve their current value;
@@ -657,6 +728,8 @@ export const upload = mutation({
     bypassConditions: v.optional(v.boolean()),
     waitingStartDate: v.optional(v.string()),
     receivedDate: v.optional(v.string()),
+    contentHtml: v.optional(v.string()),
+    reportTemplateId: v.optional(v.id("reportTemplates")),
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
@@ -807,6 +880,8 @@ export const upload = mutation({
         version,
         versionNotes: args.versionNotes,
         processStatusAtUpload,
+        contentHtml: args.contentHtml,
+        reportTemplateId: args.reportTemplateId,
       });
     } else {
       if (currentLatest) {
@@ -844,6 +919,8 @@ export const upload = mutation({
         versionNotes: args.versionNotes,
         processStatusAtUpload,
         individualProcessStatusId: currentLatest?.individualProcessStatusId,
+        contentHtml: args.contentHtml,
+        reportTemplateId: args.reportTemplateId,
       });
     }
 

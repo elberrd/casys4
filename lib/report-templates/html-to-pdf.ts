@@ -5,6 +5,7 @@ import {
   REPORT_PAGE_MARGIN_Y_MM,
   REPORT_PAGE_WIDTH_MM,
   REPORT_PAGE_WIDTH_PX,
+  preserveReportHtmlWhitespace,
   reportDocumentCss,
 } from "./page-layout";
 
@@ -32,7 +33,9 @@ export function sanitizeReportHtmlForPdf(html: string): string {
 }
 
 export function buildIsolatedReportHtml(bodyHtml: string): string {
-  const content = sanitizeReportHtmlForPdf(bodyHtml || "");
+  const content = sanitizeReportHtmlForPdf(
+    preserveReportHtmlWhitespace(bodyHtml || ""),
+  );
   return `<!DOCTYPE html>
 <html>
   <head>

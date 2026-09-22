@@ -13,7 +13,13 @@ import {
   isReportVariableFormatActive,
   type ReportVariableFormatAttr,
 } from "@/components/report-templates/report-variable-extension";
-import { ReportEnterToLineBreak } from "@/components/report-templates/report-enter-extension";
+import {
+  ReportEditorKeys,
+  insertReportEnter,
+  insertReportHardBreak,
+  isReportEditorEnterEvent,
+  shouldStopReportEditorKeyPropagation,
+} from "@/components/report-templates/report-enter-extension";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontSize, Color, LineHeight } from "@tiptap/extension-text-style";
 import { TextAlign } from "@tiptap/extension-text-align";
@@ -574,27 +580,37 @@ export function ReportRichTextEditor({
       Subscript,
       Superscript,
       ReportVariable.configure({ getLabel: getVariableLabel }),
-      ReportEnterToLineBreak,
+      ReportEditorKeys,
       ReportPageGap,
     ],
     content: value,
     editable: !disabled,
     immediatelyRender: false,
+    parseOptions: { preserveWhitespace: "full" },
     onUpdate: ({ editor: current }) => {
       const html = current.getHTML();
       lastEmittedHtml.current = html;
       onChange(html);
     },
     editorProps: {
-      handleKeyDown: (_view, event) => {
-        if (event.key === "Enter") {
+      handleKeyDown: (view, event) => {
+        if (shouldStopReportEditorKeyPropagation(event)) {
           event.stopPropagation();
         }
-        return false;
+        if (!isReportEditorEnterEvent(event)) {
+          return false;
+        }
+        event.preventDefault();
+        if (event.shiftKey) {
+          insertReportHardBreak(view);
+        } else {
+          insertReportEnter(view);
+        }
+        return true;
       },
       attributes: {
         class: cn(
-          "report-page-editor max-w-none bg-transparent focus:outline-none",
+          "report-page-editor max-w-none bg-transparent whitespace-pre-wrap focus:outline-none",
           "[&_span.report-variable]:inline-flex [&_span.report-variable]:items-center [&_span.report-variable]:rounded-md [&_span.report-variable]:border [&_span.report-variable]:border-sky-300 [&_span.report-variable]:bg-sky-50 [&_span.report-variable]:px-1.5 [&_span.report-variable]:py-0.5 [&_span.report-variable]:text-sky-800",
           "[&_span.report-variable[data-bold=true]]:font-bold [&_strong_span.report-variable]:font-bold [&_b_span.report-variable]:font-bold",
           "[&_span.report-variable[data-italic=true]]:italic [&_em_span.report-variable]:italic [&_i_span.report-variable]:italic",

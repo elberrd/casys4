@@ -25,11 +25,52 @@ export const REPORT_DOCUMENT_CSS = `
   font-family: "Times New Roman", Times, serif;
   font-size: 16px;
   line-height: 1.6;
+  white-space: pre-wrap !important;
+  tab-size: 4;
 `;
+
+const NBSP = "\u00a0";
+
+/** Empty TipTap/ProseMirror blocks: <p></p>, <p><br></p>, trailing-break variants. */
+const EMPTY_REPORT_BLOCK_RE =
+  /<(p|h1|h2|h3)(\s[^>]*)?>(?:\s|&nbsp;|&#160;|<br\b[^>]*>)*<\/\1>/gi;
+
+export function preserveReportTextWhitespace(text: string): string {
+  return text
+    .replace(/\t/g, NBSP.repeat(4))
+    .replace(/ {2,}/g, (chunk) => NBSP.repeat(chunk.length))
+    .replace(/^ /g, NBSP)
+    .replace(/ $/g, NBSP);
+}
+
+export function preserveReportEmptyBlocks(html: string): string {
+  if (!html) return html;
+  return html.replace(
+    EMPTY_REPORT_BLOCK_RE,
+    (_match, tag: string, attrs = "") => `<${tag}${attrs}>${NBSP}</${tag}>`,
+  );
+}
+
+/** Keep typed spaces/tabs/blank paragraphs that browsers would otherwise collapse. */
+export function preserveReportHtmlWhitespace(html: string): string {
+  if (!html) return html;
+  const withSpaces = html.replace(/>([^<]*)</g, (match, text: string) => {
+    if (!text.includes(" ") && !text.includes("\t")) {
+      return match;
+    }
+    return `>${preserveReportTextWhitespace(text)}<`;
+  });
+  return preserveReportEmptyBlocks(withSpaces);
+}
 
 export function reportDocumentCss(selector: string): string {
   return `
     ${selector} { ${REPORT_DOCUMENT_CSS} }
+    ${selector}, ${selector} p, ${selector} h1, ${selector} h2, ${selector} h3,
+    ${selector} li, ${selector} td, ${selector} th, ${selector} div, ${selector} span {
+      white-space: pre-wrap !important;
+      tab-size: 4;
+    }
     ${selector} table { border-collapse: collapse; width: 100%; margin: 12px 0; }
     ${selector} th, ${selector} td {
       border: 1px solid #d1d5db;
@@ -39,6 +80,12 @@ export function reportDocumentCss(selector: string): string {
     }
     ${selector} th { background: #f3f4f6; font-weight: 600; }
     ${selector} p { margin: 0 0 0.75em; }
+    ${selector} p:empty,
+    ${selector} h1:empty,
+    ${selector} h2:empty,
+    ${selector} h3:empty {
+      min-height: 1.6em;
+    }
     ${selector} h1, ${selector} h2, ${selector} h3 {
       margin: 0 0 0.6em;
       line-height: 1.25;

@@ -882,8 +882,16 @@ export default defineSchema({
     isIllegible: v.optional(v.boolean()), // Whether the document was marked as illegible (auto-rejects)
     excludedFromReport: v.optional(v.boolean()), // Whether the document is excluded from PDF reports
     bypassConditions: v.optional(v.boolean()), // When true, conditions are treated as all met (admin override)
+    // Editable report body for documents generated from a report template.
+    // Lets Revisar Documento reopen the last saved HTML instead of the blank model.
+    contentHtml: v.optional(v.string()),
+    reportTemplateId: v.optional(v.id("reportTemplates")),
   })
     .index("by_individualProcess", ["individualProcessId"])
+    .index("by_individualProcess_and_reportTemplate", [
+      "individualProcessId",
+      "reportTemplateId",
+    ])
     .index("by_documentType", ["documentTypeId"])
     .index("by_requirement", ["documentRequirementId"])
     .index("by_status", ["status"])
@@ -1089,6 +1097,20 @@ export default defineSchema({
       "reportTemplateId",
       "documentTypeId",
     ]),
+
+  // Draft HTML while the report editor is open, keyed by process + template.
+  // Approved reopen uses documentsDelivered.contentHtml; this table is the unsaved draft.
+  processReportEdits: defineTable({
+    individualProcessId: v.id("individualProcesses"),
+    reportTemplateId: v.id("reportTemplates"),
+    contentHtml: v.string(),
+    filename: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  }).index("by_individualProcess_and_reportTemplate", [
+    "individualProcessId",
+    "reportTemplateId",
+  ]),
 
   // Saved filter presets for users
   savedFilters: defineTable({
