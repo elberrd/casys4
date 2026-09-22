@@ -437,6 +437,41 @@ test("flags empty declaration chips as missing fields", () => {
   assert.ok(missing.includes("issuingCountryOfficial"));
 });
 
+test("fills passport chips from declaration extras when process.passport is missing", () => {
+  const values = buildReportVariableValues({
+    process: {
+      person: {
+        givenNames: "Ryo",
+        surname: "Kurasaki",
+        nationality: { name: "Japan", code: "JP" },
+      },
+    },
+    statuses: [],
+    passportFileUploaded: false,
+    i18n,
+    extras: {
+      todayIso: "2026-09-22",
+      passportNumber: "TT3235629",
+      passportIssueDate: "2018-04-10",
+      passportExpiryDate: "2028-04-10",
+      issuingCountryCode: "JP",
+      issuingCountryName: "Japan",
+      issuingCountryFullName: "Japão",
+    },
+  });
+
+  assert.equal(values.passportNumber, "TT3235629");
+  assert.equal(values.issueDateLong, "10 de abril de 2018");
+  assert.equal(values.expiryDateLong, "10 de abril de 2028");
+  assert.equal(values.issuingCountryOfficial, "Japão");
+  assert.equal(
+    missingUsedReportVariables(CRIMINAL_BACKGROUND_REPORT_HTML, values).includes(
+      "passportNumber",
+    ),
+    false,
+  );
+});
+
 test("builds a DOCX from filled report HTML with bold title and DECLARO", async () => {
   const values = buildReportVariableValues({
     process: {

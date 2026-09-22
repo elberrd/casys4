@@ -293,6 +293,9 @@ export interface ReportFormatExtras {
   issuingCountryCode?: string | null;
   issuingCountryName?: string | null;
   issuingCountryFullName?: string | null;
+  passportNumber?: string | null;
+  passportIssueDate?: string | null;
+  passportExpiryDate?: string | null;
 }
 
 function declarationText(value: string | null | undefined): string {
@@ -360,6 +363,9 @@ export function buildReportVariableValues(args: {
   const { process, statuses, passportFileUploaded, i18n, extras } = args;
   const person = process.person;
   const passport = process.passport;
+  const passportNumber = extras?.passportNumber ?? passport?.passportNumber;
+  const issueDate = extras?.passportIssueDate ?? passport?.issueDate;
+  const expiryDate = extras?.passportExpiryDate ?? passport?.expiryDate;
 
   const personName = person ? getFullName(person) : "";
   const userApplicant = process.userApplicant
@@ -419,8 +425,9 @@ export function buildReportVariableValues(args: {
       }`
     : "";
 
-  const passportValidity = getPassportValidityStatus(passport?.expiryDate);
-  const passportStatus = passport
+  const passportValidity = getPassportValidityStatus(expiryDate);
+  const hasPassportRecord = Boolean(passport || extras?.passportNumber);
+  const passportStatus = hasPassportRecord
     ? passportValidity
       ? i18n.tPassports(`status${passportValidity.replace(" ", "")}`)
       : i18n.tCommon("unknown")
@@ -473,8 +480,8 @@ export function buildReportVariableValues(args: {
   const motherNameUpper = person?.motherName?.trim()
     ? toUpperName(person.motherName)
     : REPORT_PLACEHOLDER;
-  const issueDateLong = declarationText(formatLongDatePt(passport?.issueDate));
-  const expiryDateLong = declarationText(formatLongDatePt(passport?.expiryDate));
+  const issueDateLong = declarationText(formatLongDatePt(issueDate));
+  const expiryDateLong = declarationText(formatLongDatePt(expiryDate));
   const issuingCountryOfficial = declarationText(
     getOfficialCountryNameOrFallback(
       issuingCountryCode,
@@ -568,16 +575,14 @@ export function buildReportVariableValues(args: {
       process.monthlyAmountToReceive != null
         ? `R$ ${formatMoney(process.monthlyAmountToReceive, i18n.locale)}`
         : "",
-    passportNumber: declarationText(passport?.passportNumber),
+    passportNumber: declarationText(passportNumber),
     issuingCountry: passport?.issuingCountry?.name
       ? i18n.translateCountry(passport.issuingCountry.name)
-      : "",
-    issueDate: passport?.issueDate
-      ? formatDate(passport.issueDate, i18n.locale)
-      : "",
-    expiryDate: passport?.expiryDate
-      ? formatDate(passport.expiryDate, i18n.locale)
-      : "",
+      : extras?.issuingCountryName
+        ? i18n.translateCountry(extras.issuingCountryName)
+        : "",
+    issueDate: issueDate ? formatDate(issueDate, i18n.locale) : "",
+    expiryDate: expiryDate ? formatDate(expiryDate, i18n.locale) : "",
     passportStatus,
     passportFile: passport
       ? passportFileUploaded

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import { getPassportValidityStatus } from "../lib/passport";
+
 const selectorSource = readFileSync(
   path.join(process.cwd(), "components/individual-processes/passport-selector.tsx"),
   "utf8",
@@ -22,6 +24,22 @@ test("PassportSelector keeps a single PassportFormDialog mounted", () => {
     1,
     "Rendering PassportFormDialog in both empty and list branches remounts an empty create modal after the first passport is saved",
   );
+});
+
+test("PassportSelector has an icon button to edit the selected passport", () => {
+  assert.match(selectorSource, /openEditDialog/);
+  assert.match(selectorSource, /Pencil/);
+  assert.match(selectorSource, /editSelectedPassport/);
+  assert.match(selectorSource, /passportId=\{editingPassportId\}/);
+  assert.match(selectorSource, /size="icon"/);
+});
+
+test("legacy passports without expiry are not treated as expired", () => {
+  assert.equal(getPassportValidityStatus(null), null);
+  assert.equal(getPassportValidityStatus(undefined), null);
+  assert.equal(getPassportValidityStatus(""), null);
+  assert.match(selectorSource, /getPassportValidityStatus\(passport\.expiryDate\)/);
+  assert.equal(selectorSource.includes('passport.status'), false);
 });
 
 test("LinkPassportDialog auto-links a newly created passport and closes", () => {

@@ -196,3 +196,47 @@ export function missingUsedReportVariables(
     (key) => !isOptionalReportVariableKey(key) && isEmptyReportValue(values[key]),
   );
 }
+
+const PASSPORT_PLACEHOLDER_KEYS = new Set<ReportVariableKey>([
+  "passportNumber",
+  "issueDate",
+  "issueDateLong",
+  "expiryDate",
+  "expiryDateLong",
+  "issuingCountry",
+  "issuingCountryOfficial",
+]);
+
+function htmlContainsValue(html: string, value: string): boolean {
+  const escaped = escapeHtml(value);
+  return html.includes(value) || (escaped !== value && html.includes(escaped));
+}
+
+/**
+ * Substitutes leftover chips, then injects currently available passport values
+ * into leftover `______` slots from a previous generate (saved HTML freeze).
+ * Skips values already present so user edits and nationality fallbacks stay put.
+ */
+export function fillRemainingReportPlaceholders(
+  html: string,
+  templateHtml: string,
+  values: Partial<Record<ReportVariableKey, string>>,
+): string {
+  let next = substituteReportVariables(html, values);
+  const keys = extractReportVariableKeys(templateHtml).filter((key) =>
+    PASSPORT_PLACEHOLDER_KEYS.has(key),
+  );
+
+  for (const key of keys) {
+    const raw = values[key]?.trim() ?? "";
+    if (!raw || raw === REPORT_PLACEHOLDER) continue;
+    if (htmlContainsValue(next, raw)) continue;
+    if (!next.includes(REPORT_PLACEHOLDER)) break;
+    next = next.replace(
+      REPORT_PLACEHOLDER,
+      escapeHtml(raw).replace(/\n/g, "<br />"),
+    );
+  }
+
+  return next;
+}
