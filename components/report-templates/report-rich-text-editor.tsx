@@ -26,7 +26,17 @@ import {
   ReportLineHeight,
   getCurrentReportLineHeight,
 } from "@/components/report-templates/report-line-height-extension";
-import { REPORT_LINE_HEIGHTS } from "@/lib/report-templates/line-height";
+import {
+  isReportLineHeightValue,
+  REPORT_LINE_HEIGHT_LABEL_KEYS,
+  REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS,
+} from "@/lib/report-templates/line-height";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
@@ -40,6 +50,7 @@ import {
   AlignRight,
   Bold,
   Braces,
+  ChevronDown,
   Heading1,
   Heading2,
   Heading3,
@@ -91,14 +102,6 @@ const PRESET_COLORS = [
 ];
 
 const FONT_SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
-
-const LINE_HEIGHT_LABEL_KEYS = {
-  "1": "lineHeightSingle",
-  "1.15": "lineHeight115",
-  "1.5": "lineHeight15",
-  "1.75": "lineHeight175",
-  "2": "lineHeightDouble",
-} as const;
 
 export interface ReportEditorVariableGroup {
   id: ReportVariableGroupId;
@@ -335,27 +338,54 @@ function EditorToolbar({
           </option>
         ))}
       </select>
-      <select
-        className="h-8 rounded-md border bg-background px-2 text-xs"
-        disabled={disabled}
-        value={toolbarState.lineHeight}
-        onChange={(event) => {
-          const lineHeight = event.target.value;
-          if (!lineHeight) {
-            editor.chain().focus().unsetLineHeight().run();
-            return;
-          }
-          editor.chain().focus().setLineHeight(lineHeight).run();
-        }}
-        aria-label={t("toolbar.lineHeight")}
-      >
-        <option value="">{t("toolbar.lineHeightDefault")}</option>
-        {REPORT_LINE_HEIGHTS.map((lineHeight) => (
-          <option key={lineHeight} value={lineHeight}>
-            {t(`toolbar.${LINE_HEIGHT_LABEL_KEYS[lineHeight]}`)}
-          </option>
-        ))}
-      </select>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            aria-label={t("toolbar.lineHeight")}
+            data-testid="report-line-height"
+            className="h-8 min-w-[7.5rem] justify-between gap-1 px-2 text-xs"
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <span className="truncate">
+              {isReportLineHeightValue(toolbarState.lineHeight)
+                ? t(
+                    `toolbar.${REPORT_LINE_HEIGHT_LABEL_KEYS[toolbarState.lineHeight]}`,
+                  )
+                : t("toolbar.lineHeightDefault")}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="z-[200] min-w-[8.5rem] p-1"
+        >
+          {REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS.map((option) => {
+            const selected = toolbarState.lineHeight === option.value;
+            return (
+              <DropdownMenuItem
+                key={option.value || "default"}
+                data-line-height={option.value || "default"}
+                data-active={selected ? "true" : "false"}
+                className="text-xs"
+                onSelect={() => {
+                  if (!option.value) {
+                    editor.chain().focus().unsetLineHeight().run();
+                    return;
+                  }
+                  editor.chain().focus().setLineHeight(option.value).run();
+                }}
+              >
+                {t(`toolbar.${option.labelKey}`)}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Popover>
         <PopoverTrigger asChild>
           <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} title={t("toolbar.textColor")} onMouseDown={(event) => event.preventDefault()}>

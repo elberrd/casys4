@@ -13,6 +13,13 @@ export type ReportVariableFormatAttr =
   | "underline"
   | "strike";
 
+export const FORMAT_ATTRS: readonly ReportVariableFormatAttr[] = [
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+];
+
 export const FORMAT_MARK_NAME: Record<ReportVariableFormatAttr, string> = {
   bold: "bold",
   italic: "italic",
@@ -60,7 +67,9 @@ function formatAttribute(attr: ReportVariableFormatAttr) {
     default: false,
     parseHTML: (element: HTMLElement) => parseFormatAttr(element, attr),
     renderHTML: (attributes: Record<string, unknown>) => {
-      if (!attributes[attr]) return {};
+      if (attributes[attr] !== true && attributes[attr] !== "true") {
+        return {};
+      }
       return { [`data-${attr}`]: "true" };
     },
   };
@@ -113,6 +122,10 @@ export function findSelectedReportVariable(
     const after = selection.$from.nodeAfter;
     if (isReportVariableNode(after)) {
       return { node: after, pos: selection.from };
+    }
+    const before = selection.$from.nodeBefore;
+    if (isReportVariableNode(before)) {
+      return { node: before, pos: selection.from - before.nodeSize };
     }
   } else {
     const inRange = findReportVariablesInRange(
@@ -239,6 +252,28 @@ function selectReportVariableOnClick(
   return true;
 }
 
+function selectReportVariableAtPos(view: EditorView, pos: number): boolean {
+  const { state } = view;
+  const nodeAt = state.doc.nodeAt(pos);
+  if (isReportVariableNode(nodeAt)) {
+    return selectReportVariableOnClick(view, nodeAt, pos);
+  }
+  const $pos = state.doc.resolve(pos);
+  const before = $pos.nodeBefore;
+  if (isReportVariableNode(before)) {
+    return selectReportVariableOnClick(
+      view,
+      before,
+      pos - before.nodeSize,
+    );
+  }
+  const after = $pos.nodeAfter;
+  if (isReportVariableNode(after)) {
+    return selectReportVariableOnClick(view, after, pos);
+  }
+  return false;
+}
+
 function clearChipStoredMarks(state: EditorState): EditorTransaction | null {
   const { selection } = state;
   if (!selection.empty) return null;
@@ -255,6 +290,39 @@ function clearChipStoredMarks(state: EditorState): EditorTransaction | null {
   });
   if (keep.length === stored.length) return null;
   return state.tr.setStoredMarks(keep);
+}
+
+/**
+ * If Bold/Italic/etc. was applied as a wrapping mark (chip looks formatted
+ * but attrs were never written), copy the mark onto data-* so getHTML
+ * persists `data-bold="true"` for reopen/generate.
+ */
+export function syncChipFormatAttrsFromMarks(
+  state: EditorState,
+  baseTr?: EditorTransaction,
+): EditorTransaction | null {
+  let tr = baseTr ?? state.tr;
+  let changed = Boolean(baseTr);
+  state.doc.descendants((node, pos) => {
+    if (!isReportVariableNode(node)) return;
+    const nextAttrs = { ...node.attrs };
+    let dirty = false;
+    for (const attr of FORMAT_ATTRS) {
+      const markType = state.schema.marks[FORMAT_MARK_NAME[attr]];
+      if (!markType) continue;
+      const hasMark =
+        Boolean(markType.isInSet(node.marks)) ||
+        state.doc.rangeHasMark(pos, pos + node.nodeSize, markType);
+      if (hasMark && node.attrs[attr] !== true) {
+        nextAttrs[attr] = true;
+        dirty = true;
+      }
+    }
+    if (!dirty) return;
+    tr = tr.setNodeMarkup(tr.mapping.map(pos), undefined, nextAttrs);
+    changed = true;
+  });
+  return changed ? tr : null;
 }
 
 declare module "@tiptap/core" {
@@ -327,6 +395,12 @@ export const ReportVariable = Node.create<{
       this.options.getLabel(node.attrs.key) ||
       node.attrs.label ||
       node.attrs.key;
+    const formatAttrs: Record<string, string> = {};
+    for (const attr of FORMAT_ATTRS) {
+      if (node.attrs[attr] === true || node.attrs[attr] === "true") {
+        formatAttrs[`data-${attr}`] = "true";
+      }
+    }
     return [
       "span",
       mergeAttributes(
@@ -334,6 +408,7 @@ export const ReportVariable = Node.create<{
           "data-type": "report-variable",
           class: "report-variable",
         },
+        formatAttrs,
         HTMLAttributes,
       ),
       label,
@@ -407,9 +482,14 @@ export const ReportVariable = Node.create<{
           handleClickOn(view, _pos, node, nodePos) {
             return selectReportVariableOnClick(view, node as PMNode, nodePos);
           },
+          handleClick(view, pos) {
+            return selectReportVariableAtPos(view, pos);
+          },
         },
         appendTransaction(_transactions, _oldState, newState) {
-          return clearChipStoredMarks(newState);
+          const stored = clearChipStoredMarks(newState);
+          const stateForSync = stored ? newState.apply(stored) : newState;
+          return syncChipFormatAttrsFromMarks(stateForSync, stored ?? undefined);
         },
       }),
     ];

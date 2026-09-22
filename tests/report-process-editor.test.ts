@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import { Fragment as DirectFragment } from "prosemirror-model";
@@ -17,6 +19,7 @@ import {
 import {
   REPORT_LINE_HEIGHTS,
   REPORT_LINE_HEIGHT_SINGLE,
+  REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS,
   normalizeReportLineHeight,
 } from "../lib/report-templates/line-height";
 import { buildIsolatedReportHtml } from "../lib/report-templates/html-to-pdf";
@@ -83,6 +86,43 @@ test("toolbar line-height options include espaçamento 1 (single)", () => {
   assert.equal(normalizeReportLineHeight("1.0"), "1");
   assert.equal(normalizeReportLineHeight("100%"), "1");
   assert.deepEqual([...REPORT_LINE_HEIGHTS], ["1", "1.15", "1.5", "1.75", "2"]);
+  assert.equal(REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS[0]?.value, "1");
+  assert.equal(
+    REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS[0]?.labelKey,
+    "lineHeightSingle",
+  );
+});
+
+test("process modal and template editor share the labeled 1 (simples) line-height menu", () => {
+  const editorSource = readFileSync(
+    path.join(process.cwd(), "components/report-templates/report-rich-text-editor.tsx"),
+    "utf8",
+  );
+  const processModal = readFileSync(
+    path.join(
+      process.cwd(),
+      "components/process-reports/custom-report-generate-dialog.tsx",
+    ),
+    "utf8",
+  );
+  const templateForm = readFileSync(
+    path.join(
+      process.cwd(),
+      "components/report-templates/report-template-form-page.tsx",
+    ),
+    "utf8",
+  );
+  const pt = readFileSync(path.join(process.cwd(), "messages/pt.json"), "utf8");
+  assert.match(processModal, /ReportRichTextEditor/);
+  assert.match(templateForm, /ReportRichTextEditor/);
+  assert.match(editorSource, /REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS/);
+  assert.match(editorSource, /data-testid="report-line-height"/);
+  assert.match(editorSource, /DropdownMenu/);
+  assert.equal(
+    editorSource.includes('<option value="">{t("toolbar.lineHeightDefault")}</option>'),
+    false,
+  );
+  assert.match(pt, /"lineHeightSingle": "1 \(simples\)"/);
 });
 
 test("preview HTML converts consecutive spaces and tabs so they survive collapse", () => {

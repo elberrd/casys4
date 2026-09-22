@@ -4,6 +4,31 @@ export type ReportLineHeightValue = (typeof REPORT_LINE_HEIGHTS)[number];
 
 export const REPORT_LINE_HEIGHT_SINGLE: ReportLineHeightValue = "1";
 
+export const REPORT_LINE_HEIGHT_LABEL_KEYS = {
+  "1": "lineHeightSingle",
+  "1.15": "lineHeight115",
+  "1.5": "lineHeight15",
+  "1.75": "lineHeight175",
+  "2": "lineHeightDouble",
+} as const;
+
+export type ReportLineHeightLabelKey =
+  | (typeof REPORT_LINE_HEIGHT_LABEL_KEYS)[ReportLineHeightValue]
+  | "lineHeightDefault";
+
+/** Shared toolbar options for template editor AND process report modal. */
+export const REPORT_LINE_HEIGHT_TOOLBAR_OPTIONS: ReadonlyArray<{
+  value: ReportLineHeightValue | "";
+  labelKey: ReportLineHeightLabelKey;
+}> = [
+  { value: REPORT_LINE_HEIGHT_SINGLE, labelKey: "lineHeightSingle" },
+  { value: "1.15", labelKey: "lineHeight115" },
+  { value: "1.5", labelKey: "lineHeight15" },
+  { value: "1.75", labelKey: "lineHeight175" },
+  { value: "2", labelKey: "lineHeightDouble" },
+  { value: "", labelKey: "lineHeightDefault" },
+];
+
 const LINE_HEIGHT_ALIASES: Record<string, ReportLineHeightValue> = {
   "1": "1",
   "1.0": "1",

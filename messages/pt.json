@@ -2915,6 +2915,7 @@
     "documentTypePlaceholder": "Selecione um tipo de documento",
     "isRequired": "Obrigatório",
     "isRequiredDescription": "Marque se esta condição é obrigatória para aprovação do documento",
+    "isRequiredTooltip": "Marque se esta condição é obrigatória para aprovação do documento",
     "relativeExpirationDays": "Dias para Expiração",
     "relativeExpirationDaysPlaceholder": "Ex: 90",
     "relativeExpirationDaysDescription": "Número de dias a partir da criação do processo para que esta condição expire",

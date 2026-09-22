@@ -2890,6 +2890,7 @@
     "documentTypePlaceholder": "Select a document type",
     "isRequired": "Required",
     "isRequiredDescription": "Check if this condition is required for document approval",
+    "isRequiredTooltip": "Check if this condition is required for document approval",
     "relativeExpirationDays": "Expiration Days",
     "relativeExpirationDaysPlaceholder": "E.g., 90",
     "relativeExpirationDaysDescription": "Number of days from process creation for this condition to expire",
