@@ -9,6 +9,7 @@ import {
   ReportVariable,
   findReportVariablesInRange,
   findSelectedReportVariable,
+  syncChipFormatAttrsFromMarks,
   variableHasFormat,
 } from "../components/report-templates/report-variable-extension";
 
@@ -86,6 +87,71 @@ test("can turn bold off by clearing the attr and the wrapping mark", () => {
   assert.ok(nextNode);
   assert.equal(nextNode.attrs.bold, false);
   assert.equal(variableHasFormat(next, nextNode, found.pos, "bold"), false);
+});
+
+test("finds a personName chip when the cursor is after the atom", () => {
+  const schema = getSchema([
+    StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+    ReportVariable,
+  ]);
+  const variable = schema.node("reportVariable", {
+    key: "personName",
+    label: "Nome do indivíduo",
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+  });
+  const paragraph = schema.node("paragraph", null, [
+    variable,
+    schema.text(" DECLARAÇÃO"),
+  ]);
+  const doc = schema.node("doc", null, [paragraph]);
+  const state = EditorState.create({
+    schema,
+    doc,
+    selection: TextSelection.create(doc as never, 2),
+  } as never);
+  const found = findSelectedReportVariable(state);
+  assert.ok(found);
+  assert.equal(found.node.attrs.key, "personName");
+  assert.equal(found.pos, 1);
+});
+
+test("serializes chip bold as data-bold=true on the span", () => {
+  const schema = getSchema([
+    StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+    ReportVariable,
+  ]);
+  const node = schema.node("reportVariable", {
+    key: "personName",
+    label: "Nome do indivíduo",
+    bold: true,
+    italic: false,
+    underline: false,
+    strike: false,
+  });
+  const toDOM = schema.nodes.reportVariable?.spec.toDOM;
+  assert.ok(toDOM);
+  const spec = toDOM(node);
+  assert.ok(Array.isArray(spec));
+  const attrs = spec[1] as Record<string, string>;
+  assert.equal(attrs["data-type"], "report-variable");
+  assert.equal(attrs["data-bold"], "true");
+  assert.equal(attrs["data-key"], "personName");
+});
+
+test("copies a wrapping bold mark onto data-bold so the chip persists", () => {
+  const state = createState({ bold: false, withBoldMark: true });
+  const found = findSelectedReportVariable(state);
+  assert.ok(found);
+  assert.equal(found.node.attrs.bold, false);
+  const tr = syncChipFormatAttrsFromMarks(state);
+  assert.ok(tr);
+  const next = state.apply(tr);
+  const nextNode = next.doc.nodeAt(found.pos);
+  assert.ok(nextNode);
+  assert.equal(nextNode.attrs.bold, true);
 });
 
 test("finds a personName chip covered by a text selection", () => {

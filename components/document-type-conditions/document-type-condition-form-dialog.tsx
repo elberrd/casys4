@@ -30,7 +30,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   documentTypeConditionSchema,
   generateConditionCodeFromName,
@@ -279,7 +284,29 @@ export function DocumentTypeConditionFormDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                     <div className="space-y-0.5">
-                      <FormLabel>{t("isRequired")}</FormLabel>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            tabIndex={0}
+                            data-testid="obrigatorio-tooltip-trigger"
+                            className="inline-flex w-fit items-center gap-1 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <FormLabel className="cursor-help">
+                              {t("isRequired")}
+                            </FormLabel>
+                            <Info
+                              className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground"
+                              aria-hidden
+                            />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="z-[200] max-w-[280px] text-xs"
+                        >
+                          {t("isRequiredTooltip")}
+                        </TooltipContent>
+                      </Tooltip>
                       <FormDescription>
                         {t("isRequiredDescription")}
                       </FormDescription>
