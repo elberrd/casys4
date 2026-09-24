@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Loader2, Upload, File, X, CheckCircle } from "lucide-react"
 import { formatFileSize } from "@/lib/validations/documents-delivered"
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes"
 
 interface DocumentVersionUploadDialogProps {
   open: boolean
@@ -198,7 +199,7 @@ export function DocumentVersionUploadDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={3}
               disabled={isUploading}
             />

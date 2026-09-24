@@ -38,6 +38,7 @@ import {
   pickLatestReportContent,
   reportFilenameFromDocument,
 } from "../lib/report-templates/process-report-content";
+import { assertObservacoesMaxLength } from "../lib/validations/observacoes";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
@@ -733,6 +734,7 @@ export const upload = mutation({
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     // Signature waiting is an administrative workflow decision.
     let userProfile;
     if (args.autoApprove || args.awaitingSignature || args.bypassConditions) {
@@ -1436,6 +1438,7 @@ export const restoreVersion = mutation({
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     const adminProfile = await requireAdmin(ctx);
 
     const oldDocument = await ctx.db.get(args.documentId);
@@ -1731,6 +1734,7 @@ export const updateVersionNotes = mutation({
     versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     const userProfile = await getCurrentUserProfile(ctx);
 
     const document = await ctx.db.get(args.documentId);
@@ -2419,6 +2423,7 @@ export const uploadLoose = mutation({
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     // Require admin role when auto-approving
     let userProfile;
     if (args.autoApprove) {
@@ -2590,6 +2595,7 @@ export const uploadWithType = mutation({
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     // Signature waiting is an administrative workflow decision.
     let userProfile;
     if (args.autoApprove || args.awaitingSignature || args.bypassConditions) {
@@ -2975,6 +2981,7 @@ export const uploadForPending = mutation({
   },
   returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     // Signature waiting is an administrative workflow decision.
     let userProfile;
     if (args.autoApprove || args.awaitingSignature) {

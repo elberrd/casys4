@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { Loader2, Upload, File, X, CheckCircle, AlertTriangle, Info, ClipboardCheck, Ban } from "lucide-react"
 import { formatFileSize } from "@/lib/validations/documents-delivered"
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes"
 import {
   DocumentReceivedDateField,
   getDefaultReceivedDate,
@@ -399,7 +400,7 @@ export function UploadNewVersionDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={2}
               disabled={isUploading}
             />

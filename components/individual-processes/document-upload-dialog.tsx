@@ -43,6 +43,7 @@ import { AwaitingSignatureField } from "./document-signature-options"
 import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
 import { LinkedReportsMenu } from "@/components/process-reports/linked-reports-menu"
 import { reportsForDocumentType } from "@/lib/report-templates/attach-targets"
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -523,7 +524,7 @@ export function DocumentUploadDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={2}
               disabled={isUploading}
             />

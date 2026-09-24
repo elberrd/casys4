@@ -7,6 +7,7 @@ import { QueryCtx, MutationCtx } from "./_generated/server";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
+import { assertObservacoesMaxLength } from "../lib/validations/observacoes";
 import {
   canAccessDocument as canAccessDeliveredDocument,
   resolveClientDocumentVisibility,
@@ -641,6 +642,7 @@ export const uploadNewVersion = mutation({
     expiryDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     await requireAdmin(ctx);
 
     const existingDoc = await ctx.db.get(args.documentId);
@@ -784,6 +786,7 @@ export const restoreVersion = mutation({
     versionNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertObservacoesMaxLength(args.versionNotes);
     await requireAdmin(ctx);
 
     const oldDocument = await ctx.db.get(args.documentId);

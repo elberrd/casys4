@@ -35,6 +35,7 @@ import {
   validateFileType,
   validateFileSize,
 } from "@/lib/validations/documents-delivered";
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import {
@@ -487,7 +488,7 @@ export function TypedDocumentUploadDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={2}
               disabled={isUploading}
             />

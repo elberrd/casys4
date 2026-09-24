@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes";
 
 export const documentSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -24,7 +25,7 @@ export const documentNewVersionSchema = z.object({
   fileName: z.string().min(1, "File name is required"),
   fileSize: z.number().min(1, "File size must be greater than 0"),
   fileType: z.string().min(1, "File type is required"),
-  versionNotes: z.string().max(500).optional(),
+  versionNotes: z.string().max(OBSERVACOES_MAX_LENGTH).optional(),
   expiryDate: z.string().optional(),
 });
 
