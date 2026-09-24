@@ -206,3 +206,10 @@ export function processAddressRejectsNonBrazil(
   }
   return !isBrazilAddress(source);
 }
+
+/** people.update replace: keep the stored blob, ignore incoming address. */
+export function legacyPersonAddressForReplace(current: {
+  address?: string;
+}): { address: string } | Record<string, never> {
+  return current.address ? { address: current.address } : {};
+}

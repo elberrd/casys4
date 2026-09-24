@@ -1,12 +1,14 @@
-import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
+import { BRAZIL_COUNTRY_CODE } from "../data/brazil-states";
 import {
   hasSubstantiveAddressFields,
   isBrazilAddress,
   isBrazilFlagOnly,
   todayIsoDate,
   type StructuredAddressFields,
-} from "@/lib/utils/address-fields";
-import type { BrazilianCepAddress } from "@/lib/utils/viacep";
+} from "./address-fields";
+import type { BrazilianCepAddress } from "./viacep";
+
+export { legacyPersonAddressForReplace } from "./address-fields";
 
 export type AddressCountryMode = "person" | "process";
 
@@ -347,13 +349,6 @@ export function omitLegacyProcessAddressFromSubmit<
   const { residenceAddressAbroad, ...rest } = payload;
   void residenceAddressAbroad;
   return rest;
-}
-
-/** people.update replace: keep the stored blob, ignore incoming address. */
-export function legacyPersonAddressForReplace(current: {
-  address?: string;
-}): { address: string } | Record<string, never> {
-  return current.address ? { address: current.address } : {};
 }
 
 export function applyBrazilCheckbox(args: {

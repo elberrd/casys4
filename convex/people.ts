@@ -5,7 +5,7 @@ import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from 
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
-import { legacyPersonAddressForReplace } from "../lib/utils/candidate-address";
+import { legacyPersonAddressForReplace } from "../lib/utils/address-fields";
 import { createCachedGet } from "./lib/cachedGet";
 import {
   normalizePersonPassportFileName,
