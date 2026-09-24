@@ -47,10 +47,7 @@ import { IndividualProcessStatusesSubtable } from "@/components/individual-proce
 import { ProcessNotesSection } from "@/components/notes/process-notes-section";
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section";
 import { PersonFormDialog } from "@/components/people/person-form-dialog";
-import {
-  CandidateAddressDetailRows,
-  LegacyAddressReadOnly,
-} from "@/components/individual-processes/candidate-address-fields";
+import { LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields";
 import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog";
 import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog";
@@ -62,7 +59,6 @@ import { formatResidenceDuration } from "@/lib/utils/residence-duration";
 import {
   formatCurrentPersonAddress,
   formatCurrentProcessAddress,
-  selectCurrentPersonAddress,
 } from "@/lib/utils/candidate-address";
 import { getFullName } from "@/lib/utils/person-names";
 import {
@@ -84,6 +80,39 @@ function getPassportStatusVariant(status: PassportValidityStatus | null) {
     default:
       return "secondary" as const;
   }
+}
+
+/** Label | wrapping value + clip, same 2-col grid as Empresa Requerente. */
+function ProcessDetailAddressRow({
+  label,
+  display,
+  onOpenTable,
+  openTableTitle,
+}: {
+  label: string;
+  display: string;
+  onOpenTable: () => void;
+  openTableTitle: string;
+}) {
+  return (
+    <>
+      <div className="text-sm font-medium flex items-center gap-1 min-w-0">
+        <span>{label}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          onClick={onOpenTable}
+          title={openTableTitle}
+        >
+          <Paperclip className="h-3.5 w-3.5" />
+          <span className="sr-only">{openTableTitle}</span>
+        </Button>
+      </div>
+      <div className="text-sm whitespace-pre-line min-w-0">{display}</div>
+    </>
+  );
 }
 
 interface IndividualProcessDetailClientProps {
@@ -141,8 +170,6 @@ export function IndividualProcessDetailClient({
     api.documentsDelivered.list,
     individualProcess ? { individualProcessId: processId } : "skip",
   );
-  const personCurrentDisplay = selectCurrentPersonAddress(personCurrentAddress);
-
   useEffect(() => {
     if (!individualProcess || window.location.hash !== "#documentation") {
       return;
@@ -628,31 +655,17 @@ export function IndividualProcessDetailClient({
                   {individualProcess.consularPost || "-"}
                 </div>
 
-                <div className="col-span-full mt-2 flex items-center gap-2">
-                  <span className="text-sm font-medium">
-                    {t("residenceAddressInBrazil")}
-                  </span>
-                  <Badge variant="success">{t("addresses.current")}</Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setIsProcessAddressModalOpen(true)}
-                    title={t("addresses.openProcessTable")}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                    <span className="sr-only">
-                      {t("addresses.openProcessTable")}
-                    </span>
-                  </Button>
-                </div>
-                <div className="col-span-full text-sm whitespace-pre-line">
-                  {processCurrentAddress === undefined
-                    ? tCommon("loading")
-                    : formatCurrentProcessAddress(processCurrentAddress) ||
-                      tAddress("noAddress")}
-                </div>
+                <ProcessDetailAddressRow
+                  label={t("residenceAddressInBrazil")}
+                  display={
+                    processCurrentAddress === undefined
+                      ? tCommon("loading")
+                      : formatCurrentProcessAddress(processCurrentAddress) ||
+                        tAddress("noAddress")
+                  }
+                  onOpenTable={() => setIsProcessAddressModalOpen(true)}
+                  openTableTitle={t("addresses.openProcessTable")}
+                />
                 <LegacyAddressReadOnly
                   className="col-span-full"
                   text={individualProcess.residenceAddressAbroad}
@@ -799,38 +812,17 @@ export function IndividualProcessDetailClient({
                   {individualProcess.person?.email || "-"}
                 </div>
 
-                <div className="col-span-full mt-2 flex items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    {t("personCurrentAddress")}
-                  </span>
-                  <Badge variant="success">{t("addresses.current")}</Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setIsPersonAddressModalOpen(true)}
-                    title={t("addresses.openPersonTable")}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                    <span className="sr-only">
-                      {t("addresses.openPersonTable")}
-                    </span>
-                  </Button>
-                </div>
-                <div className="col-span-full text-sm whitespace-pre-line">
-                  {personCurrentAddress === undefined
-                    ? tCommon("loading")
-                    : formatCurrentPersonAddress(personCurrentAddress) ||
-                      tAddress("noAddress")}
-                </div>
-                {personCurrentDisplay && (
-                  <CandidateAddressDetailRows
-                    value={personCurrentDisplay}
-                    showLegacyField={false}
-                    countryMode="person"
-                  />
-                )}
+                <ProcessDetailAddressRow
+                  label={t("personCurrentAddress")}
+                  display={
+                    personCurrentAddress === undefined
+                      ? tCommon("loading")
+                      : formatCurrentPersonAddress(personCurrentAddress) ||
+                        tAddress("noAddress")
+                  }
+                  onOpenTable={() => setIsPersonAddressModalOpen(true)}
+                  openTableTitle={t("addresses.openPersonTable")}
+                />
 
                 <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople("profession")}
