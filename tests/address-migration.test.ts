@@ -18,6 +18,17 @@ import {
   processEmbeddedMigrationKey,
 } from "../lib/utils/address-migration";
 import {
+  driveAddressMigrationUntilDone,
+  resultAfterPage,
+  runAddressMigrationInvocation,
+  type AddressMigrationPorts,
+  type AddressMigrationRunResult,
+  type MigrationPage,
+  type PersonRecord,
+  type ProcessRecord,
+  type ProcessRowRecord,
+} from "../lib/utils/address-migration-run";
+import {
   personAddressCountryIssue,
   processAddressCountryIssue,
 } from "../lib/validations/addresses";
@@ -318,3 +329,430 @@ test("country helpers reject BR for person and non-BR for process", () => {
     null,
   );
 });
+
+type MemoryAddress = ProcessRowRecord & {
+  personId?: string;
+  isCurrent?: boolean;
+  migrationKey?: string;
+};
+
+type MemoryStore = {
+  addresses: MemoryAddress[];
+  processes: ProcessRecord[];
+  people: PersonRecord[];
+};
+
+function paginateByIndex<T extends { _id: string }>(
+  items: T[],
+  cursor: string | null,
+  numItems: number,
+): MigrationPage<T> {
+  const sorted = [...items].sort((a, b) => a._id.localeCompare(b._id));
+  const start = cursor ? Number.parseInt(cursor, 10) : 0;
+  const offset = Number.isFinite(start) && start > 0 ? start : 0;
+  const page = sorted.slice(offset, offset + numItems);
+  const next = offset + page.length;
+  const isDone = next >= sorted.length;
+  return {
+    page,
+    isDone,
+    continueCursor: isDone ? null : String(next),
+  };
+}
+
+function createMemoryPorts(store: MemoryStore): AddressMigrationPorts {
+  return {
+    paginateProcessRows: async (cursor, numItems) =>
+      paginateByIndex(store.addresses, cursor, numItems),
+    paginateProcesses: async (cursor, numItems) =>
+      paginateByIndex(store.processes, cursor, numItems),
+    paginatePeople: async (cursor, numItems) =>
+      paginateByIndex(store.people, cursor, numItems),
+    getProcess: async (id) => store.processes.find((row) => row._id === id) ?? null,
+    countProcessAddresses: async (processId) =>
+      store.addresses.filter((row) => row.individualProcessId === processId)
+        .length,
+    hasMigrationKey: async (migrationKey) =>
+      store.addresses.some((row) => row.migrationKey === migrationKey),
+    updateProcessRow: async (id, reportedAt) => {
+      const row = store.addresses.find((item) => item._id === id);
+      if (!row) return;
+      row.ownerType = "process";
+      if (reportedAt) row.reportedAt = reportedAt;
+    },
+    concatenateProcessLegacy: async (processId, nextLegacy) => {
+      const process = store.processes.find((row) => row._id === processId);
+      if (process) process.residenceAddressAbroad = nextLegacy;
+    },
+    insertProcessBackfill: async (args) => {
+      store.addresses.push({
+        _id: `mig_${args.migrationKey}`,
+        _creationTime: args.now,
+        createdAt: args.now,
+        individualProcessId: args.processId,
+        ownerType: "process",
+        isCurrent: true,
+        reportedAt: args.reportedAt,
+        migrationKey: args.migrationKey,
+        ...args.fields,
+      });
+    },
+    concatenatePersonLegacy: async (personId, nextLegacy) => {
+      const person = store.people.find((row) => row._id === personId);
+      if (person) person.address = nextLegacy;
+    },
+    insertPersonMigrated: async (args) => {
+      store.addresses.push({
+        _id: `mig_${args.migrationKey}`,
+        _creationTime: args.now,
+        createdAt: args.now,
+        personId: args.personId,
+        ownerType: "person",
+        isCurrent: true,
+        reportedAt: args.reportedAt,
+        migrationKey: args.migrationKey,
+        ...args.fields,
+      });
+    },
+  };
+}
+
+function withPaginateCounter(ports: AddressMigrationPorts): {
+  ports: AddressMigrationPorts;
+  paginateCalls: () => number;
+  reset: () => void;
+} {
+  let paginateCalls = 0;
+  const count = async <T>(
+    fn: (
+      cursor: string | null,
+      numItems: number,
+    ) => Promise<MigrationPage<T>>,
+    cursor: string | null,
+    numItems: number,
+  ) => {
+    paginateCalls += 1;
+    return fn(cursor, numItems);
+  };
+  return {
+    paginateCalls: () => paginateCalls,
+    reset: () => {
+      paginateCalls = 0;
+    },
+    ports: {
+      ...ports,
+      paginateProcessRows: (cursor, numItems) =>
+        count(ports.paginateProcessRows, cursor, numItems),
+      paginateProcesses: (cursor, numItems) =>
+        count(ports.paginateProcesses, cursor, numItems),
+      paginatePeople: (cursor, numItems) =>
+        count(ports.paginatePeople, cursor, numItems),
+    },
+  };
+}
+
+function emptyStore(): MemoryStore {
+  return { addresses: [], processes: [], people: [] };
+}
+
+function prodShapedStore(): MemoryStore {
+  const store = emptyStore();
+  const ts = 1_700_000_000_000;
+
+  for (let index = 0; index < 13; index += 1) {
+    const processId = `proc_row_${String(index).padStart(2, "0")}`;
+    store.processes.push({ _id: processId, _creationTime: ts, createdAt: ts });
+    store.addresses.push({
+      _id: `addr_row_${String(index).padStart(2, "0")}`,
+      _creationTime: ts,
+      createdAt: ts,
+      individualProcessId: processId,
+      addressCountryCode: "BR",
+      addressIsBrazil: true,
+      addressStreet: "Rua A",
+      addressCity: "Campinas",
+    });
+  }
+
+  for (let index = 0; index < 11; index += 1) {
+    store.processes.push({
+      _id: `proc_emb_${String(index).padStart(2, "0")}`,
+      _creationTime: ts,
+      createdAt: ts,
+      addressCountryCode: "BR",
+      addressIsBrazil: true,
+      addressStreet: "Av Paulista",
+      addressNumber: "1578",
+      addressCity: "São Paulo",
+      addressStateCode: "SP",
+      addressPostalCode: "01310100",
+    });
+  }
+
+  for (let index = 0; index < 23; index += 1) {
+    store.people.push({
+      _id: `person_flag_${String(index).padStart(2, "0")}`,
+      _creationTime: ts,
+      createdAt: ts,
+      address: index === 0 ? "legado existente" : "",
+      addressCountryCode: "BR",
+      addressIsBrazil: true,
+    });
+  }
+
+  store.people.push({
+    _id: "person_br_real",
+    _creationTime: ts,
+    createdAt: ts,
+    address: "legado",
+    addressCountryCode: "BR",
+    addressIsBrazil: true,
+    addressStreet: "Rua Augusta",
+    addressNumber: "100",
+    addressCity: "São Paulo",
+    addressPostalCode: "01310100",
+  });
+  store.people.push({
+    _id: "person_us",
+    _creationTime: ts,
+    createdAt: ts,
+    addressCountryCode: "US",
+    addressCountryName: "United States",
+    addressStreet: "Market St",
+    addressCity: "San Francisco",
+  });
+
+  store.processes.push({ _id: "proc_us", _creationTime: ts, createdAt: ts });
+  store.addresses.push({
+    _id: "addr_us",
+    _creationTime: ts,
+    createdAt: ts,
+    individualProcessId: "proc_us",
+    addressCountryCode: "US",
+    addressStreet: "Main St",
+    addressCity: "Boston",
+  });
+
+  return store;
+}
+
+async function invokeCounted(
+  ports: AddressMigrationPorts,
+  args: Parameters<typeof runAddressMigrationInvocation>[0],
+): Promise<{ result: AddressMigrationRunResult; paginateCalls: number }> {
+  const counted = withPaginateCounter(ports);
+  const result = await runAddressMigrationInvocation(args, counted.ports);
+  return { result, paginateCalls: counted.paginateCalls() };
+}
+
+test("phase boundary after a finished page returns nextPhase with a null cursor", () => {
+  const counts = emptyAddressMigrationCounts();
+  const boundary = resultAfterPage(true, "process_rows", true, "cursor-should-drop", counts, 13);
+  assert.equal(boundary.isDone, false);
+  assert.equal(boundary.phase, "process_rows");
+  assert.equal(boundary.nextPhase, "process_embedded");
+  assert.equal(boundary.continueCursor, null);
+
+  const midPage = resultAfterPage(true, "people", false, "2", counts, 2);
+  assert.equal(midPage.isDone, false);
+  assert.equal(midPage.nextPhase, "people");
+  assert.equal(midPage.continueCursor, "2");
+
+  const finished = resultAfterPage(true, "people", true, "9", counts, 9);
+  assert.equal(finished.isDone, true);
+  assert.equal(finished.phase, "done");
+  assert.equal(finished.nextPhase, "done");
+  assert.equal(finished.continueCursor, null);
+});
+
+test("one invocation at a phase boundary paginates at most once and does not start the next phase", async () => {
+  const ports = createMemoryPorts(emptyStore());
+  const first = await invokeCounted(ports, {
+    dryRun: true,
+    phase: "process_rows",
+    cursor: null,
+    batchSize: 50,
+    counts: emptyAddressMigrationCounts(),
+  });
+  assert.equal(first.paginateCalls, 1);
+  assert.equal(first.result.isDone, false);
+  assert.equal(first.result.nextPhase, "process_embedded");
+  assert.equal(first.result.continueCursor, null);
+
+  const second = await invokeCounted(ports, {
+    dryRun: true,
+    phase: "process_embedded",
+    cursor: first.result.continueCursor,
+    batchSize: 50,
+    counts: first.result.counts,
+  });
+  assert.equal(second.paginateCalls, 1);
+  assert.equal(second.result.isDone, false);
+  assert.equal(second.result.nextPhase, "people");
+  assert.equal(second.result.continueCursor, null);
+
+  const third = await invokeCounted(ports, {
+    dryRun: true,
+    phase: "people",
+    cursor: second.result.continueCursor,
+    batchSize: 50,
+    counts: second.result.counts,
+  });
+  assert.equal(third.paginateCalls, 1);
+  assert.equal(third.result.isDone, true);
+  assert.equal(third.result.nextPhase, "done");
+});
+
+test("in-phase pagination also uses a single paginate call and keeps the same phase", async () => {
+  const store = emptyStore();
+  store.addresses.push(
+    {
+      _id: "addr_a",
+      _creationTime: 1,
+      individualProcessId: "proc_a",
+      addressCountryCode: "BR",
+      addressIsBrazil: true,
+      addressStreet: "Rua A",
+    },
+    {
+      _id: "addr_b",
+      _creationTime: 1,
+      individualProcessId: "proc_b",
+      addressCountryCode: "BR",
+      addressIsBrazil: true,
+      addressStreet: "Rua B",
+    },
+  );
+  store.processes.push(
+    { _id: "proc_a", _creationTime: 1 },
+    { _id: "proc_b", _creationTime: 1 },
+  );
+
+  const first = await invokeCounted(createMemoryPorts(store), {
+    dryRun: true,
+    phase: "process_rows",
+    cursor: null,
+    batchSize: 1,
+    counts: emptyAddressMigrationCounts(),
+  });
+  assert.equal(first.paginateCalls, 1);
+  assert.equal(first.result.isDone, false);
+  assert.equal(first.result.nextPhase, "process_rows");
+  assert.ok(first.result.continueCursor);
+  assert.equal(first.result.counts.processRowsUpdated, 1);
+});
+
+test("driving every phase yields expected buckets and an idempotent re-run", async () => {
+  const store = prodShapedStore();
+  const ports = createMemoryPorts(store);
+  const flagOnlyAddressBefore = store.people[0]?.address;
+  const flagOnlyCodeBefore = store.people[0]?.addressCountryCode;
+  const flagOnlyFlagBefore = store.people[0]?.addressIsBrazil;
+
+  const invocations: number[] = [];
+  const first = await driveAddressMigrationUntilDone(
+    {
+      ...ports,
+      paginateProcessRows: async (cursor, numItems) => {
+        invocations.push(1);
+        return ports.paginateProcessRows(cursor, numItems);
+      },
+      paginateProcesses: async (cursor, numItems) => {
+        invocations.push(1);
+        return ports.paginateProcesses(cursor, numItems);
+      },
+      paginatePeople: async (cursor, numItems) => {
+        invocations.push(1);
+        return ports.paginatePeople(cursor, numItems);
+      },
+    },
+    {
+      dryRun: false,
+      batchSize: 5,
+      onInvocation: (result) => {
+        if (!result.isDone && result.nextPhase !== result.phase) {
+          assert.equal(result.continueCursor, null);
+        }
+      },
+    },
+  );
+
+  assert.ok(invocations.length >= 3);
+  assert.equal(first.isDone, true);
+  assert.deepEqual(first.counts, {
+    personFlagOnly: 23,
+    personConcatenated: 1,
+    personMigrated: 1,
+    processBackfilled: 11,
+    processRowsUpdated: 14,
+    processConcatenated: 1,
+  });
+  assert.equal(store.people[0]?.address, flagOnlyAddressBefore);
+  assert.equal(store.people[0]?.addressCountryCode, flagOnlyCodeBefore);
+  assert.equal(store.people[0]?.addressIsBrazil, flagOnlyFlagBefore);
+  assert.match(store.people.find((row) => row._id === "person_br_real")?.address ?? "", /\[casys4-addr-mig:person:person_br_real\]/);
+  assert.equal(
+    store.addresses.some((row) => row.migrationKey === "person:person_us:embedded"),
+    true,
+  );
+  assert.equal(
+    store.addresses.filter((row) => row.migrationKey?.startsWith("process:") && row.isCurrent)
+      .length,
+    11,
+  );
+
+  const second = await driveAddressMigrationUntilDone(createMemoryPorts(store), {
+    dryRun: false,
+    batchSize: 5,
+    onInvocation: (result) => {
+      if (!result.isDone && result.nextPhase !== result.phase) {
+        assert.equal(result.continueCursor, null);
+      }
+    },
+  });
+  assert.equal(second.isDone, true);
+  assert.deepEqual(second.counts, {
+    personFlagOnly: 23,
+    personConcatenated: 0,
+    personMigrated: 0,
+    processBackfilled: 0,
+    processRowsUpdated: 0,
+    processConcatenated: 0,
+  });
+});
+
+test("each drive invocation paginates exactly once", async () => {
+  const store = prodShapedStore();
+  const base = createMemoryPorts(store);
+  let phase: "process_rows" | "process_embedded" | "people" = "process_rows";
+  let cursor: string | null = null;
+  let counts = emptyAddressMigrationCounts();
+
+  for (let step = 0; step < 200; step += 1) {
+    const { result, paginateCalls } = await invokeCounted(base, {
+      dryRun: true,
+      phase,
+      cursor,
+      batchSize: 7,
+      counts,
+    });
+    assert.equal(paginateCalls, 1, `invocation ${step} paginated ${paginateCalls} times`);
+    if (result.isDone) {
+      assert.equal(result.nextPhase, "done");
+      return;
+    }
+    assert.notEqual(result.nextPhase, "done");
+    if (result.nextPhase !== phase) {
+      assert.equal(result.continueCursor, null);
+    }
+    if (result.nextPhase === "done") {
+      assert.fail("nextPhase was done while isDone was false");
+    } else {
+      phase = result.nextPhase;
+    }
+    cursor = result.continueCursor;
+    counts = result.counts;
+  }
+  assert.fail("migration drive did not reach isDone");
+});
+
