@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Pencil, Save, X, Plus, FileEdit, Trash2, FileStack, MapPin } from "lucide-react";
+import { Pencil, Save, X, Plus, FileEdit, Trash2, FileStack, MapPin, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
@@ -34,7 +34,9 @@ import {
 import {
   bindFillFieldsRowClick,
   getStatusHistoryRowInteraction,
+  stopRowClick,
   stopRowClickThen,
+  toDatetimeLocalInputValue,
 } from "@/lib/status-history-row";
 import { formatFieldValue } from "@/lib/format-field-value";
 import { ExigenciaDocumentsBadge } from "./exigencia-documents-badge";
@@ -117,6 +119,18 @@ export function IndividualProcessStatusesSubtable({
   const deleteStatus = useMutation(api.individualProcessStatuses.deleteStatus);
 
   const isAdmin = userRole === "admin";
+
+  const handleEditClick = (
+    statusId: Id<"individualProcessStatuses">,
+    currentDate?: string,
+    currentCaseStatusId?: Id<"caseStatuses">
+  ) => {
+    setEditingId(statusId);
+    // Convert legacy date format (YYYY-MM-DD) to datetime-local format (YYYY-MM-DDTHH:mm)
+    // If date has no time, add T00:00 so the datetime-local input can display it
+    setEditDate(toDatetimeLocalInputValue(currentDate));
+    setEditCaseStatusId(currentCaseStatusId || null);
+  };
 
   const handleSave = async (statusId: Id<"individualProcessStatuses">) => {
     try {
@@ -356,10 +370,12 @@ export function IndividualProcessStatusesSubtable({
             <TableBody>
               {sortedStatuses.map((status) => {
                 const isEditing = editingId === status._id;
+                const isAnyRowEditing = editingId !== null;
                 const { canOpenFillFields, rowClassName } =
                   getStatusHistoryRowInteraction({
                     isAdmin,
                     isEditing,
+                    isAnyRowEditing,
                     status,
                   });
                 const displayDate = status.date || new Date(status.changedAt).toISOString().split('T')[0];
@@ -375,11 +391,17 @@ export function IndividualProcessStatusesSubtable({
                   >
                     <TableCell className="whitespace-nowrap">
                       {isEditing ? (
-                        <div className="flex items-center gap-2">
+                        <div
+                          className="flex items-center gap-2"
+                          onClick={stopRowClick}
+                          onPointerDown={stopRowClick}
+                        >
                           <Input
                             type="datetime-local"
                             value={editDate}
                             onChange={(e) => setEditDate(e.target.value)}
+                            onClick={stopRowClick}
+                            onPointerDown={stopRowClick}
                             className="h-8 w-[200px]"
                           />
                           <Button
@@ -415,21 +437,23 @@ export function IndividualProcessStatusesSubtable({
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
-                        <Combobox
-                          value={editCaseStatusId || status.caseStatusId}
-                          onValueChange={(value) => setEditCaseStatusId((value as Id<"caseStatuses"> | undefined) || null)}
-                          placeholder={t("selectStatus")}
-                          searchPlaceholder={tCommon("search")}
-                          emptyText={t("noResults")}
-                          triggerClassName="h-8"
-                          showClearButton={false}
-                          options={
-                            caseStatuses?.map((cs) => ({
-                              value: cs._id,
-                              label: locale === "pt" ? cs.name : (cs.nameEn || cs.name),
-                            })) || []
-                          }
-                        />
+                        <div onClick={stopRowClick} onPointerDown={stopRowClick}>
+                          <Combobox
+                            value={editCaseStatusId || status.caseStatusId}
+                            onValueChange={(value) => setEditCaseStatusId((value as Id<"caseStatuses"> | undefined) || null)}
+                            placeholder={t("selectStatus")}
+                            searchPlaceholder={tCommon("search")}
+                            emptyText={t("noResults")}
+                            triggerClassName="h-8"
+                            showClearButton={false}
+                            options={
+                              caseStatuses?.map((cs) => ({
+                                value: cs._id,
+                                label: locale === "pt" ? cs.name : (cs.nameEn || cs.name),
+                              })) || []
+                            }
+                          />
+                        </div>
                       ) : (
                         (() => {
                           // Get filled fields data for tooltip
@@ -602,16 +626,30 @@ export function IndividualProcessStatusesSubtable({
                                 <span className="sr-only">{t("fillFields")}</span>
                               </Button>
                             )}
-                            {/* Pencil: Editar Detalhes do Status. stopPropagation so the row does not open fill-fields. */}
+                            {/* Pencil: inline date + case status (handleEditClick). */}
                             <Button
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8"
                               onClick={stopRowClickThen(() => {
-                                openEditStatusDetails(status);
+                                handleEditClick(status._id, status.date, status.caseStatusId);
                               })}
                             >
                               <Pencil className="h-4 w-4" />
+                              <span className="sr-only">{t("editStatus")}</span>
+                            </Button>
+                            {/* Editar Detalhes do Status: notes / prazos. */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              title={t("editStatusDetails")}
+                              aria-label={t("editStatusDetails")}
+                              onClick={stopRowClickThen(() => {
+                                openEditStatusDetails(status);
+                              })}
+                            >
+                              <FileText className="h-4 w-4" />
                               <span className="sr-only">{t("editStatusDetails")}</span>
                             </Button>
                             {/* Delete button - available for all statuses */}

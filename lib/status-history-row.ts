@@ -19,16 +19,32 @@ export function statusHasFillableFields(status: StatusFillableSource): boolean {
   );
 }
 
+/**
+ * Inline date edit: datetime-local needs `YYYY-MM-DDTHH:mm`.
+ * Legacy status dates are `YYYY-MM-DD` — append `T00:00`.
+ */
+export function toDatetimeLocalInputValue(currentDate?: string): string {
+  let dateForInput = currentDate || "";
+  if (dateForInput && !dateForInput.includes("T")) {
+    dateForInput = `${dateForInput}T00:00`;
+  }
+  return dateForInput;
+}
+
 export function getStatusHistoryRowInteraction(args: {
   isAdmin: boolean;
   isEditing: boolean;
+  isAnyRowEditing: boolean;
   status: StatusFillableSource;
 }): {
   canOpenFillFields: boolean;
   rowClassName: string;
 } {
   const canOpenFillFields =
-    args.isAdmin && !args.isEditing && statusHasFillableFields(args.status);
+    args.isAdmin &&
+    !args.isEditing &&
+    !args.isAnyRowEditing &&
+    statusHasFillableFields(args.status);
   return {
     canOpenFillFields,
     rowClassName: canOpenFillFields ? "cursor-pointer" : "",
@@ -40,6 +56,13 @@ export function bindFillFieldsRowClick(
   openFillFields: () => void,
 ): (() => void) | undefined {
   return canOpenFillFields ? openFillFields : undefined;
+}
+
+/** Stop the row's fill-fields handler without running another action. */
+export function stopRowClick<E extends { stopPropagation: () => void }>(
+  event: E,
+): void {
+  event.stopPropagation();
 }
 
 /** Icon clicks must not trigger the row's fill-fields handler. */
