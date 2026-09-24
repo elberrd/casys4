@@ -6,11 +6,14 @@ import test from "node:test";
 import {
   bindFillFieldsRowClick,
   getStatusHistoryRowInteraction,
+  STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME,
+  STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME,
   statusHasFillableFields,
   stopRowClick,
   stopRowClickThen,
   toDatetimeLocalInputValue,
 } from "../lib/status-history-row";
+import { cn } from "../lib/utils";
 
 const subtableSource = readFileSync(
   path.join(
@@ -61,8 +64,8 @@ test("a row with fillable fields is clickable and shares the fill-fields opener"
     status: withFields,
   });
   assert.equal(canOpenFillFields, true);
-  assert.equal(rowClassName, "cursor-pointer");
-  assert.equal(rowClassName.includes("hover:"), false);
+  assert.equal(rowClassName, STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME);
+  assert.equal(rowClassName, "cursor-pointer hover:bg-muted/50");
 
   const onRowClick = bindFillFieldsRowClick(canOpenFillFields, () =>
     openFillFields("status-rnm"),
@@ -92,9 +95,9 @@ test("a row without fillable fields is not clickable and has no pointer/hover/ke
     status: withoutFields,
   });
   assert.equal(canOpenFillFields, false);
-  assert.equal(rowClassName, "");
+  assert.equal(rowClassName, STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME);
+  assert.equal(rowClassName, "hover:bg-transparent");
   assert.equal(rowClassName.includes("cursor-pointer"), false);
-  assert.equal(rowClassName.includes("hover:"), false);
 
   const onRowClick = bindFillFieldsRowClick(canOpenFillFields, () =>
     opened.push("should-not-run"),
@@ -139,7 +142,7 @@ test("clients, this-row edit, and any-row edit disable fill-fields row click", (
       isAnyRowEditing: true,
       status: withFields,
     }).rowClassName,
-    "",
+    STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME,
   );
 });
 
@@ -237,4 +240,79 @@ test("icons stop row clicks; map pin, fill-fields, pencil, details, trash", () =
   );
   assert.match(subtableSource, /stopRowClickThen\(\(\) => \{\s+openEditStatusDetails\(status\);/);
   assert.match(subtableSource, /stopRowClickThen\(\(\) => \{\s+handleDeleteClick\(/);
+});
+
+test("rowClassName is exact for clickable, no-fields, any-row-editing, and in-edit rows", () => {
+  assert.equal(
+    getStatusHistoryRowInteraction({
+      isAdmin: true,
+      isEditing: false,
+      isAnyRowEditing: false,
+      status: withFields,
+    }).rowClassName,
+    "cursor-pointer hover:bg-muted/50",
+  );
+  assert.equal(
+    getStatusHistoryRowInteraction({
+      isAdmin: true,
+      isEditing: false,
+      isAnyRowEditing: false,
+      status: withoutFields,
+    }).rowClassName,
+    "hover:bg-transparent",
+  );
+  assert.equal(
+    getStatusHistoryRowInteraction({
+      isAdmin: true,
+      isEditing: false,
+      isAnyRowEditing: true,
+      status: withFields,
+    }).rowClassName,
+    "hover:bg-transparent",
+  );
+  assert.equal(
+    getStatusHistoryRowInteraction({
+      isAdmin: true,
+      isEditing: true,
+      isAnyRowEditing: true,
+      status: withFields,
+    }).rowClassName,
+    "hover:bg-transparent",
+  );
+});
+
+test("TableRow cn/twMerge lets non-clickable hover:bg-transparent override the default hover", () => {
+  // Mirrors components/ui/table.tsx TableRow base classes.
+  const tableRowBase =
+    "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors";
+
+  const clickableMerged = cn(
+    tableRowBase,
+    STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME,
+  );
+  assert.match(clickableMerged, /cursor-pointer/);
+  assert.match(clickableMerged, /hover:bg-muted\/50/);
+  assert.equal(clickableMerged.includes("hover:bg-transparent"), false);
+
+  const nonClickableMerged = cn(
+    tableRowBase,
+    STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME,
+  );
+  assert.match(nonClickableMerged, /hover:bg-transparent/);
+  assert.equal(nonClickableMerged.includes("hover:bg-muted/50"), false);
+  assert.equal(nonClickableMerged.includes("cursor-pointer"), false);
+});
+
+test("subtable action buttons are compact and the actions column shrinks to content", () => {
+  assert.match(subtableSource, /const ACTION_ICON_BUTTON_CLASS = "h-7 w-7"/);
+  assert.equal(subtableSource.includes('className="h-8 w-8"'), false);
+  assert.match(subtableSource, /className=\{ACTION_ICON_BUTTON_CLASS\}/);
+  assert.match(subtableSource, /flex items-center gap-0\.5 justify-end/);
+  assert.match(
+    subtableSource,
+    /TableHead className="w-px text-right whitespace-nowrap"/,
+  );
+  assert.match(subtableSource, /TableCell className="w-px whitespace-nowrap"/);
+  assert.match(subtableSource, /TableCell className="min-w-0 whitespace-normal"/);
+  assert.match(subtableSource, /h-4 w-4/);
 });

@@ -31,6 +31,15 @@ export function toDatetimeLocalInputValue(currentDate?: string): string {
   return dateForInput;
 }
 
+/**
+ * Passed as TableRow className. TableRow always applies `hover:bg-muted/50`
+ * first; twMerge in `cn(base, className)` lets these win.
+ */
+export const STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME =
+  "cursor-pointer hover:bg-muted/50";
+export const STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME =
+  "hover:bg-transparent";
+
 export function getStatusHistoryRowInteraction(args: {
   isAdmin: boolean;
   isEditing: boolean;
@@ -47,7 +56,9 @@ export function getStatusHistoryRowInteraction(args: {
     statusHasFillableFields(args.status);
   return {
     canOpenFillFields,
-    rowClassName: canOpenFillFields ? "cursor-pointer" : "",
+    rowClassName: canOpenFillFields
+      ? STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME
+      : STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME,
   };
 }
 

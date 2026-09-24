@@ -38,6 +38,9 @@ import {
   stopRowClickThen,
   toDatetimeLocalInputValue,
 } from "@/lib/status-history-row";
+
+/** Compact icon buttons in this subtable only (icons stay h-4 w-4). */
+const ACTION_ICON_BUTTON_CLASS = "h-7 w-7";
 import { formatFieldValue } from "@/lib/format-field-value";
 import { ExigenciaDocumentsBadge } from "./exigencia-documents-badge";
 
@@ -362,9 +365,13 @@ export function IndividualProcessStatusesSubtable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="whitespace-nowrap">{t("statusDateTime")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-                {isAdmin && <TableHead className="text-right whitespace-nowrap">{tCommon("actions")}</TableHead>}
+                <TableHead className="w-px whitespace-nowrap">{t("statusDateTime")}</TableHead>
+                <TableHead className="min-w-0">{t("status")}</TableHead>
+                {isAdmin && (
+                  <TableHead className="w-px text-right whitespace-nowrap">
+                    {tCommon("actions")}
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -389,7 +396,7 @@ export function IndividualProcessStatusesSubtable({
                       openFillFields(status._id),
                     )}
                   >
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="w-px whitespace-nowrap">
                       {isEditing ? (
                         <div
                           className="flex items-center gap-2"
@@ -407,7 +414,7 @@ export function IndividualProcessStatusesSubtable({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8"
+                            className={ACTION_ICON_BUTTON_CLASS}
                             onClick={stopRowClickThen(() => {
                               handleSave(status._id);
                             })}
@@ -418,7 +425,7 @@ export function IndividualProcessStatusesSubtable({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8"
+                            className={ACTION_ICON_BUTTON_CLASS}
                             onClick={stopRowClickThen(() => {
                               handleCancelEdit();
                             })}
@@ -435,7 +442,7 @@ export function IndividualProcessStatusesSubtable({
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-0 whitespace-normal">
                       {isEditing ? (
                         <div onClick={stopRowClick} onPointerDown={stopRowClick}>
                           <Combobox
@@ -470,11 +477,13 @@ export function IndividualProcessStatusesSubtable({
                               type="individual_process"
                               color={status.caseStatus.color}
                               category={status.caseStatus.category}
+                              className="max-w-full min-w-0 whitespace-normal break-words"
                             />
                           ) : (
                             <StatusBadge
                               status={status.statusName}
                               type="individual_process"
+                              className="max-w-full min-w-0 whitespace-normal break-words"
                             />
                           );
 
@@ -511,7 +520,7 @@ export function IndividualProcessStatusesSubtable({
                           if (tooltipContent) {
                             return (
                               <div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                 <TooltipProvider>
                                   <Tooltip delayDuration={200}>
                                     <TooltipTrigger asChild>
@@ -558,7 +567,7 @@ export function IndividualProcessStatusesSubtable({
                           // No tooltip content, return badge + optional exigência dates
                           return (
                             <div>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                 {badgeElement}
                                 {exigenciaDocumentsBadge}
                               </div>
@@ -569,15 +578,15 @@ export function IndividualProcessStatusesSubtable({
                       )}
                     </TableCell>
                     {isAdmin && (
-                      <TableCell className="whitespace-nowrap">
+                      <TableCell className="w-px whitespace-nowrap">
                         {!isEditing && (
-                          <div className="flex items-center gap-1 justify-end">
+                          <div className="flex items-center gap-0.5 justify-end">
                             {/* Status Documents button - shows when status allows documents */}
                             {status.caseStatus?.allowDocuments === true && (
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8"
+                                className={ACTION_ICON_BUTTON_CLASS}
                                 onClick={stopRowClickThen(() => {
                                   setStatusDocumentsState({
                                     open: true,
@@ -599,7 +608,7 @@ export function IndividualProcessStatusesSubtable({
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8"
+                                className={ACTION_ICON_BUTTON_CLASS}
                                 onClick={stopRowClickThen(() => {
                                   onOpenProcessAddressTable();
                                 })}
@@ -616,7 +625,7 @@ export function IndividualProcessStatusesSubtable({
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8"
+                                className={ACTION_ICON_BUTTON_CLASS}
                                 onClick={stopRowClickThen(() => {
                                   openFillFields(status._id);
                                 })}
@@ -630,7 +639,7 @@ export function IndividualProcessStatusesSubtable({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className={ACTION_ICON_BUTTON_CLASS}
                               onClick={stopRowClickThen(() => {
                                 handleEditClick(status._id, status.date, status.caseStatusId);
                               })}
@@ -642,7 +651,7 @@ export function IndividualProcessStatusesSubtable({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className={ACTION_ICON_BUTTON_CLASS}
                               title={t("editStatusDetails")}
                               aria-label={t("editStatusDetails")}
                               onClick={stopRowClickThen(() => {
@@ -656,7 +665,7 @@ export function IndividualProcessStatusesSubtable({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className={`${ACTION_ICON_BUTTON_CLASS} text-destructive hover:text-destructive`}
                               onClick={stopRowClickThen(() => {
                                 handleDeleteClick(status._id, caseStatusName || status.statusName);
                               })}
