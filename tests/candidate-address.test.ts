@@ -311,6 +311,10 @@ test("process card current address comes from the process table, never the perso
   const selected = selectCurrentProcessAddress(processCurrent);
   assert.equal(selected?.addressStreet, "Av Paulista");
   assert.match(formatCurrentProcessAddress(processCurrent), /Av Paulista/);
+  assert.equal(
+    formatCurrentProcessAddress(processCurrent),
+    "Av Paulista, 1000, São Paulo - SP, 01310-100",
+  );
 
   assert.equal(selectCurrentProcessAddress(null), null);
   assert.equal(formatCurrentProcessAddress(null), "");

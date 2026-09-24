@@ -24,8 +24,15 @@ import {
   type AddressOwner,
   type ProcessAddressRecord,
 } from "@/components/individual-processes/individual-process-address-dialog";
-import { formatCandidateAddress } from "@/lib/utils/candidate-address";
+import { formatAddressCityState, formatCandidateAddress } from "@/lib/utils/candidate-address";
+import { canDeleteAddress } from "@/lib/utils/individual-process-address";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface IndividualProcessAddressesTableProps {
   owner?: AddressOwner;
@@ -33,6 +40,22 @@ interface IndividualProcessAddressesTableProps {
   individualProcessId?: Id<"individualProcesses">;
   canEdit: boolean;
   showHeader?: boolean;
+}
+
+function isAddressDeleteBlocked(
+  addresses: Array<{ _id: string; isCurrent: boolean }> | undefined,
+  address: { _id: string; isCurrent: boolean },
+): boolean {
+  if (!addresses) return false;
+  return (
+    canDeleteAddress({
+      addresses: addresses.map((row) => ({
+        id: row._id,
+        isCurrent: row.isCurrent,
+      })),
+      addressId: address._id,
+    }).ok === false
+  );
 }
 
 export function IndividualProcessAddressesTable({
@@ -111,6 +134,10 @@ export function IndividualProcessAddressesTable({
 
   const handleDelete = async () => {
     if (!deletingAddress) return;
+    if (isAddressDeleteBlocked(addresses, deletingAddress)) {
+      toast.error(t("addresses.deleteCurrentDescription"));
+      return;
+    }
     setIsDeleting(true);
     try {
       await removeAddress({ id: deletingAddress._id });
@@ -124,8 +151,12 @@ export function IndividualProcessAddressesTable({
   };
 
   const colSpan = canEdit ? 9 : 8;
+  const deleteBlocked =
+    deletingAddress !== null &&
+    isAddressDeleteBlocked(addresses, deletingAddress);
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-3">
       {showHeader && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -208,9 +239,7 @@ export function IndividualProcessAddressesTable({
                   </TableCell>
                   <TableCell>{address.addressNeighborhood || "—"}</TableCell>
                   <TableCell>
-                    {[address.addressCity, address.addressStateCode]
-                      .filter(Boolean)
-                      .join(" - ") || "—"}
+                    {formatAddressCityState(address) || "—"}
                   </TableCell>
                   <TableCell>{address.addressPostalCode || "—"}</TableCell>
                   {canEdit && (
@@ -242,17 +271,42 @@ export function IndividualProcessAddressesTable({
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">{tCommon("edit")}</span>
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title={tCommon("delete")}
-                          onClick={() => setDeletingAddress(address)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">{tCommon("delete")}</span>
-                        </Button>
+                        {isAddressDeleteBlocked(addresses, address) ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled
+                                  title={t("addresses.deleteCurrentDescription")}
+                                  aria-label={t(
+                                    "addresses.deleteCurrentDescription",
+                                  )}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              {t("addresses.deleteCurrentDescription")}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title={tCommon("delete")}
+                            onClick={() => setDeletingAddress(address)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">{tCommon("delete")}</span>
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   )}
@@ -295,8 +349,10 @@ export function IndividualProcessAddressesTable({
         cancelText={tCommon("cancel")}
         variant="destructive"
         isLoading={isDeleting}
+        confirmDisabled={deleteBlocked}
         onConfirm={() => void handleDelete()}
       />
     </div>
+    </TooltipProvider>
   );
 }

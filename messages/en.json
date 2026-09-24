@@ -1382,6 +1382,7 @@
       "currentAddressRequired": "Exactly one address must be marked as current.",
       "multipleCurrentAddresses": "Only one address can be current.",
       "addressFieldsRequired": "Fill in at least one address field.",
+      "cityAndStateRequired": "State (UF) and city are required.",
       "reportedAtRequired": "Reported date is required.",
       "invalidReportedAt": "Reported date must use YYYY-MM-DD format.",
       "personAddressMustBeAbroad": "Person addresses can only be abroad.",

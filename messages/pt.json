@@ -1382,6 +1382,7 @@
       "currentAddressRequired": "É obrigatório ter exatamente um endereço marcado como atual.",
       "multipleCurrentAddresses": "Apenas um endereço pode ser o atual.",
       "addressFieldsRequired": "Preencha ao menos um campo do endereço.",
+      "cityAndStateRequired": "Informe o estado (UF) e a cidade.",
       "reportedAtRequired": "Informe a data informada.",
       "invalidReportedAt": "A data informada deve estar no formato AAAA-MM-DD.",
       "personAddressMustBeAbroad": "Endereços da pessoa só podem ser no exterior.",

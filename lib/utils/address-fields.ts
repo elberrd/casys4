@@ -1,4 +1,8 @@
-import { BRAZIL_COUNTRY_CODE } from "../data/brazil-states";
+import {
+  BRAZIL_COUNTRY_CODE,
+  getBrazilStateName,
+  normalizeBrazilStateCode,
+} from "../data/brazil-states";
 
 export const REPORTED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
@@ -109,12 +113,22 @@ export function forceBrazilAddressFields(
   brazilCountryName = "Brasil",
 ): StructuredAddressFields {
   const fields = pickStructuredAddressFields(source);
+  const uf = normalizeBrazilStateCode(
+    fields.addressStateCode,
+    fields.addressStateName,
+  );
   return {
     ...fields,
     addressIsBrazil: true,
     addressCountryCode: BRAZIL_COUNTRY_CODE,
     addressCountryName:
       trimOptional(fields.addressCountryName) || brazilCountryName,
+    ...(uf
+      ? {
+          addressStateCode: uf,
+          addressStateName: getBrazilStateName(uf),
+        }
+      : {}),
   };
 }
 

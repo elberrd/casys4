@@ -1,4 +1,8 @@
-import { BRAZIL_COUNTRY_CODE } from "../data/brazil-states";
+import {
+  BRAZIL_COUNTRY_CODE,
+  getBrazilStateName,
+  normalizeBrazilStateCode,
+} from "../data/brazil-states";
 import {
   hasSubstantiveAddressFields,
   isBrazilAddress,
@@ -411,6 +415,72 @@ export function hasStructuredAddressContent(
   ].some((part) => typeof part === "string" && part.trim().length > 0);
 }
 
+export function withNormalizedBrazilState(
+  value: CandidateAddressValue,
+): CandidateAddressValue {
+  const uf = normalizeBrazilStateCode(
+    value.addressStateCode,
+    value.addressStateName,
+  );
+  if (!uf) return value;
+  return {
+    ...value,
+    addressStateCode: uf,
+    addressStateName: getBrazilStateName(uf),
+  };
+}
+
+/** Process addresses always need city + 2-letter UF, matching existing Brazil data. */
+export function processAddressHasRequiredLocation(
+  value: CandidateAddressValue,
+): boolean {
+  const city = value.addressCity?.trim();
+  const uf = normalizeBrazilStateCode(
+    value.addressStateCode,
+    value.addressStateName,
+  );
+  return Boolean(city && uf);
+}
+
+export function formatAddressStateLabel(
+  value: Pick<
+    CandidateAddressValue,
+    | "addressIsBrazil"
+    | "addressCountryCode"
+    | "addressStateCode"
+    | "addressStateName"
+  >,
+): string {
+  const uf = normalizeBrazilStateCode(
+    value.addressStateCode,
+    value.addressStateName,
+  );
+  if (isBrazilAddress(value)) {
+    return uf ?? "";
+  }
+  return (value.addressStateName || value.addressStateCode || "").trim();
+}
+
+export function formatAddressCityState(
+  value: Pick<
+    CandidateAddressValue,
+    | "addressIsBrazil"
+    | "addressCountryCode"
+    | "addressStateCode"
+    | "addressStateName"
+    | "addressCity"
+  >,
+): string {
+  return [value.addressCity?.trim(), formatAddressStateLabel(value)]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+/**
+ * Shared display line for the process card and the address table.
+ * Brazil/process: «street, number, neighborhood, City - UF, CEP» (no BRASIL).
+ * Abroad/person: keeps country and the stored state label.
+ */
 export function formatCandidateAddress(
   value: CandidateAddressValue,
 ): string {
@@ -425,14 +495,11 @@ export function formatCandidateAddress(
     .join(", ");
 
   const neighborhood = value.addressNeighborhood?.trim() || "";
-  const stateLabel = value.addressStateName || value.addressStateCode;
-  const cityState = [value.addressCity, stateLabel]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(" - ");
-
+  const cityState = formatAddressCityState(value);
   const postal = value.addressPostalCode?.trim();
-  const country = value.addressCountryName?.trim();
+  const country = isBrazilAddress(value)
+    ? ""
+    : value.addressCountryName?.trim();
 
   return [line1, neighborhood, cityState, postal, country]
     .filter(Boolean)

@@ -7,7 +7,11 @@ import { CircleHelp, Loader2, Search } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
-import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
+import {
+  BRAZIL_COUNTRY_CODE,
+  getBrazilStateName,
+  normalizeBrazilStateCode,
+} from "@/lib/data/brazil-states";
 import {
   applyCepLookupResult,
   isBrazilAddressSelected,
@@ -335,6 +339,15 @@ export function CandidateAddressFields({
 
   const handleStateChange = (nextCode: string | undefined) => {
     const selected = states.find((state) => state.isoCode === nextCode);
+    if (!isPerson) {
+      const uf = normalizeBrazilStateCode(nextCode, selected?.name);
+      merge({
+        addressStateCode: uf ?? nextCode ?? "",
+        addressStateName: uf ? getBrazilStateName(uf) : (selected?.name ?? ""),
+        addressCity: "",
+      });
+      return;
+    }
     merge({
       addressStateCode: nextCode ?? "",
       addressStateName: selected?.name ?? "",
@@ -435,6 +448,7 @@ export function CandidateAddressFields({
                 onChange={(next) => merge({ addressPostalCode: next })}
                 disabled={disabled}
                 className="flex-1"
+                autoComplete="off"
               />
               <Button
                 type="button"
@@ -488,7 +502,7 @@ export function CandidateAddressFields({
             <Label>{t("state")}</Label>
             <Combobox
               options={stateOptions}
-              value={value.addressStateCode || undefined}
+              value={value.addressStateCode ?? ""}
               onValueChange={handleStateChange}
               placeholder={t("selectState")}
               searchPlaceholder={t("searchState")}
@@ -504,7 +518,7 @@ export function CandidateAddressFields({
           <Label>{t("city")}</Label>
           <Combobox
             options={cityOptions}
-            value={value.addressCity || undefined}
+            value={value.addressCity ?? ""}
             onValueChange={(next) => merge({ addressCity: next ?? "" })}
             placeholder={t("selectCity")}
             searchPlaceholder={t("searchCity")}
@@ -525,6 +539,7 @@ export function CandidateAddressFields({
             onChange={(event) => merge({ addressStreet: event.target.value })}
             placeholder={t("streetPlaceholder")}
             disabled={disabled}
+            autoComplete="off"
           />
         </div>
 

@@ -18,9 +18,12 @@ import { CandidateAddressFields } from "@/components/individual-processes/candid
 import {
   emptyAddressForm,
   hasStructuredAddressContent,
+  processAddressHasRequiredLocation,
+  withNormalizedBrazilState,
   type AddressCountryMode,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
+import { isBrazilAddress } from "@/lib/utils/address-fields";
 import { todayIsoDate } from "@/lib/utils/address-fields";
 import { toast } from "sonner";
 
@@ -46,7 +49,7 @@ export type ProcessAddressRecord = {
 };
 
 function recordToValue(address: ProcessAddressRecord): CandidateAddressValue {
-  return {
+  const value: CandidateAddressValue = {
     addressIsBrazil: address.addressIsBrazil,
     addressStreet: address.addressStreet,
     addressNumber: address.addressNumber,
@@ -60,6 +63,7 @@ function recordToValue(address: ProcessAddressRecord): CandidateAddressValue {
     addressPostalCode: address.addressPostalCode,
     reportedAt: address.reportedAt || todayIsoDate(),
   };
+  return isBrazilAddress(value) ? withNormalizedBrazilState(value) : value;
 }
 
 const ADDRESS_ERROR_CODES = [
@@ -156,31 +160,45 @@ export function IndividualProcessAddressDialog({
   const isEditing = Boolean(address);
 
   React.useEffect(() => {
-    if (!open) return;
-    setValue(
-      address ? recordToValue(address) : emptyAddressForm(countryMode),
-    );
+    if (!open) {
+      setValue(emptyAddressForm(countryMode));
+      return;
+    }
+    // Create always starts empty (Brazil + today's reportedAt). Never copy
+    // the current address — that raced with Combobox leftover state.
+    setValue(address ? recordToValue(address) : emptyAddressForm(countryMode));
   }, [address, countryMode, open]);
 
-  const payloadFromValue = (next: CandidateAddressValue) => ({
-    reportedAt: next.reportedAt || todayIsoDate(),
-    addressIsBrazil: next.addressIsBrazil,
-    addressStreet: next.addressStreet,
-    addressNumber: next.addressNumber,
-    addressComplement: next.addressComplement,
-    addressNeighborhood: next.addressNeighborhood,
-    addressCountryCode: next.addressCountryCode,
-    addressCountryName: next.addressCountryName,
-    addressStateCode: next.addressStateCode,
-    addressStateName: next.addressStateName,
-    addressCity: next.addressCity,
-    addressPostalCode: next.addressPostalCode,
-  });
+  const payloadFromValue = (next: CandidateAddressValue) => {
+    const normalized =
+      owner.type === "process" ? withNormalizedBrazilState(next) : next;
+    return {
+      reportedAt: normalized.reportedAt || todayIsoDate(),
+      addressIsBrazil: normalized.addressIsBrazil,
+      addressStreet: normalized.addressStreet,
+      addressNumber: normalized.addressNumber,
+      addressComplement: normalized.addressComplement,
+      addressNeighborhood: normalized.addressNeighborhood,
+      addressCountryCode: normalized.addressCountryCode,
+      addressCountryName: normalized.addressCountryName,
+      addressStateCode: normalized.addressStateCode,
+      addressStateName: normalized.addressStateName,
+      addressCity: normalized.addressCity,
+      addressPostalCode: normalized.addressPostalCode,
+    };
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!hasStructuredAddressContent(value)) {
       toast.error(t("errors.addressFieldsRequired"));
+      return;
+    }
+    if (
+      owner.type === "process" &&
+      !processAddressHasRequiredLocation(value)
+    ) {
+      toast.error(t("errors.cityAndStateRequired"));
       return;
     }
     if (!value.reportedAt) {
@@ -221,7 +239,7 @@ export function IndividualProcessAddressDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <form onSubmit={(event) => void handleSubmit(event)}>
+        <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
           <DialogHeader>
             <DialogTitle>
               {isEditing ? t("addresses.editTitle") : t("addresses.addTitle")}
@@ -233,13 +251,16 @@ export function IndividualProcessAddressDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <CandidateAddressFields
-              value={value}
-              onChange={setValue}
-              disabled={isSubmitting}
-              showLegacyField={false}
-              countryMode={countryMode}
-            />
+            {open ? (
+              <CandidateAddressFields
+                key={address?._id ?? "create"}
+                value={value}
+                onChange={setValue}
+                disabled={isSubmitting}
+                showLegacyField={false}
+                countryMode={countryMode}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button
