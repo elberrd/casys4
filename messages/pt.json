@@ -1375,7 +1375,8 @@
       "deletedSuccess": "Endereço excluído.",
       "deleteTitle": "Excluir endereço",
       "deleteDescription": "Tem certeza de que deseja excluir este endereço?",
-      "deleteCurrentDescription": "Marque outro endereço como atual antes de excluir o endereço atual."
+      "deleteCurrentDescription": "Marque outro endereço como atual antes de excluir o endereço atual.",
+      "savedImmediately": "Endereços são salvos imediatamente."
     },
     "errors": {
       "currentAddressRequired": "É obrigatório ter exatamente um endereço marcado como atual.",

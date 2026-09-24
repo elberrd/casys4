@@ -34,6 +34,7 @@ import {
 import {
   bindFillFieldsRowClick,
   getStatusHistoryRowInteraction,
+  isRnmCaseStatus,
   stopRowClick,
   stopRowClickThen,
   toDatetimeLocalInputValue,
@@ -603,7 +604,7 @@ export function IndividualProcessStatusesSubtable({
                                 <span className="sr-only">{t("viewStatusDocuments")}</span>
                               </Button>
                             )}
-                            {status.caseStatus?.code === "rnm" &&
+                            {isRnmCaseStatus(status) &&
                               onOpenProcessAddressTable && (
                               <Button
                                 size="icon"

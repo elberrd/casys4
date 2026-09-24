@@ -9,6 +9,17 @@ export type StatusFillableSource = {
   caseStatus?: { fillableFields?: readonly string[] | null } | null;
 };
 
+/** Same criterion as the RNM MapPin in Histórico do Andamento. */
+export const RNM_CASE_STATUS_CODE = "rnm";
+
+export type RnmCaseStatusSource = {
+  caseStatus?: { code?: string | null } | null;
+};
+
+export function isRnmCaseStatus(status: RnmCaseStatusSource): boolean {
+  return status.caseStatus?.code === RNM_CASE_STATUS_CODE;
+}
+
 /** Same criterion as the «Preencher campos» icon: any non-empty fillableFields list. */
 export function statusHasFillableFields(status: StatusFillableSource): boolean {
   const fromCase = status.caseStatus?.fillableFields;

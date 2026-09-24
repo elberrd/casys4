@@ -1375,7 +1375,8 @@
       "deletedSuccess": "Address deleted.",
       "deleteTitle": "Delete address",
       "deleteDescription": "Are you sure you want to delete this address?",
-      "deleteCurrentDescription": "Mark another address as current before deleting the current one."
+      "deleteCurrentDescription": "Mark another address as current before deleting the current one.",
+      "savedImmediately": "Addresses are saved immediately."
     },
     "errors": {
       "currentAddressRequired": "Exactly one address must be marked as current.",

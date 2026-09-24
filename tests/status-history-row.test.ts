@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   bindFillFieldsRowClick,
   getStatusHistoryRowInteraction,
+  isRnmCaseStatus,
   STATUS_HISTORY_CLICKABLE_ROW_CLASSNAME,
   STATUS_HISTORY_NON_CLICKABLE_ROW_CLASSNAME,
   statusHasFillableFields,
@@ -39,6 +40,15 @@ test("statusHasFillableFields matches the fill-fields icon criterion", () => {
     statusHasFillableFields({ caseStatus: { fillableFields: [] } }),
     false,
   );
+});
+
+test("isRnmCaseStatus matches the MapPin criterion (caseStatus.code === rnm)", () => {
+  assert.equal(isRnmCaseStatus({ caseStatus: { code: "rnm" } }), true);
+  assert.equal(isRnmCaseStatus({ caseStatus: { code: "exigencia" } }), false);
+  assert.equal(isRnmCaseStatus({ caseStatus: { code: "RNM" } }), false);
+  assert.equal(isRnmCaseStatus({ caseStatus: { code: "Registro Nacional Migratório" } }), false);
+  assert.equal(isRnmCaseStatus({}), false);
+  assert.equal(isRnmCaseStatus({ caseStatus: null }), false);
 });
 
 test("toDatetimeLocalInputValue converts legacy YYYY-MM-DD for the inline date input", () => {
@@ -232,6 +242,8 @@ test("pencil triggers inline edit via handleEditClick; details icon opens EditSt
 });
 
 test("icons stop row clicks; map pin, fill-fields, pencil, details, trash", () => {
+  assert.match(subtableSource, /isRnmCaseStatus\(status\)/);
+  assert.equal(subtableSource.includes('status.caseStatus?.code === "rnm"'), false);
   assert.match(subtableSource, /stopRowClickThen\(\(\) => \{\s+openFillFields\(status\._id\);/);
   assert.match(subtableSource, /stopRowClickThen\(\(\) => \{\s+onOpenProcessAddressTable\(\);/);
   assert.match(
