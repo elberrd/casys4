@@ -178,6 +178,7 @@ export function PersonFormPage({
     addressCity: form.watch("addressCity") ?? "",
     addressPostalCode: form.watch("addressPostalCode") ?? "",
     address: form.watch("address") ?? "",
+    reportedAt: form.watch("reportedAt") ?? "",
   })
 
   const handleAddressChange = (next: CandidateAddressValue) => {
@@ -208,6 +209,7 @@ export function PersonFormPage({
       shouldDirty: true,
     })
     form.setValue("address", slice.address, { shouldDirty: true })
+    form.setValue("reportedAt", slice.reportedAt, { shouldDirty: true })
   }
 
   // Watch CPF field for real-time validation
@@ -483,6 +485,7 @@ export function PersonFormPage({
         addressStateName: data.addressStateName || undefined,
         addressCity: data.addressCity || undefined,
         addressPostalCode: data.addressPostalCode || undefined,
+        reportedAt: data.reportedAt || undefined,
         currentCityId: data.currentCityId || undefined,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
@@ -929,6 +932,7 @@ export function PersonFormPage({
                 value={addressValue}
                 onChange={handleAddressChange}
                 disabled={form.formState.isSubmitting}
+                countryMode="person"
               />
 
               <FormField

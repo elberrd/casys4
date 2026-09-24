@@ -283,6 +283,8 @@ export function PersonDetailView({
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1">
                   <CandidateAddressDetailRows
                     value={candidateAddressFromPerson(person)}
+                    countryMode="person"
+                    showLegacyField={false}
                   />
                   {person.currentCity && (
                     <>

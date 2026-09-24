@@ -35,6 +35,13 @@ import {
 import { ProcessStatusUpdateDialog } from "@/components/individual-processes/process-status-update-dialog";
 import { ProcessReportsMenu } from "@/components/process-reports/process-reports-menu";
 import { EntityHistory } from "@/components/activity-logs/entity-history";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
 import { ProcessNotesSection } from "@/components/notes/process-notes-section";
@@ -95,6 +102,8 @@ export function IndividualProcessDetailClient({
   const [isProcessStatusDialogOpen, setIsProcessStatusDialogOpen] =
     useState(false);
   const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false);
+  const [isPersonAddressModalOpen, setIsPersonAddressModalOpen] =
+    useState(false);
   const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] =
     useState(false);
   const [reviewDocumentId, setReviewDocumentId] =
@@ -107,9 +116,11 @@ export function IndividualProcessDetailClient({
   const individualProcess = useQuery(api.individualProcesses.get, {
     id: processId,
   });
-  const currentAddress = useQuery(
-    api.individualProcessAddresses.getCurrent,
-    { individualProcessId: processId },
+  const personCurrentAddress = useQuery(
+    api.individualProcessAddresses.getCurrentByPerson,
+    individualProcess?.personId
+      ? { personId: individualProcess.personId }
+      : "skip",
   );
   const currentUser = useQuery(api.userProfiles.getCurrentUser);
   const deliveredDocuments = useQuery(
@@ -602,18 +613,11 @@ export function IndividualProcessDetailClient({
                   {individualProcess.consularPost || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t("candidateAddress")}</div>
-                <div className="text-sm whitespace-pre-line">
-                  {formatCandidateAddress(
-                    currentAddress ?? individualProcess,
-                  ) || "-"}
-                </div>
-
                 <div className="text-sm font-medium">
                   {t("residenceAddressAbroad")}
                 </div>
                 <div className="text-sm whitespace-pre-line">
-                  {individualProcess.residenceAddressAbroad || "-"}
+                  {formatCandidateAddress(personCurrentAddress ?? {}) || "-"}
                 </div>
 
                 <div className="text-sm font-medium">
@@ -759,14 +763,33 @@ export function IndividualProcessDetailClient({
 
                 <div className="col-span-full mt-2 flex items-center gap-2">
                   <span className="text-sm font-semibold">
-                    {t("currentAddress")}
+                    {t("personCurrentAddress")}
                   </span>
                   <Badge variant="success">{t("addresses.current")}</Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setIsPersonAddressModalOpen(true)}
+                    title={t("addresses.openPersonTable")}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    <span className="sr-only">
+                      {t("addresses.openPersonTable")}
+                    </span>
+                  </Button>
                 </div>
-                <CandidateAddressDetailRows
-                  value={currentAddress ?? individualProcess}
-                  showLegacyField={false}
-                />
+                <div className="col-span-full text-sm whitespace-pre-line">
+                  {formatCandidateAddress(personCurrentAddress ?? {}) || "-"}
+                </div>
+                {personCurrentAddress && (
+                  <CandidateAddressDetailRows
+                    value={personCurrentAddress}
+                    showLegacyField={false}
+                    countryMode="person"
+                  />
+                )}
 
                 <div className="text-sm font-medium flex items-center gap-1">
                   {tPeople("profession")}
@@ -843,15 +866,6 @@ export function IndividualProcessDetailClient({
           </Card>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <IndividualProcessAddressesTable
-              individualProcessId={processId}
-              canEdit={isAdmin}
-            />
-          </CardContent>
-        </Card>
-
         <div className="grid gap-4 md:grid-cols-2">
           {/* Status History - Interactive Table */}
           <Card>
@@ -861,6 +875,11 @@ export function IndividualProcessDetailClient({
                   individualProcessId={processId}
                   userRole={currentUser.role}
                   showDescription={false}
+                  onOpenProcessAddressTable={() => {
+                    document
+                      .getElementById("process-addresses")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
                 />
               )}
             </CardContent>
@@ -1010,6 +1029,21 @@ export function IndividualProcessDetailClient({
           </Card>
         </div>
 
+        <Card id="process-addresses" className="scroll-mt-6">
+          <CardHeader>
+            <CardTitle>{t("addresses.processBrazilTitle")}</CardTitle>
+            <CardDescription>
+              {t("addresses.processBrazilDescription")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IndividualProcessAddressesTable
+              owner={{ type: "process", individualProcessId: processId }}
+              canEdit={isAdmin}
+            />
+          </CardContent>
+        </Card>
+
         {/* Document Checklist Section — branch by role for cleaner client UX */}
         <section id="documentation" className="scroll-mt-6">
           {isAdmin ? (
@@ -1072,6 +1106,27 @@ export function IndividualProcessDetailClient({
           individualProcessId={processId}
           currentStatus={processStatus}
         />
+      )}
+
+      {/* Person address history (paperclip on Pessoa card) */}
+      {individualProcess.personId && (
+        <Dialog
+          open={isPersonAddressModalOpen}
+          onOpenChange={setIsPersonAddressModalOpen}
+        >
+          <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t("addresses.personTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("addresses.personDescription")}
+              </DialogDescription>
+            </DialogHeader>
+            <IndividualProcessAddressesTable
+              owner={{ type: "person", personId: individualProcess.personId }}
+              canEdit={isAdmin}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Person Edit Dialog (admin only) */}

@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Pencil, Save, X, Plus, FileEdit, Trash2, FileStack } from "lucide-react";
+import { Pencil, Save, X, Plus, FileEdit, Trash2, FileStack, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
@@ -38,12 +38,14 @@ interface IndividualProcessStatusesSubtableProps {
   individualProcessId: Id<"individualProcesses">;
   userRole: "admin" | "client";
   showDescription?: boolean;
+  onOpenProcessAddressTable?: () => void;
 }
 
 export function IndividualProcessStatusesSubtable({
   individualProcessId,
   userRole,
   showDescription = true,
+  onOpenProcessAddressTable,
 }: IndividualProcessStatusesSubtableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -564,6 +566,24 @@ export function IndividualProcessStatusesSubtable({
                               >
                                 <FileStack className="h-4 w-4 text-orange-500" />
                                 <span className="sr-only">{t("viewStatusDocuments")}</span>
+                              </Button>
+                            )}
+                            {status.caseStatus?.code === "rnm" &&
+                              onOpenProcessAddressTable && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenProcessAddressTable();
+                                }}
+                                title={t("addresses.openProcessTable")}
+                              >
+                                <MapPin className="h-4 w-4 text-blue-600" />
+                                <span className="sr-only">
+                                  {t("addresses.openProcessTable")}
+                                </span>
                               </Button>
                             )}
                             {/* Fill Fields button - shows when status has fillable fields */}

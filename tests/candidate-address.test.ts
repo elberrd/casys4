@@ -9,6 +9,7 @@ import {
   formatCandidateAddress,
   isBrazilAddressSelected,
   personAddressFormFromRecord,
+  personAddressFormFromValue,
   personAddressValueFromForm,
 } from "../lib/utils/candidate-address";
 import {
@@ -138,7 +139,7 @@ test("formats a structured candidate address for display", () => {
   );
 });
 
-test("empty address form starts with Brazil checked so CEP search is ready", () => {
+test("empty process address form starts with Brazil so CEP search is ready", () => {
   assert.equal(EMPTY_CANDIDATE_ADDRESS_FORM.addressIsBrazil, true);
   assert.equal(EMPTY_CANDIDATE_ADDRESS_FORM.addressCountryCode, "BR");
   assert.equal(isBrazilAddressSelected({}), true);
@@ -147,12 +148,23 @@ test("empty address form starts with Brazil checked so CEP search is ready", () 
     isBrazilAddressSelected({ addressCountryCode: "US" }),
     false,
   );
-  assert.equal(personAddressFormFromRecord(null).addressIsBrazil, true);
-  assert.equal(personAddressFormFromRecord(null).addressCountryCode, "BR");
+});
+
+test("person form treats missing record and flag-only BR as empty abroad", () => {
+  assert.equal(personAddressFormFromRecord(null).addressIsBrazil, false);
+  assert.equal(personAddressFormFromRecord(null).addressCountryCode, "");
   assert.equal(
     personAddressFormFromRecord({ addressIsBrazil: false }).addressIsBrazil,
     false,
   );
+  const flagOnly = personAddressFormFromRecord({
+    addressIsBrazil: true,
+    addressCountryCode: "BR",
+    addressCountryName: "Brasil",
+  });
+  assert.equal(flagOnly.addressIsBrazil, false);
+  assert.equal(flagOnly.addressCountryCode, "");
+  assert.equal(flagOnly.addressCountryName, "");
 });
 
 test("maps a person record onto the structured address form", () => {
@@ -170,4 +182,12 @@ test("maps a person record onto the structured address form", () => {
     personAddressValueFromForm(next).residenceAddressAbroad,
     "old free text",
   );
+});
+
+test("personAddressFormFromValue never treats empty person form as Brazil", () => {
+  const slice = personAddressFormFromValue({
+    addressIsBrazil: false,
+    addressCountryCode: "",
+  });
+  assert.equal(slice.addressIsBrazil, false);
 });

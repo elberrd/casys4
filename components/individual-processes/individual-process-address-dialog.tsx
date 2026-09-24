@@ -16,15 +16,22 @@ import {
 } from "@/components/ui/dialog";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
 import {
-  EMPTY_CANDIDATE_ADDRESS_FORM,
+  emptyAddressForm,
   hasStructuredAddressContent,
+  type AddressCountryMode,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
+import { todayIsoDate } from "@/lib/utils/address-fields";
 import { toast } from "sonner";
+
+export type AddressOwner =
+  | { type: "process"; individualProcessId: Id<"individualProcesses"> }
+  | { type: "person"; personId: Id<"people"> };
 
 export type ProcessAddressRecord = {
   _id: Id<"individualProcessAddresses">;
   isCurrent: boolean;
+  reportedAt?: string;
   addressIsBrazil?: boolean;
   addressStreet?: string;
   addressNumber?: string;
@@ -51,6 +58,7 @@ function recordToValue(address: ProcessAddressRecord): CandidateAddressValue {
     addressStateName: address.addressStateName,
     addressCity: address.addressCity,
     addressPostalCode: address.addressPostalCode,
+    reportedAt: address.reportedAt || todayIsoDate(),
   };
 }
 
@@ -58,6 +66,9 @@ const ADDRESS_ERROR_CODES = [
   "CURRENT_ADDRESS_REQUIRED",
   "MULTIPLE_CURRENT_ADDRESSES",
   "ADDRESS_FIELDS_REQUIRED",
+  "PERSON_ADDRESS_MUST_BE_ABROAD",
+  "PROCESS_ADDRESS_MUST_BE_BRAZIL",
+  "INVALID_REPORTED_AT",
 ] as const;
 
 type AddressErrorCode = (typeof ADDRESS_ERROR_CODES)[number];
@@ -101,6 +112,15 @@ export function getAddressErrorMessage(
   if (code === "ADDRESS_FIELDS_REQUIRED") {
     return t("errors.addressFieldsRequired");
   }
+  if (code === "PERSON_ADDRESS_MUST_BE_ABROAD") {
+    return t("errors.personAddressMustBeAbroad");
+  }
+  if (code === "PROCESS_ADDRESS_MUST_BE_BRAZIL") {
+    return t("errors.processAddressMustBeBrazil");
+  }
+  if (code === "INVALID_REPORTED_AT") {
+    return t("errors.invalidReportedAt");
+  }
   if (error instanceof Error && error.message) {
     return error.message;
   }
@@ -108,24 +128,28 @@ export function getAddressErrorMessage(
 }
 
 interface IndividualProcessAddressDialogProps {
-  individualProcessId: Id<"individualProcesses">;
+  owner: AddressOwner;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   address?: ProcessAddressRecord | null;
 }
 
 export function IndividualProcessAddressDialog({
-  individualProcessId,
+  owner,
   open,
   onOpenChange,
   address,
 }: IndividualProcessAddressDialogProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
-  const createAddress = useMutation(api.individualProcessAddresses.create);
+  const createProcessAddress = useMutation(api.individualProcessAddresses.create);
+  const createPersonAddress = useMutation(
+    api.individualProcessAddresses.createForPerson,
+  );
   const updateAddress = useMutation(api.individualProcessAddresses.update);
+  const countryMode: AddressCountryMode = owner.type;
   const [value, setValue] = React.useState<CandidateAddressValue>(
-    EMPTY_CANDIDATE_ADDRESS_FORM,
+    emptyAddressForm(countryMode),
   );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -134,9 +158,24 @@ export function IndividualProcessAddressDialog({
   React.useEffect(() => {
     if (!open) return;
     setValue(
-      address ? recordToValue(address) : { ...EMPTY_CANDIDATE_ADDRESS_FORM },
+      address ? recordToValue(address) : emptyAddressForm(countryMode),
     );
-  }, [address, open]);
+  }, [address, countryMode, open]);
+
+  const payloadFromValue = (next: CandidateAddressValue) => ({
+    reportedAt: next.reportedAt || todayIsoDate(),
+    addressIsBrazil: next.addressIsBrazil,
+    addressStreet: next.addressStreet,
+    addressNumber: next.addressNumber,
+    addressComplement: next.addressComplement,
+    addressNeighborhood: next.addressNeighborhood,
+    addressCountryCode: next.addressCountryCode,
+    addressCountryName: next.addressCountryName,
+    addressStateCode: next.addressStateCode,
+    addressStateName: next.addressStateName,
+    addressCity: next.addressCity,
+    addressPostalCode: next.addressPostalCode,
+  });
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -144,39 +183,30 @@ export function IndividualProcessAddressDialog({
       toast.error(t("errors.addressFieldsRequired"));
       return;
     }
+    if (!value.reportedAt) {
+      toast.error(t("errors.reportedAtRequired"));
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      const payload = payloadFromValue(value);
       if (address) {
         await updateAddress({
           id: address._id,
-          addressIsBrazil: value.addressIsBrazil,
-          addressStreet: value.addressStreet,
-          addressNumber: value.addressNumber,
-          addressComplement: value.addressComplement,
-          addressNeighborhood: value.addressNeighborhood,
-          addressCountryCode: value.addressCountryCode,
-          addressCountryName: value.addressCountryName,
-          addressStateCode: value.addressStateCode,
-          addressStateName: value.addressStateName,
-          addressCity: value.addressCity,
-          addressPostalCode: value.addressPostalCode,
+          ...payload,
         });
         toast.success(t("addresses.updatedSuccess"));
+      } else if (owner.type === "person") {
+        await createPersonAddress({
+          personId: owner.personId,
+          ...payload,
+        });
+        toast.success(t("addresses.createdAndMarkedCurrent"));
       } else {
-        await createAddress({
-          individualProcessId,
-          addressIsBrazil: value.addressIsBrazil,
-          addressStreet: value.addressStreet,
-          addressNumber: value.addressNumber,
-          addressComplement: value.addressComplement,
-          addressNeighborhood: value.addressNeighborhood,
-          addressCountryCode: value.addressCountryCode,
-          addressCountryName: value.addressCountryName,
-          addressStateCode: value.addressStateCode,
-          addressStateName: value.addressStateName,
-          addressCity: value.addressCity,
-          addressPostalCode: value.addressPostalCode,
+        await createProcessAddress({
+          individualProcessId: owner.individualProcessId,
+          ...payload,
         });
         toast.success(t("addresses.createdAndMarkedCurrent"));
       }
@@ -208,6 +238,7 @@ export function IndividualProcessAddressDialog({
               onChange={setValue}
               disabled={isSubmitting}
               showLegacyField={false}
+              countryMode={countryMode}
             />
           </div>
           <DialogFooter>

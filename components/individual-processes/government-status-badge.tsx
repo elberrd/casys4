@@ -24,6 +24,7 @@ interface GovernmentStatusBadgeProps {
     appointmentDateTime?: string;
   };
   showTooltip?: boolean;
+  onOpenAddressTable?: () => void;
 }
 
 const statusVariantMap: Record<
@@ -40,6 +41,7 @@ const statusVariantMap: Record<
 export function GovernmentStatusBadge({
   individualProcess,
   showTooltip = true,
+  onOpenAddressTable,
 }: GovernmentStatusBadgeProps) {
   const t = useTranslations("GovernmentStatus");
   const tActions = useTranslations("GovernmentActions");
@@ -57,7 +59,12 @@ export function GovernmentStatusBadge({
   };
 
   const badge = (
-    <Badge variant={variant} className={badgeStyles[statusResult.color]}>
+    <Badge
+      variant={variant}
+      className={`${badgeStyles[statusResult.color]} ${onOpenAddressTable ? "cursor-pointer" : ""}`}
+      onClick={onOpenAddressTable}
+      role={onOpenAddressTable ? "button" : undefined}
+    >
       {t(statusResult.label)}
     </Badge>
   );

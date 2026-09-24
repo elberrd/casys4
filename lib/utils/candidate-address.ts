@@ -1,5 +1,12 @@
 import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
+import {
+  isBrazilAddress,
+  isBrazilFlagOnly,
+  todayIsoDate,
+} from "@/lib/utils/address-fields";
 import type { BrazilianCepAddress } from "@/lib/utils/viacep";
+
+export type AddressCountryMode = "person" | "process";
 
 export type CandidateAddressValue = {
   addressIsBrazil?: boolean;
@@ -13,11 +20,12 @@ export type CandidateAddressValue = {
   addressStateName?: string;
   addressCity?: string;
   addressPostalCode?: string;
+  reportedAt?: string;
   /** @deprecated Free-text address kept for records already filled. */
   residenceAddressAbroad?: string;
 };
 
-export const EMPTY_CANDIDATE_ADDRESS_FORM = {
+export const EMPTY_PROCESS_ADDRESS_FORM = {
   addressIsBrazil: true as boolean,
   addressStreet: "",
   addressNumber: "",
@@ -29,12 +37,50 @@ export const EMPTY_CANDIDATE_ADDRESS_FORM = {
   addressStateName: "",
   addressCity: "",
   addressPostalCode: "",
+  reportedAt: "",
 };
 
-/** Unset means Brazil so CEP search is ready; the user can uncheck. */
+/** @deprecated Use EMPTY_PROCESS_ADDRESS_FORM. Process addresses are always Brazil. */
+export const EMPTY_CANDIDATE_ADDRESS_FORM = EMPTY_PROCESS_ADDRESS_FORM;
+
+export const EMPTY_PERSON_ADDRESS_FORM = {
+  addressIsBrazil: false as boolean,
+  addressStreet: "",
+  addressNumber: "",
+  addressComplement: "",
+  addressNeighborhood: "",
+  addressCountryCode: "",
+  addressCountryName: "",
+  addressStateCode: "",
+  addressStateName: "",
+  addressCity: "",
+  addressPostalCode: "",
+  reportedAt: "",
+};
+
+export function emptyAddressForm(
+  mode: AddressCountryMode,
+): typeof EMPTY_PERSON_ADDRESS_FORM {
+  if (mode === "person") {
+    return {
+      ...EMPTY_PERSON_ADDRESS_FORM,
+      reportedAt: todayIsoDate(),
+    };
+  }
+  return {
+    ...EMPTY_PROCESS_ADDRESS_FORM,
+    reportedAt: todayIsoDate(),
+  };
+}
+
+/** Process addresses: unset means Brazil. Person addresses: unset is not Brazil. */
 export function isBrazilAddressSelected(
   value: CandidateAddressValue,
+  mode: AddressCountryMode = "process",
 ): boolean {
+  if (mode === "person") {
+    return isBrazilAddress(value);
+  }
   if (value.addressIsBrazil === false) return false;
   if (value.addressIsBrazil === true) return true;
   if (
@@ -59,12 +105,14 @@ export type PersonAddressFormSlice = {
   addressCity: string;
   addressPostalCode: string;
   address: string;
+  reportedAt: string;
 };
 
 export function emptyPersonAddressForm(): PersonAddressFormSlice {
   return {
-    ...EMPTY_CANDIDATE_ADDRESS_FORM,
+    ...EMPTY_PERSON_ADDRESS_FORM,
     address: "",
+    reportedAt: todayIsoDate(),
   };
 }
 
@@ -81,30 +129,46 @@ export type StructuredAddressSource = {
   addressCity?: string | null;
   addressPostalCode?: string | null;
   address?: string | null;
+  reportedAt?: string | null;
 };
 
 export function personAddressFormFromRecord(
   source?: StructuredAddressSource | null,
 ): PersonAddressFormSlice {
-  const addressIsBrazil = isBrazilAddressSelected({
+  const raw = {
     addressIsBrazil: source?.addressIsBrazil ?? undefined,
     addressCountryCode: source?.addressCountryCode ?? undefined,
+  };
+  const flagOnly = isBrazilFlagOnly({
+    ...raw,
+    addressStreet: source?.addressStreet ?? undefined,
+    addressNumber: source?.addressNumber ?? undefined,
+    addressComplement: source?.addressComplement ?? undefined,
+    addressNeighborhood: source?.addressNeighborhood ?? undefined,
+    addressStateCode: source?.addressStateCode ?? undefined,
+    addressStateName: source?.addressStateName ?? undefined,
+    addressCity: source?.addressCity ?? undefined,
+    addressPostalCode: source?.addressPostalCode ?? undefined,
   });
+  const brazilSelected = !flagOnly && isBrazilAddress(raw);
+  const countryCode = flagOnly
+    ? ""
+    : source?.addressCountryCode || (brazilSelected ? BRAZIL_COUNTRY_CODE : "");
+
   return {
-    addressIsBrazil,
+    addressIsBrazil: brazilSelected,
     addressStreet: source?.addressStreet ?? "",
     addressNumber: source?.addressNumber ?? "",
     addressComplement: source?.addressComplement ?? "",
     addressNeighborhood: source?.addressNeighborhood ?? "",
-    addressCountryCode:
-      source?.addressCountryCode ||
-      (addressIsBrazil ? BRAZIL_COUNTRY_CODE : ""),
-    addressCountryName: source?.addressCountryName ?? "",
+    addressCountryCode: countryCode,
+    addressCountryName: flagOnly ? "" : (source?.addressCountryName ?? ""),
     addressStateCode: source?.addressStateCode ?? "",
     addressStateName: source?.addressStateName ?? "",
     addressCity: source?.addressCity ?? "",
     addressPostalCode: source?.addressPostalCode ?? "",
     address: source?.address ?? "",
+    reportedAt: source?.reportedAt || todayIsoDate(),
   };
 }
 
@@ -123,6 +187,7 @@ export function personAddressValueFromForm(
     addressStateName: data.addressStateName,
     addressCity: data.addressCity,
     addressPostalCode: data.addressPostalCode,
+    reportedAt: data.reportedAt,
     residenceAddressAbroad: data.address,
   };
 }
@@ -131,7 +196,7 @@ export function personAddressFormFromValue(
   next: CandidateAddressValue,
 ): PersonAddressFormSlice {
   return {
-    addressIsBrazil: isBrazilAddressSelected(next),
+    addressIsBrazil: isBrazilAddressSelected(next, "person"),
     addressStreet: next.addressStreet ?? "",
     addressNumber: next.addressNumber ?? "",
     addressComplement: next.addressComplement ?? "",
@@ -143,6 +208,7 @@ export function personAddressFormFromValue(
     addressCity: next.addressCity ?? "",
     addressPostalCode: next.addressPostalCode ?? "",
     address: next.residenceAddressAbroad ?? "",
+    reportedAt: next.reportedAt ?? todayIsoDate(),
   };
 }
 

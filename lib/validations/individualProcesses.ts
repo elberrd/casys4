@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { processAddressRejectsNonBrazil } from "@/lib/utils/address-fields";
 
 export const individualProcessSchema = z.object({
   collectiveProcessId: z
@@ -123,10 +124,19 @@ export const individualProcessSchema = z.object({
   addressStateName: z.string().optional().or(z.literal("")),
   addressCity: z.string().optional().or(z.literal("")),
   addressPostalCode: z.string().optional().or(z.literal("")),
+  reportedAt: z.string().optional().or(z.literal("")),
   consularPost: z.string().optional().or(z.literal("")),
   professionalExperience: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(), // DEPRECATED: Use processStatus instead
   processStatus: z.enum(["Atual", "Anterior"]).optional().default("Atual"),
+}).superRefine((data, ctx) => {
+  if (processAddressRejectsNonBrazil(data)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["addressCountryCode"],
+      message: "PROCESS_ADDRESS_MUST_BE_BRAZIL",
+    });
+  }
 });
 
 export type IndividualProcessFormData = z.infer<typeof individualProcessSchema>;

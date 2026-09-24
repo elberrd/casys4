@@ -2,6 +2,13 @@ import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 import { cleanDocumentNumber, isValidCPF } from "@/lib/utils/document-masks";
 import { optionalPhoneNumberSchema } from "@/lib/validations/phone";
+import {
+  hasSubstantiveAddressFields,
+  isBrazilAddress,
+  isBrazilFlagOnly,
+  isValidReportedAt,
+  trimOptional,
+} from "@/lib/utils/address-fields";
 
 // CPF validation regex (accepts both formatted XXX.XXX.XXX-XX and unformatted XXXXXXXXXXX)
 const cpfRegex = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
@@ -54,12 +61,45 @@ export const personSchema = z.object({
   addressStateName: z.string().optional().or(z.literal("")),
   addressCity: z.string().optional().or(z.literal("")),
   addressPostalCode: z.string().optional().or(z.literal("")),
+  reportedAt: z.string().optional().or(z.literal("")),
   currentCityId: z.custom<Id<"cities">>((val) => typeof val === "string" && val.length > 0, {
     message: "Current city ID must be valid",
   }).optional().or(z.literal("")),
   photoUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
   residenceSince: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  // Old checkbox default: BR flag/country with no street/city/etc. is not an
+  // address. Forms strip it; validation must not fail other field edits.
+  if (isBrazilFlagOnly(data)) {
+    return;
+  }
+  if (isBrazilAddress(data)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["addressCountryCode"],
+      message: "PERSON_ADDRESS_MUST_BE_ABROAD",
+    });
+  }
+  const hasAddressContent =
+    hasSubstantiveAddressFields(data) ||
+    Boolean(trimOptional(data.addressCountryCode)) ||
+    Boolean(trimOptional(data.addressCountryName));
+  if (hasAddressContent) {
+    if (!data.reportedAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reportedAt"],
+        message: "REPORTED_AT_REQUIRED",
+      });
+    } else if (!isValidReportedAt(data.reportedAt)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reportedAt"],
+        message: "INVALID_REPORTED_AT",
+      });
+    }
+  }
 });
 
 export type PersonFormData = z.infer<typeof personSchema>;

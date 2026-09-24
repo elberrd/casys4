@@ -127,6 +127,7 @@ interface CandidateFields {
   addressStateName?: string;
   addressCity?: string;
   addressPostalCode?: string;
+  reportedAt?: string;
   consularPost?: string;
   professionalExperience?: string;
 }
@@ -267,6 +268,7 @@ function toSaveArgs(
     addressStateName: c.addressStateName,
     addressCity: c.addressCity,
     addressPostalCode: c.addressPostalCode,
+    reportedAt: c.reportedAt,
     consularPost: c.consularPost,
     professionalExperience: c.professionalExperience,
     // Person-level PII: send ONLY fields the user actually edited this session.
@@ -1525,10 +1527,12 @@ function PersonalDataStep({
             addressStateName: candidate.addressStateName,
             addressCity: candidate.addressCity,
             addressPostalCode: candidate.addressPostalCode,
+            reportedAt: candidate.reportedAt,
             residenceAddressAbroad: candidate.residenceAddressAbroad,
           }}
           onChange={(next: CandidateAddressValue) => onPatch(next)}
           disabled={disabled}
+          countryMode="process"
         />
       </section>
 
