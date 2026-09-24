@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes";
+
+export { OBSERVACOES_MAX_LENGTH };
 
 /**
  * Schema for uploading a loose document (without document type)
@@ -12,7 +15,7 @@ export const looseDocumentUploadSchema = z.object({
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
   issueDate: z.string().optional(),
-  versionNotes: z.string().max(500).optional(),
+  versionNotes: z.string().max(OBSERVACOES_MAX_LENGTH).optional(),
 });
 
 export type LooseDocumentUploadData = {
@@ -36,7 +39,7 @@ export const typedDocumentUploadSchema = z.object({
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
   issueDate: z.string().optional(),
-  versionNotes: z.string().max(500).optional(),
+  versionNotes: z.string().max(OBSERVACOES_MAX_LENGTH).optional(),
 });
 
 export type TypedDocumentUploadData = {
@@ -73,7 +76,7 @@ export const pendingDocumentUploadSchema = z.object({
   mimeType: z.string().min(1, "MIME type is required"),
   expiryDate: z.string().optional(),
   issueDate: z.string().optional(),
-  versionNotes: z.string().max(500).optional(),
+  versionNotes: z.string().max(OBSERVACOES_MAX_LENGTH).optional(),
 });
 
 export type PendingDocumentUploadData = {

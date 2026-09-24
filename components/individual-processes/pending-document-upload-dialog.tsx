@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, File, X, CheckCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes";
 import {
   DocumentReceivedDateField,
   getDefaultReceivedDate,
@@ -327,7 +328,7 @@ export function PendingDocumentUploadDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={2}
               disabled={isUploading}
             />

@@ -55,6 +55,7 @@ import {
 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes"
 import {
   Tooltip,
   TooltipContent,
@@ -1223,7 +1224,7 @@ export function DocumentReviewDialog({
                     onChange={(e) => setEditingNotes(e.target.value)}
                     placeholder={t("versionNotesPlaceholder")}
                     className="min-h-[60px] text-sm"
-                    maxLength={500}
+                    maxLength={OBSERVACOES_MAX_LENGTH}
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {

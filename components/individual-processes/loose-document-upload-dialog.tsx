@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, File, X, CheckCircle, FileQuestion } from "lucide-react";
 import { formatFileSize } from "@/lib/validations/documents-delivered";
+import { OBSERVACOES_MAX_LENGTH } from "@/lib/validations/observacoes";
 import { format, parseISO } from "date-fns";
 import {
   DocumentReceivedDateField,
@@ -357,7 +358,7 @@ export function LooseDocumentUploadDialog({
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
               placeholder={t("versionNotesPlaceholder")}
-              maxLength={500}
+              maxLength={OBSERVACOES_MAX_LENGTH}
               rows={2}
               disabled={isUploading}
             />
