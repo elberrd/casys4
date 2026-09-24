@@ -5,6 +5,7 @@ import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from 
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
+import { legacyPersonAddressForReplace } from "../lib/utils/candidate-address";
 import { createCachedGet } from "./lib/cachedGet";
 import {
   normalizePersonPassportFileName,
@@ -690,7 +691,7 @@ export const update = mutation({
       ...(data.motherName ? { motherName: data.motherName } : {}),
       ...(data.fatherName ? { fatherName: data.fatherName } : {}),
       ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
-      ...(data.address ? { address: data.address } : {}),
+      ...legacyPersonAddressForReplace(current),
       ...(typeof data.addressIsBrazil === "boolean"
         ? { addressIsBrazil: data.addressIsBrazil }
         : {}),

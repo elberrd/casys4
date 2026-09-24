@@ -30,11 +30,11 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/format-field-value";
 import { getFullName } from "@/lib/utils/person-names";
+import { selectCurrentPersonAddress } from "@/lib/utils/candidate-address";
 import {
-  formatCandidateAddress,
-  candidateAddressFromPerson,
-} from "@/lib/utils/candidate-address";
-import { CandidateAddressDetailRows } from "@/components/individual-processes/candidate-address-fields";
+  CandidateAddressDetailRows,
+  LegacyAddressReadOnly,
+} from "@/components/individual-processes/candidate-address-fields";
 
 interface PersonDetailViewProps {
   personId: Id<"people">;
@@ -51,13 +51,19 @@ export function PersonDetailView({
 }: PersonDetailViewProps) {
   const t = useTranslations("People");
   const tCommon = useTranslations("Common");
+  const tAddress = useTranslations("CandidateAddress");
   const locale = useLocale();
 
   const person = useQuery(api.people.get, { id: personId });
+  const tableCurrentAddress = useQuery(
+    api.individualProcessAddresses.getCurrentByPerson,
+    { personId },
+  );
   const passportAttachment = useQuery(
     api.personPassportAttachments.getByPerson,
     { personId },
   );
+  const currentAddress = selectCurrentPersonAddress(tableCurrentAddress);
 
   if (!person) {
     return (
@@ -269,34 +275,42 @@ export function PersonDetailView({
               </Card>
             )}
 
-            {/* Current Address */}
-            {(person.address ||
-              person.currentCity ||
-              formatCandidateAddress(person)) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    {t("currentAddress")}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1">
+            {/* Current Address — table row only; leftover people.* fields are not current */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  {t("currentAddress")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1">
+                {tableCurrentAddress === undefined ? (
+                  <p className="col-span-full text-sm text-muted-foreground">
+                    {tCommon("loading")}
+                  </p>
+                ) : currentAddress ? (
                   <CandidateAddressDetailRows
-                    value={candidateAddressFromPerson(person)}
+                    value={currentAddress}
                     countryMode="person"
                     showLegacyField={false}
                   />
-                  {person.currentCity && (
-                    <>
-                      <div className="text-sm font-medium">{t("currentCity")}</div>
-                      <div className="text-sm">
-                        {person.currentCity.name}
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="col-span-full text-sm text-muted-foreground">
+                    {tAddress("noAddress")}
+                  </p>
+                )}
+                {person.currentCity && (
+                  <>
+                    <div className="text-sm font-medium">{t("currentCity")}</div>
+                    <div className="text-sm">{person.currentCity.name}</div>
+                  </>
+                )}
+                <LegacyAddressReadOnly
+                  className="col-span-full mt-2"
+                  text={person.address}
+                />
+              </CardContent>
+            </Card>
 
             {/* Professional Information */}
             {(person.profession || person.cargo) && (

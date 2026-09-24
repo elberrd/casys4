@@ -24,12 +24,13 @@ import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog"
 import { Separator } from "@/components/ui/separator"
 import { PassportsSubtable } from "@/components/people/passports-subtable"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
-import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields"
+import { CandidateAddressFields, LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields"
 import {
   emptyPersonAddressForm,
-  personAddressFormFromRecord,
+  omitLegacyPersonAddressFromSubmit,
   personAddressFormFromValue,
   personAddressValueFromForm,
+  personStructuredFormFromTableCurrent,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address"
 import { Plus } from "lucide-react"
@@ -121,6 +122,10 @@ export function PersonFormPage({
     api.people.get,
     personId ? { id: personId } : "skip"
   )
+  const tableCurrentAddress = useQuery(
+    api.individualProcessAddresses.getCurrentByPerson,
+    personId ? { personId } : "skip"
+  )
   const savedPassportAttachment = useQuery(
     api.personPassportAttachments.getByPerson,
     personId ? { personId } : "skip"
@@ -208,7 +213,6 @@ export function PersonFormPage({
     form.setValue("addressPostalCode", slice.addressPostalCode, {
       shouldDirty: true,
     })
-    form.setValue("address", slice.address, { shouldDirty: true })
     form.setValue("reportedAt", slice.reportedAt, { shouldDirty: true })
   }
 
@@ -222,9 +226,11 @@ export function PersonFormPage({
     enabled: true,
   })
 
-  // Reset form when person data loads
+  // Reset form when person data loads. Structured address comes from the
+  // table current row, never leftover people.addressStreet / people.address.
   useEffect(() => {
     if (person) {
+      if (personId && tableCurrentAddress === undefined) return
       form.reset({
         givenNames: person.givenNames,
         middleName: person.middleName ?? "",
@@ -241,13 +247,13 @@ export function PersonFormPage({
         motherName: person.motherName,
         fatherName: person.fatherName,
         phoneNumber: person.phoneNumber,
-        ...personAddressFormFromRecord(person),
+        ...personStructuredFormFromTableCurrent(tableCurrentAddress ?? null),
         currentCityId: person.currentCityId,
         photoUrl: person.photoUrl ?? "",
         notes: person.notes ?? "",
       })
     }
-  }, [person, form])
+  }, [person, personId, tableCurrentAddress, form])
 
   useEffect(() => {
     if (!personId || savedPassportAttachment === undefined) return
@@ -459,7 +465,7 @@ export function PersonFormPage({
       }
 
       // Clean optional fields - convert empty strings to undefined
-      const submitData = {
+      const submitData = omitLegacyPersonAddressFromSubmit({
         ...data,
         email: data.email || undefined,
         cpf: data.cpf || undefined,
@@ -473,7 +479,6 @@ export function PersonFormPage({
         motherName: data.motherName || undefined,
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
-        address: data.address || undefined,
         addressIsBrazil: data.addressIsBrazil,
         addressStreet: data.addressStreet || undefined,
         addressNumber: data.addressNumber || undefined,
@@ -489,7 +494,7 @@ export function PersonFormPage({
         currentCityId: data.currentCityId || undefined,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
-      }
+      })
 
       if (personId) {
         await updatePerson({ id: personId, ...submitData })
@@ -934,6 +939,7 @@ export function PersonFormPage({
                 disabled={form.formState.isSubmitting}
                 countryMode="person"
               />
+              <LegacyAddressReadOnly text={person?.address} />
 
               <FormField
                 control={form.control}

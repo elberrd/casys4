@@ -60,11 +60,12 @@ import { fetchExchangeRate } from "@/lib/api/exchange-rate";
 import { LinkedDocIndicator } from "@/components/ui/linked-doc-indicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CboActivitiesFields } from "@/components/individual-processes/cbo-activities-fields";
-import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import { CandidateAddressFields, LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields";
 import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import {
   EMPTY_CANDIDATE_ADDRESS_FORM,
   isBrazilAddressSelected,
+  omitLegacyProcessAddressFromSubmit,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
 import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
@@ -534,7 +535,7 @@ export function IndividualProcessFormDialog({
           addressPostalCode,
           reportedAt,
           ...updateData
-        } = submitData;
+        } = omitLegacyProcessAddressFromSubmit(submitData);
         void [
           personId,
           collectiveProcessId,
@@ -1505,10 +1506,15 @@ export function IndividualProcessFormDialog({
 
                 <div className="space-y-4">
                   {individualProcessId ? (
-                    <IndividualProcessAddressesTable
-                      individualProcessId={individualProcessId}
-                      canEdit
-                    />
+                    <>
+                      <IndividualProcessAddressesTable
+                        individualProcessId={individualProcessId}
+                        canEdit
+                      />
+                      <LegacyAddressReadOnly
+                        text={individualProcess?.residenceAddressAbroad}
+                      />
+                    </>
                   ) : (
                     <>
                       <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>

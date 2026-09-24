@@ -808,7 +808,8 @@
     "loadingCities": "Loading cities...",
     "deprecatedAddressTitle": "Legacy field — do not use",
     "deprecatedAddressNote": "This field should no longer be used. Fill in the structured address above.",
-    "deprecatedAddressLabel": "Address (legacy)"
+    "deprecatedAddressLabel": "Address (legacy)",
+    "noAddress": "No address"
   },
   "IndividualProcesses": {
     "title": "Individual Processes",
@@ -1394,6 +1395,7 @@
     },
     "residence": "Residence",
     "residenceAddressAbroad": "Residence Address Abroad",
+    "residenceAddressInBrazil": "Residential Address in Brazil",
     "professionalExperience": "Professional Experience",
     "professionalExperiencePlaceholder": "Describe the candidate's professional experience",
     "livesForYears": "lives for {count, plural, one {# year} other {# years}}",

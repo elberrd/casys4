@@ -1908,8 +1908,7 @@ export const update = mutation({
       updates.residenceCity = args.residenceCity;
     if (args.residenceSince !== undefined)
       updates.residenceSince = args.residenceSince;
-    if (args.residenceAddressAbroad !== undefined)
-      updates.residenceAddressAbroad = args.residenceAddressAbroad;
+    // residenceAddressAbroad is frozen legacy text; never overwrite on save.
     if (args.addressIsBrazil !== undefined)
       updates.addressIsBrazil = args.addressIsBrazil;
     if (args.addressStreet !== undefined)

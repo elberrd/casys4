@@ -33,12 +33,13 @@ import { Combobox } from "@/components/ui/combobox"
 import { QuickCityFormDialog } from "@/components/cities/quick-city-form-dialog"
 import { Separator } from "@/components/ui/separator"
 import { CompaniesSubtable } from "@/components/people/companies-subtable"
-import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields"
+import { CandidateAddressFields, LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields"
 import {
   emptyPersonAddressForm,
-  personAddressFormFromRecord,
+  omitLegacyPersonAddressFromSubmit,
   personAddressFormFromValue,
   personAddressValueFromForm,
+  personStructuredFormFromTableCurrent,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address"
 import { Plus } from "lucide-react"
@@ -97,6 +98,10 @@ export function PersonFormDialog({
   const person = useQuery(
     api.people.get,
     personId ? { id: personId } : "skip"
+  )
+  const tableCurrentAddress = useQuery(
+    api.individualProcessAddresses.getCurrentByPerson,
+    open && personId ? { personId } : "skip"
   )
   const savedPassportAttachment = useQuery(
     api.personPassportAttachments.getByPerson,
@@ -198,7 +203,6 @@ export function PersonFormDialog({
     form.setValue("addressPostalCode", slice.addressPostalCode, {
       shouldDirty: true,
     })
-    form.setValue("address", slice.address, { shouldDirty: true })
     form.setValue("reportedAt", slice.reportedAt, { shouldDirty: true })
   }
 
@@ -212,9 +216,11 @@ export function PersonFormDialog({
     enabled: true,
   })
 
-  // Reset form when person data loads
+  // Reset form when person data loads. Structured address comes from the
+  // table current row, never leftover people.addressStreet / people.address.
   useEffect(() => {
     if (person) {
+      if (personId && tableCurrentAddress === undefined) return
       form.reset({
         givenNames: person.givenNames,
         middleName: person.middleName ?? "",
@@ -231,7 +237,7 @@ export function PersonFormDialog({
         motherName: person.motherName,
         fatherName: person.fatherName,
         phoneNumber: person.phoneNumber,
-        ...personAddressFormFromRecord(person),
+        ...personStructuredFormFromTableCurrent(tableCurrentAddress ?? null),
         currentCityId: person.currentCityId,
         photoUrl: person.photoUrl ?? "",
         notes: person.notes ?? "",
@@ -259,7 +265,7 @@ export function PersonFormDialog({
         notes: "",
       })
     }
-  }, [person, personId, form])
+  }, [person, personId, tableCurrentAddress, form])
 
   useEffect(() => {
     if (!open || !personId || savedPassportAttachment === undefined) return
@@ -401,7 +407,7 @@ export function PersonFormDialog({
       }
 
       // Clean optional fields - convert empty strings to undefined
-      const submitData = {
+      const submitData = omitLegacyPersonAddressFromSubmit({
         ...data,
         email: data.email || undefined,
         cpf: data.cpf === "" ? "" : data.cpf, // Send empty string instead of undefined
@@ -415,7 +421,6 @@ export function PersonFormDialog({
         motherName: data.motherName || undefined,
         fatherName: data.fatherName || undefined,
         phoneNumber: data.phoneNumber || undefined,
-        address: data.address || undefined,
         addressIsBrazil: data.addressIsBrazil,
         addressStreet: data.addressStreet || undefined,
         addressNumber: data.addressNumber || undefined,
@@ -431,7 +436,7 @@ export function PersonFormDialog({
         currentCityId: data.currentCityId === "" ? undefined : data.currentCityId,
         photoUrl: data.photoUrl || undefined,
         notes: data.notes || undefined,
-      }
+      })
 
       if (personId) {
         await updatePerson({ id: personId, ...submitData })
@@ -824,6 +829,7 @@ export function PersonFormDialog({
                 disabled={form.formState.isSubmitting}
                 countryMode="person"
               />
+              <LegacyAddressReadOnly text={person?.address} />
 
               <FormField
                 control={form.control}

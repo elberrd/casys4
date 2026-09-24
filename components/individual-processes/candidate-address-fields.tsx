@@ -11,6 +11,7 @@ import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
 import {
   applyCepLookupResult,
   isBrazilAddressSelected,
+  isNonEmptyLegacyAddress,
   type AddressCountryMode,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
@@ -23,7 +24,6 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -570,7 +570,7 @@ export function CandidateAddressFields({
         </div>
       </div>
 
-      {showLegacyField && (
+      {showLegacyField && isNonEmptyLegacyAddress(value.residenceAddressAbroad) && (
         <div
           className={cn(
             "space-y-2 rounded-md border border-yellow-400 bg-yellow-50 p-4",
@@ -589,16 +589,12 @@ export function CandidateAddressFields({
           >
             {t("deprecatedAddressLabel")}
           </Label>
-          <Textarea
+          <p
             id="candidate-address-legacy"
-            value={value.residenceAddressAbroad ?? ""}
-            onChange={(event) =>
-              merge({ residenceAddressAbroad: event.target.value })
-            }
-            rows={3}
-            disabled={disabled}
-            className="resize-none bg-yellow-50/60 dark:bg-yellow-950/20"
-          />
+            className="whitespace-pre-wrap text-sm text-yellow-900 dark:text-yellow-100"
+          >
+            {value.residenceAddressAbroad}
+          </p>
         </div>
       )}
     </div>
@@ -639,17 +635,15 @@ export function CandidateAddressDetailRows({
     { label: t("complement"), value: value.addressComplement ?? "" },
   );
 
-  if (showLegacyField) {
+  if (
+    showLegacyField &&
+    countryMode !== "person" &&
+    isNonEmptyLegacyAddress(value.residenceAddressAbroad)
+  ) {
     rows.push({
       label: t("deprecatedAddressLabel"),
-      value:
-        countryMode === "person"
-          ? ""
-          : (value.residenceAddressAbroad ?? ""),
+      value: value.residenceAddressAbroad ?? "",
     });
-    if (countryMode === "person") {
-      rows.pop();
-    }
   }
 
   return (
@@ -657,11 +651,39 @@ export function CandidateAddressDetailRows({
       {rows.map((row) => (
         <React.Fragment key={row.label}>
           <div className="text-sm font-medium">{row.label}</div>
-          <div className="text-sm whitespace-pre-line">
+          <div className="text-sm whitespace-pre-wrap">
             {row.value.trim() ? row.value : "-"}
           </div>
         </React.Fragment>
       ))}
     </>
+  );
+}
+
+export function LegacyAddressReadOnly({
+  text,
+  className,
+}: {
+  text?: string | null;
+  className?: string;
+}) {
+  const t = useTranslations("CandidateAddress");
+  if (!isNonEmptyLegacyAddress(text)) return null;
+
+  return (
+    <div
+      className={cn(
+        "space-y-2 rounded-md border border-yellow-400 bg-yellow-50 p-4",
+        "dark:border-yellow-600 dark:bg-yellow-950/40",
+        className,
+      )}
+    >
+      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+        {t("deprecatedAddressLabel")}
+      </p>
+      <p className="whitespace-pre-wrap text-sm text-yellow-900 dark:text-yellow-100">
+        {text}
+      </p>
+    </div>
   );
 }
