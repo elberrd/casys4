@@ -16,15 +16,25 @@ import {
 } from "@/components/ui/dialog";
 import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
 import {
-  EMPTY_CANDIDATE_ADDRESS_FORM,
+  emptyAddressForm,
   hasStructuredAddressContent,
+  processAddressHasRequiredLocation,
+  withNormalizedBrazilState,
+  type AddressCountryMode,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
+import { isBrazilAddress } from "@/lib/utils/address-fields";
+import { todayIsoDate } from "@/lib/utils/address-fields";
 import { toast } from "sonner";
+
+export type AddressOwner =
+  | { type: "process"; individualProcessId: Id<"individualProcesses"> }
+  | { type: "person"; personId: Id<"people"> };
 
 export type ProcessAddressRecord = {
   _id: Id<"individualProcessAddresses">;
   isCurrent: boolean;
+  reportedAt?: string;
   addressIsBrazil?: boolean;
   addressStreet?: string;
   addressNumber?: string;
@@ -39,7 +49,7 @@ export type ProcessAddressRecord = {
 };
 
 function recordToValue(address: ProcessAddressRecord): CandidateAddressValue {
-  return {
+  const value: CandidateAddressValue = {
     addressIsBrazil: address.addressIsBrazil,
     addressStreet: address.addressStreet,
     addressNumber: address.addressNumber,
@@ -51,13 +61,18 @@ function recordToValue(address: ProcessAddressRecord): CandidateAddressValue {
     addressStateName: address.addressStateName,
     addressCity: address.addressCity,
     addressPostalCode: address.addressPostalCode,
+    reportedAt: address.reportedAt || todayIsoDate(),
   };
+  return isBrazilAddress(value) ? withNormalizedBrazilState(value) : value;
 }
 
 const ADDRESS_ERROR_CODES = [
   "CURRENT_ADDRESS_REQUIRED",
   "MULTIPLE_CURRENT_ADDRESSES",
   "ADDRESS_FIELDS_REQUIRED",
+  "PERSON_ADDRESS_MUST_BE_ABROAD",
+  "PROCESS_ADDRESS_MUST_BE_BRAZIL",
+  "INVALID_REPORTED_AT",
 ] as const;
 
 type AddressErrorCode = (typeof ADDRESS_ERROR_CODES)[number];
@@ -101,6 +116,15 @@ export function getAddressErrorMessage(
   if (code === "ADDRESS_FIELDS_REQUIRED") {
     return t("errors.addressFieldsRequired");
   }
+  if (code === "PERSON_ADDRESS_MUST_BE_ABROAD") {
+    return t("errors.personAddressMustBeAbroad");
+  }
+  if (code === "PROCESS_ADDRESS_MUST_BE_BRAZIL") {
+    return t("errors.processAddressMustBeBrazil");
+  }
+  if (code === "INVALID_REPORTED_AT") {
+    return t("errors.invalidReportedAt");
+  }
   if (error instanceof Error && error.message) {
     return error.message;
   }
@@ -108,35 +132,61 @@ export function getAddressErrorMessage(
 }
 
 interface IndividualProcessAddressDialogProps {
-  individualProcessId: Id<"individualProcesses">;
+  owner: AddressOwner;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   address?: ProcessAddressRecord | null;
 }
 
 export function IndividualProcessAddressDialog({
-  individualProcessId,
+  owner,
   open,
   onOpenChange,
   address,
 }: IndividualProcessAddressDialogProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
-  const createAddress = useMutation(api.individualProcessAddresses.create);
+  const createProcessAddress = useMutation(api.individualProcessAddresses.create);
+  const createPersonAddress = useMutation(
+    api.individualProcessAddresses.createForPerson,
+  );
   const updateAddress = useMutation(api.individualProcessAddresses.update);
+  const countryMode: AddressCountryMode = owner.type;
   const [value, setValue] = React.useState<CandidateAddressValue>(
-    EMPTY_CANDIDATE_ADDRESS_FORM,
+    emptyAddressForm(countryMode),
   );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const isEditing = Boolean(address);
 
   React.useEffect(() => {
-    if (!open) return;
-    setValue(
-      address ? recordToValue(address) : { ...EMPTY_CANDIDATE_ADDRESS_FORM },
-    );
-  }, [address, open]);
+    if (!open) {
+      setValue(emptyAddressForm(countryMode));
+      return;
+    }
+    // Create always starts empty (Brazil + today's reportedAt). Never copy
+    // the current address — that raced with Combobox leftover state.
+    setValue(address ? recordToValue(address) : emptyAddressForm(countryMode));
+  }, [address, countryMode, open]);
+
+  const payloadFromValue = (next: CandidateAddressValue) => {
+    const normalized =
+      owner.type === "process" ? withNormalizedBrazilState(next) : next;
+    return {
+      reportedAt: normalized.reportedAt || todayIsoDate(),
+      addressIsBrazil: normalized.addressIsBrazil,
+      addressStreet: normalized.addressStreet,
+      addressNumber: normalized.addressNumber,
+      addressComplement: normalized.addressComplement,
+      addressNeighborhood: normalized.addressNeighborhood,
+      addressCountryCode: normalized.addressCountryCode,
+      addressCountryName: normalized.addressCountryName,
+      addressStateCode: normalized.addressStateCode,
+      addressStateName: normalized.addressStateName,
+      addressCity: normalized.addressCity,
+      addressPostalCode: normalized.addressPostalCode,
+    };
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -144,39 +194,37 @@ export function IndividualProcessAddressDialog({
       toast.error(t("errors.addressFieldsRequired"));
       return;
     }
+    if (
+      owner.type === "process" &&
+      !processAddressHasRequiredLocation(value)
+    ) {
+      toast.error(t("errors.cityAndStateRequired"));
+      return;
+    }
+    if (!value.reportedAt) {
+      toast.error(t("errors.reportedAtRequired"));
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      const payload = payloadFromValue(value);
       if (address) {
         await updateAddress({
           id: address._id,
-          addressIsBrazil: value.addressIsBrazil,
-          addressStreet: value.addressStreet,
-          addressNumber: value.addressNumber,
-          addressComplement: value.addressComplement,
-          addressNeighborhood: value.addressNeighborhood,
-          addressCountryCode: value.addressCountryCode,
-          addressCountryName: value.addressCountryName,
-          addressStateCode: value.addressStateCode,
-          addressStateName: value.addressStateName,
-          addressCity: value.addressCity,
-          addressPostalCode: value.addressPostalCode,
+          ...payload,
         });
         toast.success(t("addresses.updatedSuccess"));
+      } else if (owner.type === "person") {
+        await createPersonAddress({
+          personId: owner.personId,
+          ...payload,
+        });
+        toast.success(t("addresses.createdAndMarkedCurrent"));
       } else {
-        await createAddress({
-          individualProcessId,
-          addressIsBrazil: value.addressIsBrazil,
-          addressStreet: value.addressStreet,
-          addressNumber: value.addressNumber,
-          addressComplement: value.addressComplement,
-          addressNeighborhood: value.addressNeighborhood,
-          addressCountryCode: value.addressCountryCode,
-          addressCountryName: value.addressCountryName,
-          addressStateCode: value.addressStateCode,
-          addressStateName: value.addressStateName,
-          addressCity: value.addressCity,
-          addressPostalCode: value.addressPostalCode,
+        await createProcessAddress({
+          individualProcessId: owner.individualProcessId,
+          ...payload,
         });
         toast.success(t("addresses.createdAndMarkedCurrent"));
       }
@@ -191,7 +239,7 @@ export function IndividualProcessAddressDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <form onSubmit={(event) => void handleSubmit(event)}>
+        <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
           <DialogHeader>
             <DialogTitle>
               {isEditing ? t("addresses.editTitle") : t("addresses.addTitle")}
@@ -203,12 +251,16 @@ export function IndividualProcessAddressDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <CandidateAddressFields
-              value={value}
-              onChange={setValue}
-              disabled={isSubmitting}
-              showLegacyField={false}
-            />
+            {open ? (
+              <CandidateAddressFields
+                key={address?._id ?? "create"}
+                value={value}
+                onChange={setValue}
+                disabled={isSubmitting}
+                showLegacyField={false}
+                countryMode={countryMode}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button

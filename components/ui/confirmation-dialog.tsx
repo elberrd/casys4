@@ -22,6 +22,7 @@ interface ConfirmationDialogProps {
   onConfirm: () => void;
   variant?: "default" | "destructive";
   isLoading?: boolean;
+  confirmDisabled?: boolean;
 }
 
 export function ConfirmationDialog({
@@ -35,8 +36,10 @@ export function ConfirmationDialog({
   onConfirm,
   variant = "default",
   isLoading = false,
+  confirmDisabled = false,
 }: ConfirmationDialogProps) {
   const handleConfirm = () => {
+    if (confirmDisabled || isLoading) return;
     onConfirm();
   };
 
@@ -51,17 +54,19 @@ export function ConfirmationDialog({
           <AlertDialogCancel disabled={isLoading}>
             {cancelText}
           </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            disabled={isLoading}
-            className={
-              variant === "destructive"
-                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                : ""
-            }
-          >
-            {isLoading ? loadingText : confirmText}
-          </AlertDialogAction>
+          {!confirmDisabled && (
+            <AlertDialogAction
+              onClick={handleConfirm}
+              disabled={isLoading}
+              className={
+                variant === "destructive"
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : ""
+              }
+            >
+              {isLoading ? loadingText : confirmText}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

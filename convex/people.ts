@@ -5,11 +5,17 @@ import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from 
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
+import { legacyPersonAddressForReplace } from "../lib/utils/address-fields";
 import { createCachedGet } from "./lib/cachedGet";
 import {
   normalizePersonPassportFileName,
   validatePersonPassportUpload,
 } from "./lib/personPassportAttachment";
+import {
+  deletePersonAddresses,
+  sanitizePersonAddressInput,
+  upsertCurrentPersonAddressFromFields,
+} from "./lib/individualProcessAddresses";
 
 /** Constructs full display name from person name parts */
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -372,6 +378,7 @@ export const create = mutation({
     addressStateName: v.optional(v.string()),
     addressCity: v.optional(v.string()),
     addressPostalCode: v.optional(v.string()),
+    reportedAt: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
     residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
@@ -406,7 +413,8 @@ export const create = mutation({
       }
     }
 
-    const { passportAttachment, ...personData } = args;
+    const { passportAttachment, reportedAt, ...personFields } = args;
+    const personData = sanitizePersonAddressInput(personFields);
     const attachmentMetadata = passportAttachment
       ? await validatePersonPassportUpload(ctx, passportAttachment.storageId)
       : null;
@@ -471,6 +479,14 @@ export const create = mutation({
       ...personData,
       createdAt: now,
       updatedAt: now,
+    });
+
+    await upsertCurrentPersonAddressFromFields(ctx, {
+      personId,
+      fields: personData,
+      createdBy: adminProfile.userId,
+      reportedAt,
+      now,
     });
 
     if (
@@ -615,6 +631,7 @@ export const update = mutation({
     addressStateName: v.optional(v.string()),
     addressCity: v.optional(v.string()),
     addressPostalCode: v.optional(v.string()),
+    reportedAt: v.optional(v.string()),
     currentCityId: v.optional(v.id("cities")),
     residenceSince: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
@@ -625,7 +642,8 @@ export const update = mutation({
     // Require admin role
     const adminProfile = await requireAdmin(ctx);
 
-    const { id, ...data } = args;
+    const { id, reportedAt, ...rawData } = args;
+    const data = sanitizePersonAddressInput(rawData);
 
     // Check for duplicate CPF if provided
     if (data.cpf) {
@@ -673,7 +691,7 @@ export const update = mutation({
       ...(data.motherName ? { motherName: data.motherName } : {}),
       ...(data.fatherName ? { fatherName: data.fatherName } : {}),
       ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
-      ...(data.address ? { address: data.address } : {}),
+      ...legacyPersonAddressForReplace(current),
       ...(typeof data.addressIsBrazil === "boolean"
         ? { addressIsBrazil: data.addressIsBrazil }
         : {}),
@@ -708,6 +726,13 @@ export const update = mutation({
     };
 
     await ctx.db.replace(id, replacement);
+
+    await upsertCurrentPersonAddressFromFields(ctx, {
+      personId: id,
+      fields: data,
+      createdBy: adminProfile.userId,
+      reportedAt,
+    });
 
     const changes = buildChangedFields(
       {
@@ -805,6 +830,7 @@ export const remove = mutation({
       await ctx.storage.delete(passportAttachment.storageId);
     }
 
+    await deletePersonAddresses(ctx, id);
     await ctx.db.delete(id);
 
     await logActivitySafely(ctx, {

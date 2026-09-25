@@ -35,12 +35,19 @@ import {
 import { ProcessStatusUpdateDialog } from "@/components/individual-processes/process-status-update-dialog";
 import { ProcessReportsMenu } from "@/components/process-reports/process-reports-menu";
 import { EntityHistory } from "@/components/activity-logs/entity-history";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IndividualProcessStatusesSubtable } from "@/components/individual-processes/individual-process-statuses-subtable";
 import { ProcessNotesSection } from "@/components/notes/process-notes-section";
 import { ProcessTasksSection } from "@/components/tasks/process-tasks-section";
 import { PersonFormDialog } from "@/components/people/person-form-dialog";
-import { CandidateAddressDetailRows } from "@/components/individual-processes/candidate-address-fields";
+import { LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields";
 import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import { DocumentReviewDialog } from "@/components/individual-processes/document-review-dialog";
 import { LinkPassportDialog } from "@/components/individual-processes/link-passport-dialog";
@@ -49,7 +56,10 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { translateCountryName } from "@/lib/utils/country-translations";
 import { formatRelativeDate } from "@/lib/utils/date-utils";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
-import { formatCandidateAddress } from "@/lib/utils/candidate-address";
+import {
+  formatCurrentPersonAddress,
+  formatCurrentProcessAddress,
+} from "@/lib/utils/candidate-address";
 import { getFullName } from "@/lib/utils/person-names";
 import {
   getPassportValidityStatus,
@@ -72,6 +82,39 @@ function getPassportStatusVariant(status: PassportValidityStatus | null) {
   }
 }
 
+/** Label | wrapping value + clip, same 2-col grid as Empresa Requerente. */
+function ProcessDetailAddressRow({
+  label,
+  display,
+  onOpenTable,
+  openTableTitle,
+}: {
+  label: string;
+  display: string;
+  onOpenTable: () => void;
+  openTableTitle: string;
+}) {
+  return (
+    <>
+      <div className="text-sm font-medium flex items-center gap-1 min-w-0">
+        <span>{label}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          onClick={onOpenTable}
+          title={openTableTitle}
+        >
+          <Paperclip className="h-3.5 w-3.5" />
+          <span className="sr-only">{openTableTitle}</span>
+        </Button>
+      </div>
+      <div className="text-sm whitespace-pre-line min-w-0">{display}</div>
+    </>
+  );
+}
+
 interface IndividualProcessDetailClientProps {
   processId: Id<"individualProcesses">;
   locale: string;
@@ -90,11 +133,16 @@ export function IndividualProcessDetailClient({
   const tBreadcrumbs = useTranslations("Breadcrumbs");
   const tPeople = useTranslations("People");
   const tPassports = useTranslations("Passports");
+  const tAddress = useTranslations("CandidateAddress");
   const router = useRouter();
 
   const [isProcessStatusDialogOpen, setIsProcessStatusDialogOpen] =
     useState(false);
   const [isPersonEditDialogOpen, setIsPersonEditDialogOpen] = useState(false);
+  const [isPersonAddressModalOpen, setIsPersonAddressModalOpen] =
+    useState(false);
+  const [isProcessAddressModalOpen, setIsProcessAddressModalOpen] =
+    useState(false);
   const [isPassportLinkDialogOpen, setIsPassportLinkDialogOpen] =
     useState(false);
   const [reviewDocumentId, setReviewDocumentId] =
@@ -107,7 +155,13 @@ export function IndividualProcessDetailClient({
   const individualProcess = useQuery(api.individualProcesses.get, {
     id: processId,
   });
-  const currentAddress = useQuery(
+  const personCurrentAddress = useQuery(
+    api.individualProcessAddresses.getCurrentByPerson,
+    individualProcess?.personId
+      ? { personId: individualProcess.personId }
+      : "skip",
+  );
+  const processCurrentAddress = useQuery(
     api.individualProcessAddresses.getCurrent,
     { individualProcessId: processId },
   );
@@ -116,7 +170,6 @@ export function IndividualProcessDetailClient({
     api.documentsDelivered.list,
     individualProcess ? { individualProcessId: processId } : "skip",
   );
-
   useEffect(() => {
     if (!individualProcess || window.location.hash !== "#documentation") {
       return;
@@ -602,19 +655,21 @@ export function IndividualProcessDetailClient({
                   {individualProcess.consularPost || "-"}
                 </div>
 
-                <div className="text-sm font-medium">{t("candidateAddress")}</div>
-                <div className="text-sm whitespace-pre-line">
-                  {formatCandidateAddress(
-                    currentAddress ?? individualProcess,
-                  ) || "-"}
-                </div>
-
-                <div className="text-sm font-medium">
-                  {t("residenceAddressAbroad")}
-                </div>
-                <div className="text-sm whitespace-pre-line">
-                  {individualProcess.residenceAddressAbroad || "-"}
-                </div>
+                <ProcessDetailAddressRow
+                  label={t("residenceAddressInBrazil")}
+                  display={
+                    processCurrentAddress === undefined
+                      ? tCommon("loading")
+                      : formatCurrentProcessAddress(processCurrentAddress) ||
+                        tAddress("noAddress")
+                  }
+                  onOpenTable={() => setIsProcessAddressModalOpen(true)}
+                  openTableTitle={t("addresses.openProcessTable")}
+                />
+                <LegacyAddressReadOnly
+                  className="col-span-full"
+                  text={individualProcess.residenceAddressAbroad}
+                />
 
                 <div className="text-sm font-medium">
                   {t("professionalExperience")}
@@ -757,15 +812,16 @@ export function IndividualProcessDetailClient({
                   {individualProcess.person?.email || "-"}
                 </div>
 
-                <div className="col-span-full mt-2 flex items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    {t("currentAddress")}
-                  </span>
-                  <Badge variant="success">{t("addresses.current")}</Badge>
-                </div>
-                <CandidateAddressDetailRows
-                  value={currentAddress ?? individualProcess}
-                  showLegacyField={false}
+                <ProcessDetailAddressRow
+                  label={t("personCurrentAddress")}
+                  display={
+                    personCurrentAddress === undefined
+                      ? tCommon("loading")
+                      : formatCurrentPersonAddress(personCurrentAddress) ||
+                        tAddress("noAddress")
+                  }
+                  onOpenTable={() => setIsPersonAddressModalOpen(true)}
+                  openTableTitle={t("addresses.openPersonTable")}
                 />
 
                 <div className="text-sm font-medium flex items-center gap-1">
@@ -843,15 +899,6 @@ export function IndividualProcessDetailClient({
           </Card>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <IndividualProcessAddressesTable
-              individualProcessId={processId}
-              canEdit={isAdmin}
-            />
-          </CardContent>
-        </Card>
-
         <div className="grid gap-4 md:grid-cols-2">
           {/* Status History - Interactive Table */}
           <Card>
@@ -861,6 +908,11 @@ export function IndividualProcessDetailClient({
                   individualProcessId={processId}
                   userRole={currentUser.role}
                   showDescription={false}
+                  onOpenProcessAddressTable={() => {
+                    document
+                      .getElementById("process-addresses")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
                 />
               )}
             </CardContent>
@@ -1010,6 +1062,21 @@ export function IndividualProcessDetailClient({
           </Card>
         </div>
 
+        <Card id="process-addresses" className="scroll-mt-6">
+          <CardHeader>
+            <CardTitle>{t("addresses.processBrazilTitle")}</CardTitle>
+            <CardDescription>
+              {t("addresses.processBrazilDescription")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IndividualProcessAddressesTable
+              owner={{ type: "process", individualProcessId: processId }}
+              canEdit={isAdmin}
+            />
+          </CardContent>
+        </Card>
+
         {/* Document Checklist Section — branch by role for cleaner client UX */}
         <section id="documentation" className="scroll-mt-6">
           {isAdmin ? (
@@ -1073,6 +1140,46 @@ export function IndividualProcessDetailClient({
           currentStatus={processStatus}
         />
       )}
+
+      {/* Person address history (paperclip on Pessoa card) */}
+      {individualProcess.personId && (
+        <Dialog
+          open={isPersonAddressModalOpen}
+          onOpenChange={setIsPersonAddressModalOpen}
+        >
+          <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t("addresses.personTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("addresses.personDescription")}
+              </DialogDescription>
+            </DialogHeader>
+            <IndividualProcessAddressesTable
+              owner={{ type: "person", personId: individualProcess.personId }}
+              canEdit={isAdmin}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Process address history (paperclip on Informações do Processo) */}
+      <Dialog
+        open={isProcessAddressModalOpen}
+        onOpenChange={setIsProcessAddressModalOpen}
+      >
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("addresses.processBrazilTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("addresses.processBrazilDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <IndividualProcessAddressesTable
+            owner={{ type: "process", individualProcessId: processId }}
+            canEdit={isAdmin}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Person Edit Dialog (admin only) */}
       {isAdmin && (

@@ -94,6 +94,7 @@ const editablePersonFields = {
 
 const draftCandidateUpdateValidator = v.object({
   id: v.id("individualProcesses"),
+  reportedAt: v.optional(v.string()),
   ...editableProcessFields,
   ...editablePersonFields,
 });
@@ -490,6 +491,7 @@ export const createDraft = mutation({
     // True when this candidate links to a person that already existed (dedup
     // match) — persisted so wizard resume durably shows "Atualizando cadastro".
     linkedExistingPerson: v.optional(v.boolean()),
+    reportedAt: v.optional(v.string()),
     ...editableProcessFields,
     ...editablePersonFields,
   },
@@ -622,7 +624,7 @@ async function assertFrameworkCanChange(
 async function saveDraftCandidate(
   ctx: MutationCtx,
   userProfile: Doc<"userProfiles">,
-  { id, ...rest }: DraftCandidateUpdate,
+  { id, reportedAt, ...rest }: DraftCandidateUpdate,
 ): Promise<void> {
   const process = await ctx.db.get(id);
   if (!process) throw new ConvexError({ code: "REQUEST_NOT_FOUND" });
@@ -682,7 +684,8 @@ async function saveDraftCandidate(
     rest.addressStateCode !== undefined ||
     rest.addressStateName !== undefined ||
     rest.addressCity !== undefined ||
-    rest.addressPostalCode !== undefined;
+    rest.addressPostalCode !== undefined ||
+    reportedAt !== undefined;
   if (addressTouched) {
     const patchedProcess = await ctx.db.get(id);
     if (patchedProcess) {
@@ -690,6 +693,7 @@ async function saveDraftCandidate(
         process: patchedProcess,
         fields: rest,
         createdBy: userProfile.userId,
+        reportedAt,
       });
     }
   }
@@ -699,6 +703,7 @@ async function saveDraftCandidate(
 export const saveDraft = mutation({
   args: {
     id: v.id("individualProcesses"),
+    reportedAt: v.optional(v.string()),
     ...editableProcessFields,
     ...editablePersonFields,
   },

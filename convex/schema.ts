@@ -600,11 +600,17 @@ export default defineSchema({
     .index("by_requestedBy", ["requestedBy"]) // A client's own requests
     .index("by_requestGroup", ["requestGroupId"]), // Multi-candidate request batch
 
-  // Multiple structured addresses per individual process. Exactly one row
-  // with isCurrent=true is allowed whenever the process has any address.
+  // Multiple structured addresses owned by either a person or a process.
+  // Exactly one owner id is set (personId XOR individualProcessId) and matches
+  // ownerType. Exactly one row with isCurrent=true is allowed per owner whenever
+  // that owner has any address. Legacy rows without ownerType are process-owned.
   individualProcessAddresses: defineTable({
-    individualProcessId: v.id("individualProcesses"),
+    ownerType: v.optional(v.union(v.literal("person"), v.literal("process"))),
+    personId: v.optional(v.id("people")),
+    individualProcessId: v.optional(v.id("individualProcesses")),
     isCurrent: v.boolean(),
+    reportedAt: v.optional(v.string()), // YYYY-MM-DD — "data informada"
+    migrationKey: v.optional(v.string()),
     addressIsBrazil: v.optional(v.boolean()),
     addressStreet: v.optional(v.string()),
     addressNumber: v.optional(v.string()),
@@ -624,7 +630,10 @@ export default defineSchema({
     .index("by_individualProcess_and_isCurrent", [
       "individualProcessId",
       "isCurrent",
-    ]),
+    ])
+    .index("by_person", ["personId"])
+    .index("by_person_and_isCurrent", ["personId", "isCurrent"])
+    .index("by_migrationKey", ["migrationKey"]),
 
   // Status history tracking for individual processes (many-to-many)
   individualProcessStatuses: defineTable({

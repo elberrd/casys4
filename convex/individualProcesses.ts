@@ -921,6 +921,7 @@ export const create = mutation({
     addressStateName: v.optional(v.string()),
     addressCity: v.optional(v.string()),
     addressPostalCode: v.optional(v.string()),
+    reportedAt: v.optional(v.string()),
     consularPost: v.optional(v.string()),
     professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
@@ -1072,6 +1073,7 @@ export const create = mutation({
         process: createdProcess,
         fields: args,
         createdBy: userId,
+        reportedAt: args.reportedAt,
       });
     }
 
@@ -1662,6 +1664,7 @@ export const update = mutation({
     addressStateName: v.optional(v.string()),
     addressCity: v.optional(v.string()),
     addressPostalCode: v.optional(v.string()),
+    reportedAt: v.optional(v.string()),
     consularPost: v.optional(v.string()),
     professionalExperience: v.optional(v.string()),
     isActive: v.optional(v.boolean()), // DEPRECATED: Use processStatus instead
@@ -1905,8 +1908,7 @@ export const update = mutation({
       updates.residenceCity = args.residenceCity;
     if (args.residenceSince !== undefined)
       updates.residenceSince = args.residenceSince;
-    if (args.residenceAddressAbroad !== undefined)
-      updates.residenceAddressAbroad = args.residenceAddressAbroad;
+    // residenceAddressAbroad is frozen legacy text; never overwrite on save.
     if (args.addressIsBrazil !== undefined)
       updates.addressIsBrazil = args.addressIsBrazil;
     if (args.addressStreet !== undefined)
@@ -1964,7 +1966,8 @@ export const update = mutation({
       args.addressStateCode !== undefined ||
       args.addressStateName !== undefined ||
       args.addressCity !== undefined ||
-      args.addressPostalCode !== undefined;
+      args.addressPostalCode !== undefined ||
+      args.reportedAt !== undefined;
     if (addressFieldsTouched) {
       const patchedProcess = await ctx.db.get(id);
       if (patchedProcess) {
@@ -1972,6 +1975,7 @@ export const update = mutation({
           process: patchedProcess,
           fields: patchedProcess,
           createdBy: userProfile.userId,
+          reportedAt: args.reportedAt,
         });
       }
     }

@@ -770,6 +770,10 @@
   },
   "CandidateAddress": {
     "title": "Candidate address",
+    "personTitle": "Person address",
+    "processTitle": "Process address (Brazil)",
+    "personAbroadHint": "Person addresses can only be abroad",
+    "reportedAt": "Reported date",
     "isBrazil": "Address in Brazil",
     "isBrazilDescription": "Check this if the candidate lives in Brazil. The country will be selected automatically.",
     "street": "Street name",
@@ -804,7 +808,8 @@
     "loadingCities": "Loading cities...",
     "deprecatedAddressTitle": "Legacy field — do not use",
     "deprecatedAddressNote": "This field should no longer be used. Fill in the structured address above.",
-    "deprecatedAddressLabel": "Address (legacy)"
+    "deprecatedAddressLabel": "Address (legacy)",
+    "noAddress": "No address"
   },
   "IndividualProcesses": {
     "title": "Individual Processes",
@@ -1338,8 +1343,15 @@
     "professionalExperienceSinceLabel": "Since",
     "candidateAddress": "Candidate address",
     "currentAddress": "Current address",
+    "personCurrentAddress": "Person's current address",
     "addresses": {
       "title": "Addresses",
+      "personTitle": "Person addresses",
+      "personDescription": "A person can have multiple addresses abroad. The one marked as current is shown on the process.",
+      "processBrazilTitle": "Address in Brazil",
+      "processBrazilDescription": "Process addresses, always in Brazil. The one marked as current is the official address.",
+      "openPersonTable": "View the person's address history",
+      "openProcessTable": "Open the process address table",
       "description": "A process can have multiple addresses. The one marked as current is the official address.",
       "add": "Add address",
       "addTitle": "Add address",
@@ -1349,6 +1361,7 @@
       "empty": "No addresses registered.",
       "current": "Current",
       "currentColumn": "Current",
+      "reportedAtColumn": "Reported date",
       "streetColumn": "Street",
       "numberColumn": "Number",
       "complementColumn": "Complement",
@@ -1362,12 +1375,18 @@
       "deletedSuccess": "Address deleted.",
       "deleteTitle": "Delete address",
       "deleteDescription": "Are you sure you want to delete this address?",
-      "deleteCurrentDescription": "Mark another address as current before deleting the current one."
+      "deleteCurrentDescription": "Mark another address as current before deleting the current one.",
+      "savedImmediately": "Addresses are saved immediately."
     },
     "errors": {
       "currentAddressRequired": "Exactly one address must be marked as current.",
       "multipleCurrentAddresses": "Only one address can be current.",
       "addressFieldsRequired": "Fill in at least one address field.",
+      "cityAndStateRequired": "State (UF) and city are required.",
+      "reportedAtRequired": "Reported date is required.",
+      "invalidReportedAt": "Reported date must use YYYY-MM-DD format.",
+      "personAddressMustBeAbroad": "Person addresses can only be abroad.",
+      "processAddressMustBeBrazil": "Process addresses must be in Brazil.",
       "saveFailed": "Could not save the address."
     },
     "visaReceiptResidence": "Visa Receipt / Residence",
@@ -1378,6 +1397,7 @@
     },
     "residence": "Residence",
     "residenceAddressAbroad": "Residence Address Abroad",
+    "residenceAddressInBrazil": "Residential Address in Brazil",
     "professionalExperience": "Professional Experience",
     "professionalExperiencePlaceholder": "Describe the candidate's professional experience",
     "livesForYears": "lives for {count, plural, one {# year} other {# years}}",

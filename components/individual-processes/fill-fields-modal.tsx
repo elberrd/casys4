@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getFieldsMetadata } from "@/lib/individual-process-fields";
 import { DynamicFieldRenderer } from "./dynamic-field-renderer";
+import { IndividualProcessAddressesTable } from "./individual-process-addresses-table";
+import { isRnmCaseStatus } from "@/lib/status-history-row";
+import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
 interface FillFieldsModalProps {
@@ -43,6 +46,12 @@ export function FillFieldsModal({
     api.individualProcessStatuses.getFillableFields,
     open ? { statusId } : "skip"
   );
+  const statusHistory = useQuery(
+    api.individualProcessStatuses.getStatusHistory,
+    open ? { individualProcessId } : "skip",
+  );
+  const currentStatus = statusHistory?.find((status) => status._id === statusId);
+  const showProcessAddresses = isRnmCaseStatus(currentStatus ?? {});
 
   // Save filled fields mutation
   const saveFilledFields = useMutation(api.individualProcessStatuses.saveFilledFields);
@@ -105,7 +114,13 @@ export function FillFieldsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent
+        className={cn(
+          showProcessAddresses
+            ? "sm:max-w-4xl max-h-[90vh] overflow-y-auto"
+            : "sm:max-w-[600px]",
+        )}
+      >
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{t("fillFieldsModalTitle")}</DialogTitle>
@@ -149,6 +164,27 @@ export function FillFieldsModal({
             </Button>
           </DialogFooter>
         </form>
+
+        {showProcessAddresses ? (
+          <div className="space-y-3 border-t pt-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold">
+                {t("addresses.processBrazilTitle")}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {t("addresses.processBrazilDescription")}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                {t("addresses.savedImmediately")}
+              </p>
+            </div>
+            <IndividualProcessAddressesTable
+              owner={{ type: "process", individualProcessId }}
+              canEdit
+              showHeader={false}
+            />
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

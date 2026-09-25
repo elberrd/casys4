@@ -6,22 +6,58 @@ import {
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
+import { personOwnedByClient } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import {
   assertCurrentAddressInvariant,
+  denormalizeCurrentAddressToPerson,
   denormalizeCurrentAddressToProcess,
   hasStructuredAddressContent,
   individualProcessAddressValidator,
+  insertCurrentPersonAddress,
   insertCurrentProcessAddress,
+  listPersonAddresses,
   listProcessAddresses,
   persistLegacyAddressIfNeeded,
+  personWritableAddressFields,
   pickStructuredAddressFields,
+  processWritableAddressFields,
+  requirePersonId,
+  requireProcessId,
+  resolveAddressOwnerType,
   structuredAddressFieldsValidator,
-  toWritableAddressFields,
-  unsetOtherCurrentAddresses,
+  unsetOtherCurrentPersonAddresses,
+  unsetOtherCurrentProcessAddresses,
 } from "./lib/individualProcessAddresses";
+import { isValidReportedAt, todayIsoDate } from "../lib/utils/address-fields";
 
 const addressIdValidator = v.id("individualProcessAddresses");
+
+function requireReportedAt(reportedAt: string | undefined): string {
+  const value = reportedAt?.trim() || todayIsoDate();
+  if (!isValidReportedAt(value)) {
+    throw new ConvexError({ code: "INVALID_REPORTED_AT" });
+  }
+  return value;
+}
+
+async function assertCanReadPerson(
+  ctx: Parameters<typeof getCurrentUserProfile>[0],
+  userProfile: Awaited<ReturnType<typeof getCurrentUserProfile>>,
+  personId: Parameters<typeof personOwnedByClient>[2],
+) {
+  const person = await ctx.db.get(personId);
+  if (!person) {
+    throw new ConvexError({ code: "PERSON_NOT_FOUND" });
+  }
+  const allowed = await personOwnedByClient(ctx, userProfile, personId, {
+    person,
+  });
+  if (!allowed) {
+    throw new ConvexError({ code: "UNAUTHORIZED" });
+  }
+  return person;
+}
 
 export const listByProcess = query({
   args: { individualProcessId: v.id("individualProcesses") },
@@ -33,13 +69,17 @@ export const listByProcess = query({
       throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
     }
     await requireClientCanAccessProcess(ctx, userProfile, process);
+    return await listProcessAddresses(ctx, args.individualProcessId);
+  },
+});
 
-    const addresses = await listProcessAddresses(ctx, args.individualProcessId);
-    if (addresses.length > 0) {
-      return addresses;
-    }
-
-    return [];
+export const listByPerson = query({
+  args: { personId: v.id("people") },
+  returns: v.array(individualProcessAddressValidator),
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    await assertCanReadPerson(ctx, userProfile, args.personId);
+    return await listPersonAddresses(ctx, args.personId);
   },
 });
 
@@ -59,9 +99,21 @@ export const getCurrent = query({
   },
 });
 
+export const getCurrentByPerson = query({
+  args: { personId: v.id("people") },
+  returns: v.union(individualProcessAddressValidator, v.null()),
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    await assertCanReadPerson(ctx, userProfile, args.personId);
+    const addresses = await listPersonAddresses(ctx, args.personId);
+    return addresses.find((address) => address.isCurrent) ?? null;
+  },
+});
+
 export const create = mutation({
   args: {
     individualProcessId: v.id("individualProcesses"),
+    reportedAt: v.optional(v.string()),
     ...structuredAddressFieldsValidator,
   },
   returns: addressIdValidator,
@@ -72,7 +124,8 @@ export const create = mutation({
       throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
     }
 
-    const fields = toWritableAddressFields(args);
+    const reportedAt = requireReportedAt(args.reportedAt);
+    const fields = processWritableAddressFields(args);
     if (!hasStructuredAddressContent(fields)) {
       throw new ConvexError({ code: "ADDRESS_FIELDS_REQUIRED" });
     }
@@ -84,6 +137,7 @@ export const create = mutation({
       individualProcessId: args.individualProcessId,
       fields,
       createdBy: userId ?? undefined,
+      reportedAt,
     });
 
     await logActivitySafely(ctx, {
@@ -93,6 +147,51 @@ export const create = mutation({
       entityId: addressId,
       details: {
         individualProcessId: args.individualProcessId,
+        ownerType: "process",
+        markedAsCurrent: true,
+      },
+    });
+
+    return addressId;
+  },
+});
+
+export const createForPerson = mutation({
+  args: {
+    personId: v.id("people"),
+    reportedAt: v.optional(v.string()),
+    ...structuredAddressFieldsValidator,
+  },
+  returns: addressIdValidator,
+  handler: async (ctx, args) => {
+    const userProfile = await requireAdmin(ctx);
+    const person = await ctx.db.get(args.personId);
+    if (!person) {
+      throw new ConvexError({ code: "PERSON_NOT_FOUND" });
+    }
+
+    const reportedAt = requireReportedAt(args.reportedAt);
+    const fields = personWritableAddressFields(args);
+    if (!hasStructuredAddressContent(fields)) {
+      throw new ConvexError({ code: "ADDRESS_FIELDS_REQUIRED" });
+    }
+
+    const userId = await getAuthUserId(ctx);
+    const addressId = await insertCurrentPersonAddress(ctx, {
+      personId: args.personId,
+      fields,
+      createdBy: userId ?? undefined,
+      reportedAt,
+    });
+
+    await logActivitySafely(ctx, {
+      userId: userProfile.userId,
+      action: "created",
+      entityType: "individualProcessAddress",
+      entityId: addressId,
+      details: {
+        personId: args.personId,
+        ownerType: "person",
         markedAsCurrent: true,
       },
     });
@@ -122,6 +221,7 @@ export const ensureLegacyMigrated = mutation({
 export const update = mutation({
   args: {
     id: addressIdValidator,
+    reportedAt: v.optional(v.string()),
     ...structuredAddressFieldsValidator,
   },
   returns: addressIdValidator,
@@ -132,41 +232,60 @@ export const update = mutation({
       throw new ConvexError({ code: "ADDRESS_NOT_FOUND" });
     }
 
-    const process = await ctx.db.get(address.individualProcessId);
-    if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
-    }
+    const ownerType = resolveAddressOwnerType(address);
+    const reportedAt = requireReportedAt(args.reportedAt ?? address.reportedAt);
+    const fields =
+      ownerType === "person"
+        ? personWritableAddressFields(args)
+        : processWritableAddressFields(args);
 
-    const fields = toWritableAddressFields(args);
     if (!hasStructuredAddressContent(fields)) {
       throw new ConvexError({ code: "ADDRESS_FIELDS_REQUIRED" });
     }
 
     await ctx.db.patch(args.id, {
       ...fields,
+      ownerType,
+      reportedAt,
       updatedAt: Date.now(),
     });
 
     if (address.isCurrent) {
-      await denormalizeCurrentAddressToProcess(
-        ctx,
-        address.individualProcessId,
-        fields,
-      );
+      if (ownerType === "person") {
+        await denormalizeCurrentAddressToPerson(
+          ctx,
+          requirePersonId(address),
+          fields,
+        );
+      } else {
+        await denormalizeCurrentAddressToProcess(
+          ctx,
+          requireProcessId(address),
+          fields,
+        );
+      }
     }
 
-    const addresses = await listProcessAddresses(
-      ctx,
-      address.individualProcessId,
-    );
-    assertCurrentAddressInvariant(addresses);
+    if (ownerType === "person") {
+      assertCurrentAddressInvariant(
+        await listPersonAddresses(ctx, requirePersonId(address)),
+      );
+    } else {
+      assertCurrentAddressInvariant(
+        await listProcessAddresses(ctx, requireProcessId(address)),
+      );
+    }
 
     await logActivitySafely(ctx, {
       userId: userProfile.userId,
       action: "updated",
       entityType: "individualProcessAddress",
       entityId: args.id,
-      details: { individualProcessId: address.individualProcessId },
+      details: {
+        ownerType,
+        individualProcessId: address.individualProcessId,
+        personId: address.personId,
+      },
     });
 
     return args.id;
@@ -183,31 +302,39 @@ export const setCurrent = mutation({
       throw new ConvexError({ code: "ADDRESS_NOT_FOUND" });
     }
 
-    const process = await ctx.db.get(address.individualProcessId);
-    if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+    const ownerType = resolveAddressOwnerType(address);
+
+    if (ownerType === "person") {
+      const personId = requirePersonId(address);
+      await unsetOtherCurrentPersonAddresses(ctx, personId, args.id);
+      await ctx.db.patch(args.id, {
+        isCurrent: true,
+        updatedAt: Date.now(),
+      });
+      await denormalizeCurrentAddressToPerson(
+        ctx,
+        personId,
+        pickStructuredAddressFields(address),
+      );
+      assertCurrentAddressInvariant(await listPersonAddresses(ctx, personId));
+    } else {
+      const processId = requireProcessId(address);
+      const process = await ctx.db.get(processId);
+      if (!process) {
+        throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+      }
+      await unsetOtherCurrentProcessAddresses(ctx, processId, args.id);
+      await ctx.db.patch(args.id, {
+        isCurrent: true,
+        updatedAt: Date.now(),
+      });
+      await denormalizeCurrentAddressToProcess(
+        ctx,
+        processId,
+        pickStructuredAddressFields(address),
+      );
+      assertCurrentAddressInvariant(await listProcessAddresses(ctx, processId));
     }
-
-    await unsetOtherCurrentAddresses(
-      ctx,
-      address.individualProcessId,
-      args.id,
-    );
-    await ctx.db.patch(args.id, {
-      isCurrent: true,
-      updatedAt: Date.now(),
-    });
-    await denormalizeCurrentAddressToProcess(
-      ctx,
-      address.individualProcessId,
-      pickStructuredAddressFields(address),
-    );
-
-    const addresses = await listProcessAddresses(
-      ctx,
-      address.individualProcessId,
-    );
-    assertCurrentAddressInvariant(addresses);
 
     await logActivitySafely(ctx, {
       userId: userProfile.userId,
@@ -215,7 +342,9 @@ export const setCurrent = mutation({
       entityType: "individualProcessAddress",
       entityId: args.id,
       details: {
+        ownerType,
         individualProcessId: address.individualProcessId,
+        personId: address.personId,
         markedAsCurrent: true,
       },
     });
@@ -234,30 +363,40 @@ export const remove = mutation({
       throw new ConvexError({ code: "ADDRESS_NOT_FOUND" });
     }
 
-    const process = await ctx.db.get(address.individualProcessId);
-    if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
-    }
+    const ownerType = resolveAddressOwnerType(address);
 
-    const remaining = (await listProcessAddresses(
-      ctx,
-      address.individualProcessId,
-    )).filter((item) => item._id !== args.id);
-
-    if (address.isCurrent && remaining.length > 0) {
-      throw new ConvexError({ code: "CURRENT_ADDRESS_REQUIRED" });
-    }
-
-    await ctx.db.delete(args.id);
-
-    if (remaining.length === 0) {
-      await denormalizeCurrentAddressToProcess(
-        ctx,
-        address.individualProcessId,
-        null,
+    if (ownerType === "person") {
+      const personId = requirePersonId(address);
+      const remaining = (await listPersonAddresses(ctx, personId)).filter(
+        (item) => item._id !== args.id,
       );
+      if (address.isCurrent && remaining.length > 0) {
+        throw new ConvexError({ code: "CURRENT_ADDRESS_REQUIRED" });
+      }
+      await ctx.db.delete(args.id);
+      if (remaining.length === 0) {
+        await denormalizeCurrentAddressToPerson(ctx, personId, null);
+      } else {
+        assertCurrentAddressInvariant(remaining);
+      }
     } else {
-      assertCurrentAddressInvariant(remaining);
+      const processId = requireProcessId(address);
+      const process = await ctx.db.get(processId);
+      if (!process) {
+        throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+      }
+      const remaining = (await listProcessAddresses(ctx, processId)).filter(
+        (item) => item._id !== args.id,
+      );
+      if (address.isCurrent && remaining.length > 0) {
+        throw new ConvexError({ code: "CURRENT_ADDRESS_REQUIRED" });
+      }
+      await ctx.db.delete(args.id);
+      if (remaining.length === 0) {
+        await denormalizeCurrentAddressToProcess(ctx, processId, null);
+      } else {
+        assertCurrentAddressInvariant(remaining);
+      }
     }
 
     await logActivitySafely(ctx, {
@@ -265,7 +404,11 @@ export const remove = mutation({
       action: "deleted",
       entityType: "individualProcessAddress",
       entityId: args.id,
-      details: { individualProcessId: address.individualProcessId },
+      details: {
+        ownerType,
+        individualProcessId: address.individualProcessId,
+        personId: address.personId,
+      },
     });
 
     return null;

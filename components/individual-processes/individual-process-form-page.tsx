@@ -41,11 +41,12 @@ import {
   ResidenceSelect,
   type ResidenceValue,
 } from "@/components/process-requests/residence-select";
-import { CandidateAddressFields } from "@/components/individual-processes/candidate-address-fields";
+import { CandidateAddressFields, LegacyAddressReadOnly } from "@/components/individual-processes/candidate-address-fields";
 import { IndividualProcessAddressesTable } from "@/components/individual-processes/individual-process-addresses-table";
 import {
   EMPTY_CANDIDATE_ADDRESS_FORM,
   isBrazilAddressSelected,
+  omitLegacyProcessAddressFromSubmit,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
 import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
@@ -208,6 +209,7 @@ export function IndividualProcessFormPage({
   const addressStateName = form.watch("addressStateName");
   const addressCity = form.watch("addressCity");
   const addressPostalCode = form.watch("addressPostalCode");
+  const reportedAt = form.watch("reportedAt");
 
   const residenceValue: ResidenceValue = {
     visaReceiptLocation: visaReceiptLocation || undefined,
@@ -243,6 +245,7 @@ export function IndividualProcessFormPage({
     addressStateName: addressStateName || undefined,
     addressCity: addressCity || undefined,
     addressPostalCode: addressPostalCode || undefined,
+    reportedAt: reportedAt || undefined,
     residenceAddressAbroad: residenceAddressAbroad || undefined,
   };
 
@@ -278,6 +281,7 @@ export function IndividualProcessFormPage({
     form.setValue("addressPostalCode", next.addressPostalCode ?? "", {
       shouldDirty: true,
     });
+    form.setValue("reportedAt", next.reportedAt ?? "", { shouldDirty: true });
     form.setValue("residenceAddressAbroad", next.residenceAddressAbroad ?? "", {
       shouldDirty: true,
     });
@@ -765,6 +769,7 @@ export function IndividualProcessFormPage({
         addressStateName: data.addressStateName || undefined,
         addressCity: data.addressCity || undefined,
         addressPostalCode: data.addressPostalCode || undefined,
+        reportedAt: data.reportedAt || undefined,
         consularPost: data.consularPost || undefined,
         professionalExperience: data.professionalExperience || undefined,
       };
@@ -788,8 +793,9 @@ export function IndividualProcessFormPage({
           addressStateName,
           addressCity,
           addressPostalCode,
+          reportedAt,
           ...updateData
-        } = submitData;
+        } = omitLegacyProcessAddressFromSubmit(submitData);
         void [
           personId,
           collectiveProcessId,
@@ -805,6 +811,7 @@ export function IndividualProcessFormPage({
           addressStateName,
           addressCity,
           addressPostalCode,
+          reportedAt,
         ];
         await updateIndividualProcess({
           id: individualProcessId,
@@ -1486,10 +1493,15 @@ export function IndividualProcessFormPage({
 
             <div className="space-y-4">
               {individualProcessId ? (
-                <IndividualProcessAddressesTable
-                  individualProcessId={individualProcessId}
-                  canEdit
-                />
+                <>
+                  <IndividualProcessAddressesTable
+                    individualProcessId={individualProcessId}
+                    canEdit
+                  />
+                  <LegacyAddressReadOnly
+                    text={individualProcess?.residenceAddressAbroad}
+                  />
+                </>
               ) : (
                 <>
                   <h3 className="text-sm font-semibold">{t("candidateAddress")}</h3>
@@ -1497,6 +1509,7 @@ export function IndividualProcessFormPage({
                     value={addressValue}
                     onChange={handleAddressChange}
                     showLegacyField={false}
+                    countryMode="process"
                   />
                 </>
               )}
