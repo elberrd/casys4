@@ -14,7 +14,7 @@ export const collectiveProcessSchema = z.object({
     .or(z.literal("")),
   contactPersonId: z
     .custom<Id<"people">>((val) => typeof val === "string", {
-      message: "Contact person ID must be valid",
+      message: "Legal representative ID must be valid",
     })
     .optional()
     .or(z.literal("")),

@@ -82,6 +82,11 @@ export const REPORT_VARIABLE_KEYS = [
   "userApplicantName",
   "srPhrase",
   "employeeWord",
+  "legalRepresentativeName",
+  "legalRepresentativeCpf",
+  "legalRepresentativeEmail",
+  "legalRepresentativePhone",
+  "legalRepresentativeCargo",
 ] as const;
 
 export type ReportVariableKey = (typeof REPORT_VARIABLE_KEYS)[number];
@@ -164,6 +169,11 @@ export const REPORT_VARIABLES: readonly ReportVariableDefinition[] = [
   { key: "userApplicantName", group: "document" },
   { key: "srPhrase", group: "document" },
   { key: "employeeWord", group: "document" },
+  { key: "legalRepresentativeName", group: "document" },
+  { key: "legalRepresentativeCpf", group: "document" },
+  { key: "legalRepresentativeEmail", group: "document" },
+  { key: "legalRepresentativePhone", group: "document" },
+  { key: "legalRepresentativeCargo", group: "document" },
 ];
 
 export function isReportVariableKey(value: string): value is ReportVariableKey {
@@ -179,6 +189,14 @@ const REPORT_VARIABLE_KEY_ALIASES: Record<string, ReportVariableKey> = {
   "cidade da empresa (cláusula)": "companyCityClause",
   "cidade da empresa solicitante (cláusula)": "companyCityClause",
   "applicant company city": "companyCity",
+  "representante legal": "legalRepresentativeName",
+  "nome do representante legal": "legalRepresentativeName",
+  "legal representative": "legalRepresentativeName",
+  "cpf do representante legal": "legalRepresentativeCpf",
+  "e-mail do representante legal": "legalRepresentativeEmail",
+  "email do representante legal": "legalRepresentativeEmail",
+  "telefone do representante legal": "legalRepresentativePhone",
+  "cargo do representante legal": "legalRepresentativeCargo",
 };
 
 /** Resolves a chip/`{{token}}` name, including aliases like `atividade CBO`. */
@@ -197,6 +215,11 @@ export const OPTIONAL_REPORT_VARIABLE_KEYS = [
   "companyCity",
   "companyCityClause",
   "candidateAddress",
+  "legalRepresentativeName",
+  "legalRepresentativeCpf",
+  "legalRepresentativeEmail",
+  "legalRepresentativePhone",
+  "legalRepresentativeCargo",
 ] as const;
 
 export function isOptionalReportVariableKey(value: string): boolean {

@@ -32,6 +32,7 @@ import { PhoneInput } from "@/components/ui/phone-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Combobox } from "@/components/ui/combobox"
+import { LegalRepresentativeCombobox } from "@/components/companies/legal-representative-combobox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "next-intl"
@@ -64,7 +65,6 @@ export function CompanyFormDialog({
   )
 
   const cities = useQuery(api.cities.listWithRelations, {}) ?? []
-  const people = useQuery(api.people.search, { query: "" }) ?? []
   const economicActivities = useQuery(api.economicActivities.listActive, {}) ?? []
   const companyGroups = useQuery(api.companyGroups.listActive, {}) ?? []
   const companyEconomicActivities = useQuery(
@@ -221,11 +221,6 @@ export function CompanyFormDialog({
   const cityOptions = cities.map((city) => ({
     value: city._id,
     label: `${city.name}${city.state ? ` - ${city.state.code}` : ''}`,
-  }))
-
-  const peopleOptions = people.map((person) => ({
-    value: person._id,
-    label: person.fullName,
   }))
 
   const economicActivityOptions = economicActivities.map((activity) => ({
@@ -529,11 +524,11 @@ export function CompanyFormDialog({
                 <FormItem>
                   <FormLabel>{t('contactPerson')}</FormLabel>
                   <FormControl>
-                    <Combobox
-                      options={peopleOptions}
+                    <LegalRepresentativeCombobox
                       value={field.value || ""}
-                      onValueChange={field.onChange}
-                      placeholder={t('selectContactPerson')}
+                      onValueChange={(next) => field.onChange(next ?? "")}
+                      popoverModal
+                      isolateListScroll
                     />
                   </FormControl>
                   <FormMessage />

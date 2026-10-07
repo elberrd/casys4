@@ -140,6 +140,18 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         ),
       },
       {
+        id: "contactPerson",
+        accessorFn: (row) => row.contactPerson?.fullName || "-",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t('contactPerson')} />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.contactPerson?.fullName || "-"}
+          </span>
+        ),
+      },
+      {
         accessorKey: "phoneNumber",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t('phoneNumber')} />
