@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { useFormContext } from "react-hook-form";
 import { useTranslations } from "next-intl";
 
@@ -21,7 +22,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { cboActivityText, nextCboActivitiesOnSelection } from "@/lib/cbo-activities";
+import {
+  CBO_ACTIVITIES_COPY_FEEDBACK_MS,
+  cboActivitiesClipboardText,
+  cboActivityText,
+  copyCurrentCboActivitiesToClipboard,
+  nextCboActivitiesOnSelection,
+} from "@/lib/cbo-activities";
 import type { IndividualProcessFormData } from "@/lib/validations/individualProcesses";
 
 type CboOption = {
@@ -39,6 +46,36 @@ export function CboActivitiesFields({ cboCodes }: CboActivitiesFieldsProps) {
   const t = useTranslations("IndividualProcesses");
   const { toast } = useToast();
   const form = useFormContext<IndividualProcessFormData>();
+  const [copiedCurrentActivities, setCopiedCurrentActivities] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
+  const copyCurrentActivities = async (currentValue: string) => {
+    const result = await copyCurrentCboActivitiesToClipboard(
+      currentValue,
+      (text) => navigator.clipboard.writeText(text),
+    );
+    if (result === "empty") {
+      toast({ title: t("cboActivitiesNothingToCopy") });
+      return;
+    }
+    if (result === "error") {
+      toast({ title: t("copyFailed"), variant: "destructive" });
+      return;
+    }
+    setCopiedCurrentActivities(true);
+    toast({ title: t("cboActivitiesCopiedToClipboard") });
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => {
+      setCopiedCurrentActivities(false);
+      copiedTimerRef.current = null;
+    }, CBO_ACTIVITIES_COPY_FEEDBACK_MS);
+  };
 
   const cboOptions = cboCodes.map((cbo) => ({
     value: cbo._id,
@@ -120,21 +157,51 @@ export function CboActivitiesFields({ cboCodes }: CboActivitiesFieldsProps) {
       <FormField
         control={form.control}
         name="cboActivities"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("cboActivities")}</FormLabel>
-            <FormControl>
-              <Textarea
-                {...field}
-                rows={8}
-                className="min-h-[180px] resize-y"
-                placeholder={t("cboActivitiesPlaceholder")}
-              />
-            </FormControl>
-            <FormDescription>{t("cboActivitiesHint")}</FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+        render={({ field }) => {
+          const hasCurrentActivities = cboActivitiesClipboardText(field.value) !== null;
+          return (
+            <FormItem>
+              <FormLabel>{t("cboActivities")}</FormLabel>
+              <div className="relative">
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    rows={8}
+                    className="min-h-[180px] resize-y pr-10 pt-10"
+                    placeholder={t("cboActivitiesPlaceholder")}
+                  />
+                </FormControl>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="absolute top-1.5 right-1.5 inline-flex">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        disabled={!hasCurrentActivities}
+                        title={t("copyCboActivitiesField")}
+                        aria-label={t("copyCboActivitiesField")}
+                        onClick={() => {
+                          void copyCurrentActivities(field.value ?? "");
+                        }}
+                      >
+                        {copiedCurrentActivities ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("copyCboActivitiesField")}</TooltipContent>
+                </Tooltip>
+              </div>
+              <FormDescription>{t("cboActivitiesHint")}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          );
+        }}
       />
     </div>
   );
