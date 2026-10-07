@@ -1,3 +1,7 @@
+import {
+  resolveDocumentUploadStatus,
+  type DocumentStatus,
+} from "../../convex/lib/documentStatus";
 import { suggestedReportFilename } from "@/lib/report-templates/format-values";
 import { fillRemainingReportPlaceholders } from "@/lib/report-templates/substitute";
 import type { ReportVariableKey } from "@/lib/report-templates/variables";
@@ -7,6 +11,26 @@ export {
   pickLatestReportContent,
   reportFilenameFromDocument,
 } from "./process-report-content";
+
+/**
+ * Upload flags when attaching a generated report PDF to a process document.
+ * Reuses the existing `awaiting_signature` code — not the display string.
+ * Does not include autoApprove; those flags are mutually exclusive.
+ */
+export function reportAttachUploadStatusArgs(): {
+  awaitingSignature: true;
+} {
+  return { awaitingSignature: true };
+}
+
+export function resolveReportAttachDocumentStatus(): DocumentStatus {
+  return resolveDocumentUploadStatus({
+    hasFile: true,
+    awaitingSignature: reportAttachUploadStatusArgs().awaitingSignature,
+    isIllegible: false,
+    canAutoApprove: false,
+  });
+}
 
 export interface ProcessReportSavedEdit {
   contentHtml: string;
