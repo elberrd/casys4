@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
 
-import { cn, normalizeString } from "@/lib/utils";
+import { filterComboboxOptionByLabel } from "@/lib/combobox-filter";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -93,6 +94,11 @@ export interface ComboboxProps<T = string> {
    * @default "Create new..."
    */
   createNewText?: string;
+  /**
+   * Called when the search input changes so the parent can filter server-side.
+   * cmdk still matches by label (not option ids) via `filterComboboxOptionByLabel`.
+   */
+  onSearchChange?: (search: string) => void;
 }
 
 /**
@@ -145,6 +151,7 @@ function ComboboxSingle<T extends string = string>({
   clearButtonAriaLabel = "Clear selection",
   onCreateNew,
   createNewText = "Create new...",
+  onSearchChange,
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T | undefined>(
@@ -329,21 +336,23 @@ function ComboboxSingle<T extends string = string>({
         }}
       >
         <Command
-          filter={(value, search) => {
-            // Custom filter: accent-insensitive and case-insensitive substring match on label
-            const option = options.find((opt) => String(opt.value) === value);
-            if (!option) return 0;
-
-            const searchNormalized = normalizeString(search);
-            const labelNormalized = normalizeString(option.label);
-
-            // Return 1 if label contains search string, 0 otherwise
-            return labelNormalized.includes(searchNormalized) ? 1 : 0;
-          }}
+          filter={(value, search) =>
+            filterComboboxOptionByLabel(
+              value,
+              search,
+              options.map((opt) => ({
+                value: String(opt.value),
+                label: opt.label,
+              })),
+            )
+          }
         >
           <CommandInput
             placeholder={searchPlaceholder}
-            onValueChange={setSearchQuery}
+            onValueChange={(next) => {
+              setSearchQuery(next);
+              onSearchChange?.(next);
+            }}
           />
           <CommandList
             ref={commandListRef}
@@ -457,6 +466,7 @@ function ComboboxMultiple<T extends string = string>({
   clearButtonAriaLabel = "Clear all selections",
   onCreateNew,
   createNewText = "Create new...",
+  onSearchChange,
 }: ComboboxMultipleProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<T[]>(
@@ -700,24 +710,23 @@ function ComboboxMultiple<T extends string = string>({
             // Always show the "create new" item
             if (value === '__create_new_item__') return 1;
 
-            // Custom filter: accent-insensitive and case-insensitive substring match on label
-            const option = options.find((opt) => String(opt.value) === value);
-            if (!option) return 0;
-
-            const searchNormalized = normalizeString(search);
-            const labelNormalized = normalizeString(option.label);
-
-            // Return 1 if label contains search string, 0 otherwise
-            return labelNormalized.includes(searchNormalized) ? 1 : 0;
+            return filterComboboxOptionByLabel(
+              value,
+              search,
+              options.map((opt) => ({
+                value: String(opt.value),
+                label: opt.label,
+              })),
+            );
           }}
         >
           <CommandInput
             placeholder={searchPlaceholder}
             value={searchQuery}
-            onValueChange={(value) => {
-              console.log('[Multi-Select CommandInput] onValueChange called with:', value);
-              setSearchQuery(value);
-              setShowCreateButton(!!value.trim() && !!onCreateNew);
+            onValueChange={(next) => {
+              setSearchQuery(next);
+              setShowCreateButton(!!next.trim() && !!onCreateNew);
+              onSearchChange?.(next);
             }}
           />
           <CommandList>

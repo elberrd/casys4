@@ -95,6 +95,14 @@ export interface ReportProcessSource {
     companyGroup?: { name?: string | null } | null;
     city?: { name?: string | null } | null;
     state?: { code?: string | null; name?: string | null } | null;
+    contactPerson?:
+      | (ReportPersonName & {
+          cpf?: string | null;
+          email?: string | null;
+          phoneNumber?: string | null;
+          cargo?: string | null;
+        })
+      | null;
   } | null;
   consulate?: { city?: { name?: string | null } | null } | null;
   collectiveProcess?: { referenceNumber?: string | null } | null;
@@ -323,6 +331,14 @@ function resolveCompanyGroupName(process: ReportProcessSource): string {
   return process.companyApplicant?.groupName?.trim() ?? "";
 }
 
+function resolveLegalRepresentative(
+  process: ReportProcessSource,
+): NonNullable<
+  NonNullable<ReportProcessSource["companyApplicant"]>["contactPerson"]
+> | null {
+  return process.companyApplicant?.contactPerson ?? null;
+}
+
 function formatCompanyEmploymentPlace(process: ReportProcessSource): string {
   const name = process.companyApplicant?.name?.trim() ?? "";
   if (!name) return "";
@@ -389,6 +405,10 @@ export function buildReportVariableValues(args: {
     ? ` que pertence ao grupo de empresas ${companyGroup}`
     : "";
   const companyEmploymentPlace = formatCompanyEmploymentPlace(process);
+  const legalRepresentative = resolveLegalRepresentative(process);
+  const legalRepresentativeName = legalRepresentative
+    ? getFullName(legalRepresentative)
+    : "";
   const professionalExperienceSinceLong = process.professionalExperienceSince
     ? formatLongDatePt(process.professionalExperienceSince) ?? ""
     : "";
@@ -622,5 +642,12 @@ export function buildReportVariableValues(args: {
     userApplicantName: display(userApplicantName),
     srPhrase: genderedWord("o Sr.", "a Sra.", sex),
     employeeWord: genderedWord("funcionário", "funcionária", sex),
+    legalRepresentativeName: display(legalRepresentativeName),
+    legalRepresentativeCpf: legalRepresentative?.cpf
+      ? formatCPF(legalRepresentative.cpf)
+      : "",
+    legalRepresentativeEmail: display(legalRepresentative?.email),
+    legalRepresentativePhone: display(legalRepresentative?.phoneNumber),
+    legalRepresentativeCargo: display(legalRepresentative?.cargo),
   };
 }

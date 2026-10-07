@@ -49,7 +49,7 @@ export const companySchema = z.object({
   email: z.string().email("Invalid email format").optional().or(z.literal("")),
   contactPersonId: z
     .custom<Id<"people">>((val) => typeof val === "string", {
-      message: "Invalid contact person",
+      message: "Invalid legal representative",
     })
     .optional()
     .or(z.literal("")),
