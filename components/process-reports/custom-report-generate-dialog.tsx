@@ -41,6 +41,7 @@ import { translateCountryName } from "@/lib/utils/country-translations";
 import { hasPassportFile } from "@/lib/passport";
 import { buildReportAttachOptions } from "@/lib/report-templates/attach-targets";
 import {
+  reportAttachUploadStatusArgs,
   resolveProcessReportEditorContent,
   shouldPersistProcessReportEdit,
   uploadDocumentKeepingHtmlFallback,
@@ -514,7 +515,7 @@ export function CustomReportGenerateDialog({
         fileName: pdfName,
         fileSize: blob.size,
         mimeType: "application/pdf",
-        autoApprove: true,
+        ...reportAttachUploadStatusArgs(),
         bypassConditions: true,
         versionNotes: t("generatedFromTemplate", {
           name: template?.name ?? "",
@@ -524,7 +525,9 @@ export function CustomReportGenerateDialog({
       });
 
       toast.success(
-        replacingExisting ? t("approvedVersionSuccess") : t("attachedSuccess"),
+        replacingExisting
+          ? t("awaitingSignatureVersionSuccess")
+          : t("attachedSuccess"),
       );
       handleOpenChange(false);
       onAttached?.();
@@ -609,7 +612,7 @@ export function CustomReportGenerateDialog({
                     {attachTarget ? (
                       <p className="pb-1 text-xs text-muted-foreground">
                         {replacingExisting
-                          ? t("saveApprovedVersionHint")
+                          ? t("saveAwaitingSignatureVersionHint")
                           : t("attachPdfTo", { name: attachTarget.documentName })}
                       </p>
                     ) : (
