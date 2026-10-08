@@ -81,6 +81,44 @@ export function emptyAddressForm(
   };
 }
 
+/**
+ * Defaults for process addresses: empty country → BR, empty reportedAt → today.
+ * Returns the same object when nothing changed so callers can skip setState.
+ */
+export function applyCandidateAddressDefaults(
+  value: CandidateAddressValue,
+  args: {
+    countryMode: AddressCountryMode;
+    brazilCountryName: string;
+    today: string;
+  },
+): CandidateAddressValue {
+  let next = value;
+  if (args.countryMode !== "person" && !value.addressCountryCode) {
+    next = {
+      ...next,
+      addressIsBrazil: true,
+      addressCountryCode: BRAZIL_COUNTRY_CODE,
+      addressCountryName: args.brazilCountryName,
+    };
+  }
+  if (!next.reportedAt) {
+    next = {
+      ...next,
+      reportedAt: args.today,
+    };
+  }
+  if (
+    next.addressCountryCode === value.addressCountryCode &&
+    next.addressCountryName === value.addressCountryName &&
+    next.addressIsBrazil === value.addressIsBrazil &&
+    next.reportedAt === value.reportedAt
+  ) {
+    return value;
+  }
+  return next;
+}
+
 /** Process addresses: unset means Brazil. Person addresses: unset is not Brazil. */
 export function isBrazilAddressSelected(
   value: CandidateAddressValue,

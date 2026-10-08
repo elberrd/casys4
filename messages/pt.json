@@ -93,6 +93,11 @@
     "searchColumns": "Pesquisar colunas...",
     "noColumnsFound": "Nenhuma coluna encontrada"
   },
+  "ErrorBoundary": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um erro ao carregar esta página. Você pode tentar novamente.",
+    "retry": "Tentar novamente"
+  },
   "Navigation": {
     "dashboard": "Painel",
     "processManagement": "Gestão de Processos",

@@ -1,3 +1,4 @@
+import { SectionErrorBoundary } from "@/components/section-error-boundary"
 import { Id } from "@/convex/_generated/dataModel"
 import { IndividualProcessDetailClient } from "./individual-process-detail-client"
 
@@ -17,11 +18,13 @@ export default async function IndividualProcessDetailPage({ params, searchParams
   const resolvedSearchParams = await searchParams
 
   return (
-    <IndividualProcessDetailClient
-      processId={resolvedParams.id as Id<"individualProcesses">}
-      locale={resolvedParams.locale}
-      collectiveProcessId={resolvedSearchParams.collectiveProcessId as Id<"collectiveProcesses"> | undefined}
-      fromTaskId={resolvedSearchParams.fromTask}
-    />
+    <SectionErrorBoundary locale={resolvedParams.locale}>
+      <IndividualProcessDetailClient
+        processId={resolvedParams.id as Id<"individualProcesses">}
+        locale={resolvedParams.locale}
+        collectiveProcessId={resolvedSearchParams.collectiveProcessId as Id<"collectiveProcesses"> | undefined}
+        fromTaskId={resolvedSearchParams.fromTask}
+      />
+    </SectionErrorBoundary>
   )
 }

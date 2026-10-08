@@ -3,9 +3,11 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   getCurrentUserProfile,
+  tryGetCurrentUserProfile,
   requireAdmin,
   getClientCurrentCompanyIds,
 } from "./lib/auth";
+import { enrichFilledFieldsData } from "./lib/filledFields";
 import { createCachedGet } from "./lib/cachedGet";
 import { resolveCboActivities } from "./lib/cboActivities";
 import {
@@ -440,68 +442,10 @@ export const list = query({
         // Enrich activeStatus with resolved reference field names
         let enrichedActiveStatus = activeStatus;
         if (activeStatusRaw?.filledFieldsData) {
-          const filledData = activeStatusRaw.filledFieldsData;
-          const enrichedData: Record<string, any> = {};
-
-          // Resolve reference field IDs to readable names
-          for (const [fieldName, fieldValue] of Object.entries(filledData)) {
-            if (fieldValue === null || fieldValue === undefined) {
-              enrichedData[fieldName] = fieldValue;
-              continue;
-            }
-
-            // Handle reference fields
-            if (fieldName === "passportId" && typeof fieldValue === "string") {
-              const passportDoc = await cachedGet(
-                fieldValue as Id<"passports">,
-              );
-              enrichedData[fieldName] =
-                passportDoc?.passportNumber || fieldValue;
-            } else if (
-              fieldName === "applicantId" &&
-              typeof fieldValue === "string"
-            ) {
-              const personDoc = await cachedGet(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc
-                ? getFullName(personDoc)
-                : fieldValue;
-            } else if (
-              fieldName === "personId" &&
-              typeof fieldValue === "string"
-            ) {
-              const personDoc = await cachedGet(fieldValue as Id<"people">);
-              enrichedData[fieldName] = personDoc
-                ? getFullName(personDoc)
-                : fieldValue;
-            } else if (
-              fieldName === "processTypeId" &&
-              typeof fieldValue === "string"
-            ) {
-              const processTypeDoc = await cachedGet(
-                fieldValue as Id<"processTypes">,
-              );
-              enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
-            } else if (
-              fieldName === "legalFrameworkId" &&
-              typeof fieldValue === "string"
-            ) {
-              const legalFrameworkDoc = await cachedGet(
-                fieldValue as Id<"legalFrameworks">,
-              );
-              enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
-            } else if (
-              fieldName === "cboId" &&
-              typeof fieldValue === "string"
-            ) {
-              const cboDoc = await cachedGet(fieldValue as Id<"cboCodes">);
-              enrichedData[fieldName] = cboDoc
-                ? `${cboDoc.code} - ${cboDoc.title}`
-                : fieldValue;
-            } else {
-              // Keep non-reference fields as-is
-              enrichedData[fieldName] = fieldValue;
-            }
-          }
+          const enrichedData = await enrichFilledFieldsData(
+            ctx.db,
+            activeStatusRaw.filledFieldsData as Record<string, unknown>,
+          );
 
           enrichedActiveStatus = {
             ...activeStatus,
@@ -574,8 +518,8 @@ export const list = query({
 export const get = query({
   args: { id: v.id("individualProcesses") },
   handler: async (ctx, { id }) => {
-    // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return null;
 
     const process = await ctx.db.get(id);
     if (!process) return null;
@@ -688,9 +632,7 @@ export const get = query({
             collectiveProcess.companyId &&
             currentCompanyIds.has(collectiveProcess.companyId)));
       if (!hasAccess) {
-        throw new Error(
-          "Access denied: You do not have permission to view this individual process",
-        );
+        return null;
       }
     }
 
@@ -787,59 +729,10 @@ export const get = query({
     // Enrich activeStatus with resolved reference field names
     let enrichedActiveStatus = activeStatus;
     if (activeStatus?.filledFieldsData) {
-      const filledData = activeStatus.filledFieldsData;
-      const enrichedData: Record<string, any> = {};
-
-      // Resolve reference field IDs to readable names
-      for (const [fieldName, fieldValue] of Object.entries(filledData)) {
-        if (fieldValue === null || fieldValue === undefined) {
-          enrichedData[fieldName] = fieldValue;
-          continue;
-        }
-
-        // Handle reference fields
-        if (fieldName === "passportId" && typeof fieldValue === "string") {
-          const passportDoc = await ctx.db.get(fieldValue as Id<"passports">);
-          enrichedData[fieldName] = passportDoc?.passportNumber || fieldValue;
-        } else if (
-          fieldName === "applicantId" &&
-          typeof fieldValue === "string"
-        ) {
-          const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc
-            ? getFullName(personDoc)
-            : fieldValue;
-        } else if (fieldName === "personId" && typeof fieldValue === "string") {
-          const personDoc = await ctx.db.get(fieldValue as Id<"people">);
-          enrichedData[fieldName] = personDoc
-            ? getFullName(personDoc)
-            : fieldValue;
-        } else if (
-          fieldName === "processTypeId" &&
-          typeof fieldValue === "string"
-        ) {
-          const processTypeDoc = await ctx.db.get(
-            fieldValue as Id<"processTypes">,
-          );
-          enrichedData[fieldName] = processTypeDoc?.name || fieldValue;
-        } else if (
-          fieldName === "legalFrameworkId" &&
-          typeof fieldValue === "string"
-        ) {
-          const legalFrameworkDoc = await ctx.db.get(
-            fieldValue as Id<"legalFrameworks">,
-          );
-          enrichedData[fieldName] = legalFrameworkDoc?.name || fieldValue;
-        } else if (fieldName === "cboId" && typeof fieldValue === "string") {
-          const cboDoc = await ctx.db.get(fieldValue as Id<"cboCodes">);
-          enrichedData[fieldName] = cboDoc
-            ? `${cboDoc.code} - ${cboDoc.title}`
-            : fieldValue;
-        } else {
-          // Keep non-reference fields as-is
-          enrichedData[fieldName] = fieldValue;
-        }
-      }
+      const enrichedData = await enrichFilledFieldsData(
+        ctx.db,
+        activeStatus.filledFieldsData as Record<string, unknown>,
+      );
 
       enrichedActiveStatus = {
         ...activeStatus,

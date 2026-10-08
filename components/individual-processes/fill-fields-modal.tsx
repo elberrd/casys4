@@ -59,29 +59,29 @@ export function FillFieldsModal({
   // Get field metadata for the fillable fields
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);
+  const filledSnapshot = JSON.stringify(
+    fillableFieldsData?.filledFieldsData ?? null,
+  );
+  const fillableKey = (fillableFieldsData?.fillableFields ?? []).join("\0");
 
   // Reset form when modal opens or status changes
   useEffect(() => {
-    if (open) {
-      // Always clear form data first when status changes
-      setFormData({});
+    if (!open) return;
+    setFormData({});
 
-      // Then populate with existing data if available
-      if (fillableFieldsData?.filledFieldsData) {
-        // Only include fields that are actually fillable for this status
-        const fillableFieldNames = fillableFieldsData.fillableFields || [];
-        const filteredData: Record<string, any> = {};
+    if (!filledSnapshot || filledSnapshot === "null") return;
+    const parsed = JSON.parse(filledSnapshot) as Record<string, unknown>;
+    const fillableFieldNames = fillableKey ? fillableKey.split("\0") : [];
+    const filteredData: Record<string, unknown> = {};
 
-        for (const [key, value] of Object.entries(fillableFieldsData.filledFieldsData)) {
-          if (fillableFieldNames.includes(key)) {
-            filteredData[key] = value;
-          }
-        }
-
-        setFormData(filteredData);
+    for (const [key, value] of Object.entries(parsed)) {
+      if (fillableFieldNames.includes(key)) {
+        filteredData[key] = value;
       }
     }
-  }, [open, statusId, fillableFieldsData]);
+
+    setFormData(filteredData);
+  }, [open, statusId, filledSnapshot, fillableKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   getCurrentUserProfile,
+  tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
@@ -63,12 +64,15 @@ export const listByProcess = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.array(individualProcessAddressValidator),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return [];
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+    if (!process) return [];
+    try {
+      await requireClientCanAccessProcess(ctx, userProfile, process);
+    } catch {
+      return [];
     }
-    await requireClientCanAccessProcess(ctx, userProfile, process);
     return await listProcessAddresses(ctx, args.individualProcessId);
   },
 });
@@ -77,8 +81,13 @@ export const listByPerson = query({
   args: { personId: v.id("people") },
   returns: v.array(individualProcessAddressValidator),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-    await assertCanReadPerson(ctx, userProfile, args.personId);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return [];
+    try {
+      await assertCanReadPerson(ctx, userProfile, args.personId);
+    } catch {
+      return [];
+    }
     return await listPersonAddresses(ctx, args.personId);
   },
 });
@@ -87,12 +96,15 @@ export const getCurrent = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.union(individualProcessAddressValidator, v.null()),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return null;
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+    if (!process) return null;
+    try {
+      await requireClientCanAccessProcess(ctx, userProfile, process);
+    } catch {
+      return null;
     }
-    await requireClientCanAccessProcess(ctx, userProfile, process);
 
     const addresses = await listProcessAddresses(ctx, args.individualProcessId);
     return addresses.find((address) => address.isCurrent) ?? null;
@@ -103,8 +115,13 @@ export const getCurrentByPerson = query({
   args: { personId: v.id("people") },
   returns: v.union(individualProcessAddressValidator, v.null()),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-    await assertCanReadPerson(ctx, userProfile, args.personId);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return null;
+    try {
+      await assertCanReadPerson(ctx, userProfile, args.personId);
+    } catch {
+      return null;
+    }
     const addresses = await listPersonAddresses(ctx, args.personId);
     return addresses.find((address) => address.isCurrent) ?? null;
   },

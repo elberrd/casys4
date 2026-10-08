@@ -93,6 +93,11 @@
     "searchColumns": "Search columns...",
     "noColumnsFound": "No columns found"
   },
+  "ErrorBoundary": {
+    "title": "Something went wrong",
+    "description": "An error occurred while loading this page. You can try again.",
+    "retry": "Try again"
+  },
   "Navigation": {
     "dashboard": "Dashboard",
     "processManagement": "Process Management",

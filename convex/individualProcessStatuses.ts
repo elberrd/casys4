@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin, requireClientCanAccessProcess } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  tryGetCurrentUserProfile,
+  requireAdmin,
+  requireClientCanAccessProcess,
+} from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
@@ -124,18 +129,20 @@ export const getStatusHistory = query({
     individualProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, args) => {
-    // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
-    // Deduped document reads across enriched rows
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return [];
     const cachedGet = createCachedGet(ctx.db);
 
-    // Get the individual process to check access
     const individualProcess = await cachedGet(args.individualProcessId);
     if (!individualProcess) {
-      throw new Error("Individual process not found");
+      return [];
     }
 
-    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    try {
+      await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    } catch {
+      return [];
+    }
 
     // Query all statuses
     const statuses = await ctx.db
@@ -795,18 +802,20 @@ export const getFillableFields = query({
   },
   handler: async (ctx, args) => {
     // Get the status record
+    const emptyFillable = {
+      fillableFields: [] as string[],
+      filledFieldsData: {} as Record<string, unknown>,
+    };
     const status = await ctx.db.get(args.statusId);
     if (!status) {
-      throw new Error("Status not found");
+      return emptyFillable;
     }
 
-    // Get the individual process to check access
     const individualProcess = await ctx.db.get(status.individualProcessId);
     if (!individualProcess) {
-      throw new Error("Individual process not found");
+      return emptyFillable;
     }
 
-    // Apply role-based access control if authenticated
     const userId = await getAuthUserId(ctx);
     if (userId !== null) {
       const userProfile = await ctx.db
@@ -815,7 +824,15 @@ export const getFillableFields = query({
         .first();
 
       if (userProfile) {
-        await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+        try {
+          await requireClientCanAccessProcess(
+            ctx,
+            userProfile,
+            individualProcess,
+          );
+        } catch {
+          return emptyFillable;
+        }
       }
     }
 

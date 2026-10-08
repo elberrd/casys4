@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import {
-  getCurrentUserProfile,
+  tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
@@ -184,8 +184,13 @@ export const getLinkedFieldsMap = query({
   handler: async (ctx, args) => {
     const process = await ctx.db.get(args.individualProcessId);
     if (!process) return {};
-    const userProfile = await getCurrentUserProfile(ctx);
-    await requireClientCanAccessProcess(ctx, userProfile, process);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return {};
+    try {
+      await requireClientCanAccessProcess(ctx, userProfile, process);
+    } catch {
+      return {};
+    }
     const visibility = await resolveClientDocumentVisibility(
       ctx,
       userProfile,

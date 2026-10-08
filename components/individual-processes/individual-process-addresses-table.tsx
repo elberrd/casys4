@@ -100,14 +100,17 @@ export function IndividualProcessAddressesTable({
     useState<ProcessAddressRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const processIdForMigration =
+    owner.type === "process" ? owner.individualProcessId : undefined;
+
   useEffect(() => {
-    if (owner.type !== "process") return;
+    if (!processIdForMigration) return;
     void ensureLegacyMigrated({
-      individualProcessId: owner.individualProcessId,
+      individualProcessId: processIdForMigration,
     }).catch(() => {
       // Legacy rows stay on the process until the next successful write.
     });
-  }, [ensureLegacyMigrated, owner]);
+  }, [ensureLegacyMigrated, processIdForMigration]);
 
   const currentCount = addresses?.filter((address) => address.isCurrent).length ?? 0;
   const missingCurrent =
