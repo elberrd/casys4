@@ -1,10 +1,10 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 
 /**
  * Migration to remove the deprecated 'title' field from notes
  * Notes will now only use the content field for identification
  */
-export default mutation({
+export default internalMutation({
   args: {},
   handler: async (ctx) => {
     const notes = await ctx.db.query("notes").collect();

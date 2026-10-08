@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin, requireActiveUserProfile } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  getViewerForCompany,
+  requireAdmin,
+  requireActiveUserProfile,
+} from "./lib/auth";
+import { rowsForViewer } from "./lib/viewerAccess";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
@@ -446,7 +452,11 @@ export const remove = mutation({
 export const getEconomicActivities = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    // Deduped document reads across enriched rows
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return rowsForViewer(null, false, []);
+    }
+
     const cachedGet = createCachedGet(ctx.db);
 
     // Get all junction table entries for this company
@@ -463,8 +473,11 @@ export const getEconomicActivities = query({
       })
     );
 
-    // Filter out any null values (in case an activity was deleted)
-    return activities.filter((activity) => activity !== null);
+    return rowsForViewer(
+      userProfile,
+      true,
+      activities.filter((activity) => activity !== null),
+    );
   },
 });
 

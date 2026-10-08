@@ -7,6 +7,10 @@ import {
   tryRequireActiveUserProfile,
 } from "./lib/auth";
 import {
+  notificationForViewer,
+  notificationsForViewer,
+} from "./lib/viewerAccess";
+import {
   getDateInSaoPaulo,
   insertNotification,
   validateScheduledDate,
@@ -146,15 +150,19 @@ export const get = query({
   args: { id: v.id("notifications") },
   returns: v.union(notificationDetailsValidator, v.null()),
   handler: async (ctx, args) => {
-    const userProfile = await requireActiveUserProfile(ctx);
+    const userProfile = await tryRequireActiveUserProfile(ctx);
+    if (!userProfile) {
+      return null;
+    }
     const notification = await ctx.db.get(args.id);
-    if (!notification || notification.userId !== userProfile.userId) {
+    const owned = notificationForViewer(userProfile, notification);
+    if (!owned) {
       return null;
     }
 
     return {
-      ...notification,
-      ...(await resolveNotificationNavigation(ctx, notification)),
+      ...owned,
+      ...(await resolveNotificationNavigation(ctx, owned)),
     };
   },
 });
@@ -167,7 +175,10 @@ export const getUserNotifications = query({
   },
   returns: v.array(notificationValidator),
   handler: async (ctx, args) => {
-    const userProfile = await requireActiveUserProfile(ctx);
+    const userProfile = await tryRequireActiveUserProfile(ctx);
+    if (!userProfile) {
+      return [];
+    }
     const requestedLimit = args.limit ?? 50;
     const limit = Math.min(Math.max(Math.trunc(requestedLimit), 1), 200);
     const notifications = await ctx.db
@@ -194,7 +205,7 @@ export const getUserNotifications = query({
       }
       results.push(notification);
     }
-    return results;
+    return notificationsForViewer(userProfile, results);
   },
 });
 

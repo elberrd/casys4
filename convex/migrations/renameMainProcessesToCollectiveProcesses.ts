@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 
 /**
  * Migration to rename mainProcesses table to collectiveProcesses
@@ -11,7 +11,7 @@ import { mutation } from "../_generated/server";
  * IMPORTANT: Run this migration BEFORE deploying the new schema
  * After successful migration, the old mainProcesses table can be deleted via a separate migration
  */
-export const migrateMainProcessesToCollective = mutation({
+export const migrateMainProcessesToCollective = internalMutation({
   args: {},
   handler: async (ctx) => {
     const results = {

@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 
@@ -129,7 +129,7 @@ interface ImportStats {
   errors: Array<{ row: number; name: string; error: string }>;
 }
 
-export default mutation({
+export default internalMutation({
   args: {
     csvContent: v.string(),
     dryRun: v.optional(v.boolean()),

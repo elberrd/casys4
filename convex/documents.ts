@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  requireAdmin,
+  tryGetCurrentUserProfile,
+} from "./lib/auth";
+import { rowsForViewer, viewerCanAccessStandaloneDocument } from "./lib/viewerAccess";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
@@ -25,46 +30,46 @@ function getFullName(person: { givenNames: string; middleName?: string; surname?
  *   1. Document is tied to their company (companyId matches)
  *   2. Document is tied to a person who belongs to their company (via peopleCompanies)
  */
+async function personBelongsToClientCompany(
+  ctx: QueryCtx | MutationCtx,
+  personId: Id<"people">,
+  clientCompanyId: Id<"companies">,
+): Promise<boolean> {
+  const personCompany = await ctx.db
+    .query("peopleCompanies")
+    .withIndex("by_person_company", (q) =>
+      q.eq("personId", personId).eq("companyId", clientCompanyId),
+    )
+    .first();
+  return personCompany !== null;
+}
+
 async function canAccessDocument(
   ctx: QueryCtx | MutationCtx,
-  document: Doc<"documents">
+  document: Doc<"documents">,
+  userProfile: Doc<"userProfiles"> | null,
 ): Promise<boolean> {
-  const userProfile = await getCurrentUserProfile(ctx);
+  if (!userProfile) return false;
 
-  // Admins have full access
-  if (userProfile.role === "admin") {
-    return true;
+  let personLinked = false;
+  if (
+    userProfile.role === "client" &&
+    userProfile.companyId &&
+    document.personId
+  ) {
+    personLinked = await personBelongsToClientCompany(
+      ctx,
+      document.personId,
+      userProfile.companyId,
+    );
   }
 
-  // Client users need company assignment
-  if (userProfile.role === "client") {
-    if (!userProfile.companyId) {
-      throw new Error("Client user must have a company assignment");
-    }
-
-    // Check if document is tied to client's company
-    if (document.companyId && document.companyId === userProfile.companyId) {
-      return true;
-    }
-
-    // Check if document is tied to a person who belongs to client's company
-    if (document.personId) {
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const docPersonId = document.personId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", docPersonId).eq("companyId", clientCompanyId)
-        )
-        .first();
-
-      if (personCompany) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return viewerCanAccessStandaloneDocument(
+    userProfile.role,
+    userProfile.companyId,
+    document,
+    personLinked,
+  );
 }
 
 /**
@@ -325,8 +330,8 @@ export const get = query({
     const document = await ctx.db.get(args.id);
     if (!document) return null;
 
-    // Check access permissions
-    const hasAccess = await canAccessDocument(ctx, document);
+    const userProfile = await getCurrentUserProfile(ctx);
+    const hasAccess = await canAccessDocument(ctx, document, userProfile);
     if (!hasAccess) {
       throw new Error(
         "Access denied: You do not have permission to view this document"
@@ -723,11 +728,20 @@ export const getVersionHistory = query({
     documentId: v.id("documents"),
   },
   handler: async (ctx, { documentId }) => {
-    // Deduped document reads across enriched rows
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return rowsForViewer(null, false, []);
+    }
+
     const cachedGet = createCachedGet(ctx.db);
     const document = await cachedGet(documentId);
     if (!document) {
-      throw new Error("Document not found");
+      return [];
+    }
+
+    const hasAccess = await canAccessDocument(ctx, document, userProfile);
+    if (!hasAccess) {
+      return rowsForViewer(userProfile, false, []);
     }
 
     // Determine the original document ID
@@ -772,7 +786,11 @@ export const getVersionHistory = query({
     );
 
     // Sort by version descending (treat undefined as 1)
-    return enrichedVersions.sort((a, b) => (b.version || 1) - (a.version || 1));
+    return rowsForViewer(
+      userProfile,
+      true,
+      enrichedVersions.sort((a, b) => (b.version || 1) - (a.version || 1)),
+    );
   },
 });
 

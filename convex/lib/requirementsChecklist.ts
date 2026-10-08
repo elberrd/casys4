@@ -2,6 +2,8 @@ import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { Doc, Id } from "../_generated/dataModel";
 import { checkDocumentValidity, ValidityCheckResult } from "./documentValidity";
+import { getViewerForProcess } from "./auth";
+import { EMPTY_REQUIREMENTS_CHECKLIST } from "./viewerAccess";
 
 /** Constructs full display name from person name parts */
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -18,10 +20,10 @@ export const getChecklist = query({
     individualProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, args) => {
-    // 1. Get the individual process
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) {
-      throw new Error("Individual process not found");
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile || !process) {
+      return EMPTY_REQUIREMENTS_CHECKLIST;
     }
 
     if (!process.legalFrameworkId) {

@@ -1,10 +1,10 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 
 /**
  * Migration to remove the deprecated 'name' field from consulates
  * The name is now derived from the city relationship
  */
-export default mutation({
+export default internalMutation({
   args: {},
   handler: async (ctx) => {
     const consulates = await ctx.db.query("consulates").collect();

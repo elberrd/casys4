@@ -13,13 +13,14 @@
  * npx convex run migrations/migrateConditionsToLinks:migrate
  */
 
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "../lib/auth";
 
 /**
  * Preview migration - shows what would be migrated without making changes
  */
-export const preview = mutation({
+export const preview = internalMutation({
   args: {},
   handler: async (ctx) => {
     // Get all conditions
@@ -93,20 +94,11 @@ export const preview = mutation({
 export const migrate = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Authentication required to run migration");
+    const adminProfile = await requireAdmin(ctx);
+    if (!adminProfile.userId) {
+      throw new Error("User profile not activated");
     }
-
-    // Get the user to set as createdBy
-    const user = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("email"), identity.email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const createdBy = adminProfile.userId;
 
     const now = Date.now();
     const results = {
@@ -141,7 +133,7 @@ export const migrate = mutation({
               isRequired: condition.isRequired,
               sortOrder: condition.sortOrder,
               createdAt: now,
-              createdBy: user._id,
+              createdBy,
             });
             results.linksCreated++;
           } else {
@@ -178,19 +170,11 @@ export const migrateManual = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Authentication required to run migration");
+    const adminProfile = await requireAdmin(ctx);
+    if (!adminProfile.userId) {
+      throw new Error("User profile not activated");
     }
-
-    const user = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("email"), identity.email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const createdBy = adminProfile.userId;
 
     const now = Date.now();
     const results = {
@@ -230,7 +214,7 @@ export const migrateManual = mutation({
           isRequired: condition.isRequired,
           sortOrder: condition.sortOrder,
           createdAt: now,
-          createdBy: user._id,
+          createdBy,
         });
 
         results.created++;
@@ -249,7 +233,7 @@ export const migrateManual = mutation({
  * Cleanup mutation - removes orphaned conditions (conditions with no links)
  * Use with caution! This will permanently delete conditions.
  */
-export const cleanupOrphans = mutation({
+export const cleanupOrphans = internalMutation({
   args: {
     dryRun: v.boolean(),
   },

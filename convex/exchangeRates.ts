@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -8,13 +9,20 @@ import { v } from "convex/values";
  *
  * Returns `{ rate, date }`. `rate` is null when it cannot be resolved (the UI
  * then falls back to manual entry). For BRL -> BRL the rate is 1.
+ *
+ * The process-request wizard calls this only while signed in.
  */
 export const getRateToBRL = action({
   args: { currency: v.string() },
   handler: async (
-    _ctx,
+    ctx,
     { currency }
   ): Promise<{ rate: number | null; date: string | null }> => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Authentication required");
+    }
+
     const cur = currency.trim().toUpperCase();
     if (!cur) return { rate: null, date: null };
     if (cur === "BRL") return { rate: 1, date: null };

@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
 /**
@@ -10,7 +10,7 @@ import { Id } from "../_generated/dataModel";
  * Run "preview" first to see what will be affected, then run "migrate" to apply.
  */
 
-export const preview = mutation({
+export const preview = internalMutation({
   args: {},
   handler: async (ctx) => {
     const associations = await ctx.db
@@ -44,7 +44,7 @@ export const preview = mutation({
   },
 });
 
-export const migrate = mutation({
+export const migrate = internalMutation({
   args: {},
   handler: async (ctx) => {
     const associations = await ctx.db

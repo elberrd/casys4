@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 
 /**
  * Migration: Rename fullName to givenNames in people table.
@@ -7,7 +7,7 @@ import { mutation } from "../_generated/server";
  *
  * Run via: npx convex run migrations/renameFullNameToGivenNames:migrate
  */
-export const migrate = mutation({
+export const migrate = internalMutation({
   handler: async (ctx) => {
     const people = await ctx.db.query("people").collect();
 
