@@ -30,7 +30,13 @@ import {
   unsetOtherCurrentPersonAddresses,
   unsetOtherCurrentProcessAddresses,
 } from "./lib/individualProcessAddresses";
-import { isValidReportedAt, todayIsoDate } from "../lib/utils/address-fields";
+import {
+  hasSubstantiveAddressFields,
+  isBrazilAddress,
+  isValidReportedAt,
+  todayIsoDate,
+} from "../lib/utils/address-fields";
+import { legacyAddressMigrationAction } from "../lib/utils/legacy-address-migration";
 
 const addressIdValidator = v.id("individualProcessAddresses");
 
@@ -221,17 +227,35 @@ export const ensureLegacyMigrated = mutation({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return false;
+    }
     const process = await ctx.db.get(args.individualProcessId);
     if (!process) {
-      throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
+      return false;
     }
-    await requireClientCanAccessProcess(ctx, userProfile, process);
+    try {
+      await requireClientCanAccessProcess(ctx, userProfile, process);
+    } catch {
+      return false;
+    }
 
-    const before = await listProcessAddresses(ctx, args.individualProcessId);
+    const existing = await listProcessAddresses(ctx, args.individualProcessId);
+    const fields = pickStructuredAddressFields(process);
+    const action = legacyAddressMigrationAction({
+      existingCount: existing.length,
+      onlyAddressIsCurrent:
+        existing.length === 1 ? Boolean(existing[0]?.isCurrent) : null,
+      processHasSubstantiveBrazilAddress:
+        hasSubstantiveAddressFields(fields) && isBrazilAddress(fields),
+    });
+    if (action === "none") {
+      return false;
+    }
+
     await persistLegacyAddressIfNeeded(ctx, process);
-    const after = await listProcessAddresses(ctx, args.individualProcessId);
-    return after.length > before.length;
+    return action === "insert";
   },
 });
 
