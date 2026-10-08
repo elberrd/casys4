@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
 
 import { filterComboboxOptionByLabel } from "@/lib/combobox-filter";
+import { nextComboboxSelection } from "@/lib/combobox-select";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -142,7 +143,6 @@ function ComboboxSingle<T extends string = string>({
   disabled = false,
   loading = false,
   loadingText,
-  className,
   triggerClassName,
   contentClassName,
   popoverModal = false,
@@ -214,9 +214,17 @@ function ComboboxSingle<T extends string = string>({
     return { groups, ungrouped };
   }, [options]);
 
+  const filterOptions = React.useMemo(
+    () =>
+      options.map((opt) => ({
+        value: String(opt.value),
+        label: opt.label,
+      })),
+    [options],
+  );
+
   const handleSelect = (optionValue: string) => {
-    const newValue =
-      optionValue === selectedValue ? undefined : (optionValue as T);
+    const newValue = nextComboboxSelection<T>(optionValue);
 
     if (value === undefined) {
       setInternalValue(newValue);
@@ -336,15 +344,8 @@ function ComboboxSingle<T extends string = string>({
         }}
       >
         <Command
-          filter={(value, search) =>
-            filterComboboxOptionByLabel(
-              value,
-              search,
-              options.map((opt) => ({
-                value: String(opt.value),
-                label: opt.label,
-              })),
-            )
+          filter={(optionValue, search) =>
+            filterComboboxOptionByLabel(optionValue, search, filterOptions)
           }
         >
           <CommandInput
@@ -457,7 +458,6 @@ function ComboboxMultiple<T extends string = string>({
   searchPlaceholder = "Search...",
   emptyText = "No results found.",
   disabled = false,
-  className,
   triggerClassName,
   contentClassName,
   popoverModal = false,
@@ -474,48 +474,6 @@ function ComboboxMultiple<T extends string = string>({
   );
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
-  const [showCreateButton, setShowCreateButton] = React.useState(false);
-  const isMountedRef = React.useRef(false);
-
-  // Track when component is mounted to prevent state updates before mount
-  React.useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Monitor the cmdk input for real-time search updates
-  React.useEffect(() => {
-    if (!open || !isMountedRef.current) {
-      if (isMountedRef.current) {
-        setShowCreateButton(false);
-      }
-      return;
-    }
-
-    const interval = setInterval(() => {
-      if (!isMountedRef.current) return;
-
-      const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
-      if (cmdkInput) {
-        const currentValue = cmdkInput.value;
-        console.log('[Combobox Debug] Input value:', currentValue, 'onCreateNew:', !!onCreateNew, 'showCreateButton:', showCreateButton);
-        if (currentValue !== searchQuery) {
-          console.log('[Combobox Debug] Updating searchQuery from', searchQuery, 'to', currentValue);
-          setSearchQuery(currentValue);
-        }
-        // Show create button if there's text in the input and onCreateNew is available
-        const shouldShow = !!currentValue.trim() && !!onCreateNew;
-        if (shouldShow !== showCreateButton) {
-          console.log('[Combobox Debug] Updating showCreateButton to', shouldShow);
-          setShowCreateButton(shouldShow);
-        }
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [open, searchQuery, onCreateNew, showCreateButton]);
 
   // Use controlled value if provided, otherwise use internal state
   const selectedValues = value !== undefined ? value : internalValue;
@@ -544,6 +502,15 @@ function ComboboxMultiple<T extends string = string>({
     return { groups, ungrouped };
   }, [options]);
 
+  const filterOptions = React.useMemo(
+    () =>
+      options.map((opt) => ({
+        value: String(opt.value),
+        label: opt.label,
+      })),
+    [options],
+  );
+
   const handleSelect = (optionValue: string) => {
     const newValues = selectedValues.includes(optionValue as T)
       ? selectedValues.filter((v) => v !== optionValue)
@@ -559,7 +526,6 @@ function ComboboxMultiple<T extends string = string>({
 
     // Clear search and refocus input after selection
     setSearchQuery("");
-    setShowCreateButton(false);
     requestAnimationFrame(() => {
       const cmdkInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
       if (cmdkInput) {
@@ -588,32 +554,6 @@ function ComboboxMultiple<T extends string = string>({
     }
 
     onValueChange?.(newValues);
-  };
-
-  const handleCreateNew = async () => {
-    // Get the current search value from the input element
-    const commandInput = document.querySelector('[cmdk-input]') as HTMLInputElement;
-    const currentSearchValue = commandInput?.value || searchQuery;
-
-    if (!onCreateNew || !currentSearchValue.trim()) return;
-
-    setIsCreating(true);
-    try {
-      const newId = await onCreateNew(currentSearchValue.trim());
-      const newValues = [...selectedValues, newId];
-
-      if (value === undefined) {
-        setInternalValue(newValues);
-      }
-
-      onValueChange?.(newValues);
-      setSearchQuery("");
-      setOpen(false);
-    } catch (error) {
-      console.error("Failed to create new item:", error);
-    } finally {
-      setIsCreating(false);
-    }
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -706,17 +646,12 @@ function ComboboxMultiple<T extends string = string>({
         }}
       >
         <Command
-          filter={(value, search) => {
-            // Always show the "create new" item
-            if (value === '__create_new_item__') return 1;
-
+          filter={(optionValue, search) => {
+            if (optionValue === "__create_new_item__") return 1;
             return filterComboboxOptionByLabel(
-              value,
+              optionValue,
               search,
-              options.map((opt) => ({
-                value: String(opt.value),
-                label: opt.label,
-              })),
+              filterOptions,
             );
           }}
         >
@@ -725,7 +660,6 @@ function ComboboxMultiple<T extends string = string>({
             value={searchQuery}
             onValueChange={(next) => {
               setSearchQuery(next);
-              setShowCreateButton(!!next.trim() && !!onCreateNew);
               onSearchChange?.(next);
             }}
           />

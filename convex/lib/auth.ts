@@ -35,6 +35,17 @@ export async function getCurrentUserProfile(
   return userProfile;
 }
 
+/** Same as getCurrentUserProfile but returns null instead of throwing. */
+export async function tryGetCurrentUserProfile(
+  ctx: QueryCtx | MutationCtx
+): Promise<Doc<"userProfiles"> | null> {
+  try {
+    return await getCurrentUserProfile(ctx);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Get the current authenticated user's profile and require that it's activated
  * Throws an error if not authenticated, profile not found, or profile is not activated
@@ -54,6 +65,17 @@ export async function requireActiveUserProfile(
   }
 
   return userProfile as Doc<"userProfiles"> & { userId: Id<"users"> };
+}
+
+/** Same as requireActiveUserProfile but returns null instead of throwing. */
+export async function tryRequireActiveUserProfile(
+  ctx: QueryCtx | MutationCtx
+): Promise<(Doc<"userProfiles"> & { userId: Id<"users"> }) | null> {
+  try {
+    return await requireActiveUserProfile(ctx);
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -121,7 +121,7 @@ export function CboActivitiesFields({ cboCodes }: CboActivitiesFieldsProps) {
               <FormControl className="min-w-0 flex-1">
                 <Combobox
                   options={cboOptions}
-                  value={field.value || ""}
+                  value={field.value ?? ""}
                   onValueChange={(value) => {
                     const next = value ?? "";
                     field.onChange(next);

@@ -2,7 +2,10 @@ import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireActiveUserProfile } from "./lib/auth";
+import {
+  requireActiveUserProfile,
+  tryRequireActiveUserProfile,
+} from "./lib/auth";
 import {
   getDateInSaoPaulo,
   insertNotification,
@@ -200,7 +203,10 @@ export const getScheduledNotifications = query({
   returns: v.array(scheduledNotificationValidator),
   handler: async (ctx, args) => {
     validateScheduledDate(args.scheduledDate);
-    const userProfile = await requireActiveUserProfile(ctx);
+    const userProfile = await tryRequireActiveUserProfile(ctx);
+    if (!userProfile) {
+      return [];
+    }
     const notifications = await ctx.db
       .query("notifications")
       .withIndex("by_user_scheduledDate_dismissed", (q) =>

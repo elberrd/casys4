@@ -86,25 +86,8 @@ export function AddStatusDialog({
     selectedStatusId && selectedStatusId !== "" ? { caseStatusId: selectedStatusId as Id<"caseStatuses"> } : "skip"
   );
 
-  // Debug: log the query parameters
-  useEffect(() => {
-    if (selectedStatusId && selectedStatusId !== "") {
-      console.log('[AddStatusDialog] Querying fillableFields for caseStatusId:', selectedStatusId);
-      console.log('[AddStatusDialog] Query result:', fillableFieldsData);
-    }
-  }, [selectedStatusId, fillableFieldsData]);
-
-  // Get field metadata for the fillable fields
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);
-
-  // Debug logging
-  useEffect(() => {
-    if (fillableFields.length > 0) {
-      console.log('[AddStatusDialog] fillableFields from query:', fillableFields);
-      console.log('[AddStatusDialog] fieldsMetadata:', fieldsMetadata);
-    }
-  }, [fillableFields, fieldsMetadata]);
 
   // Query current active status for this individual process
   const activeStatus = useQuery(
@@ -126,32 +109,29 @@ export function AddStatusDialog({
       : "skip"
   );
 
-  // Auto-select suggested status when dialog opens
+  const suggestedNextStatusId = suggestedNextStatus?._id;
+
+  // Auto-select only while empty so a later query identity cannot overwrite
+  // the status the user just picked (deferido / rnm).
   useEffect(() => {
-    console.log('[AddStatusDialog] Auto-select effect triggered');
-    console.log('[AddStatusDialog] open:', open);
-    console.log('[AddStatusDialog] suggestedNextStatus:', suggestedNextStatus);
+    if (!open || !suggestedNextStatusId) return;
+    setSelectedStatusId((current) => current || suggestedNextStatusId);
+  }, [open, suggestedNextStatusId]);
 
-    if (open && suggestedNextStatus) {
-      console.log('[AddStatusDialog] Auto-selecting status:', suggestedNextStatus.name, suggestedNextStatus._id);
-      setSelectedStatusId(suggestedNextStatus._id);
-    } else {
-      console.log('[AddStatusDialog] Not auto-selecting. open:', open, 'suggestedNextStatus:', !!suggestedNextStatus);
-    }
-  }, [open, suggestedNextStatus]);
-
-  // Reset form data and selected status when dialog closes
   useEffect(() => {
     if (!open) {
-      setFormData({});
+      setFormData((previous) =>
+        Object.keys(previous).length === 0 ? previous : {},
+      );
       setSelectedStatusId("");
       setNotes("");
     }
   }, [open]);
 
-  // Clear form data when status changes
   useEffect(() => {
-    setFormData({});
+    setFormData((previous) =>
+      Object.keys(previous).length === 0 ? previous : {},
+    );
   }, [selectedStatusId]);
 
   const handleSubmit = async (e: React.FormEvent) => {

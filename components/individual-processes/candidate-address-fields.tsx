@@ -13,6 +13,7 @@ import {
   normalizeBrazilStateCode,
 } from "@/lib/data/brazil-states";
 import {
+  applyCandidateAddressDefaults,
   applyCepLookupResult,
   isBrazilAddressSelected,
   isNonEmptyLegacyAddress,
@@ -114,24 +115,20 @@ export function CandidateAddressFields({
 
   const countryCode = value.addressCountryCode;
   const stateCode = value.addressStateCode;
+  const reportedAt = value.reportedAt;
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
 
   React.useEffect(() => {
-    if (isPerson || countryCode) return;
-    onChange({
-      ...value,
-      addressIsBrazil: true,
-      addressCountryCode: BRAZIL_COUNTRY_CODE,
-      addressCountryName: brazilCountryName,
+    const current = valueRef.current;
+    const next = applyCandidateAddressDefaults(current, {
+      countryMode,
+      brazilCountryName,
+      today: todayIsoDate(),
     });
-  }, [brazilCountryName, countryCode, isPerson, onChange, value]);
-
-  React.useEffect(() => {
-    if (value.reportedAt) return;
-    onChange({
-      ...value,
-      reportedAt: todayIsoDate(),
-    });
-  }, [onChange, value]);
+    if (next === current) return;
+    onChange(next);
+  }, [brazilCountryName, countryCode, countryMode, onChange, reportedAt]);
 
   const merge = React.useCallback(
     (patch: Partial<CandidateAddressValue>) => {
@@ -483,7 +480,7 @@ export function CandidateAddressFields({
           <Label>{t("country")}</Label>
           <Combobox
             options={countryOptions}
-            value={value.addressCountryCode || undefined}
+            value={value.addressCountryCode ?? ""}
             onValueChange={handleCountryChange}
             placeholder={t("selectCountry")}
             searchPlaceholder={t("searchCountry")}

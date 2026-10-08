@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "convex/react";
 import { Pencil, Plus, Star, Trash2 } from "lucide-react";
@@ -26,6 +26,7 @@ import {
 } from "@/components/individual-processes/individual-process-address-dialog";
 import { formatAddressCityState, formatCandidateAddress } from "@/lib/utils/candidate-address";
 import { canDeleteAddress } from "@/lib/utils/individual-process-address";
+import { shouldRunLegacyMigrationOnce } from "@/lib/utils/legacy-address-migration";
 import { toast } from "sonner";
 import {
   Tooltip,
@@ -100,14 +101,27 @@ export function IndividualProcessAddressesTable({
     useState<ProcessAddressRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const processIdForMigration =
+    owner.type === "process" ? owner.individualProcessId : undefined;
+  const attemptedMigrationProcessIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (owner.type !== "process") return;
+    if (
+      !shouldRunLegacyMigrationOnce(
+        processIdForMigration,
+        attemptedMigrationProcessIdRef.current,
+      )
+    ) {
+      return;
+    }
+    if (!processIdForMigration) return;
+    attemptedMigrationProcessIdRef.current = processIdForMigration;
     void ensureLegacyMigrated({
-      individualProcessId: owner.individualProcessId,
+      individualProcessId: processIdForMigration,
     }).catch(() => {
-      // Legacy rows stay on the process until the next successful write.
+      // Keep the guard so a failing call cannot retry-storm this process.
     });
-  }, [ensureLegacyMigrated, owner]);
+  }, [processIdForMigration, ensureLegacyMigrated]);
 
   const currentCount = addresses?.filter((address) => address.isCurrent).length ?? 0;
   const missingCurrent =

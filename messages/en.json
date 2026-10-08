@@ -93,6 +93,11 @@
     "searchColumns": "Search columns...",
     "noColumnsFound": "No columns found"
   },
+  "ErrorBoundary": {
+    "title": "Something went wrong",
+    "description": "An error occurred while loading this page. You can try again.",
+    "retry": "Try again"
+  },
   "Navigation": {
     "dashboard": "Dashboard",
     "processManagement": "Process Management",
@@ -1466,6 +1471,7 @@
     "statusAwaitingReview": "Awaiting review",
     "statusAwaitingSignature": "Awaiting signature",
     "genericDocument": "Document",
+    "removedLegalFramework": "removed legal framework",
     "exigenciaFocusDescription": "The process has an active requirement. To keep things focused, only documents for this requirement are shown first.",
     "exigenciaOnlyDescription": "The process has an active requirement. Only documents linked to the current requirement are shown here.",
     "documentsOnlyDuringExigencia": "Documents for this process are available to you only while a requirement is active.",
@@ -3016,6 +3022,7 @@
     "looseDocuments": "Unclassified Documents",
     "looseDocumentsDescription": "These documents have not been assigned to a specific document type. You can assign a type to organize them.",
     "looseDocument": "Unclassified",
+    "removedLegalFramework": "removed legal framework",
     "critical": "Critical",
     "required": "Required",
     "upload": "Upload",

@@ -8,6 +8,7 @@ import { useConvexAuth } from "convex/react";
 import { useRouter } from "@/i18n/routing";
 import { useEffect } from "react";
 import { ScheduledNotificationsPopup } from "@/components/notifications/scheduled-notifications-popup";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 
 export default function DashboardLayout({
   children,
@@ -41,8 +42,10 @@ export default function DashboardLayout({
         <AppSidebar />
         <SidebarInset>
           <RoleGuard>
-            {children}
-            <ScheduledNotificationsPopup />
+            <SectionErrorBoundary>
+              {children}
+              <ScheduledNotificationsPopup />
+            </SectionErrorBoundary>
           </RoleGuard>
         </SidebarInset>
       </SidebarProvider>

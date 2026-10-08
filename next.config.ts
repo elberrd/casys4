@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import createNextIntlPlugin from 'next-intl/plugin';
 import { createRequire } from "node:module";
 import path from "node:path";
+import { canUploadSentrySourcemaps } from "./lib/sentry-config";
 
 const require = createRequire(import.meta.url);
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
@@ -32,6 +34,9 @@ function applyProsemirrorAliases(config: {
 }
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_SENTRY_RELEASE: process.env.VERCEL_GIT_COMMIT_SHA ?? "",
+  },
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.
@@ -54,4 +59,25 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+const uploadSourcemaps = canUploadSentrySourcemaps({
+  authToken: sentryAuthToken,
+  org: sentryOrg,
+  project: sentryProject,
+});
+
+export default withSentryConfig(withNextIntl(nextConfig), {
+  org: sentryOrg,
+  project: sentryProject,
+  authToken: sentryAuthToken,
+  silent: true,
+  telemetry: false,
+  sourcemaps: {
+    disable: !uploadSourcemaps,
+  },
+  release: {
+    name: process.env.VERCEL_GIT_COMMIT_SHA,
+  },
+});

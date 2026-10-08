@@ -108,8 +108,8 @@ export function PersonFormDialog({
     open && personId ? { personId } : "skip"
   )
 
-  const cities = useQuery(api.cities.listWithRelations, {}) ?? []
-  const countries = useQuery(api.countries.list, {}) ?? []
+  const cities = useQuery(api.cities.listWithRelations, open ? {} : "skip") ?? []
+  const countries = useQuery(api.countries.list, open ? {} : "skip") ?? []
   const createPerson = useMutation(api.people.create)
   const updatePerson = useMutation(api.people.update)
   const replacePassportAttachment = useMutation(
@@ -219,6 +219,7 @@ export function PersonFormDialog({
   // Reset form when person data loads. Structured address comes from the
   // table current row, never leftover people.addressStreet / people.address.
   useEffect(() => {
+    if (!open) return
     if (person) {
       if (personId && tableCurrentAddress === undefined) return
       form.reset({
@@ -265,7 +266,7 @@ export function PersonFormDialog({
         notes: "",
       })
     }
-  }, [person, personId, tableCurrentAddress, form])
+  }, [open, person, personId, tableCurrentAddress, form])
 
   useEffect(() => {
     if (!open || !personId || savedPassportAttachment === undefined) return

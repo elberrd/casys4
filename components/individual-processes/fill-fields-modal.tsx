@@ -16,6 +16,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getFieldsMetadata } from "@/lib/individual-process-fields";
+import {
+  fillableFieldsKey,
+  filledFieldsSnapshot,
+  nextFillFieldsFormData,
+} from "@/lib/fill-fields-form";
 import { DynamicFieldRenderer } from "./dynamic-field-renderer";
 import { IndividualProcessAddressesTable } from "./individual-process-addresses-table";
 import { isRnmCaseStatus } from "@/lib/status-history-row";
@@ -59,29 +64,22 @@ export function FillFieldsModal({
   // Get field metadata for the fillable fields
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);
+  const filledSnapshot = filledFieldsSnapshot(
+    fillableFieldsData?.filledFieldsData ?? null,
+  );
+  const fillableKey = fillableFieldsKey(fillableFieldsData?.fillableFields);
 
-  // Reset form when modal opens or status changes
+  // Reset from a stable snapshot. Empty `{}` (fresh deferido / unsaved RNM)
+  // must not setState on every Convex result identity.
   useEffect(() => {
-    if (open) {
-      // Always clear form data first when status changes
-      setFormData({});
-
-      // Then populate with existing data if available
-      if (fillableFieldsData?.filledFieldsData) {
-        // Only include fields that are actually fillable for this status
-        const fillableFieldNames = fillableFieldsData.fillableFields || [];
-        const filteredData: Record<string, any> = {};
-
-        for (const [key, value] of Object.entries(fillableFieldsData.filledFieldsData)) {
-          if (fillableFieldNames.includes(key)) {
-            filteredData[key] = value;
-          }
-        }
-
-        setFormData(filteredData);
-      }
-    }
-  }, [open, statusId, fillableFieldsData]);
+    if (!open) return;
+    setFormData((previous) =>
+      nextFillFieldsFormData(previous, {
+        filledSnapshot,
+        fillableKey,
+      }),
+    );
+  }, [open, statusId, filledSnapshot, fillableKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

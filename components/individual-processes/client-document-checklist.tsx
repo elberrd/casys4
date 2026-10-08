@@ -223,6 +223,11 @@ export function ClientDocumentChecklist({
               <p className="text-sm font-semibold leading-snug [overflow-wrap:anywhere]">
                 {docName}
               </p>
+              {doc.legalFrameworkRemoved ? (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  {tDocument("removedLegalFramework")}
+                </Badge>
+              ) : null}
               {doc.isRequired && (
                 <Badge variant="default" className="text-xs">
                   {t("requiredBadge")}
@@ -332,6 +337,11 @@ export function ClientDocumentChecklist({
               <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">
                 {docName}
               </p>
+              {doc.legalFrameworkRemoved ? (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  {tDocument("removedLegalFramework")}
+                </Badge>
+              ) : null}
               {showVersion && doc.version > 0 && (
                 <Badge variant="outline" className="text-xs">
                   {tDocument("byProgress.version", { version: doc.version })}

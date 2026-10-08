@@ -897,6 +897,11 @@ export function DocumentChecklistCard({
             <p className="w-full min-w-0 text-sm font-medium leading-snug [overflow-wrap:anywhere]">
               {doc.documentType?.name || doc.documentName || doc.fileName || t("looseDocument")}
             </p>
+            {doc.legalFrameworkRemoved ? (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                {t("removedLegalFramework")}
+              </Badge>
+            ) : null}
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {showVersion && doc.status !== "not_started" && doc.version > 0 && (
                 <Badge variant="outline" className="text-xs">

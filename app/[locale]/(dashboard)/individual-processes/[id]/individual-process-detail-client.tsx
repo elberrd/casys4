@@ -163,7 +163,7 @@ export function IndividualProcessDetailClient({
   );
   const processCurrentAddress = useQuery(
     api.individualProcessAddresses.getCurrent,
-    { individualProcessId: processId },
+    individualProcess ? { individualProcessId: processId } : "skip",
   );
   const currentUser = useQuery(api.userProfiles.getCurrentUser);
   const deliveredDocuments = useQuery(
@@ -197,7 +197,7 @@ export function IndividualProcessDetailClient({
   // Fetch linked fields map for paperclip indicators
   const linkedFieldsMap = useQuery(
     api.documentTypeFieldMappings.getLinkedFieldsMap,
-    { individualProcessId: processId },
+    individualProcess ? { individualProcessId: processId } : "skip",
   );
 
   // Helper: small tooltip icon showing linked document types (clickable to open document)
