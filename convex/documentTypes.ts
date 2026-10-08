@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./lib/auth";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
+import { resolveLegalFrameworkRef } from "../lib/legal-framework-display";
 
 async function makeOnlyOfficialPassportType(
   ctx: MutationCtx,
@@ -116,9 +117,15 @@ export const getWithLegalFrameworks = query({
     const enrichedAssociations = await Promise.all(
       associations.map(async (assoc) => {
         const legalFramework = await ctx.db.get(assoc.legalFrameworkId);
+        const resolved = resolveLegalFrameworkRef({
+          associationId: assoc._id,
+          association: assoc,
+          legalFramework,
+        });
         return {
           legalFrameworkId: assoc.legalFrameworkId,
-          legalFrameworkName: legalFramework?.name ?? "",
+          legalFrameworkName: resolved.name,
+          legalFrameworkRemoved: resolved.removed,
           isRequired: assoc.isRequired,
         };
       }),

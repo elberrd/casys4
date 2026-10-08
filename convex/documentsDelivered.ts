@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 import { getProcessStatusAtUpload } from "./lib/documentProgressSnapshot";
 import { createCachedGet } from "./lib/cachedGet";
+import { resolveDocumentTypeLegalFramework } from "./lib/documentLegalFramework";
 import {
   getDefaultDocumentWaitingStartedAt,
   getDocumentCreatedAt,
@@ -265,6 +266,11 @@ export const list = query({
           }
         }
 
+        const legalFramework = await resolveDocumentTypeLegalFramework(
+          cachedGet,
+          doc.documentTypeLegalFrameworkId,
+        );
+
         return {
           ...projectDocumentForViewer(doc, userProfile.role),
           documentType,
@@ -272,6 +278,7 @@ export const list = query({
           uploadedByUser,
           reviewedByUser,
           linkedStatus,
+          ...legalFramework,
         };
       }),
     );
@@ -582,6 +589,11 @@ export const get = query({
       }
     }
 
+    const legalFramework = await resolveDocumentTypeLegalFramework(
+      (id) => ctx.db.get(id),
+      document.documentTypeLegalFrameworkId,
+    );
+
     return {
       ...projectDocumentForViewer(document, userProfile.role),
       documentType,
@@ -589,6 +601,7 @@ export const get = query({
       uploadedByUser,
       reviewedByUser,
       reusedFromInfo,
+      ...legalFramework,
     };
   },
 });
@@ -3585,6 +3598,11 @@ export const listGroupedByCategory = query({
           }
         }
 
+        const legalFramework = await resolveDocumentTypeLegalFramework(
+          cachedGet,
+          doc.documentTypeLegalFrameworkId,
+        );
+
         return {
           ...projectDocumentForViewer(doc, userProfile.role),
           documentType,
@@ -3597,6 +3615,7 @@ export const listGroupedByCategory = query({
           infoFieldValues,
           linkedStatus,
           previousRejectionReason,
+          ...legalFramework,
         };
       }),
     );

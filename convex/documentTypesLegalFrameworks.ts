@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, getCurrentUserProfile } from "./lib/auth";
+import { resolveLegalFrameworkRef } from "../lib/legal-framework-display";
 
 /**
  * Query to list all associations for a specific document type
@@ -20,11 +21,17 @@ export const listByDocumentType = query({
     const enrichedAssociations = await Promise.all(
       associations.map(async (assoc) => {
         const legalFramework = await ctx.db.get(assoc.legalFrameworkId);
+        const resolved = resolveLegalFrameworkRef({
+          associationId: assoc._id,
+          association: assoc,
+          legalFramework,
+        });
         return {
           _id: assoc._id,
           documentTypeId: assoc.documentTypeId,
           legalFrameworkId: assoc.legalFrameworkId,
-          legalFrameworkName: legalFramework?.name ?? "",
+          legalFrameworkName: resolved.name,
+          legalFrameworkRemoved: resolved.removed,
           isRequired: assoc.isRequired,
           responsibleParty: assoc.responsibleParty,
           workflowType: assoc.workflowType,
