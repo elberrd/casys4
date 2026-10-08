@@ -224,7 +224,7 @@ function ComboboxSingle<T extends string = string>({
   );
 
   const handleSelect = (optionValue: string) => {
-    const newValue = nextComboboxSelection(optionValue);
+    const newValue = nextComboboxSelection<T>(optionValue);
 
     if (value === undefined) {
       setInternalValue(newValue);
