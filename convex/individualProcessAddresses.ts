@@ -7,6 +7,7 @@ import {
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
+import { assertAuthenticatedWriter } from "./lib/viewerAccess";
 import { personOwnedByClient } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import {
@@ -227,10 +228,8 @@ export const ensureLegacyMigrated = mutation({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) {
-      return false;
-    }
+    const userProfile = await getCurrentUserProfile(ctx);
+    assertAuthenticatedWriter(userProfile);
     const process = await ctx.db.get(args.individualProcessId);
     if (!process) {
       return false;

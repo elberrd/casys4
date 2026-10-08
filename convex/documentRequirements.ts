@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, tryGetCurrentUserProfile } from "./lib/auth";
+import { rowsForViewer } from "./lib/viewerAccess";
 
 /**
  * Query to list document requirements by template ID
@@ -12,6 +12,11 @@ export const list = query({
     templateId: v.id("documentTemplates"),
   },
   handler: async (ctx, { templateId }) => {
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return rowsForViewer(null, false, []);
+    }
+
     const requirements = await ctx.db
       .query("documentRequirements")
       .withIndex("by_template", (q) => q.eq("templateId", templateId))
@@ -28,8 +33,11 @@ export const list = query({
       }),
     );
 
-    // Sort by sortOrder
-    return enrichedRequirements.sort((a, b) => a.sortOrder - b.sortOrder);
+    return rowsForViewer(
+      userProfile,
+      true,
+      enrichedRequirements.sort((a, b) => a.sortOrder - b.sortOrder),
+    );
   },
 });
 

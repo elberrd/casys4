@@ -23,7 +23,7 @@ import { useState, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useTranslations } from "next-intl"
-import { InfoIcon, CheckCircle2 } from "lucide-react"
+import { InfoIcon } from "lucide-react"
 
 export function LoginForm({
   className,
@@ -44,8 +44,7 @@ export function LoginForm({
     flow === "signUp" && email && shouldCheckEmail ? { email } : "skip"
   )
 
-  const isPreRegistered = preRegCheck?.isPreRegistered ?? false
-  const preRegProfile = preRegCheck?.userProfile
+  const isPreRegistered = preRegCheck === true
 
   // Reset email check when switching flows
   useEffect(() => {
@@ -168,27 +167,13 @@ export function LoginForm({
               </Field>
 
               {/* Show pre-registration info if detected */}
-              {flow === "signUp" && isPreRegistered && preRegProfile && (
+              {flow === "signUp" && isPreRegistered && (
                 <Alert className="bg-blue-500/10 border-blue-500/50">
                   <InfoIcon className="h-4 w-4 text-blue-500" />
                   <AlertDescription className="ml-2">
-                    <div className="space-y-1">
-                      <p className="font-medium text-blue-900 dark:text-blue-100">
-                        {t('emailPreRegistered')}
-                      </p>
-                      <div className="text-sm text-blue-800 dark:text-blue-200 space-y-0.5">
-                        <p className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span>{t('yourRoleWillBe', { role: t(preRegProfile.role) })}</span>
-                        </p>
-                        {preRegProfile.companyName && (
-                          <p className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>{t('yourCompanyWillBe', { company: preRegProfile.companyName })}</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <p className="font-medium text-blue-900 dark:text-blue-100">
+                      {t("emailPreRegistered")}
+                    </p>
                   </AlertDescription>
                 </Alert>
               )}

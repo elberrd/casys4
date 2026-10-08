@@ -2,6 +2,15 @@ import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import {
+  getClientCurrentCompanyIds,
+  tryGetCurrentUserProfile,
+} from "./lib/auth";
+import {
+  isUpcomingAppointment,
+  projectUpcomingAppointment,
+  selectUpcomingAppointmentProcesses,
+} from "./lib/upcomingAppointments";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -102,57 +111,99 @@ export const getUpcomingAppointments = internalQuery({
 });
 
 /**
- * Query to list upcoming appointments (for dashboard widget)
- * Returns appointments for the next 7 days for the current user's scope
+ * Upcoming appointments for the signed-in user's process scope.
+ * Anonymous callers receive []. Clients see only CURRENT-company processes.
+ * Admins see every live appointment in the window. Rows are a projection
+ * (process id, time, person name, collective reference) — not the full process.
  */
 export const listUpcomingAppointments = query({
   args: {
-    days: v.optional(v.number()), // Default 7 days
+    days: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return [];
+    }
+
     const days = args.days ?? 7;
     const now = Date.now();
-    const futureDate = now + days * 24 * 60 * 60 * 1000;
+    const endTime = now + days * 24 * 60 * 60 * 1000;
 
-    // Get all individual processes
     const allProcesses = await ctx.db.query("individualProcesses").collect();
+    const currentCompanyIds =
+      userProfile.role === "client"
+        ? await getClientCurrentCompanyIds(ctx, userProfile)
+        : new Set<Id<"companies">>();
 
-    // Filter for those with appointments in the next N days
-    // (client-request drafts excluded — they are not live processes).
-    const upcomingAppointments = allProcesses.filter((process) => {
-      if (process.requestStatus === "draft") return false;
-      if (!process.appointmentDateTime) return false;
+    const processRows = allProcesses.map((process) => ({
+      _id: process._id,
+      requestStatus: process.requestStatus,
+      appointmentDateTime: process.appointmentDateTime,
+      personId: process.personId,
+      companyApplicantId: process.companyApplicantId,
+      userApplicantCompanyId: process.userApplicantCompanyId,
+      collectiveProcessId: process.collectiveProcessId,
+    }));
 
-      const appointmentTime = new Date(process.appointmentDateTime).getTime();
-      return appointmentTime >= now && appointmentTime <= futureDate;
+    const collectiveIds = new Set<string>();
+    for (const process of processRows) {
+      if (
+        process.collectiveProcessId &&
+        isUpcomingAppointment(
+          process.appointmentDateTime,
+          process.requestStatus,
+          now,
+          endTime,
+        )
+      ) {
+        collectiveIds.add(process.collectiveProcessId);
+      }
+    }
+    const collectiveById = new Map<
+      string,
+      { companyId?: string; referenceNumber: string }
+    >();
+    for (const collectiveId of collectiveIds) {
+      const collective = await ctx.db.get(
+        collectiveId as Id<"collectiveProcesses">,
+      );
+      if (collective) {
+        collectiveById.set(collectiveId, {
+          companyId: collective.companyId,
+          referenceNumber: collective.referenceNumber,
+        });
+      }
+    }
+
+    const scoped = selectUpcomingAppointmentProcesses({
+      userProfile: { role: userProfile.role },
+      processes: processRows,
+      currentCompanyIds,
+      collectiveById,
+      now,
+      endTime,
     });
 
-    // Sort by appointment date (earliest first)
-    upcomingAppointments.sort((a, b) => {
-      const timeA = new Date(a.appointmentDateTime!).getTime();
-      const timeB = new Date(b.appointmentDateTime!).getTime();
-      return timeA - timeB;
-    });
+    const peopleById = new Map<
+      string,
+      { givenNames: string; middleName?: string; surname?: string }
+    >();
+    for (const process of scoped) {
+      if (peopleById.has(process.personId)) continue;
+      const person = await ctx.db.get(process.personId as Id<"people">);
+      if (person) {
+        peopleById.set(process.personId, {
+          givenNames: person.givenNames,
+          middleName: person.middleName,
+          surname: person.surname,
+        });
+      }
+    }
 
-    // Populate with person and main process data
-    const appointmentsWithDetails = await Promise.all(
-      upcomingAppointments.map(async (process) => {
-        const person = await ctx.db.get(process.personId);
-        const collectiveProcess = process.collectiveProcessId
-          ? await ctx.db.get(process.collectiveProcessId)
-          : null;
-
-        return {
-          individualProcess: process,
-          person: person ? { _id: person._id, fullName: getFullName(person) } : null,
-          collectiveProcess: collectiveProcess
-            ? { _id: collectiveProcess._id, referenceNumber: collectiveProcess.referenceNumber }
-            : null,
-        };
-      })
+    return scoped.map((process) =>
+      projectUpcomingAppointment(process, peopleById, collectiveById),
     );
-
-    return appointmentsWithDetails;
   },
 });
 

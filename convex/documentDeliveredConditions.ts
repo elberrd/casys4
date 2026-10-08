@@ -1,8 +1,35 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { getCurrentUserProfile } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  getViewerForProcess,
+  requireClientCanAccessProcess,
+} from "./lib/auth";
+import {
+  EMPTY_CONDITION_VALIDATION,
+  assertAuthenticatedWriter,
+  documentFlagForViewer,
+  documentRowsForViewer,
+} from "./lib/viewerAccess";
+
+async function loadDeliveredDocumentForViewer(
+  ctx: QueryCtx | MutationCtx,
+  documentsDeliveredId: Id<"documentsDelivered">,
+): Promise<{
+  userProfile: Doc<"userProfiles">;
+  document: Doc<"documentsDelivered">;
+  process: Doc<"individualProcesses">;
+} | null> {
+  const document = await ctx.db.get(documentsDeliveredId);
+  if (!document) return null;
+  const process = await ctx.db.get(document.individualProcessId);
+  const userProfile = await getViewerForProcess(ctx, process);
+  if (!userProfile || !process) return null;
+  return { userProfile, document, process };
+}
 
 /**
  * Query to list all conditions for a delivered document
@@ -10,6 +37,14 @@ import { getCurrentUserProfile } from "./lib/auth";
 export const listByDocument = query({
   args: { documentsDeliveredId: v.id("documentsDelivered") },
   handler: async (ctx, args) => {
+    const viewer = await loadDeliveredDocumentForViewer(
+      ctx,
+      args.documentsDeliveredId,
+    );
+    if (!viewer) {
+      return documentRowsForViewer(null, false, []);
+    }
+
     const conditions = await ctx.db
       .query("documentDeliveredConditions")
       .withIndex("by_documentDelivered", (q) =>
@@ -65,7 +100,7 @@ export const listByDocument = query({
     );
 
     // Sort by required first, then by name
-    return enrichedConditions.sort((a, b) => {
+    const sorted = enrichedConditions.sort((a, b) => {
       // Required conditions first
       const aRequired = a.conditionDefinition?.isRequired ?? false;
       const bRequired = b.conditionDefinition?.isRequired ?? false;
@@ -77,6 +112,7 @@ export const listByDocument = query({
       const bName = b.conditionDefinition?.name ?? "";
       return aName.localeCompare(bName);
     });
+    return documentRowsForViewer(viewer.userProfile, true, sorted);
   },
 });
 
@@ -87,8 +123,14 @@ export const listByDocument = query({
 export const getValidationStatus = query({
   args: { documentsDeliveredId: v.id("documentsDelivered") },
   handler: async (ctx, args) => {
-    // Check if conditions are bypassed for this document
-    const document = await ctx.db.get(args.documentsDeliveredId);
+    const viewer = await loadDeliveredDocumentForViewer(
+      ctx,
+      args.documentsDeliveredId,
+    );
+    if (!viewer) {
+      return EMPTY_CONDITION_VALIDATION;
+    }
+    const document = viewer.document;
 
     const conditions = await ctx.db
       .query("documentDeliveredConditions")
@@ -434,10 +476,17 @@ export const syncMissingConditions = mutation({
     documentsDeliveredId: v.id("documentsDelivered"),
   },
   handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    assertAuthenticatedWriter(userProfile);
     const document = await ctx.db.get(args.documentsDeliveredId);
     if (!document || !document.documentTypeId) {
       return [];
     }
+    const process = await ctx.db.get(document.individualProcessId);
+    if (!process) {
+      return [];
+    }
+    await requireClientCanAccessProcess(ctx, userProfile, process);
 
     // Get all condition links for this document type
     const links = await ctx.db
@@ -463,11 +512,7 @@ export const syncMissingConditions = mutation({
       existingConditions.map((c) => c.documentTypeConditionId)
     );
 
-    // Get process for expiration calculation
-    const individualProcess = await ctx.db.get(document.individualProcessId);
-    if (!individualProcess) {
-      return [];
-    }
+    const individualProcess = process;
 
     const now = Date.now();
     const createdIds: Id<"documentDeliveredConditions">[] = [];
@@ -512,6 +557,13 @@ export const syncMissingConditions = mutation({
 export const hasConditions = query({
   args: { documentsDeliveredId: v.id("documentsDelivered") },
   handler: async (ctx, args) => {
+    const viewer = await loadDeliveredDocumentForViewer(
+      ctx,
+      args.documentsDeliveredId,
+    );
+    if (!viewer) {
+      return documentFlagForViewer(null, false, false);
+    }
     const condition = await ctx.db
       .query("documentDeliveredConditions")
       .withIndex("by_documentDelivered", (q) =>
@@ -519,6 +571,6 @@ export const hasConditions = query({
       )
       .first();
 
-    return condition !== null;
+    return documentFlagForViewer(viewer.userProfile, true, condition !== null);
   },
 });

@@ -1,7 +1,7 @@
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 
-export default mutation({
+export default internalMutation({
   args: {
     ids: v.array(v.id("caseStatuses")),
   },

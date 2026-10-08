@@ -6,11 +6,16 @@ import {
   tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
+  getViewerForProcess,
 } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { normalizeStatusDateTime } from "./lib/statusDateTime";
+import {
+  EMPTY_FILLABLE_FIELDS,
+  fillableFieldsForViewer,
+} from "./lib/viewerAccess";
 
 /**
  * Query to list all statuses for an individual process
@@ -801,43 +806,17 @@ export const getFillableFields = query({
     statusId: v.id("individualProcessStatuses"),
   },
   handler: async (ctx, args) => {
-    // Get the status record
-    const emptyFillable = {
-      fillableFields: [] as string[],
-      filledFieldsData: {} as Record<string, unknown>,
-    };
     const status = await ctx.db.get(args.statusId);
     if (!status) {
-      return emptyFillable;
+      return EMPTY_FILLABLE_FIELDS;
     }
 
     const individualProcess = await ctx.db.get(status.individualProcessId);
-    if (!individualProcess) {
-      return emptyFillable;
+    const userProfile = await getViewerForProcess(ctx, individualProcess);
+    if (!userProfile || !individualProcess) {
+      return EMPTY_FILLABLE_FIELDS;
     }
 
-    const userId = await getAuthUserId(ctx);
-    if (userId !== null) {
-      const userProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .first();
-
-      if (userProfile) {
-        try {
-          await requireClientCanAccessProcess(
-            ctx,
-            userProfile,
-            individualProcess,
-          );
-        } catch {
-          return emptyFillable;
-        }
-      }
-    }
-
-    // Get fillable fields from the case status (source of truth)
-    // Always use case status fillableFields, not the individual status record's fillableFields
     let fillableFields: string[] = [];
 
     if (status.caseStatusId) {
@@ -847,31 +826,18 @@ export const getFillableFields = query({
       }
     }
 
-    // Fallback to status record only if case status has no configuration
     if (fillableFields.length === 0 && status.fillableFields) {
       fillableFields = status.fillableFields;
     }
 
-    // Get current values from the individualProcess record
-    // This ensures we show existing data even if it wasn't saved via this specific status record
-    const currentValues: Record<string, any> = {};
-    for (const fieldName of fillableFields) {
-      const value = (individualProcess as any)[fieldName];
-      if (value !== undefined && value !== null && value !== "") {
-        currentValues[fieldName] = value;
-      }
-    }
-
-    // Merge with status record's filledFieldsData (status record takes priority)
-    const mergedData = {
-      ...currentValues,
-      ...(status.filledFieldsData || {}),
-    };
-
-    // Return fillable fields configuration with current values
-    return {
+    return fillableFieldsForViewer({
+      userProfile,
+      canAccess: true,
       fillableFields,
-      filledFieldsData: mergedData,
-    };
+      processValues: individualProcess as unknown as Record<string, unknown>,
+      statusValues: status.filledFieldsData as
+        | Record<string, unknown>
+        | undefined,
+    });
   },
 });

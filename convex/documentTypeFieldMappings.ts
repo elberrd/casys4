@@ -1,11 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import {
   tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
+  getViewerForProcess,
 } from "./lib/auth";
+import { fieldValuesForViewer } from "./lib/viewerAccess";
 import {
   filterAccessibleDocuments,
   resolveClientDocumentVisibility,
@@ -286,7 +288,8 @@ export const getFieldsWithValues = query({
   },
   handler: async (ctx, args) => {
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) return [];
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile || !process) return [];
 
     const person = await ctx.db.get(process.personId);
     if (!person) return [];
@@ -295,7 +298,7 @@ export const getFieldsWithValues = query({
       ? await ctx.db.get(process.passportId)
       : null;
 
-    let company: any = null;
+    let company: Doc<"companies"> | null = null;
     if (process.companyApplicantId) {
       company = await ctx.db.get(process.companyApplicantId);
     } else if (process.collectiveProcessId) {
@@ -316,7 +319,7 @@ export const getFieldsWithValues = query({
       .filter((m) => m.isActive)
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
-    return activeMappings.map((mapping) => {
+    const rows = activeMappings.map((mapping) => {
       const currentValue = getFieldValue(
         mapping.entityType,
         mapping.fieldPath,
@@ -340,6 +343,7 @@ export const getFieldsWithValues = query({
           currentValue !== "",
       };
     });
+    return fieldValuesForViewer(userProfile, true, rows);
   },
 });
 

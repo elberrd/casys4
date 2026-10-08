@@ -4,6 +4,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { getCurrentUserProfile } from "./lib/auth";
+import { publicPreRegisteredEmailFlag } from "./lib/viewerAccess";
 import { Scrypt } from "lucia";
 
 /**
@@ -737,53 +738,21 @@ export const preRegisterUser = mutation({
 });
 
 /**
- * Query to check if an email is pre-registered
- * Returns true if email exists in userProfiles but has no userId
- * Public query (no authentication required) - needed for sign-up flow
+ * Public signup helper: whether this email was invited and is not activated.
+ * Returns only a boolean — never name, role, or company.
  */
 export const checkPreRegisteredEmail = query({
   args: {
     email: v.string(),
   },
+  returns: v.boolean(),
   handler: async (ctx, { email }) => {
     const userProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
 
-    if (!userProfile) {
-      return {
-        isPreRegistered: false,
-        userProfile: null,
-      };
-    }
-
-    // Check if profile has no userId (pre-registered but not activated)
-    const isPreRegistered = !userProfile.userId;
-
-    if (isPreRegistered) {
-      // Fetch company name if user is a client
-      let companyName: string | null = null;
-      if (userProfile.companyId) {
-        const company = await ctx.db.get(userProfile.companyId);
-        companyName = company?.name ?? null;
-      }
-
-      return {
-        isPreRegistered: true,
-        userProfile: {
-          role: userProfile.role,
-          companyId: userProfile.companyId,
-          companyName,
-          fullName: userProfile.fullName,
-        },
-      };
-    }
-
-    return {
-      isPreRegistered: false,
-      userProfile: null,
-    };
+    return publicPreRegisteredEmailFlag(userProfile);
   },
 });
 

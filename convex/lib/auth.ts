@@ -216,6 +216,41 @@ export async function requireClientCanAccessProcess(
 }
 
 /**
+ * Authenticated viewer who may see this process, or null when anonymous /
+ * missing / out of company scope. Queries use this to return empty payloads
+ * instead of throwing.
+ */
+export async function getViewerForProcess(
+  ctx: QueryCtx | MutationCtx,
+  process: Doc<"individualProcesses"> | null,
+): Promise<Doc<"userProfiles"> | null> {
+  const userProfile = await tryGetCurrentUserProfile(ctx);
+  if (!userProfile || !process) return null;
+  try {
+    await requireClientCanAccessProcess(ctx, userProfile, process);
+    return userProfile;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Authenticated viewer who may see this company, or null when anonymous /
+ * out of CURRENT-company scope. Admins always pass.
+ */
+export async function getViewerForCompany(
+  ctx: QueryCtx | MutationCtx,
+  companyId: Id<"companies">,
+): Promise<Doc<"userProfiles"> | null> {
+  const userProfile = await tryGetCurrentUserProfile(ctx);
+  if (!userProfile) return null;
+  if (userProfile.role !== "client") return userProfile;
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+  if (!currentCompanyIds.has(companyId)) return null;
+  return userProfile;
+}
+
+/**
  * Check if the current user can access data for a specific company.
  * Admin users can access all companies.
  * Client users can access only companies currently linked via

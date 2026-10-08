@@ -1,5 +1,4 @@
-import { mutation } from "../_generated/server";
-import { v } from "convex/values";
+import { internalMutation } from "../_generated/server";
 
 // List of people who should be linked to companies (from CSV)
 const PEOPLE_COMPANY_LINKS = [
@@ -40,7 +39,7 @@ const PEOPLE_COMPANY_LINKS = [
   { name: "Yuri Mendes Martins", company: "MARITIME DEVELOPMENTS BRASIL LTDA.", isContact: true },
 ];
 
-export default mutation({
+export default internalMutation({
   args: {},
   handler: async (ctx) => {
     console.log("Starting company link fixes...");
