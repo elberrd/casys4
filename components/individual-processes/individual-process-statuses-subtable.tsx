@@ -39,6 +39,7 @@ import {
   stopRowClickThen,
   toDatetimeLocalInputValue,
 } from "@/lib/status-history-row";
+import { nextFillFieldsModalOpenState } from "@/lib/fill-fields-form";
 
 /** Compact icon buttons in this subtable only (icons stay h-4 w-4). */
 const ACTION_ICON_BUTTON_CLASS = "h-7 w-7";
@@ -701,7 +702,11 @@ export function IndividualProcessStatusesSubtable({
           individualProcessId={individualProcessId}
           statusId={fillFieldsModalState.statusId}
           open={fillFieldsModalState.open}
-          onOpenChange={(open) => setFillFieldsModalState({ open, statusId: null })}
+          onOpenChange={(open) =>
+            setFillFieldsModalState((current) =>
+              nextFillFieldsModalOpenState(current, open),
+            )
+          }
         />
       )}
 

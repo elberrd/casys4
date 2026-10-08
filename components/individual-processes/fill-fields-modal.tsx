@@ -16,6 +16,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getFieldsMetadata } from "@/lib/individual-process-fields";
+import {
+  fillableFieldsKey,
+  filledFieldsSnapshot,
+  nextFillFieldsFormData,
+} from "@/lib/fill-fields-form";
 import { DynamicFieldRenderer } from "./dynamic-field-renderer";
 import { IndividualProcessAddressesTable } from "./individual-process-addresses-table";
 import { isRnmCaseStatus } from "@/lib/status-history-row";
@@ -59,28 +64,21 @@ export function FillFieldsModal({
   // Get field metadata for the fillable fields
   const fillableFields = fillableFieldsData?.fillableFields || [];
   const fieldsMetadata = getFieldsMetadata(fillableFields);
-  const filledSnapshot = JSON.stringify(
+  const filledSnapshot = filledFieldsSnapshot(
     fillableFieldsData?.filledFieldsData ?? null,
   );
-  const fillableKey = (fillableFieldsData?.fillableFields ?? []).join("\0");
+  const fillableKey = fillableFieldsKey(fillableFieldsData?.fillableFields);
 
-  // Reset form when modal opens or status changes
+  // Reset from a stable snapshot. Empty `{}` (fresh deferido / unsaved RNM)
+  // must not setState on every Convex result identity.
   useEffect(() => {
     if (!open) return;
-    setFormData({});
-
-    if (!filledSnapshot || filledSnapshot === "null") return;
-    const parsed = JSON.parse(filledSnapshot) as Record<string, unknown>;
-    const fillableFieldNames = fillableKey ? fillableKey.split("\0") : [];
-    const filteredData: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(parsed)) {
-      if (fillableFieldNames.includes(key)) {
-        filteredData[key] = value;
-      }
-    }
-
-    setFormData(filteredData);
+    setFormData((previous) =>
+      nextFillFieldsFormData(previous, {
+        filledSnapshot,
+        fillableKey,
+      }),
+    );
   }, [open, statusId, filledSnapshot, fillableKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
