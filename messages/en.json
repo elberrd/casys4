@@ -82,7 +82,8 @@
       "selectFromCalendar": "Select from calendar",
       "clearDate": "Clear date",
       "invalidDay": "Invalid day for this month",
-      "invalidMonth": "Month must be between 1 and 12"
+      "invalidMonth": "Month must be between 1 and 12",
+      "incompleteDate": "Incomplete date. Use mm/dd/yyyy"
     },
     "last7Days": "Last 7 days",
     "currentMonth": "Current month",

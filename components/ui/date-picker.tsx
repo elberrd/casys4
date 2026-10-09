@@ -13,6 +13,9 @@ import {
   parseDateFromInput,
 } from "@/lib/utils";
 import {
+  countDateInputDigits,
+  getDatePickerMessageKey,
+  maskDateInput,
   parseManualDateEntry,
   validateDateString,
 } from "@/lib/validations/date";
@@ -37,6 +40,8 @@ export interface DatePickerProps {
   toYear?: number;
   ariaLabel?: string;
   ariaDescribedBy?: string;
+  disabledDates?: React.ComponentProps<typeof Calendar>["disabled"];
+  onValidationChange?: (isValid: boolean) => void;
 }
 
 export function DatePicker({
@@ -51,22 +56,34 @@ export function DatePicker({
   toYear = new Date().getFullYear() + 10,
   ariaLabel,
   ariaDescribedBy,
+  disabledDates,
+  onValidationChange,
 }: DatePickerProps) {
   const locale = useLocale();
   const t = useTranslations("Common.datePicker");
+  const errorId = React.useId();
   const [open, setOpen] = React.useState(false);
   const [month, setMonthState] = React.useState(new Date());
 
-  // State for manual input
   const [inputValue, setInputValue] = React.useState("");
-  const [validationError, setValidationError] = React.useState<string | undefined>();
+  const [validationError, setValidationError] = React.useState<
+    string | undefined
+  >();
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const onValidationChangeRef = React.useRef(onValidationChange);
+
+  React.useEffect(() => {
+    onValidationChangeRef.current = onValidationChange;
+  }, [onValidationChange]);
+
+  const emitValidity = React.useCallback((isValid: boolean) => {
+    onValidationChangeRef.current?.(isValid);
+  }, []);
 
   const dateValue = value ? parseDateFromInput(value) : undefined;
   const dateLocale = locale === "pt" ? ptBR : enUS;
   const placeholderText = placeholder ?? getDatePlaceholder(locale);
 
-  // Sync input value with external value changes
   React.useEffect(() => {
     if (value) {
       const parsedDate = parseDateFromInput(value);
@@ -74,16 +91,33 @@ export function DatePicker({
         setMonthState(parsedDate);
         setInputValue(formatDateForDisplay(parsedDate, locale) || "");
         setValidationError(undefined);
+        emitValidity(true);
       }
     } else {
       setInputValue("");
       setValidationError(undefined);
+      emitValidity(true);
     }
-  }, [value, locale]);
+  }, [value, locale, emitValidity]);
+
+  const commitValidDate = (date: Date) => {
+    onChange?.(formatDateForStorage(date));
+    setMonthState(date);
+    setValidationError(undefined);
+    emitValidity(true);
+  };
 
   const handleSelect = (date: Date | undefined) => {
-    const dateString = formatDateForStorage(date);
-    onChange?.(dateString);
+    if (!date) {
+      onChange?.(undefined);
+      setInputValue("");
+      setValidationError(undefined);
+      emitValidity(true);
+      setOpen(false);
+      return;
+    }
+    setInputValue(formatDateForDisplay(date, locale) || "");
+    commitValidDate(date);
     setOpen(false);
   };
 
@@ -93,86 +127,57 @@ export function DatePicker({
     onChange?.(undefined);
     setInputValue("");
     setValidationError(undefined);
-  };
-
-  const formatDateInput = (value: string, locale: string): string => {
-    // Remove all non-numeric characters except slashes
-    const cleaned = value.replace(/[^\d/]/g, '');
-
-    // Remove any existing slashes to rebuild from scratch
-    const digitsOnly = cleaned.replace(/\//g, '');
-
-    // Limit to 8 digits maximum
-    const truncated = digitsOnly.slice(0, 8);
-
-    // Format based on locale
-    if (locale === "pt") {
-      // dd/MM/yyyy format
-      let formatted = truncated;
-      if (truncated.length >= 3) {
-        formatted = truncated.slice(0, 2) + '/' + truncated.slice(2);
-      }
-      if (truncated.length >= 5) {
-        formatted = truncated.slice(0, 2) + '/' + truncated.slice(2, 4) + '/' + truncated.slice(4);
-      }
-      return formatted;
-    } else {
-      // MM/dd/yyyy format
-      let formatted = truncated;
-      if (truncated.length >= 3) {
-        formatted = truncated.slice(0, 2) + '/' + truncated.slice(2);
-      }
-      if (truncated.length >= 5) {
-        formatted = truncated.slice(0, 2) + '/' + truncated.slice(2, 4) + '/' + truncated.slice(4);
-      }
-      return formatted;
-    }
+    emitValidity(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-
-    // Apply input mask formatting
-    const formatted = formatDateInput(rawValue, locale);
+    const formatted = maskDateInput(e.target.value, locale);
     setInputValue(formatted);
 
-    // Clear validation error as user types
-    if (validationError) {
-      setValidationError(undefined);
-    }
-
-    // If input is empty, clear the date
     if (!formatted.trim()) {
+      setValidationError(undefined);
+      emitValidity(true);
       onChange?.(undefined);
       return;
+    }
+
+    if (countDateInputDigits(formatted) < 8) {
+      setValidationError(undefined);
+      return;
+    }
+
+    const validation = validateDateString(formatted, locale);
+    if (validation.valid) {
+      const parsedDate = parseManualDateEntry(formatted, locale);
+      if (parsedDate) {
+        commitValidDate(parsedDate);
+      }
+    } else {
+      setValidationError(validation.error);
+      emitValidity(false);
     }
   };
 
   const handleInputBlur = () => {
     const trimmedValue = inputValue.trim();
 
-    // If empty, just clear
     if (!trimmedValue) {
       onChange?.(undefined);
       setValidationError(undefined);
+      emitValidity(true);
       return;
     }
 
-    // Validate the input
     const validation = validateDateString(trimmedValue, locale);
 
     if (validation.valid) {
-      // Parse and convert to ISO format
       const parsedDate = parseManualDateEntry(trimmedValue, locale);
       if (parsedDate) {
-        const isoDate = formatDateForStorage(parsedDate);
-        onChange?.(isoDate);
-        setMonthState(parsedDate); // Update calendar month
-        setValidationError(undefined);
+        commitValidDate(parsedDate);
       }
     } else {
-      // Show validation error
       setValidationError(validation.error);
+      emitValidity(false);
     }
   };
 
@@ -184,25 +189,27 @@ export function DatePicker({
     } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
-      // Reset input to current value
       if (dateValue) {
         setInputValue(formatDateForDisplay(dateValue, locale) || "");
       } else {
         setInputValue("");
       }
       setValidationError(undefined);
+      emitValidity(true);
     }
   };
 
   return (
-    <div className={cn("relative", className)}>
-      <div className="flex gap-1">
-        {/* Manual input field */}
-        <div className="relative flex-1">
+    <div className="relative">
+      <div className={cn("flex gap-1", className)}>
+        <div className="relative min-w-0 flex-1">
           <Input
             id={id}
             ref={inputRef}
             type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
             value={inputValue}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
@@ -211,10 +218,14 @@ export function DatePicker({
             disabled={disabled}
             aria-label={ariaLabel ?? t("enterManually")}
             aria-invalid={!!validationError}
-            aria-describedby={validationError ? "date-error" : ariaDescribedBy}
+            aria-describedby={
+              validationError ? errorId : ariaDescribedBy
+            }
             className={cn(
               "h-10",
-              validationError && "border-destructive focus-visible:ring-destructive/20"
+              dateValue && !disabled && "pr-8",
+              validationError &&
+                "border-destructive focus-visible:ring-destructive/20"
             )}
           />
           {dateValue && !disabled && (
@@ -232,7 +243,6 @@ export function DatePicker({
           )}
         </div>
 
-        {/* Calendar button */}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -257,20 +267,20 @@ export function DatePicker({
               captionLayout={showYearMonthDropdowns ? "dropdown" : "label"}
               fromYear={showYearMonthDropdowns ? fromYear : undefined}
               toYear={showYearMonthDropdowns ? toYear : undefined}
-              initialFocus
+              disabled={disabledDates}
+              autoFocus={false}
             />
           </PopoverContent>
         </Popover>
       </div>
 
-      {/* Validation error message */}
       {validationError && (
         <p
-          id="date-error"
+          id={errorId}
           className="text-xs text-destructive mt-1.5"
           role="alert"
         >
-          {t(validationError.replace("Common.datePicker.", "") as any)}
+          {t(getDatePickerMessageKey(validationError))}
         </p>
       )}
     </div>
