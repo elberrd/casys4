@@ -42,6 +42,7 @@ import { useRouter } from "next/navigation";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { DatePicker } from "@/components/ui/date-picker";
+import { dueDateForTaskMutation } from "@/lib/task-due-date";
 
 // Simplified schema for inline task creation
 const inlineTaskFormSchema = z.object({
@@ -169,7 +170,7 @@ export function TaskFormDialog({
           id: taskId,
           title: data.title,
           description: data.description,
-          dueDate: data.dueDate || undefined,
+          dueDate: dueDateForTaskMutation(data.dueDate, "edit"),
           priority: data.priority,
           status: data.status,
           assignedTo: data.assignedTo as Id<"users">,
@@ -181,7 +182,7 @@ export function TaskFormDialog({
         await createTask({
           title: data.title,
           description: data.description || "",
-          dueDate: data.dueDate || undefined,
+          dueDate: dueDateForTaskMutation(data.dueDate, "create"),
           priority: data.priority,
           assignedTo: data.assignedTo as Id<"users">,
           individualProcessId,
