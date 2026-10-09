@@ -306,7 +306,7 @@ export function TaskFormDialog({
                 control={form.control}
                 name="dueDate"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col items-start">
+                  <FormItem className="flex flex-col">
                     <FormLabel>{t("dueDate")}</FormLabel>
                     <FormControl>
                       <DatePicker
