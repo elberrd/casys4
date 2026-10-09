@@ -5,6 +5,70 @@ import { z } from "zod";
  * Supports locale-specific date formats with professional Zod validation
  */
 
+export const DATE_PICKER_MESSAGE_KEYS = [
+  "invalidFormat",
+  "invalidDate",
+  "dateOutOfRange",
+  "invalidDay",
+  "invalidMonth",
+  "incompleteDate",
+] as const;
+
+export type DatePickerMessageKey = (typeof DATE_PICKER_MESSAGE_KEYS)[number];
+
+/**
+ * Maps a stored validation error (full i18n path or short key) to a
+ * `Common.datePicker` message key.
+ */
+export function getDatePickerMessageKey(error: string): DatePickerMessageKey {
+  const key = error.startsWith("Common.datePicker.")
+    ? error.slice("Common.datePicker.".length)
+    : error;
+
+  for (const known of DATE_PICKER_MESSAGE_KEYS) {
+    if (known === key) {
+      return known;
+    }
+  }
+
+  return "invalidDate";
+}
+
+/**
+ * Applies a digits-only date mask with auto-inserted slashes.
+ * Portuguese and English both use two 2-digit groups plus a 4-digit year
+ * (`dd/mm/yyyy` or `mm/dd/yyyy`).
+ */
+export function maskDateInput(value: string, _locale = "pt"): string {
+  const digitsOnly = value.replace(/\D/g, "").slice(0, 8);
+
+  if (digitsOnly.length <= 2) {
+    return digitsOnly;
+  }
+
+  if (digitsOnly.length <= 4) {
+    return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
+  }
+
+  return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${digitsOnly.slice(4)}`;
+}
+
+export function countDateInputDigits(value: string): number {
+  return value.replace(/\D/g, "").length;
+}
+
+/**
+ * Validation error message keys for i18n
+ */
+export const DateValidationErrors = {
+  INVALID_FORMAT: "Common.datePicker.invalidFormat",
+  INVALID_DATE: "Common.datePicker.invalidDate",
+  DATE_OUT_OF_RANGE: "Common.datePicker.dateOutOfRange",
+  INVALID_DAY: "Common.datePicker.invalidDay",
+  INVALID_MONTH: "Common.datePicker.invalidMonth",
+  INCOMPLETE: "Common.datePicker.incompleteDate",
+} as const;
+
 /**
  * Parses a manual date entry string in locale-specific format
  * @param dateString - The date string to parse (dd/MM/yyyy for pt, MM/dd/yyyy for en)
@@ -95,19 +159,20 @@ export function validateDateString(
   locale: string
 ): { valid: boolean; error?: string } {
   if (!dateString || typeof dateString !== "string") {
-    return { valid: false, error: "Common.datePicker.invalidDate" };
+    return { valid: false, error: DateValidationErrors.INVALID_DATE };
   }
 
   const normalized = dateString.trim();
+  const digitCount = countDateInputDigits(normalized);
 
-  // Check format
-  const expectedFormat = locale === "pt" ? "dd/MM/yyyy" : "MM/dd/yyyy";
-  const formatRegex = locale === "pt"
-    ? /^\d{1,2}\/\d{1,2}\/\d{4}$/
-    : /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  if (digitCount > 0 && digitCount < 8) {
+    return { valid: false, error: DateValidationErrors.INCOMPLETE };
+  }
+
+  const formatRegex = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 
   if (!formatRegex.test(normalized)) {
-    return { valid: false, error: "Common.datePicker.invalidFormat" };
+    return { valid: false, error: DateValidationErrors.INVALID_FORMAT };
   }
 
   const parts = normalized.split("/");
@@ -117,29 +182,29 @@ export function validateDateString(
 
   // Validate month
   if (isNaN(month) || month < 1 || month > 12) {
-    return { valid: false, error: "Common.datePicker.invalidMonth" };
+    return { valid: false, error: DateValidationErrors.INVALID_MONTH };
   }
 
   // Validate year range
   if (isNaN(year) || year < 1900 || year > 2100) {
-    return { valid: false, error: "Common.datePicker.dateOutOfRange" };
+    return { valid: false, error: DateValidationErrors.DATE_OUT_OF_RANGE };
   }
 
   // Validate day for the specific month
   if (isNaN(day) || day < 1) {
-    return { valid: false, error: "Common.datePicker.invalidDay" };
+    return { valid: false, error: DateValidationErrors.INVALID_DAY };
   }
 
   // Check days in month
   const daysInMonth = new Date(year, month, 0).getDate();
   if (day > daysInMonth) {
-    return { valid: false, error: "Common.datePicker.invalidDay" };
+    return { valid: false, error: DateValidationErrors.INVALID_DAY };
   }
 
   // Try to parse the complete date
   const parsedDate = parseManualDateEntry(dateString, locale);
   if (!parsedDate) {
-    return { valid: false, error: "Common.datePicker.invalidDate" };
+    return { valid: false, error: DateValidationErrors.INVALID_DATE };
   }
 
   return { valid: true };
@@ -154,17 +219,6 @@ export function isDateInRange(date: Date): boolean {
   const year = date.getFullYear();
   return year >= 1900 && year <= 2100;
 }
-
-/**
- * Validation error message keys for i18n
- */
-export const DateValidationErrors = {
-  INVALID_FORMAT: "Common.datePicker.invalidFormat",
-  INVALID_DATE: "Common.datePicker.invalidDate",
-  DATE_OUT_OF_RANGE: "Common.datePicker.dateOutOfRange",
-  INVALID_DAY: "Common.datePicker.invalidDay",
-  INVALID_MONTH: "Common.datePicker.invalidMonth",
-} as const;
 
 /**
  * Zod schema for validating date strings in Portuguese format (dd/MM/yyyy)

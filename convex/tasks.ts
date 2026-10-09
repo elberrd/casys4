@@ -5,6 +5,7 @@ import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
+import { dueDateUpdatePatch } from "./lib/dueDateUpdate";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -660,7 +661,7 @@ export const update = mutation({
     id: v.id("tasks"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    dueDate: v.optional(v.string()),
+    dueDate: v.optional(v.union(v.string(), v.null())),
     priority: v.optional(v.string()),
     status: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
@@ -703,7 +704,7 @@ export const update = mutation({
 
     if (args.title !== undefined) updateData.title = args.title;
     if (args.description !== undefined) updateData.description = args.description;
-    if (args.dueDate !== undefined) updateData.dueDate = args.dueDate;
+    Object.assign(updateData, dueDateUpdatePatch(args.dueDate));
     if (args.priority !== undefined) updateData.priority = args.priority;
     if (args.status !== undefined) updateData.status = args.status;
     if (args.assignedTo !== undefined) updateData.assignedTo = args.assignedTo;

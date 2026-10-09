@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -37,17 +37,12 @@ import { useTranslations } from "next-intl";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Loader2, CalendarIcon, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
+import { dueDateForTaskMutation } from "@/lib/task-due-date";
 
 // Simplified schema for inline task creation
 const inlineTaskFormSchema = z.object({
@@ -83,6 +78,8 @@ export function TaskFormDialog({
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dueDateInputInvalid, setDueDateInputInvalid] = useState(false);
+  const dueDateInputInvalidRef = useRef(false);
 
   const isEditing = !!taskId;
 
@@ -141,6 +138,8 @@ export function TaskFormDialog({
           status: existingTask.status as "todo" | "in_progress" | "completed" | "cancelled",
           assignedTo: existingTask.assignedTo || "",
         });
+        dueDateInputInvalidRef.current = false;
+        setDueDateInputInvalid(false);
       } else if (!isEditing) {
         // Default assignee is the current logged-in user
         const defaultAssignee = currentUser?.userId || "";
@@ -152,11 +151,18 @@ export function TaskFormDialog({
           status: "todo",
           assignedTo: defaultAssignee,
         });
+        dueDateInputInvalidRef.current = false;
+        setDueDateInputInvalid(false);
       }
     }
   }, [open, existingTask, isEditing, form, currentUser]);
 
   const onSubmit = async (data: InlineTaskFormData) => {
+    if (dueDateInputInvalidRef.current) {
+      setDueDateInputInvalid(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (isEditing && taskId) {
@@ -164,7 +170,7 @@ export function TaskFormDialog({
           id: taskId,
           title: data.title,
           description: data.description,
-          dueDate: data.dueDate || undefined,
+          dueDate: dueDateForTaskMutation(data.dueDate, "edit"),
           priority: data.priority,
           status: data.status,
           assignedTo: data.assignedTo as Id<"users">,
@@ -176,7 +182,7 @@ export function TaskFormDialog({
         await createTask({
           title: data.title,
           description: data.description || "",
-          dueDate: data.dueDate || undefined,
+          dueDate: dueDateForTaskMutation(data.dueDate, "create"),
           priority: data.priority,
           assignedTo: data.assignedTo as Id<"users">,
           individualProcessId,
@@ -203,6 +209,8 @@ export function TaskFormDialog({
 
   const handleCancel = () => {
     form.reset();
+    dueDateInputInvalidRef.current = false;
+    setDueDateInputInvalid(false);
     onOpenChange(false);
   };
 
@@ -301,40 +309,23 @@ export function TaskFormDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>{t("dueDate")}</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            disabled={isSubmitting}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "dd/MM/yyyy")
-                            ) : (
-                              <span>{t("selectDueDate")}</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => {
-                            if (date) {
-                              field.onChange(format(date, "yyyy-MM-dd"));
-                            }
-                          }}
-                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <DatePicker
+                        value={field.value || undefined}
+                        onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                        disabled={isSubmitting}
+                        className="w-[180px] max-w-full"
+                        disabledDates={(date) => {
+                          const startOfToday = new Date();
+                          startOfToday.setHours(0, 0, 0, 0);
+                          return date < startOfToday;
+                        }}
+                        onValidationChange={(isValid) => {
+                          dueDateInputInvalidRef.current = !isValid;
+                          setDueDateInputInvalid(!isValid);
+                        }}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -462,7 +453,10 @@ export function TaskFormDialog({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={isSubmitting || dueDateInputInvalid}
+              >
                 {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
