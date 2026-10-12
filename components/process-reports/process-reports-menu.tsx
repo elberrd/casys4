@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
 import { ChevronDown, FileText } from "lucide-react"
@@ -13,21 +13,40 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CustomReportGenerateDialog } from "@/components/process-reports/custom-report-generate-dialog"
+import {
+  CustomReportGenerateDialog,
+  type ReportAttachTarget,
+} from "@/components/process-reports/custom-report-generate-dialog"
 import { formatLinkedDocumentTypeNames } from "@/lib/report-templates/attach-targets"
 
 interface ProcessReportsMenuProps {
   processId: Id<"individualProcesses">
+  resumeReport?: {
+    templateId: Id<"reportTemplates">
+    attachTarget: ReportAttachTarget | null
+  } | null
 }
 
-export function ProcessReportsMenu({ processId }: ProcessReportsMenuProps) {
+export function ProcessReportsMenu({
+  processId,
+  resumeReport = null,
+}: ProcessReportsMenuProps) {
   const t = useTranslations("ProcessReports")
   const tProcess = useTranslations("IndividualProcesses")
   const templates = useQuery(api.reportTemplates.listActiveSummaries, {
     individualProcessId: processId,
   })
   const [customTemplateId, setCustomTemplateId] =
-    useState<Id<"reportTemplates"> | null>(null)
+    useState<Id<"reportTemplates"> | null>(resumeReport?.templateId ?? null)
+  const [attachTarget, setAttachTarget] = useState<ReportAttachTarget | null>(
+    resumeReport?.attachTarget ?? null,
+  )
+
+  useEffect(() => {
+    if (!resumeReport) return
+    setCustomTemplateId(resumeReport.templateId)
+    setAttachTarget(resumeReport.attachTarget)
+  }, [resumeReport])
 
   return (
     <>
@@ -51,7 +70,10 @@ export function ProcessReportsMenu({ processId }: ProcessReportsMenuProps) {
                 <DropdownMenuItem
                   key={template._id}
                   className="items-start whitespace-normal"
-                  onClick={() => setCustomTemplateId(template._id)}
+                  onClick={() => {
+                    setAttachTarget(null)
+                    setCustomTemplateId(template._id)
+                  }}
                 >
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="leading-snug">{template.name}</span>
@@ -71,10 +93,14 @@ export function ProcessReportsMenu({ processId }: ProcessReportsMenuProps) {
       <CustomReportGenerateDialog
         open={customTemplateId !== null}
         onOpenChange={(open) => {
-          if (!open) setCustomTemplateId(null)
+          if (!open) {
+            setCustomTemplateId(null)
+            setAttachTarget(null)
+          }
         }}
         processId={processId}
         templateId={customTemplateId}
+        attachTarget={attachTarget}
       />
     </>
   )

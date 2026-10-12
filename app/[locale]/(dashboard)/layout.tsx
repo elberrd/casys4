@@ -9,6 +9,7 @@ import { useRouter } from "@/i18n/routing";
 import { useEffect } from "react";
 import { ScheduledNotificationsPopup } from "@/components/notifications/scheduled-notifications-popup";
 import { SectionErrorBoundary } from "@/components/section-error-boundary";
+import { OriginalReportReturnGuard } from "@/components/report-templates/original-report-return-guard";
 
 export default function DashboardLayout({
   children,
@@ -43,6 +44,7 @@ export default function DashboardLayout({
         <SidebarInset>
           <RoleGuard>
             <SectionErrorBoundary>
+              <OriginalReportReturnGuard />
               {children}
               <ScheduledNotificationsPopup />
             </SectionErrorBoundary>
