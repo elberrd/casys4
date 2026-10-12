@@ -612,6 +612,7 @@ const latestReportHtmlValidator = v.object({
   filename: v.string(),
   reportTemplateId: v.optional(v.id("reportTemplates")),
   version: v.number(),
+  uploadedAt: v.number(),
 });
 
 /**
@@ -657,6 +658,7 @@ export const getLatestReportHtml = query({
       filename: reportFilenameFromDocument(latest.fileName),
       reportTemplateId: latest.reportTemplateId,
       version: latest.version,
+      uploadedAt: latest.uploadedAt,
     };
   },
 });

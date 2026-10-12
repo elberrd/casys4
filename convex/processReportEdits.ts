@@ -8,6 +8,7 @@ const savedEditValidator = v.object({
   contentHtml: v.string(),
   filename: v.string(),
   updatedAt: v.number(),
+  sourceTemplateUpdatedAt: v.optional(v.number()),
 });
 
 async function assertEditableProcess(
@@ -56,6 +57,9 @@ export const getByProcessAndTemplate = query({
       contentHtml: saved.contentHtml,
       filename: saved.filename,
       updatedAt: saved.updatedAt,
+      ...(saved.sourceTemplateUpdatedAt !== undefined
+        ? { sourceTemplateUpdatedAt: saved.sourceTemplateUpdatedAt }
+        : {}),
     };
   },
 });
@@ -66,6 +70,7 @@ export const save = mutation({
     reportTemplateId: v.id("reportTemplates"),
     contentHtml: v.string(),
     filename: v.string(),
+    sourceTemplateUpdatedAt: v.optional(v.number()),
   },
   returns: v.id("processReportEdits"),
   handler: async (ctx, args) => {
@@ -94,6 +99,9 @@ export const save = mutation({
         filename: args.filename,
         updatedAt: now,
         updatedBy: profile.userId,
+        ...(args.sourceTemplateUpdatedAt !== undefined
+          ? { sourceTemplateUpdatedAt: args.sourceTemplateUpdatedAt }
+          : {}),
       });
       return existing._id;
     }
@@ -105,6 +113,7 @@ export const save = mutation({
       filename: args.filename,
       updatedAt: now,
       updatedBy: profile.userId,
+      sourceTemplateUpdatedAt: args.sourceTemplateUpdatedAt ?? template.updatedAt,
     });
   },
 });

@@ -30,6 +30,7 @@ import {
   reportFilenameFromDocument,
   resolveProcessReportEditorContent,
   shouldPersistProcessReportEdit,
+  shouldPromptToRebuildFromTemplate,
   uploadDocumentKeepingHtmlFallback,
 } from "../lib/report-templates/process-report-edit";
 import { fillRemainingReportPlaceholders } from "../lib/report-templates/substitute";
@@ -154,6 +155,63 @@ test("preview HTML keeps empty paragraphs so blank lines do not collapse", () =>
   assert.match(css, /min-height:\s*1\.6em/);
   const pdfHtml = buildIsolatedReportHtml("<p>before</p><p></p><p>after</p>");
   assert.match(pdfHtml, /<p>before<\/p><p>\u00a0<\/p><p>after<\/p>/);
+});
+
+test("asks to rebuild only when kept text is older than the template", () => {
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: false,
+      templateUpdatedAt: 20,
+      sourceTemplateUpdatedAt: 10,
+      keptContentUpdatedAt: 10,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: true,
+      templateUpdatedAt: null,
+      sourceTemplateUpdatedAt: 10,
+      keptContentUpdatedAt: 10,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: true,
+      templateUpdatedAt: 20,
+      sourceTemplateUpdatedAt: null,
+      keptContentUpdatedAt: null,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: true,
+      templateUpdatedAt: 20,
+      sourceTemplateUpdatedAt: 20,
+      keptContentUpdatedAt: 10,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: true,
+      templateUpdatedAt: 30,
+      sourceTemplateUpdatedAt: 20,
+      keptContentUpdatedAt: 25,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldPromptToRebuildFromTemplate({
+      hasKeptContent: true,
+      templateUpdatedAt: 30,
+      sourceTemplateUpdatedAt: null,
+      keptContentUpdatedAt: 20,
+    }),
+    true,
+  );
 });
 
 test("reopening a generated report loads the saved HTML instead of the template", () => {

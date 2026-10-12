@@ -2481,6 +2481,8 @@
     "generating": "Preparando o relatório...",
     "filenameLabel": "Nome do arquivo",
     "editOriginalReport": "Editar no relatório original",
+    "rebuildFromUpdatedTemplateTitle": "Refazer o relatório?",
+    "rebuildFromUpdatedTemplateDescription": "O relatório original foi atualizado. Quer refazer este relatório com essas alterações? Se escolher não, o texto atual permanece como está.",
     "continuingPreviousEdit": "Continuando a edição anterior deste relatório.",
     "useOriginalTemplate": "Usar modelo original",
     "editTab": "Editar",
