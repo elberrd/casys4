@@ -46,6 +46,11 @@ import {
   shouldPersistProcessReportEdit,
   uploadDocumentKeepingHtmlFallback,
 } from "@/lib/report-templates/process-report-edit";
+import {
+  browserSessionStorage,
+  captureProcessReturnSearch,
+  saveOriginalReportReturn,
+} from "@/lib/report-templates/original-report-return";
 
 export interface ReportAttachTarget {
   documentTypeId: Id<"documentTypes">;
@@ -311,8 +316,8 @@ export function CustomReportGenerateDialog({
     ignoreAttached,
   ]);
 
-  const persistIfDirty = () => {
-    if (!templateId || !initializedRef.current) return;
+  const persistIfDirty = (): Promise<void> => {
+    if (!templateId || !initializedRef.current) return Promise.resolve();
     const html = editedHtmlRef.current;
     const name = filenameRef.current;
     if (
@@ -323,17 +328,19 @@ export function CustomReportGenerateDialog({
         lastPersistedFilename: lastPersistedRef.current.filename,
       })
     ) {
-      return;
+      return Promise.resolve();
     }
     lastPersistedRef.current = { html, filename: name };
-    void saveEdit({
+    return saveEdit({
       individualProcessId: processId,
       reportTemplateId: templateId,
       contentHtml: html,
       filename: name,
-    }).catch((error) => {
-      console.error(error);
-    });
+    })
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        console.error(error);
+      });
   };
 
   useEffect(() => {
@@ -428,8 +435,28 @@ export function CustomReportGenerateDialog({
 
   const handleEditOriginal = () => {
     if (!templateId) return;
-    persistIfDirty();
-    router.push(`/report-templates/${templateId}/edit`);
+    void persistIfDirty().finally(() => {
+      saveOriginalReportReturn(
+        {
+          processId,
+          templateId,
+          returnSearch: captureProcessReturnSearch(window.location.search),
+          attachTarget: attachTarget
+            ? {
+                documentTypeId: attachTarget.documentTypeId,
+                ...(attachTarget.documentRequirementId
+                  ? {
+                      documentRequirementId: attachTarget.documentRequirementId,
+                    }
+                  : {}),
+                documentName: attachTarget.documentName,
+              }
+            : null,
+        },
+        browserSessionStorage(),
+      );
+      router.push(`/report-templates/${templateId}/edit`);
+    });
   };
 
   const fileBaseName = () =>

@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ProcessStatusUpdateDialog } from "@/components/individual-processes/process-status-update-dialog";
 import { ProcessReportsMenu } from "@/components/process-reports/process-reports-menu";
+import type { ReportAttachTarget } from "@/components/process-reports/custom-report-generate-dialog";
+import { takeOriginalReportReturnForProcess } from "@/lib/report-templates/original-report-return";
 import { EntityHistory } from "@/components/activity-logs/entity-history";
 import {
   Dialog,
@@ -151,6 +153,40 @@ export function IndividualProcessDetailClient({
     null,
   );
   const [isUpdatingUrgent, setIsUpdatingUrgent] = useState(false);
+  const [resumeReport, setResumeReport] = useState<{
+    templateId: Id<"reportTemplates">;
+    attachTarget: ReportAttachTarget | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const restoreReportSession = () => {
+      const session = takeOriginalReportReturnForProcess(
+        processId,
+        window.sessionStorage,
+      );
+      if (!session) return;
+      setResumeReport({
+        templateId: session.templateId as Id<"reportTemplates">,
+        attachTarget: session.attachTarget
+          ? {
+              documentTypeId: session.attachTarget
+                .documentTypeId as Id<"documentTypes">,
+              ...(session.attachTarget.documentRequirementId
+                ? {
+                    documentRequirementId: session.attachTarget
+                      .documentRequirementId as Id<"documentRequirements">,
+                  }
+                : {}),
+              documentName: session.attachTarget.documentName,
+            }
+          : null,
+      });
+    };
+
+    restoreReportSession();
+    window.addEventListener("popstate", restoreReportSession);
+    return () => window.removeEventListener("popstate", restoreReportSession);
+  }, [processId]);
 
   const individualProcess = useQuery(api.individualProcesses.get, {
     id: processId,
@@ -438,7 +474,10 @@ export function IndividualProcessDetailClient({
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 {t("updateProcessStatus")}
               </Button>
-              <ProcessReportsMenu processId={processId} />
+              <ProcessReportsMenu
+                processId={processId}
+                resumeReport={resumeReport}
+              />
               <Button
                 onClick={() =>
                   router.push(

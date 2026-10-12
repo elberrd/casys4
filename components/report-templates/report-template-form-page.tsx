@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/routing";
+import {
+  browserSessionStorage,
+  resolveReportTemplateEditorExit,
+} from "@/lib/report-templates/original-report-return";
 import { useMutation, useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
@@ -150,6 +154,15 @@ export function ReportTemplateFormPage({
     return options.sort((a, b) => a.label.localeCompare(b.label, "pt"));
   }, [legalFrameworks, existingTemplate]);
 
+  const leaveEditor = () => {
+    const exit = resolveReportTemplateEditorExit(
+      mode === "edit" ? templateId : undefined,
+      browserSessionStorage(),
+    );
+    if (exit.replace) router.replace(exit.href);
+    else router.push(exit.href);
+  };
+
   const onSubmit = async (data: ReportTemplateFormData) => {
     try {
       setIsSubmitting(true);
@@ -171,7 +184,7 @@ export function ReportTemplateFormPage({
         await updateTemplate({ id: templateId, ...payload });
         toast.success(t("updatedSuccess"));
       }
-      router.push("/report-templates");
+      leaveEditor();
     } catch (error) {
       toast.error(
         mode === "create" ? t("errorCreate") : t("errorUpdate"),
@@ -200,7 +213,7 @@ export function ReportTemplateFormPage({
     return (
       <div className="py-12 text-center">
         <h2 className="text-2xl font-semibold">{t("notFound")}</h2>
-        <Button className="mt-4" onClick={() => router.push("/report-templates")}>
+        <Button className="mt-4" onClick={leaveEditor}>
           {t("backToList")}
         </Button>
       </div>
@@ -234,7 +247,7 @@ export function ReportTemplateFormPage({
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/report-templates")}
+              onClick={leaveEditor}
             >
               {tCommon("cancel")}
             </Button>
