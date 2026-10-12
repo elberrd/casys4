@@ -146,6 +146,7 @@ type DialogState = {
       documentRequirementId?: Id<"documentRequirements">
       documentTypeLegalFrameworkId?: Id<"documentTypesLegalFrameworks">
       documentTypeName: string
+      receivedAt?: number
     } | null
   }
   pendingUpload: {
@@ -483,6 +484,12 @@ export function DocumentChecklistCard({
           documentRequirementId: doc.documentRequirementId,
           documentTypeLegalFrameworkId: doc.documentTypeLegalFrameworkId,
           documentTypeName: doc.documentType?.name || "",
+          receivedAt:
+            doc.receivedAt ??
+            (doc.mimeType === "application/x-info-only" &&
+            doc.status !== "not_started"
+              ? doc.uploadedAt
+              : undefined),
         },
       },
     }))
@@ -1881,6 +1888,8 @@ export function DocumentChecklistCard({
           documentRequirementId={dialogs.informationFields.document.documentRequirementId}
           documentTypeLegalFrameworkId={dialogs.informationFields.document.documentTypeLegalFrameworkId}
           documentTypeName={dialogs.informationFields.document.documentTypeName}
+          canEditReceivedDate={userRole === "admin"}
+          existingReceivedAt={dialogs.informationFields.document.receivedAt}
           onSuccess={closeAllDialogs}
         />
       )}
