@@ -1751,6 +1751,7 @@
     "notes": "Observações",
     "isActive": "Ativo",
     "selectDocumentType": "Selecione um tipo de documento",
+    "documentTypeRequired": "Tipo de documento é obrigatório",
     "selectPerson": "Selecione uma pessoa (opcional)",
     "selectCompany": "Selecione uma empresa (opcional)",
     "noDocumentTypes": "Nenhum tipo de documento encontrado",
