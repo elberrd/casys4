@@ -10,7 +10,10 @@ import {
   requireClientCanAccessCollective,
   requireClientCanAccessProcess,
 } from "./lib/auth";
-import { viewerCanAccessLinkedRecord } from "./lib/viewerAccess";
+import {
+  allowWriteWhenParentMissing,
+  viewerCanAccessLinkedRecord,
+} from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 
@@ -126,20 +129,44 @@ async function requireNoteProcessAccess(
   userProfile: Doc<"userProfiles">,
   individualProcessId?: Id<"individualProcesses">,
   collectiveProcessId?: Id<"collectiveProcesses">,
+  options?: { allowMissingParent?: boolean; isOwner?: boolean },
 ): Promise<void> {
+  const allowMissing = options?.allowMissingParent === true;
+  const isOwner = options?.isOwner === true;
+
   if (individualProcessId) {
     const individualProcess = await ctx.db.get(individualProcessId);
     if (!individualProcess) {
-      throw new Error("Individual process not found");
+      if (
+        !allowMissing ||
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+          isOwner,
+        })
+      ) {
+        throw new Error("Individual process not found");
+      }
+    } else {
+      await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
     }
-    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
   }
   if (collectiveProcessId) {
     const collectiveProcess = await ctx.db.get(collectiveProcessId);
     if (!collectiveProcess) {
-      throw new Error("Collective process not found");
+      if (
+        !allowMissing ||
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+          isOwner,
+        })
+      ) {
+        throw new Error("Collective process not found");
+      }
+    } else {
+      await requireClientCanAccessCollective(ctx, userProfile, collectiveProcess);
     }
-    await requireClientCanAccessCollective(ctx, userProfile, collectiveProcess);
   }
 }
 
@@ -603,6 +630,10 @@ export const update = mutation({
       userProfile,
       note.individualProcessId,
       note.collectiveProcessId,
+      {
+        allowMissingParent: true,
+        isOwner: note.createdBy === userProfile.userId,
+      },
     );
 
     // Validate content if provided
@@ -715,6 +746,10 @@ export const remove = mutation({
       userProfile,
       note.individualProcessId,
       note.collectiveProcessId,
+      {
+        allowMissingParent: true,
+        isOwner: note.createdBy === userProfile.userId,
+      },
     );
 
     // Soft delete

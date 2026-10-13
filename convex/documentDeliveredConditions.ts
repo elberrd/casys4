@@ -10,6 +10,7 @@ import {
 } from "./lib/auth";
 import {
   EMPTY_CONDITION_VALIDATION,
+  allowWriteWhenParentMissing,
   assertAuthenticatedWriter,
   documentFlagForViewer,
   documentRowsForViewer,
@@ -193,17 +194,32 @@ export const toggleFulfillment = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Condition not found");
     }
 
-    const viewer = await loadDeliveredDocumentForViewer(
-      ctx,
-      existing.documentsDeliveredId,
-    );
-    const userId = viewer?.userProfile.userId;
+    const document = await ctx.db.get(existing.documentsDeliveredId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    const process = await ctx.db.get(document.individualProcessId);
+    if (!process) {
+      if (
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+        })
+      ) {
+        throw new Error("Access denied: Process does not belong to your company");
+      }
+    } else {
+      await requireClientCanAccessProcess(ctx, userProfile, process);
+    }
+
+    const userId = userProfile.userId;
     if (!userId) {
       throw new Error("Access denied: Process does not belong to your company");
     }

@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { requireAdmin, getCurrentUserProfile, requireClientCanAccessProcess } from "./lib/auth";
+import { allowWriteWhenParentMissing } from "./lib/viewerAccess";
 import { internal } from "./_generated/api";
 import { checkDocumentValidity } from "./lib/documentValidity";
 import { getProcessStatusAtUpload } from "./lib/documentProgressSnapshot";
@@ -1676,9 +1677,17 @@ export const toggleExcludeFromReport = mutation({
 
     const individualProcess = await ctx.db.get(document.individualProcessId);
     if (!individualProcess) {
-      throw new Error("Individual process not found");
+      if (
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+        })
+      ) {
+        throw new Error("Individual process not found");
+      }
+    } else {
+      await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
     }
-    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     await ctx.db.patch(documentId, {
       excludedFromReport: !document.excludedFromReport,
@@ -1771,17 +1780,24 @@ export const updateVersionNotes = mutation({
     // Get individual process for access check
     const individualProcess = await ctx.db.get(document.individualProcessId);
     if (!individualProcess) {
-      throw new Error("Individual process not found");
-    }
-
-    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
-    const visibility = await resolveClientDocumentVisibility(
-      ctx,
-      userProfile,
-      individualProcess,
-    );
-    if (!canAccessDocument(document, visibility)) {
-      throw new Error("Document not found");
+      if (
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+        })
+      ) {
+        throw new Error("Individual process not found");
+      }
+    } else {
+      await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+      const visibility = await resolveClientDocumentVisibility(
+        ctx,
+        userProfile,
+        individualProcess,
+      );
+      if (!canAccessDocument(document, visibility)) {
+        throw new Error("Document not found");
+      }
     }
 
     await ctx.db.patch(args.documentId, {

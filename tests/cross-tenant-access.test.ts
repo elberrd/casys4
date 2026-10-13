@@ -5,8 +5,12 @@ import test from "node:test";
 
 import {
   adminMutationGuard,
+  allowWriteWhenParentMissing,
+  assertCanWriteOrphanedProcessChild,
   companiesForViewer,
   companyHasLinkedIndividualProcesses,
+  COMPANY_HAS_PROCESSES_CODE,
+  countLinkedIndividualProcesses,
   crossTenantMutationGuard,
   personIdsForCurrentCompanies,
   profilesForViewer,
@@ -17,6 +21,10 @@ import {
   viewerCanAccessProcess,
   viewerCanAccessStandaloneDocument,
 } from "../convex/lib/viewerAccess";
+import {
+  companyDeleteErrorMessage,
+  linkedProcessCountFromDeleteError,
+} from "../lib/company-delete-error";
 
 const CLIENT_A = "co-a";
 const CLIENT_B = "co-b";
@@ -64,7 +72,7 @@ type AccessClass =
 
 const CLASS_TOKENS: Record<AccessClass, RegExp> = {
   "tenant-process":
-    /getViewerForProcess|requireClientCanAccessProcess|viewerCanAccessProcess|viewerCanAccessLinkedRecord|scopeIndividualProcessesForUser|getIndividualProcessCompanyIds|noteAccessibleToViewer|requireNoteProcessAccess|loadDeliveredDocumentForViewer|viewerCanAccessActivityEntity|requireClientCanAccessCollective|filterTasksForClientViewer|filterProcessesForUser|processBelongsToCompanies/,
+    /getViewerForProcess|requireClientCanAccessProcess|viewerCanAccessProcess|viewerCanAccessLinkedRecord|scopeIndividualProcessesForUser|getIndividualProcessCompanyIds|noteAccessibleToViewer|requireNoteProcessAccess|loadDeliveredDocumentForViewer|viewerCanAccessActivityEntity|requireClientCanAccessCollective|filterTasksForClientViewer|filterProcessesForUser|processBelongsToCompanies|allowWriteWhenParentMissing/,
   "tenant-company":
     /getViewerForCompany|getViewerForCollectiveProcess|requireCompanyAccess|requireClientCanAccessCollective|getClientCurrentCompanyIds|viewerCanAccessCompany|companiesForViewer|profilesForViewer|requireClient|canAccessDocument/,
   "tenant-person":
@@ -483,16 +491,21 @@ test("companies.remove blocks individual processes via applicant and userApplica
     ]),
     false,
   );
+  assert.equal(
+    countLinkedIndividualProcesses(CLIENT_A, [
+      { companyApplicantId: CLIENT_A },
+      { userApplicantCompanyId: CLIENT_A },
+      { companyApplicantId: CLIENT_B },
+    ]),
+    2,
+  );
 
   const handler = exportedHandler(convexSource("convex/companies.ts"), "remove");
   assert.match(handler, /requireAdmin/);
-  assert.match(handler, /by_companyApplicant/);
-  assert.match(handler, /companyHasLinkedIndividualProcesses/);
+  assert.match(handler, /countLinkedIndividualProcesses/);
   assert.match(handler, /userApplicantCompanyId/);
-  assert.match(
-    handler,
-    /Cannot delete company with associated individual processes/,
-  );
+  assert.match(handler, new RegExp(COMPANY_HAS_PROCESSES_CODE));
+  assert.match(handler, /ConvexError/);
 });
 
 test("scopeIndividualProcessesForUser hides client B processes from client A", () => {
@@ -604,4 +617,156 @@ test("every public Convex query/mutation/action is classified and uses its acces
     }
   }
   assert.deepEqual(missing, []);
+});
+
+test("admin and note owner may write when the parent process is gone; other clients cannot", () => {
+  assert.equal(
+    allowWriteWhenParentMissing({
+      parentMissing: true,
+      role: "admin",
+    }),
+    true,
+  );
+  assert.equal(
+    allowWriteWhenParentMissing({
+      parentMissing: true,
+      role: "client",
+      isOwner: true,
+    }),
+    true,
+  );
+  assert.equal(
+    allowWriteWhenParentMissing({
+      parentMissing: true,
+      role: "client",
+      isOwner: false,
+    }),
+    false,
+  );
+  assert.equal(
+    allowWriteWhenParentMissing({
+      parentMissing: false,
+      role: "admin",
+    }),
+    false,
+  );
+
+  assert.doesNotThrow(() =>
+    assertCanWriteOrphanedProcessChild({
+      parentMissing: true,
+      role: "admin",
+    }),
+  );
+  assert.doesNotThrow(() =>
+    assertCanWriteOrphanedProcessChild({
+      parentMissing: true,
+      role: "client",
+      isOwner: true,
+    }),
+  );
+  assert.throws(
+    () =>
+      assertCanWriteOrphanedProcessChild({
+        parentMissing: true,
+        role: "client",
+      }),
+    /Individual process not found/,
+  );
+});
+
+test("notes.update and notes.remove allow orphaned parents; create still requires a live process", () => {
+  const update = exportedHandler(convexSource("convex/notes.ts"), "update");
+  const remove = exportedHandler(convexSource("convex/notes.ts"), "remove");
+  const create = exportedHandler(convexSource("convex/notes.ts"), "create");
+
+  assert.match(update, /allowMissingParent:\s*true/);
+  assert.match(remove, /allowMissingParent:\s*true/);
+  assert.doesNotMatch(create, /allowMissingParent:\s*true/);
+  assert.match(
+    convexSource("convex/notes.ts"),
+    /function requireNoteProcessAccess[\s\S]*allowWriteWhenParentMissing/,
+  );
+});
+
+test("other process-child mutations allow admin writes when the parent is gone", () => {
+  const toggleCondition = exportedHandler(
+    convexSource("convex/documentDeliveredConditions.ts"),
+    "toggleFulfillment",
+  );
+  const toggleExclude = exportedHandler(
+    convexSource("convex/documentsDelivered.ts"),
+    "toggleExcludeFromReport",
+  );
+  const updateNotes = exportedHandler(
+    convexSource("convex/documentsDelivered.ts"),
+    "updateVersionNotes",
+  );
+  const removeAddress = exportedHandler(
+    convexSource("convex/individualProcessAddresses.ts"),
+    "remove",
+  );
+
+  for (const handler of [
+    toggleCondition,
+    toggleExclude,
+    updateNotes,
+    removeAddress,
+  ]) {
+    assert.match(handler, /allowWriteWhenParentMissing/);
+  }
+});
+
+test("linkedProcessCountFromDeleteError reads ConvexError count for the company-delete toast", () => {
+  assert.equal(
+    linkedProcessCountFromDeleteError({
+      data: { code: COMPANY_HAS_PROCESSES_CODE, count: 3 },
+    }),
+    3,
+  );
+  assert.equal(
+    linkedProcessCountFromDeleteError({
+      message: JSON.stringify({
+        code: COMPANY_HAS_PROCESSES_CODE,
+        count: 1,
+      }),
+    }),
+    1,
+  );
+  assert.equal(
+    linkedProcessCountFromDeleteError(new Error("Erro ao excluir empresa")),
+    null,
+  );
+  assert.equal(
+    companyDeleteErrorMessage(
+      { data: { code: COMPANY_HAS_PROCESSES_CODE, count: 2 } },
+      (key, values) =>
+        key === "cannotDeleteLinked"
+          ? `linked-${values?.count}`
+          : "generic",
+    ),
+    "linked-2",
+  );
+});
+
+test("companies delete UI toasts the refusal reason and does not use native alert or a second confirm", () => {
+  const client = convexSource(
+    "app/[locale]/(dashboard)/companies/companies-client.tsx",
+  );
+  const table = convexSource("components/companies/companies-table.tsx");
+  const pt = convexSource("messages/pt.json");
+  const en = convexSource("messages/en.json");
+
+  assert.match(client, /companyDeleteErrorMessage/);
+  assert.doesNotMatch(client, /\balert\s*\(/);
+  assert.doesNotMatch(client, /\bconfirm\s*\(/);
+  assert.match(table, /entityName:\s*t\("entityName"\)/);
+  assert.match(table, /description=\{t\("deleteConfirm"\)\}/);
+  assert.match(
+    pt,
+    /Esta empresa está ligada a \{count, plural, one \{# processo\} other \{# processos\}\} e não pode ser excluída/,
+  );
+  assert.match(
+    en,
+    /This company is linked to \{count, plural, one \{# process\} other \{# processes\}\} and cannot be deleted/,
+  );
 });

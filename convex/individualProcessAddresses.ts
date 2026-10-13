@@ -8,7 +8,10 @@ import {
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
-import { assertAuthenticatedWriter } from "./lib/viewerAccess";
+import {
+  allowWriteWhenParentMissing,
+  assertAuthenticatedWriter,
+} from "./lib/viewerAccess";
 import { personOwnedByClient } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import {
@@ -411,20 +414,28 @@ export const remove = mutation({
     } else {
       const processId = requireProcessId(address);
       const process = await ctx.db.get(processId);
-      if (!process) {
+      if (
+        !process &&
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+        })
+      ) {
         throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
       }
       const remaining = (await listProcessAddresses(ctx, processId)).filter(
         (item) => item._id !== args.id,
       );
-      if (address.isCurrent && remaining.length > 0) {
+      if (process && address.isCurrent && remaining.length > 0) {
         throw new ConvexError({ code: "CURRENT_ADDRESS_REQUIRED" });
       }
       await ctx.db.delete(args.id);
-      if (remaining.length === 0) {
-        await denormalizeCurrentAddressToProcess(ctx, processId, null);
-      } else {
-        assertCurrentAddressInvariant(remaining);
+      if (process) {
+        if (remaining.length === 0) {
+          await denormalizeCurrentAddressToProcess(ctx, processId, null);
+        } else {
+          assertCurrentAddressInvariant(remaining);
+        }
       }
     }
 

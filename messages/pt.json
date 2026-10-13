@@ -1634,6 +1634,8 @@
     "newCompany": "Nova Empresa",
     "createDescription": "Preencha as informações para criar uma nova empresa",
     "deleteConfirm": "Tem certeza de que deseja excluir esta empresa?",
+    "entityName": "empresa",
+    "cannotDeleteLinked": "Esta empresa está ligada a {count, plural, one {# processo} other {# processos}} e não pode ser excluída",
     "companyDetails": "Detalhes da Empresa",
     "basicInformation": "Informações Básicas",
     "contactInformation": "Informações de Contato",

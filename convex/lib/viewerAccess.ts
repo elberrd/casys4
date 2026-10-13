@@ -233,6 +233,27 @@ export function viewerCanAccessLinkedRecord(args: {
   return false;
 }
 
+export const COMPANY_HAS_PROCESSES_CODE = "COMPANY_HAS_PROCESSES";
+
+export function countLinkedIndividualProcesses(
+  companyId: string,
+  processes: Array<{
+    companyApplicantId?: string;
+    userApplicantCompanyId?: string;
+  }>,
+): number {
+  let count = 0;
+  for (const process of processes) {
+    if (
+      process.companyApplicantId === companyId ||
+      process.userApplicantCompanyId === companyId
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 export function companyHasLinkedIndividualProcesses(
   companyId: string,
   linkedAsApplicant: { _id: string } | null,
@@ -242,11 +263,36 @@ export function companyHasLinkedIndividualProcesses(
   }>,
 ): boolean {
   if (linkedAsApplicant) return true;
-  return processes.some(
-    (process) =>
-      process.companyApplicantId === companyId ||
-      process.userApplicantCompanyId === companyId,
-  );
+  return countLinkedIndividualProcesses(companyId, processes) > 0;
+}
+
+/**
+ * When a child row still exists after its parent process was deleted,
+ * access control must not block cleanup. Admin (and the child's owner)
+ * may write; other clients still cannot.
+ *
+ * Returns true only for the orphan case — callers still run the normal
+ * tenant check when the parent exists.
+ */
+export function allowWriteWhenParentMissing(args: {
+  parentMissing: boolean;
+  role: string | null | undefined;
+  isOwner?: boolean;
+}): boolean {
+  if (!args.parentMissing) return false;
+  if (args.role === "admin") return true;
+  return args.isOwner === true;
+}
+
+export function assertCanWriteOrphanedProcessChild(args: {
+  parentMissing: boolean;
+  role: string | null | undefined;
+  isOwner?: boolean;
+  missingMessage?: string;
+}): void {
+  if (!args.parentMissing) return;
+  if (allowWriteWhenParentMissing(args)) return;
+  throw new Error(args.missingMessage ?? "Individual process not found");
 }
 
 export function assertWriterCanAccessCompany(

@@ -79,7 +79,7 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
     onDelete: async (id: Id<"companies">) => {
       if (onDelete) await onDelete(id)
     },
-    entityName: "company",
+    entityName: t("entityName"),
   })
 
   // Bulk delete confirmation for multiple items
@@ -288,7 +288,8 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         open={deleteConfirmation.isOpen}
         onOpenChange={deleteConfirmation.handleCancel}
         onConfirm={deleteConfirmation.handleConfirm}
-        entityName="company"
+        entityName={t("entityName")}
+        description={t("deleteConfirm")}
         isDeleting={deleteConfirmation.isDeleting}
       />
 

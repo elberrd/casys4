@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import {
@@ -8,7 +8,8 @@ import {
   tryGetCurrentUserProfile,
 } from "./lib/auth";
 import {
-  companyHasLinkedIndividualProcesses,
+  COMPANY_HAS_PROCESSES_CODE,
+  countLinkedIndividualProcesses,
   companiesForViewer,
   rowsForViewer,
 } from "./lib/viewerAccess";
@@ -406,37 +407,24 @@ export const remove = mutation({
       throw new Error("Company not found");
     }
 
-    // Check if there are main processes associated with this company
     const collectiveProcesses = await ctx.db
       .query("collectiveProcesses")
       .withIndex("by_company", (q) => q.eq("companyId", id))
-      .first();
-
-    if (collectiveProcesses) {
-      throw new Error("Cannot delete company with associated main processes");
-    }
-
-    const linkedAsApplicant = await ctx.db
-      .query("individualProcesses")
-      .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", id))
-      .first();
-
-    if (linkedAsApplicant) {
-      throw new Error(
-        "Cannot delete company with associated individual processes",
-      );
-    }
+      .collect();
 
     // userApplicantCompanyId has no index; schema changes are out of scope.
     const individualProcesses = await ctx.db
       .query("individualProcesses")
       .collect();
-    if (
-      companyHasLinkedIndividualProcesses(id, null, individualProcesses)
-    ) {
-      throw new Error(
-        "Cannot delete company with associated individual processes",
-      );
+    const count =
+      collectiveProcesses.length +
+      countLinkedIndividualProcesses(id, individualProcesses);
+
+    if (count > 0) {
+      throw new ConvexError({
+        code: COMPANY_HAS_PROCESSES_CODE,
+        count,
+      });
     }
 
     await ctx.db.delete(id);
