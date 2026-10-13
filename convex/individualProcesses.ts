@@ -2315,7 +2315,10 @@ export const remove = mutation({
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
       .collect();
 
-    await hardDeleteDeliveredDocuments(ctx, documentsDelivered);
+    await hardDeleteDeliveredDocuments(ctx, documentsDelivered, {
+      companyApplicantId: process.companyApplicantId,
+      personId: process.personId,
+    });
 
     // 2. Delete related individual process statuses
     const statuses = await ctx.db

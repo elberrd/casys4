@@ -11,6 +11,7 @@ import {
   planHardDeletedDeliveredDocuments,
   selectNotificationsForDeletedTask,
   selectRefreshTokensForSessions,
+  selectUnreferencedStorageIds,
   uniqueStorageIds,
   type DeliveredVersion,
 } from "../convex/lib/deletionCascades";
@@ -136,7 +137,7 @@ test("dayw9: userProfiles.remove deletes authRefreshTokens via sessionId before 
   );
 });
 
-test("dayw8: deleting the latest version promotes the previous and keeps every version", () => {
+test("dayw8: removing latest v3 deletes that row and promotes v2, never keeping v3", () => {
   const v1 = version({
     id: "doc_v1",
     version: 1,
@@ -176,14 +177,55 @@ test("dayw8: deleting the latest version promotes the previous and keeps every v
     otherType,
   ]);
 
-  assert.equal(plan.demoteId, v3._id);
+  assert.equal(plan.deleteVersionId, v3._id);
   assert.equal(plan.promoteId, v2._id);
-  assert.deepEqual(plan.retainedVersionIds, [v1._id, v2._id, v3._id]);
-  assert.equal(plan.cascadeStorage, false);
-  assert.equal(plan.cascadeConditions, false);
+  assert.deepEqual(plan.retainedVersionIds, [v1._id, v2._id]);
+  assert.equal(plan.retainedVersionIds.includes(v3._id), false);
 });
 
-test("dayw8: deleting a non-latest version never promotes and never drops older rows", () => {
+test("dayw8: successive latest removals walk v3 then v2 then v1 then none", () => {
+  const v1 = version({
+    id: "doc_v1",
+    version: 1,
+    uploadedAt: 10,
+    isLatest: false,
+    documentTypeId: typeA,
+  });
+  const v2 = version({
+    id: "doc_v2",
+    version: 2,
+    uploadedAt: 20,
+    isLatest: false,
+    documentTypeId: typeA,
+  });
+  const v3 = version({
+    id: "doc_v3",
+    version: 3,
+    uploadedAt: 30,
+    isLatest: true,
+    documentTypeId: typeA,
+  });
+
+  const afterV3 = planDeliveredDocumentVersionRemoval(v3, [v1, v2, v3]);
+  assert.equal(afterV3.deleteVersionId, v3._id);
+  assert.equal(afterV3.promoteId, v2._id);
+  assert.deepEqual(afterV3.retainedVersionIds, [v1._id, v2._id]);
+
+  const v2NowLatest = { ...v2, isLatest: true };
+  const afterV2 = planDeliveredDocumentVersionRemoval(v2NowLatest, [v1, v2NowLatest]);
+  assert.equal(afterV2.deleteVersionId, v2._id);
+  assert.equal(afterV2.promoteId, v1._id);
+  assert.deepEqual(afterV2.retainedVersionIds, [v1._id]);
+  assert.equal(afterV2.retainedVersionIds.includes(v3._id), false);
+
+  const v1NowLatest = { ...v1, isLatest: true };
+  const afterV1 = planDeliveredDocumentVersionRemoval(v1NowLatest, [v1NowLatest]);
+  assert.equal(afterV1.deleteVersionId, v1._id);
+  assert.equal(afterV1.promoteId, null);
+  assert.deepEqual(afterV1.retainedVersionIds, []);
+});
+
+test("dayw8: deleting a non-latest version never promotes and keeps older remaining rows", () => {
   const v1 = version({
     id: "doc_v1",
     version: 1,
@@ -200,12 +242,12 @@ test("dayw8: deleting a non-latest version never promotes and never drops older 
   });
 
   const plan = planDeliveredDocumentVersionRemoval(v1, [v1, v2]);
+  assert.equal(plan.deleteVersionId, v1._id);
   assert.equal(plan.promoteId, null);
-  assert.deepEqual(plan.retainedVersionIds, [v1._id, v2._id]);
-  assert.equal(plan.cascadeStorage, false);
+  assert.deepEqual(plan.retainedVersionIds, [v2._id]);
 });
 
-test("dayw8: the only version is demoted and nothing else is deleted", () => {
+test("dayw8: the only version is deleted and nothing is promoted", () => {
   const only = version({
     id: "doc_only",
     version: 1,
@@ -214,8 +256,9 @@ test("dayw8: the only version is demoted and nothing else is deleted", () => {
     documentTypeId: typeA,
   });
   const plan = planDeliveredDocumentVersionRemoval(only, [only]);
+  assert.equal(plan.deleteVersionId, only._id);
   assert.equal(plan.promoteId, null);
-  assert.deepEqual(plan.retainedVersionIds, [only._id]);
+  assert.deepEqual(plan.retainedVersionIds, []);
 });
 
 test("dayw8: loose documents with different names are not the same version chain", () => {
@@ -256,23 +299,60 @@ test("dayw8: loose documents with different names are not the same version chain
     contract,
   ]);
   assert.equal(plan.promoteId, olderPassport._id);
-  assert.deepEqual(plan.retainedVersionIds, [passport._id, olderPassport._id]);
+  assert.deepEqual(plan.retainedVersionIds, [olderPassport._id]);
 });
 
-test("dayw8: documentsDelivered.remove promotes previous latest without deleting storage or versions", () => {
+test("dayw8: documentsDelivered.remove deletes that version via the shared helper", () => {
   const handler = exportedHandler(
     convexSource("convex/documentsDelivered.ts"),
     "remove",
   );
-  assert.match(handler, /planDeliveredDocumentVersionRemoval/);
-  assert.match(handler, /isLatest: true/);
-  assert.doesNotMatch(handler, /ctx\.db\.delete/);
-  assert.doesNotMatch(handler, /ctx\.storage\.delete/);
-  assert.doesNotMatch(handler, /documentDeliveredConditions/);
-  assert.doesNotMatch(handler, /documentStatusHistory/);
+  assert.match(handler, /removeDeliveredDocumentVersion\(ctx, document\)/);
+  assert.doesNotMatch(handler, /isLatest: false/);
+
+  const helper = convexSource("convex/lib/deletionCascades.ts");
+  assert.match(helper, /planDeliveredDocumentVersionRemoval/);
+  assert.match(helper, /await ctx\.db\.delete\(document\._id\)/);
+  assert.match(helper, /isLatest: true/);
+  assert.match(helper, /selectUnreferencedStorageIds/);
 });
 
-test("dayw8: hard-deleting a process document cascades unique storage, conditions, and history", () => {
+test("dayw8: shared storage is kept when another documentsDelivered still references it", () => {
+  const shared = "storage_shared" as Id<"_storage">;
+  const unique = "storage_unique" as Id<"_storage">;
+  const remaining = [
+    { _id: "v3", storageId: unique },
+    { _id: "v2", storageId: shared },
+    { _id: "reused_other_process", storageId: shared },
+  ];
+
+  assert.deepEqual(
+    selectUnreferencedStorageIds([shared, unique], remaining, ["v3"]),
+    [unique],
+  );
+  assert.deepEqual(
+    selectUnreferencedStorageIds([shared], remaining, ["v3"]),
+    [],
+  );
+});
+
+test("dayw8: shared storage among versions of the same chain is not deleted with one version", () => {
+  const shared = "storage_shared" as Id<"_storage">;
+  const remaining = [
+    { _id: "v3", storageId: shared },
+    { _id: "v2", storageId: shared },
+  ];
+  assert.deepEqual(
+    selectUnreferencedStorageIds([shared], remaining, ["v3"]),
+    [],
+  );
+  assert.deepEqual(
+    selectUnreferencedStorageIds([shared], remaining, ["v3", "v2"]),
+    [shared],
+  );
+});
+
+test("dayw8: hard-deleting a process document plans unique candidate storage ids", () => {
   const shared = "storage_shared" as Id<"_storage">;
   const documents = [
     {
@@ -299,9 +379,23 @@ test("dayw8: hard-deleting a process document cascades unique storage, condition
     "doc_v3",
     "doc_empty",
   ]);
-  assert.deepEqual(plan.deleteStorageIds, [shared, "storage_other"]);
+  assert.deepEqual(plan.candidateStorageIds, [shared, "storage_other"]);
   assert.equal(plan.cascadeConditions, true);
   assert.equal(plan.cascadeStatusHistory, true);
+
+  const reusedElsewhere = [
+    { _id: "doc_v1", storageId: shared },
+    { _id: "doc_v2", storageId: shared },
+    { _id: "copy_from_reuse", storageId: shared },
+  ];
+  assert.deepEqual(
+    selectUnreferencedStorageIds(
+      plan.candidateStorageIds,
+      [...reusedElsewhere, { _id: "doc_v3", storageId: "storage_other" as Id<"_storage"> }],
+      plan.deleteDocumentIds,
+    ),
+    ["storage_other"],
+  );
 });
 
 test("dac75: individualProcesses.remove hard-deletes delivered docs and their status history", () => {
@@ -309,7 +403,10 @@ test("dac75: individualProcesses.remove hard-deletes delivered docs and their st
     convexSource("convex/individualProcesses.ts"),
     "remove",
   );
-  assert.match(handler, /hardDeleteDeliveredDocuments\(ctx, documentsDelivered\)/);
+  assert.match(
+    handler,
+    /hardDeleteDeliveredDocuments\(ctx, documentsDelivered/,
+  );
   assert.match(handler, /deleteNotificationsForTask\(ctx, task\)/);
 
   const helper = convexSource("convex/lib/deletionCascades.ts");
@@ -321,12 +418,25 @@ test("dac75: individualProcesses.remove hard-deletes delivered docs and their st
     helper,
     /\.query\("documentDeliveredConditions"\)[\s\S]*withIndex\("by_documentDelivered"/,
   );
+  assert.match(helper, /selectUnreferencedStorageIds/);
   assert.match(helper, /ctx\.storage\.delete\(storageId\)/);
 });
 
 test("G4 does not add a notifications entityId index or a backfill mutation", () => {
   const schema = convexSource("convex/schema.ts");
-  assert.doesNotMatch(schema, /by_entityId/);
+  const notificationsStart = schema.indexOf("notifications: defineTable");
+  const notificationsTable = schema.slice(
+    notificationsStart,
+    schema.indexOf("dashboardWidgets:", notificationsStart),
+  );
+  assert.doesNotMatch(notificationsTable, /by_entityId/);
+
+  const deliveredStart = schema.indexOf("documentsDelivered: defineTable");
+  const deliveredTable = schema.slice(
+    deliveredStart,
+    schema.indexOf("documentStatusHistory:", deliveredStart),
+  );
+  assert.doesNotMatch(deliveredTable, /by_storageId/);
 
   const helper = convexSource("convex/lib/deletionCascades.ts");
   assert.doesNotMatch(helper, /backfill/);
@@ -354,5 +464,36 @@ test("dayw8: documents from another process are not promoted", () => {
     otherProcess,
   ]);
   assert.equal(plan.promoteId, null);
-  assert.deepEqual(plan.retainedVersionIds, [current._id]);
+  assert.deepEqual(plan.retainedVersionIds, []);
+});
+
+test("dayw8: delete dialog copy describes version removal in pt and en", () => {
+  const pt = JSON.parse(convexSource("messages/pt.json")) as {
+    DocumentChecklist: { deleteDocument: string; deleteDocumentDescription: string };
+    DocumentReview: { deleteDocument: string; deleteDocumentConfirm: string };
+  };
+  const en = JSON.parse(convexSource("messages/en.json")) as {
+    DocumentChecklist: { deleteDocument: string; deleteDocumentDescription: string };
+    DocumentReview: { deleteDocument: string; deleteDocumentConfirm: string };
+  };
+
+  assert.match(pt.DocumentChecklist.deleteDocument, /versão/i);
+  assert.match(pt.DocumentChecklist.deleteDocumentDescription, /versão anterior/i);
+  assert.match(pt.DocumentChecklist.deleteDocumentDescription, /mais antigas permanecem/i);
+  assert.doesNotMatch(
+    pt.DocumentChecklist.deleteDocumentDescription,
+    /apenas desmarca|isLatest/,
+  );
+  assert.match(pt.DocumentReview.deleteDocumentConfirm, /versão anterior/i);
+
+  assert.match(en.DocumentChecklist.deleteDocument, /version/i);
+  assert.match(
+    en.DocumentChecklist.deleteDocumentDescription,
+    /previous version/i,
+  );
+  assert.match(
+    en.DocumentChecklist.deleteDocumentDescription,
+    /Older versions remain/i,
+  );
+  assert.match(en.DocumentReview.deleteDocumentConfirm, /previous version/i);
 });

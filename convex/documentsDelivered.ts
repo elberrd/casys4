@@ -40,7 +40,7 @@ import {
   reportFilenameFromDocument,
 } from "../lib/report-templates/process-report-content";
 import { assertObservacoesMaxLength } from "../lib/validations/observacoes";
-import { planDeliveredDocumentVersionRemoval } from "./lib/deletionCascades";
+import { removeDeliveredDocumentVersion } from "./lib/deletionCascades";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
@@ -1583,9 +1583,10 @@ export const restoreVersion = mutation({
 });
 
 /**
- * Mutation to soft-remove the current document version (admin only).
- * Demotes this row and, when it was latest, promotes the previous version.
- * Older versions, storage files, and conditions are never deleted here.
+ * Mutation to remove one delivered-document version (admin only).
+ * Deletes that version row only, promotes the previous version when this one
+ * was latest, and deletes storage only when no other documentsDelivered
+ * still references the file.
  */
 export const remove = mutation({
   args: {
@@ -1600,31 +1601,12 @@ export const remove = mutation({
       throw new Error("Document not found");
     }
 
-    // Get related data before soft delete
-    const [documentType, person, processDocuments] = await Promise.all([
+    const [documentType, person] = await Promise.all([
       document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
       document.personId ? ctx.db.get(document.personId) : null,
-      ctx.db
-        .query("documentsDelivered")
-        .withIndex("by_individualProcess", (q) =>
-          q.eq("individualProcessId", document.individualProcessId),
-        )
-        .collect(),
     ]);
 
-    const versionPlan = planDeliveredDocumentVersionRemoval(
-      document,
-      processDocuments,
-    );
-
-    await ctx.db.patch(id, {
-      isLatest: false,
-    });
-    if (versionPlan.promoteId) {
-      await ctx.db.patch(versionPlan.promoteId, {
-        isLatest: true,
-      });
-    }
+    await removeDeliveredDocumentVersion(ctx, document);
 
     // Log activity (non-blocking, only if admin has userId)
     try {
