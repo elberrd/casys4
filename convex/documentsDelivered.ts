@@ -40,6 +40,7 @@ import {
   reportFilenameFromDocument,
 } from "../lib/report-templates/process-report-content";
 import { assertObservacoesMaxLength } from "../lib/validations/observacoes";
+import { planDeliveredDocumentVersionRemoval } from "./lib/deletionCascades";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
@@ -1582,8 +1583,9 @@ export const restoreVersion = mutation({
 });
 
 /**
- * Mutation to soft delete a document (admin only)
- * Sets isLatest = false to keep audit trail
+ * Mutation to soft-remove the current document version (admin only).
+ * Demotes this row and, when it was latest, promotes the previous version.
+ * Older versions, storage files, and conditions are never deleted here.
  */
 export const remove = mutation({
   args: {
@@ -1599,16 +1601,30 @@ export const remove = mutation({
     }
 
     // Get related data before soft delete
-    const [individualProcess, documentType, person] = await Promise.all([
-      ctx.db.get(document.individualProcessId),
+    const [documentType, person, processDocuments] = await Promise.all([
       document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
       document.personId ? ctx.db.get(document.personId) : null,
+      ctx.db
+        .query("documentsDelivered")
+        .withIndex("by_individualProcess", (q) =>
+          q.eq("individualProcessId", document.individualProcessId),
+        )
+        .collect(),
     ]);
 
-    // Soft delete by marking as not latest
+    const versionPlan = planDeliveredDocumentVersionRemoval(
+      document,
+      processDocuments,
+    );
+
     await ctx.db.patch(id, {
       isLatest: false,
     });
+    if (versionPlan.promoteId) {
+      await ctx.db.patch(versionPlan.promoteId, {
+        isLatest: true,
+      });
+    }
 
     // Log activity (non-blocking, only if admin has userId)
     try {
