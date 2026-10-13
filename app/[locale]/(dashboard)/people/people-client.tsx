@@ -48,13 +48,11 @@ export function PeopleClient() {
   }
 
   const handleDelete = async (id: Id<"people">) => {
-    if (confirm(t('deleteConfirm'))) {
-      try {
-        await deletePerson({ id })
-      } catch (error) {
-        console.error("Error deleting person:", error)
-        alert(t('errorDelete'))
-      }
+    try {
+      await deletePerson({ id })
+    } catch (error) {
+      console.error("Error deleting person:", error)
+      alert(t('errorDelete'))
     }
   }
 
