@@ -10,8 +10,8 @@ import {
 } from "./lib/auth";
 import {
   EMPTY_CONDITION_VALIDATION,
-  allowWriteWhenParentMissing,
   assertAuthenticatedWriter,
+  assertCanWriteOrphanedCondition,
   documentFlagForViewer,
   documentRowsForViewer,
 } from "./lib/viewerAccess";
@@ -30,6 +30,32 @@ async function loadDeliveredDocumentForViewer(
   const userProfile = await getViewerForProcess(ctx, process);
   if (!userProfile || !process) return null;
   return { userProfile, document, process };
+}
+
+async function assertCanWriteDeliveredCondition(
+  ctx: MutationCtx,
+  userProfile: Doc<"userProfiles">,
+  documentsDeliveredId: Id<"documentsDelivered">,
+): Promise<{
+  document: Doc<"documentsDelivered"> | null;
+  process: Doc<"individualProcesses"> | null;
+}> {
+  const document = await ctx.db.get(documentsDeliveredId);
+  const process = document
+    ? await ctx.db.get(document.individualProcessId)
+    : null;
+
+  assertCanWriteOrphanedCondition({
+    documentMissing: document === null,
+    processMissing: process === null,
+    role: userProfile.role,
+  });
+
+  if (document && process) {
+    await requireClientCanAccessProcess(ctx, userProfile, process);
+  }
+
+  return { document, process };
 }
 
 /**
@@ -200,24 +226,11 @@ export const toggleFulfillment = mutation({
       throw new Error("Condition not found");
     }
 
-    const document = await ctx.db.get(existing.documentsDeliveredId);
-    if (!document) {
-      throw new Error("Document not found");
-    }
-
-    const process = await ctx.db.get(document.individualProcessId);
-    if (!process) {
-      if (
-        !allowWriteWhenParentMissing({
-          parentMissing: true,
-          role: userProfile.role,
-        })
-      ) {
-        throw new Error("Access denied: Process does not belong to your company");
-      }
-    } else {
-      await requireClientCanAccessProcess(ctx, userProfile, process);
-    }
+    await assertCanWriteDeliveredCondition(
+      ctx,
+      userProfile,
+      existing.documentsDeliveredId,
+    );
 
     const userId = userProfile.userId;
     if (!userId) {
@@ -257,6 +270,34 @@ export const toggleFulfillment = mutation({
       // Non-blocking: don't fail the mutation if logging fails
     }
 
+    return args.id;
+  },
+});
+
+/**
+ * Mutation to remove a delivered-document condition.
+ * Admin may delete orphan rows (parent document or process already gone);
+ * clients stay denied. Live documents keep the tenant process check.
+ */
+export const remove = mutation({
+  args: {
+    id: v.id("documentDeliveredConditions"),
+  },
+  returns: v.id("documentDeliveredConditions"),
+  handler: async (ctx, args) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Condition not found");
+    }
+
+    await assertCanWriteDeliveredCondition(
+      ctx,
+      userProfile,
+      existing.documentsDeliveredId,
+    );
+
+    await ctx.db.delete(args.id);
     return args.id;
   },
 });

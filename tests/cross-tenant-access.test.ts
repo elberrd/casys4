@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   adminMutationGuard,
   allowWriteWhenParentMissing,
+  assertCanWriteOrphanedCondition,
   assertCanWriteOrphanedProcessChild,
   companiesForViewer,
   companyHasLinkedIndividualProcesses,
@@ -72,7 +73,7 @@ type AccessClass =
 
 const CLASS_TOKENS: Record<AccessClass, RegExp> = {
   "tenant-process":
-    /getViewerForProcess|requireClientCanAccessProcess|viewerCanAccessProcess|viewerCanAccessLinkedRecord|scopeIndividualProcessesForUser|getIndividualProcessCompanyIds|noteAccessibleToViewer|requireNoteProcessAccess|loadDeliveredDocumentForViewer|viewerCanAccessActivityEntity|requireClientCanAccessCollective|filterTasksForClientViewer|filterProcessesForUser|processBelongsToCompanies|allowWriteWhenParentMissing/,
+    /getViewerForProcess|requireClientCanAccessProcess|viewerCanAccessProcess|viewerCanAccessLinkedRecord|scopeIndividualProcessesForUser|getIndividualProcessCompanyIds|noteAccessibleToViewer|requireNoteProcessAccess|loadDeliveredDocumentForViewer|viewerCanAccessActivityEntity|requireClientCanAccessCollective|filterTasksForClientViewer|filterProcessesForUser|processBelongsToCompanies|allowWriteWhenParentMissing|assertCanWriteOrphanedCondition|assertCanWriteDeliveredCondition/,
   "tenant-company":
     /getViewerForCompany|getViewerForCollectiveProcess|requireCompanyAccess|requireClientCanAccessCollective|getClientCurrentCompanyIds|viewerCanAccessCompany|companiesForViewer|profilesForViewer|requireClient|canAccessDocument/,
   "tenant-person":
@@ -173,6 +174,7 @@ const FUNCTION_RULES: Record<string, AccessClass> = {
   "convex/documentDeliveredConditions.ts:getValidationStatus": "tenant-process",
   "convex/documentDeliveredConditions.ts:hasConditions": "tenant-process",
   "convex/documentDeliveredConditions.ts:toggleFulfillment": "tenant-process",
+  "convex/documentDeliveredConditions.ts:remove": "tenant-process",
   "convex/documentDeliveredConditions.ts:syncMissingConditions": "tenant-process",
   "convex/documentTypeFieldMappings.ts:getFieldsWithValues": "tenant-process",
   "convex/documentTypeFieldMappings.ts:updateFieldValues": "admin",
@@ -573,6 +575,7 @@ const TENANT_FUNCTIONS: Array<{
   { file: "convex/activityLogs.ts", name: "getEntityHistory", access: "tenant-process" },
   { file: "convex/activityLogs.ts", name: "getIndividualProcessFullHistory", access: "tenant-process" },
   { file: "convex/documentDeliveredConditions.ts", name: "toggleFulfillment", access: "tenant-process" },
+  { file: "convex/documentDeliveredConditions.ts", name: "remove", access: "tenant-process" },
   { file: "convex/documentsDelivered.ts", name: "toggleExcludeFromReport", access: "tenant-process" },
   { file: "convex/documentsDelivered.ts", name: "bulkExcludeFromReportByDefault", access: "tenant-process" },
   { file: "convex/documentsDelivered.ts", name: "reuseCompanyDocument", access: "tenant-process" },
@@ -706,13 +709,94 @@ test("other process-child mutations allow admin writes when the parent is gone",
     "remove",
   );
 
-  for (const handler of [
-    toggleCondition,
-    toggleExclude,
-    updateNotes,
-    removeAddress,
-  ]) {
+  assert.match(toggleCondition, /assertCanWriteDeliveredCondition/);
+  for (const handler of [toggleExclude, updateNotes, removeAddress]) {
     assert.match(handler, /allowWriteWhenParentMissing/);
+  }
+});
+
+function tryOrphanConditionWrite(role: string): {
+  threw: boolean;
+  wrote: boolean;
+  message?: string;
+} {
+  let wrote = false;
+  try {
+    assertCanWriteOrphanedCondition({
+      documentMissing: true,
+      processMissing: true,
+      role,
+    });
+    wrote = true;
+    return { threw: false, wrote };
+  } catch (error) {
+    return {
+      threw: true,
+      wrote,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+test("admin may toggle and remove an orphan condition when the parent document is missing", () => {
+  const toggle = tryOrphanConditionWrite("admin");
+  assert.equal(toggle.threw, false);
+  assert.equal(toggle.wrote, true);
+
+  const remove = tryOrphanConditionWrite("admin");
+  assert.equal(remove.threw, false);
+  assert.equal(remove.wrote, true);
+
+  const source = convexSource("convex/documentDeliveredConditions.ts");
+  const toggleHandler = exportedHandler(source, "toggleFulfillment");
+  const removeHandler = exportedHandler(source, "remove");
+  assert.match(
+    source,
+    /function assertCanWriteDeliveredCondition[\s\S]*assertCanWriteOrphanedCondition/,
+  );
+  for (const handler of [toggleHandler, removeHandler]) {
+    assert.match(handler, /assertCanWriteDeliveredCondition/);
+    assert.doesNotMatch(
+      handler,
+      /if \(!document\) \{\s*throw new Error\("Document not found"\)/,
+    );
+  }
+});
+
+test("same-company client is denied from toggling or removing an orphan condition", () => {
+  const sameCompany = tryOrphanConditionWrite("client");
+  assert.equal(sameCompany.threw, true);
+  assert.equal(sameCompany.wrote, false);
+  assert.match(sameCompany.message ?? "", /Document not found/);
+  assert.equal(viewerCanAccessProcess("client", COMPANY_A, PROCESS_A), true);
+});
+
+test("other-company client is denied from toggling or removing an orphan condition", () => {
+  const otherCompany = tryOrphanConditionWrite("client");
+  assert.equal(otherCompany.threw, true);
+  assert.equal(otherCompany.wrote, false);
+  assert.match(otherCompany.message ?? "", /Document not found/);
+  assert.equal(viewerCanAccessProcess("client", COMPANY_A, PROCESS_B), false);
+});
+
+test("live-document condition writes still require the tenant process check", () => {
+  assert.doesNotThrow(() =>
+    assertCanWriteOrphanedCondition({
+      documentMissing: false,
+      processMissing: false,
+      role: "client",
+    }),
+  );
+
+  const source = convexSource("convex/documentDeliveredConditions.ts");
+  assert.match(
+    source,
+    /function assertCanWriteDeliveredCondition[\s\S]*requireClientCanAccessProcess/,
+  );
+  const toggleHandler = exportedHandler(source, "toggleFulfillment");
+  const removeHandler = exportedHandler(source, "remove");
+  for (const handler of [toggleHandler, removeHandler]) {
+    assert.match(handler, /assertCanWriteDeliveredCondition/);
   }
 });
 
@@ -757,8 +841,17 @@ test("companies delete UI toasts the refusal reason and does not use native aler
   const en = convexSource("messages/en.json");
 
   assert.match(client, /companyDeleteErrorMessage/);
+  assert.match(client, /from "sonner"/);
+  assert.match(client, /toast\.error\(message/);
   assert.doesNotMatch(client, /\balert\s*\(/);
   assert.doesNotMatch(client, /\bconfirm\s*\(/);
+  assert.match(table, /from "sonner"/);
+  assert.match(table, /toast\.error\(message/);
+  assert.match(table, /setDeleteDialogDismissed\(true\)/);
+  assert.match(
+    table,
+    /open=\{deleteConfirmation\.isOpen && !deleteDialogDismissed\}/,
+  );
   assert.match(table, /entityName:\s*t\("entityName"\)/);
   assert.match(table, /description=\{t\("deleteConfirm"\)\}/);
   assert.match(

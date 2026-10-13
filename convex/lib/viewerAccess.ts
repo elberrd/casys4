@@ -295,6 +295,26 @@ export function assertCanWriteOrphanedProcessChild(args: {
   throw new Error(args.missingMessage ?? "Individual process not found");
 }
 
+/**
+ * Delivered-document conditions left behind after process/document delete.
+ * Admin may toggle/update/remove; non-admin clients (same or other company)
+ * stay denied. Live document+process is a no-op — callers still run the
+ * normal tenant check.
+ */
+export function assertCanWriteOrphanedCondition(args: {
+  documentMissing: boolean;
+  processMissing: boolean;
+  role: string | null | undefined;
+}): void {
+  assertCanWriteOrphanedProcessChild({
+    parentMissing: args.documentMissing || args.processMissing,
+    role: args.role,
+    missingMessage: args.documentMissing
+      ? "Document not found"
+      : "Access denied: Process does not belong to your company",
+  });
+}
+
 export function assertWriterCanAccessCompany(
   role: string | null | undefined,
   currentCompanyIds: ReadonlySet<string>,

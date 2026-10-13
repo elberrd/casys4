@@ -11,6 +11,7 @@ import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
 import { CompaniesTable } from "@/components/companies/companies-table"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { companyDeleteErrorMessage } from "@/lib/company-delete-error"
 
 export function CompaniesClient() {
@@ -42,7 +43,9 @@ export function CompaniesClient() {
     try {
       await deleteCompany({ id })
     } catch (error) {
-      throw new Error(companyDeleteErrorMessage(error, t))
+      const message = companyDeleteErrorMessage(error, t)
+      toast.error(message, { id: "company-delete-error" })
+      throw new Error(message)
     }
   }
 
