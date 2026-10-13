@@ -101,7 +101,7 @@ test("legal representative variables resolve from the linked company person", ()
   assert.equal(values.legalRepresentativeName, "Ana Lima Souza");
   assert.equal(values.legalRepresentativeCpf, "039.867.637-24");
   assert.equal(values.legalRepresentativeEmail, "ana@acme.com");
-  assert.equal(values.legalRepresentativePhone, "+55 11 99999-0000");
+  assert.equal(values.legalRepresentativePhone, "+55 (11) 99999-0000");
   assert.equal(values.legalRepresentativeCargo, "Diretora");
 
   const empty = buildReportVariableValues({

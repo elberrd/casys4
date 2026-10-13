@@ -4,7 +4,11 @@ import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
 
 import { filterComboboxOptionByLabel } from "@/lib/combobox-filter";
-import { nextComboboxSelection } from "@/lib/combobox-select";
+import {
+  nextComboboxInternalValueAfterClear,
+  nextComboboxSelection,
+  resolveComboboxSelectedValue,
+} from "@/lib/combobox-select";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +41,8 @@ export interface ComboboxOption<T = string> {
  */
 export interface ComboboxProps<T = string> {
   options: ComboboxOption<T>[];
-  value?: T;
+  /** Empty string is a controlled “no selection” — do not pass undefined to clear. */
+  value?: T | "";
   defaultValue?: T;
   onValueChange?: (value: T | undefined) => void;
   /** Accessible name announced for the combobox trigger. */
@@ -187,8 +192,9 @@ function ComboboxSingle<T extends string = string>({
     return () => list.removeEventListener("wheel", handleWheel);
   }, [isolateListScroll, open]);
 
-  // Use controlled value if provided, otherwise use internal state
-  const selectedValue = value !== undefined ? value : internalValue;
+  // Empty string stays controlled so the X can clear Empresa Requerente /
+  // Representante Legal without falling back to a stale internalValue.
+  const selectedValue = resolveComboboxSelectedValue<T>(value, internalValue);
 
   // Get the selected option
   const selectedOption = options.find(
@@ -236,11 +242,7 @@ function ComboboxSingle<T extends string = string>({
 
   const handleClear = (e: { stopPropagation: () => void }) => {
     e.stopPropagation(); // Prevent opening popover
-
-    if (value === undefined) {
-      setInternalValue(undefined);
-    }
-
+    setInternalValue(nextComboboxInternalValueAfterClear());
     onValueChange?.(undefined);
   };
 

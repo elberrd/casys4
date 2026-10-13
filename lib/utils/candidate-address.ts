@@ -519,6 +519,80 @@ export function formatAddressCityState(
  * Brazil/process: «street, number, neighborhood, City - UF, CEP» (no BRASIL).
  * Abroad/person: keeps country and the stored state label.
  */
+/**
+ * True when Combobox re-emits the already-selected country/UF.
+ * Re-select must not wipe city (or the rest of the region).
+ */
+export function isSameAddressSelection(
+  current: string | undefined,
+  next: string | undefined,
+): boolean {
+  return Boolean(next) && next === (current ?? "");
+}
+
+const CLEARED_REGION_FIELDS = {
+  addressStateCode: "",
+  addressStateName: "",
+  addressCity: "",
+} as const;
+
+/**
+ * Country change for CandidateAddressFields.
+ * Same country → no-op so city/UF stay put.
+ */
+export function nextCountryAddressFields(args: {
+  currentCountryCode: string | undefined;
+  nextCode: string | undefined;
+  countryName?: string;
+}): Partial<CandidateAddressValue> | null {
+  if (isSameAddressSelection(args.currentCountryCode, args.nextCode)) {
+    return null;
+  }
+  if (!args.nextCode) {
+    return {
+      addressCountryCode: "",
+      addressCountryName: "",
+      ...CLEARED_REGION_FIELDS,
+    };
+  }
+  return {
+    addressCountryCode: args.nextCode,
+    addressCountryName: args.countryName ?? args.nextCode,
+    ...CLEARED_REGION_FIELDS,
+  };
+}
+
+/**
+ * State/UF change for CandidateAddressFields.
+ * Same UF (including normalized Brazil codes) → no-op so city stays.
+ */
+export function nextStateAddressFields(args: {
+  currentStateCode: string | undefined;
+  nextCode: string | undefined;
+  nextStateName?: string;
+  mode: AddressCountryMode;
+}): Partial<CandidateAddressValue> | null {
+  const nextStored =
+    args.mode === "process"
+      ? (normalizeBrazilStateCode(args.nextCode, args.nextStateName) ??
+        args.nextCode ??
+        "")
+      : (args.nextCode ?? "");
+
+  if (args.nextCode && nextStored === (args.currentStateCode ?? "")) {
+    return null;
+  }
+
+  return {
+    addressStateCode: nextStored,
+    addressStateName:
+      args.mode === "process" && nextStored
+        ? getBrazilStateName(nextStored)
+        : (args.nextStateName ?? ""),
+    addressCity: "",
+  };
+}
+
 export function formatCandidateAddress(
   value: CandidateAddressValue,
 ): string {

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { toControlledComboboxValue } from "@/lib/combobox-select";
 
 interface LegalRepresentativeComboboxProps {
   value?: Id<"people"> | "";
@@ -65,7 +66,7 @@ export function LegalRepresentativeCombobox({
   return (
     <Combobox
       options={options}
-      value={selectedId}
+      value={toControlledComboboxValue(selectedId)}
       onValueChange={onValueChange}
       onSearchChange={setSearch}
       ariaLabel={t("contactPerson")}

@@ -4,6 +4,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useTranslations } from "next-intl"
 import { Combobox, ComboboxOption } from "@/components/ui/combobox"
+import { toControlledComboboxValue } from "@/lib/combobox-select"
 
 interface CompanyApplicantSelectorProps {
   value: string
@@ -42,7 +43,7 @@ export function CompanyApplicantSelector({
   return (
     <Combobox
       options={options}
-      value={value || undefined}
+      value={toControlledComboboxValue(value)}
       onValueChange={(newValue) => onChange(newValue || "")}
       placeholder={t("selectCompanyApplicant")}
       searchPlaceholder={t("selectCompanyApplicant")}
