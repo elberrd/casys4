@@ -53,4 +53,5 @@ test("next.config uploads wider client maps and deletes them after upload", () =
   );
   assert.match(config, /widenClientFileUpload:\s*true/);
   assert.match(config, /deleteSourcemapsAfterUpload:\s*true/);
+  assert.match(config, /silent:\s*!process\.env\.CI/);
 });
