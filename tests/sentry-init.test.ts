@@ -46,6 +46,17 @@ test("source maps upload only with token, org, and project", () => {
   );
 });
 
+test("client instrumentation exports Sentry router transition hook", () => {
+  const client = readFileSync(
+    path.join(process.cwd(), "instrumentation-client.ts"),
+    "utf8",
+  );
+  assert.match(
+    client,
+    /export const onRouterTransitionStart = Sentry\.captureRouterTransitionStart;/,
+  );
+});
+
 test("next.config uploads wider client maps and deletes them after upload", () => {
   const config = readFileSync(
     path.join(process.cwd(), "next.config.ts"),
