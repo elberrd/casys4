@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import {
   getCurrentUserProfile,
   getViewerForProcess,
+  requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
 import {
@@ -32,6 +33,7 @@ async function loadDeliveredDocumentForViewer(
   return { userProfile, document, process };
 }
 
+/** Toggle access: orphan (doc or process gone) is admin-only; live uses tenant check. */
 async function assertCanWriteDeliveredCondition(
   ctx: MutationCtx,
   userProfile: Doc<"userProfiles">,
@@ -276,8 +278,7 @@ export const toggleFulfillment = mutation({
 
 /**
  * Mutation to remove a delivered-document condition.
- * Admin may delete orphan rows (parent document or process already gone);
- * clients stay denied. Live documents keep the tenant process check.
+ * Admin-only for any row (live or orphan). Clients never remove.
  */
 export const remove = mutation({
   args: {
@@ -285,17 +286,11 @@ export const remove = mutation({
   },
   returns: v.id("documentDeliveredConditions"),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    await requireAdmin(ctx);
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Condition not found");
     }
-
-    await assertCanWriteDeliveredCondition(
-      ctx,
-      userProfile,
-      existing.documentsDeliveredId,
-    );
 
     await ctx.db.delete(args.id);
     return args.id;

@@ -343,6 +343,38 @@ test("documentRequirements:list anonymous call returns []", () => {
   assert.match(handler, /rowsForViewer/);
 });
 
+test("documentDeliveredConditions:remove is admin-only and writes nothing when rejected", () => {
+  let wrote = false;
+  const anonymous = adminMutationGuard(null, () => {
+    wrote = true;
+  });
+  assert.equal(anonymous.threw, true);
+  assert.equal(anonymous.wrote, false);
+  assert.equal(wrote, false);
+
+  const client = adminMutationGuard({ role: "client" }, () => {
+    wrote = true;
+  });
+  assert.equal(client.threw, true);
+  assert.equal(client.wrote, false);
+  assert.equal(wrote, false);
+
+  const admin = adminMutationGuard({ role: "admin" }, () => {
+    wrote = true;
+  });
+  assert.equal(admin.threw, false);
+  assert.equal(admin.wrote, true);
+
+  const handler = exportedHandler(
+    convexSource("convex/documentDeliveredConditions.ts"),
+    "remove",
+  );
+  assert.match(handler, /requireAdmin/);
+  const authIdx = handler.indexOf("requireAdmin");
+  const deleteIdx = handler.indexOf("ctx.db.delete");
+  assert.ok(authIdx >= 0 && deleteIdx > authIdx);
+});
+
 test("documentDeliveredConditions:syncMissingConditions anonymous call throws and writes nothing", () => {
   let wrote = false;
   const outcome = anonymousMutationGuard(null, () => {

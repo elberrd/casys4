@@ -296,23 +296,22 @@ export function assertCanWriteOrphanedProcessChild(args: {
 }
 
 /**
- * Delivered-document conditions left behind after process/document delete.
- * Admin may toggle/update/remove; non-admin clients (same or other company)
- * stay denied. Live document+process is a no-op — callers still run the
- * normal tenant check.
+ * Orphan delivered-document conditions (parent document OR process gone).
+ * Toggle is admin-only — clients, including the same company, stay denied.
+ * Live document+process is a no-op; callers still run the tenant check.
  */
 export function assertCanWriteOrphanedCondition(args: {
   documentMissing: boolean;
   processMissing: boolean;
   role: string | null | undefined;
 }): void {
-  assertCanWriteOrphanedProcessChild({
-    parentMissing: args.documentMissing || args.processMissing,
-    role: args.role,
-    missingMessage: args.documentMissing
+  if (!args.documentMissing && !args.processMissing) return;
+  if (args.role === "admin") return;
+  throw new Error(
+    args.documentMissing
       ? "Document not found"
       : "Access denied: Process does not belong to your company",
-  });
+  );
 }
 
 export function assertWriterCanAccessCompany(
