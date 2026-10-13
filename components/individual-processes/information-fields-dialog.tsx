@@ -18,7 +18,13 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Loader2, Save, FileText } from "lucide-react"
+import { timestampToIsoDate } from "@/lib/document-wait-time"
 import { LinkedFieldInput } from "./linked-field-input"
+import {
+  DocumentReceivedDateField,
+  documentTimingDateSchema,
+  getDefaultReceivedDate,
+} from "./document-received-date-field"
 
 interface InformationFieldsDialogProps {
   open: boolean
@@ -28,6 +34,8 @@ interface InformationFieldsDialogProps {
   documentRequirementId?: Id<"documentRequirements">
   documentTypeLegalFrameworkId?: Id<"documentTypesLegalFrameworks">
   documentTypeName: string
+  canEditReceivedDate?: boolean
+  existingReceivedAt?: number
   onSuccess?: () => void
 }
 
@@ -39,12 +47,16 @@ export function InformationFieldsDialog({
   documentRequirementId,
   documentTypeLegalFrameworkId,
   documentTypeName,
+  canEditReceivedDate = false,
+  existingReceivedAt,
   onSuccess,
 }: InformationFieldsDialogProps) {
   const t = useTranslations("InformationFields")
   const tCommon = useTranslations("Common")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editedValues, setEditedValues] = useState<Record<string, string | number>>({})
+  const [receivedDate, setReceivedDate] = useState(getDefaultReceivedDate)
+  const [initialReceivedDate, setInitialReceivedDate] = useState(getDefaultReceivedDate)
 
   const fieldsWithValues = useQuery(
     api.documentTypeFieldMappings.getFieldsWithValues,
@@ -65,6 +77,16 @@ export function InformationFieldsDialog({
     }
   }, [fieldsWithValues])
 
+  useEffect(() => {
+    if (!open) return
+    const nextReceivedDate =
+      existingReceivedAt !== undefined
+        ? timestampToIsoDate(existingReceivedAt)
+        : getDefaultReceivedDate()
+    setReceivedDate(nextReceivedDate)
+    setInitialReceivedDate(nextReceivedDate)
+  }, [open, existingReceivedAt])
+
   const handleFieldChange = (entityType: string, fieldPath: string, value: string | number) => {
     setEditedValues((prev) => ({
       ...prev,
@@ -72,8 +94,11 @@ export function InformationFieldsDialog({
     }))
   }
 
+  const isReceivedDateValid =
+    !canEditReceivedDate || documentTimingDateSchema.safeParse(receivedDate).success
+
   const handleSubmit = async () => {
-    if (!fieldsWithValues) return
+    if (!fieldsWithValues || !isReceivedDateValid) return
 
     setIsSubmitting(true)
     try {
@@ -89,6 +114,10 @@ export function InformationFieldsDialog({
         documentRequirementId,
         documentTypeLegalFrameworkId,
         changes,
+        receivedDate:
+          canEditReceivedDate && receivedDate !== initialReceivedDate
+            ? receivedDate
+            : undefined,
       })
 
       toast.success(t("saved"))
@@ -149,6 +178,14 @@ export function InformationFieldsDialog({
               )
             })
           )}
+
+          <DocumentReceivedDateField
+            canEdit={canEditReceivedDate}
+            value={receivedDate}
+            onChange={setReceivedDate}
+            disabled={isSubmitting}
+            id="information-fields-received-date"
+          />
         </div>
 
         <DialogFooter className="flex-shrink-0 pt-4">
@@ -163,7 +200,12 @@ export function InformationFieldsDialog({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !fieldsWithValues || fieldsWithValues.length === 0}
+            disabled={
+              isSubmitting ||
+              !fieldsWithValues ||
+              fieldsWithValues.length === 0 ||
+              !isReceivedDateValid
+            }
           >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin mr-1" />
