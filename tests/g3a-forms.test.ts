@@ -3,12 +3,18 @@ import test from "node:test";
 
 import { PERSON_SEARCH_LIMIT, personMatchesQuery } from "../convex/lib/personSearch";
 import {
+  scoreComboboxOption,
+  shouldFilterComboboxOnClient,
+} from "../lib/combobox-filter";
+import {
   nextComboboxInternalValueAfterClear,
   resolveComboboxSelectedValue,
   toControlledComboboxValue,
 } from "../lib/combobox-select";
 import {
   composeInternationalPhone,
+  findCountryByCode,
+  formatPhoneNumber,
   formatStoredPhoneNumber,
   normalizeInternationalPhoneInput,
   resolvePhoneInputChange,
@@ -168,6 +174,17 @@ test("dah0h: report phone uses the country mask instead of the raw stored value"
   assert.equal(formatStoredPhoneNumber(undefined), "");
 });
 
+test("Brazil landline uses (11) 3333-4444, not the 9-digit mobile mask", () => {
+  const brazil = findCountryByCode("BR");
+  assert.ok(brazil);
+  assert.equal(formatPhoneNumber("1133334444", brazil), "(11) 3333-4444");
+  assert.equal(formatPhoneNumber("11999990000", brazil), "(11) 99999-0000");
+  assert.equal(
+    formatStoredPhoneNumber("+551133334444"),
+    "+55 (11) 3333-4444",
+  );
+});
+
 test("dah0f: people search matches CPF digits and returns more than 10 hits", () => {
   assert.equal(PERSON_SEARCH_LIMIT, 50);
   assert.ok(PERSON_SEARCH_LIMIT > 10);
@@ -188,4 +205,16 @@ test("dah0f: people search matches CPF digits and returns more than 10 hits", ()
   })).filter((row) => personMatchesQuery(row, ""));
   assert.equal(page.length, 40);
   assert.equal(page.slice(0, PERSON_SEARCH_LIMIT).length, 40);
+
+  const pickerOptions = [{ value: "person_ana", label: "Ana Lima Souza" }];
+  assert.equal(shouldFilterComboboxOnClient(true), false);
+  assert.equal(
+    scoreComboboxOption({
+      optionValue: "person_ana",
+      search: "03986763724",
+      options: pickerOptions,
+      serverFiltered: true,
+    }),
+    1,
+  );
 });

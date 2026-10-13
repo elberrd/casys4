@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
-import { filterComboboxOptionByLabel } from "../lib/combobox-filter";
+import {
+  filterComboboxOptionByLabel,
+  scoreComboboxOption,
+  shouldFilterComboboxOnClient,
+} from "../lib/combobox-filter";
 import { buildReportVariableValues } from "../lib/report-templates/format-values";
 import {
   REPORT_VARIABLES,
@@ -140,4 +146,60 @@ test("combobox filter matches option labels, not value ids", () => {
   assert.equal(filterComboboxOptionByLabel("jd7def456joao", "joao", options), 0);
   assert.equal(filterComboboxOptionByLabel("missing", "maria", options), 0);
   assert.equal(filterComboboxOptionByLabel("jd7abc123maria", "", options), 1);
+});
+
+test("dah0f: server-driven combobox keeps CPF hits that do not match the name label", () => {
+  const options = [{ value: "person_ana", label: "Ana Lima Souza" }];
+
+  assert.equal(
+    filterComboboxOptionByLabel("person_ana", "03986763724", options),
+    0,
+    "label-only filter hides a CPF query (the QA failure)",
+  );
+  assert.equal(shouldFilterComboboxOnClient(true), false);
+  assert.equal(shouldFilterComboboxOnClient(false), true);
+  assert.equal(
+    scoreComboboxOption({
+      optionValue: "person_ana",
+      search: "03986763724",
+      options,
+      serverFiltered: true,
+    }),
+    1,
+  );
+  assert.equal(
+    scoreComboboxOption({
+      optionValue: "person_ana",
+      search: "ana lima",
+      options,
+      serverFiltered: true,
+    }),
+    1,
+  );
+  assert.equal(
+    scoreComboboxOption({
+      optionValue: "person_ana",
+      search: "ana lima",
+      options,
+      serverFiltered: false,
+    }),
+    1,
+  );
+
+  const comboboxSource = readFileSync(
+    path.join(process.cwd(), "components/ui/combobox.tsx"),
+    "utf8",
+  );
+  const legalRepSource = readFileSync(
+    path.join(
+      process.cwd(),
+      "components/companies/legal-representative-combobox.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(legalRepSource, /onSearchChange=\{setSearch\}/);
+  assert.match(
+    comboboxSource,
+    /shouldFilter=\{shouldFilterComboboxOnClient\(Boolean\(onSearchChange\)\)\}/,
+  );
 });

@@ -385,19 +385,36 @@ export function formatStoredPhoneNumber(
  * Format phone number according to country format
  * If no format is specified, returns the raw number
  */
+/**
+ * Brazil landline is DDD + 8 digits: (11) 3333-4444.
+ * Mobile is DDD + 9 digits: (11) 99999-0000.
+ * The country mask is mobile-first; 10-digit nationals must not use it.
+ */
+export function resolvePhoneFormatMask(
+  country: Country,
+  digits: string,
+): string | undefined {
+  if (country.code === 'BR' && digits.length <= 10) {
+    return '(##) ####-####';
+  }
+  return country.format;
+}
+
 export function formatPhoneNumber(phoneNumber: string, country: Country): string {
-  if (!country.format || !phoneNumber) {
+  if (!phoneNumber) {
     return phoneNumber;
   }
 
-  // Remove all non-digit characters
   const digits = phoneNumber.replace(/\D/g, '');
+  const format = resolvePhoneFormatMask(country, digits);
+  if (!format) {
+    return phoneNumber;
+  }
 
-  // Apply format mask
   let formatted = '';
   let digitIndex = 0;
 
-  for (const char of country.format) {
+  for (const char of format) {
     if (char === '#') {
       if (digitIndex < digits.length) {
         formatted += digits[digitIndex];

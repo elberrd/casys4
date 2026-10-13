@@ -3,7 +3,10 @@
 import * as React from "react";
 import { Check, ChevronsUpDown, X, Plus, Loader2 } from "lucide-react";
 
-import { filterComboboxOptionByLabel } from "@/lib/combobox-filter";
+import {
+  filterComboboxOptionByLabel,
+  shouldFilterComboboxOnClient,
+} from "@/lib/combobox-filter";
 import {
   nextComboboxInternalValueAfterClear,
   nextComboboxSelection,
@@ -346,6 +349,7 @@ function ComboboxSingle<T extends string = string>({
         }}
       >
         <Command
+          shouldFilter={shouldFilterComboboxOnClient(Boolean(onSearchChange))}
           filter={(optionValue, search) =>
             filterComboboxOptionByLabel(optionValue, search, filterOptions)
           }
@@ -648,6 +652,7 @@ function ComboboxMultiple<T extends string = string>({
         }}
       >
         <Command
+          shouldFilter={shouldFilterComboboxOnClient(Boolean(onSearchChange))}
           filter={(optionValue, search) => {
             if (optionValue === "__create_new_item__") return 1;
             return filterComboboxOptionByLabel(
