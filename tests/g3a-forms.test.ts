@@ -40,8 +40,10 @@ test("daw4g: empty form value stays controlled so X can clear the label", () => 
   // Parent stores "" and passes it through (not undefined).
   assert.equal(resolveComboboxSelectedValue("", "stale-company-id"), undefined);
   // Regression: `value || undefined` would show the stale internal selection.
+  const formValue: string = "";
+  const legacyUncontrolledProp: string | undefined = formValue || undefined;
   assert.equal(
-    resolveComboboxSelectedValue("" || undefined, "stale-company-id"),
+    resolveComboboxSelectedValue(legacyUncontrolledProp, "stale-company-id"),
     "stale-company-id",
   );
   assert.equal(
