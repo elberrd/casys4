@@ -1116,6 +1116,8 @@ export default defineSchema({
     filename: v.string(),
     updatedAt: v.number(),
     updatedBy: v.id("users"),
+    // Template updatedAt this draft was last based on. Absent on older rows.
+    sourceTemplateUpdatedAt: v.optional(v.number()),
   }).index("by_individualProcess_and_reportTemplate", [
     "individualProcessId",
     "reportTemplateId",

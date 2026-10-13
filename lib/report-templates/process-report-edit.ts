@@ -77,6 +77,23 @@ export function resolveProcessReportEditorContent(args: {
   };
 }
 
+/**
+ * Ask to rebuild when the process already has report text and the original
+ * template was saved after that text was based on it.
+ * Answering either way stores templateUpdatedAt as the new baseline.
+ */
+export function shouldPromptToRebuildFromTemplate(args: {
+  hasKeptContent: boolean;
+  templateUpdatedAt: number | null;
+  sourceTemplateUpdatedAt: number | null;
+  keptContentUpdatedAt: number | null;
+}): boolean {
+  if (!args.hasKeptContent || args.templateUpdatedAt == null) return false;
+  const baseline = args.sourceTemplateUpdatedAt ?? args.keptContentUpdatedAt;
+  if (baseline == null) return false;
+  return args.templateUpdatedAt > baseline;
+}
+
 export function shouldPersistProcessReportEdit(args: {
   html: string;
   filename: string;

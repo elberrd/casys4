@@ -10,6 +10,16 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { useRouter } from "@/i18n/routing";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -44,6 +54,7 @@ import {
   reportAttachUploadStatusArgs,
   resolveProcessReportEditorContent,
   shouldPersistProcessReportEdit,
+  shouldPromptToRebuildFromTemplate,
   uploadDocumentKeepingHtmlFallback,
 } from "@/lib/report-templates/process-report-edit";
 import {
@@ -100,13 +111,21 @@ export function CustomReportGenerateDialog({
   const [savedEdit, setSavedEdit] = useState<{
     contentHtml: string;
     filename: string;
+    updatedAt: number;
+    sourceTemplateUpdatedAt?: number;
   } | null | undefined>(undefined);
   const [attachedEdit, setAttachedEdit] = useState<{
     contentHtml: string;
     filename: string;
+    uploadedAt: number;
   } | null | undefined>(undefined);
   const [ignoreAttached, setIgnoreAttached] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
+  const [rebuildPromptOpen, setRebuildPromptOpen] = useState(false);
   const initializedRef = useRef(false);
+  const promptedVersionRef = useRef<number | null>(null);
+  const rebuildChoiceRef = useRef<"yes" | "no" | null>(null);
+  const handledRebuildPromptRef = useRef(false);
   const editedHtmlRef = useRef(editedHtml);
   const filenameRef = useRef(filename);
   const lastPersistedRef = useRef({ html: "", filename: "" });
@@ -194,7 +213,11 @@ export function CustomReportGenerateDialog({
           if (!cancelled) {
             setAttachedEdit(
               row
-                ? { contentHtml: row.contentHtml, filename: row.filename }
+                ? {
+                    contentHtml: row.contentHtml,
+                    filename: row.filename,
+                    uploadedAt: row.uploadedAt,
+                  }
                 : null,
             );
           }
@@ -272,6 +295,7 @@ export function CustomReportGenerateDialog({
   useEffect(() => {
     if (!open) {
       initializedRef.current = false;
+      setEditorReady(false);
       setActiveTab("edit");
       setFromSavedEdit(false);
       return;
@@ -304,6 +328,7 @@ export function CustomReportGenerateDialog({
     };
     setAttachEnabled(Boolean(attachTarget));
     setSelectedDocumentTypeId(attachTarget?.documentTypeId);
+    setEditorReady(true);
   }, [
     open,
     template,
@@ -315,6 +340,79 @@ export function CustomReportGenerateDialog({
     attachedEdit,
     ignoreAttached,
   ]);
+
+  useEffect(() => {
+    if (!open) {
+      promptedVersionRef.current = null;
+      setRebuildPromptOpen(false);
+      return;
+    }
+    if (
+      !editorReady ||
+      !template ||
+      savedEdit === undefined ||
+      attachedEdit === undefined
+    ) {
+      return;
+    }
+    const hasKeptContent =
+      Boolean(savedEdit) || Boolean(!ignoreAttached && attachedEdit);
+    const shouldPrompt = shouldPromptToRebuildFromTemplate({
+      hasKeptContent,
+      templateUpdatedAt: template.updatedAt,
+      sourceTemplateUpdatedAt: savedEdit?.sourceTemplateUpdatedAt ?? null,
+      keptContentUpdatedAt: savedEdit
+        ? savedEdit.updatedAt
+        : (attachedEdit?.uploadedAt ?? null),
+    });
+    if (!shouldPrompt || promptedVersionRef.current === template.updatedAt) {
+      return;
+    }
+    promptedVersionRef.current = template.updatedAt;
+    handledRebuildPromptRef.current = false;
+    rebuildChoiceRef.current = null;
+    setRebuildPromptOpen(true);
+  }, [open, editorReady, template, savedEdit, attachedEdit, ignoreAttached]);
+
+  const acknowledgeTemplateVersion = (rebuild: boolean) => {
+    if (!template || !values || !templateId) return;
+    const version = template.updatedAt;
+    let html = editedHtmlRef.current;
+    let name = filenameRef.current;
+    if (rebuild) {
+      setIgnoreAttached(true);
+      const resolved = resolveProcessReportEditorContent({
+        saved: null,
+        attached: null,
+        templateHtml: template.contentHtml,
+        templateName: template.name,
+        values,
+        todayIso,
+      });
+      html = resolved.html;
+      name = resolved.filename;
+      setEditedHtml(html);
+      setFilename(name);
+      setFromSavedEdit(true);
+    }
+    lastPersistedRef.current = { html, filename: name };
+    setSavedEdit({
+      contentHtml: html,
+      filename: name,
+      updatedAt: savedEdit?.updatedAt ?? version,
+      sourceTemplateUpdatedAt: version,
+    });
+    void saveEdit({
+      individualProcessId: processId,
+      reportTemplateId: templateId,
+      contentHtml: html,
+      filename: name,
+      sourceTemplateUpdatedAt: version,
+    }).catch((error: unknown) => {
+      console.error(error);
+      toast.error(t("errorUpdate"));
+    });
+  };
 
   const persistIfDirty = (): Promise<void> => {
     if (!templateId || !initializedRef.current) return Promise.resolve();
@@ -582,6 +680,7 @@ export function CustomReportGenerateDialog({
     (template === null || process === null || templateAllowed === false);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         variant="fullscreen"
@@ -809,5 +908,48 @@ export function CustomReportGenerateDialog({
         )}
       </DialogContent>
     </Dialog>
+    <AlertDialog
+      open={rebuildPromptOpen}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) return;
+        if (handledRebuildPromptRef.current) return;
+        handledRebuildPromptRef.current = true;
+        const rebuild = rebuildChoiceRef.current === "yes";
+        rebuildChoiceRef.current = null;
+        setRebuildPromptOpen(false);
+        acknowledgeTemplateVersion(rebuild);
+      }}
+    >
+      <AlertDialogContent
+        className="z-[80]"
+        overlayClassName="z-[80]"
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("rebuildFromUpdatedTemplateTitle")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("rebuildFromUpdatedTemplateDescription")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              rebuildChoiceRef.current = "no";
+            }}
+          >
+            {tCommon("no")}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              rebuildChoiceRef.current = "yes";
+            }}
+          >
+            {tCommon("yes")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

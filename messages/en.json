@@ -2456,6 +2456,8 @@
     "generating": "Preparing the report...",
     "filenameLabel": "File name",
     "editOriginalReport": "Edit in the original report",
+    "rebuildFromUpdatedTemplateTitle": "Rebuild the report?",
+    "rebuildFromUpdatedTemplateDescription": "The original report was updated. Do you want to rebuild this report with those changes? If you choose no, the current text stays as it is.",
     "continuingPreviousEdit": "Continuing the previous edit of this report.",
     "useOriginalTemplate": "Use original template",
     "editTab": "Edit",
