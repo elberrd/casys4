@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -42,4 +44,13 @@ test("source maps upload only with token, org, and project", () => {
     }),
     true,
   );
+});
+
+test("next.config uploads wider client maps and deletes them after upload", () => {
+  const config = readFileSync(
+    path.join(process.cwd(), "next.config.ts"),
+    "utf8",
+  );
+  assert.match(config, /widenClientFileUpload:\s*true/);
+  assert.match(config, /deleteSourcemapsAfterUpload:\s*true/);
 });
