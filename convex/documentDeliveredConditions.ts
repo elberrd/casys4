@@ -193,14 +193,19 @@ export const toggleFulfillment = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-    if (!userProfile?.userId) {
-      throw new Error("User must be authenticated");
-    }
-
+    await getCurrentUserProfile(ctx);
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Condition not found");
+    }
+
+    const viewer = await loadDeliveredDocumentForViewer(
+      ctx,
+      existing.documentsDeliveredId,
+    );
+    const userId = viewer?.userProfile.userId;
+    if (!userId) {
+      throw new Error("Access denied: Process does not belong to your company");
     }
 
     const now = Date.now();
@@ -208,7 +213,7 @@ export const toggleFulfillment = mutation({
     await ctx.db.patch(args.id, {
       isFulfilled: args.isFulfilled,
       fulfilledAt: args.isFulfilled ? now : undefined,
-      fulfilledBy: args.isFulfilled ? userProfile.userId : undefined,
+      fulfilledBy: args.isFulfilled ? userId : undefined,
       notes: args.notes ?? existing.notes,
     });
 
@@ -221,7 +226,7 @@ export const toggleFulfillment = mutation({
         : null;
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId,
         action: args.isFulfilled ? "condition_fulfilled" : "condition_unfulfilled",
         entityType: "documentCondition",
         entityId: args.id,

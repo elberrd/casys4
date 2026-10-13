@@ -6,6 +6,7 @@ import {
   tryGetCurrentUserProfile,
   requireAdmin,
   getClientCurrentCompanyIds,
+  getViewerForProcess,
 } from "./lib/auth";
 import { enrichFilledFieldsData } from "./lib/filledFields";
 import { createCachedGet } from "./lib/cachedGet";
@@ -518,15 +519,15 @@ export const list = query({
 export const get = query({
   args: { id: v.id("individualProcesses") },
   handler: async (ctx, { id }) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) return null;
-
     const process = await ctx.db.get(id);
     if (!process) return null;
 
     // A client-request draft is not a real process; it is only viewable through
     // the Solicitações flow (api.processRequests.get), never the process detail.
     if (process.requestStatus === "draft") return null;
+
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile) return null;
 
     const [
       rawPerson,
@@ -612,28 +613,6 @@ export const get = query({
         nationality,
         birthCity,
       };
-    }
-
-    // Check access permissions for client users — restrict to processes whose
-    // company matches one of the user's CURRENT company assignments only
-    // (past employers in peopleCompanies are excluded).
-    if (userProfile.role === "client") {
-      const currentCompanyIds = await getClientCurrentCompanyIds(
-        ctx,
-        userProfile,
-      );
-      const hasAccess =
-        currentCompanyIds.size > 0 &&
-        ((process.companyApplicantId &&
-          currentCompanyIds.has(process.companyApplicantId)) ||
-          (process.userApplicantCompanyId &&
-            currentCompanyIds.has(process.userApplicantCompanyId)) ||
-          (collectiveProcess &&
-            collectiveProcess.companyId &&
-            currentCompanyIds.has(collectiveProcess.companyId)));
-      if (!hasAccess) {
-        return null;
-      }
     }
 
     // If passport exists, enrich it with issuing country

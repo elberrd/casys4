@@ -1667,12 +1667,18 @@ export const toggleExcludeFromReport = mutation({
     documentId: v.id("documentsDelivered"),
   },
   handler: async (ctx, { documentId }) => {
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
 
     const document = await ctx.db.get(documentId);
     if (!document) {
       throw new Error("Document not found");
     }
+
+    const individualProcess = await ctx.db.get(document.individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     await ctx.db.patch(documentId, {
       excludedFromReport: !document.excludedFromReport,
@@ -1714,7 +1720,12 @@ export const bulkExcludeFromReportByDefault = mutation({
     individualProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, { individualProcessId }) => {
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      throw new Error("Individual process not found");
+    }
+    await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
 
     const documents = await ctx.db
       .query("documentsDelivered")
@@ -4051,6 +4062,9 @@ export const reuseCompanyDocument = mutation({
     if (!targetProcess || !sourceProcess) {
       throw new Error("Process not found");
     }
+    await requireClientCanAccessProcess(ctx, userProfile, targetProcess);
+    await requireClientCanAccessProcess(ctx, userProfile, sourceProcess);
+
     if (
       !targetProcess.companyApplicantId ||
       !sourceProcess.companyApplicantId ||
@@ -4157,6 +4171,7 @@ export const bulkReuseCompanyDocuments = mutation({
     if (!process?.companyApplicantId) {
       throw new Error("Process has no company applicant");
     }
+    await requireClientCanAccessProcess(ctx, userProfile, process);
 
     // Get pending documents for this process
     const allDocs = await ctx.db
@@ -4599,6 +4614,7 @@ export const submitInformationFields = mutation({
 
     const process = await ctx.db.get(args.individualProcessId);
     if (!process) throw new Error("Individual process not found");
+    await requireClientCanAccessProcess(ctx, userProfile, process);
 
     // Apply field value changes (same logic as updateFieldValues)
     const grouped: Record<string, Record<string, any>> = {};

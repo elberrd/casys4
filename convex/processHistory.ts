@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  getViewerForProcess,
+  requireAdmin,
+} from "./lib/auth";
+import { viewerCanAccessProcess } from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 
 /**
@@ -46,25 +52,25 @@ export const list = query({
         .collect();
     }
 
-    // Apply role-based access control via individualProcess.collectiveProcess.companyId
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter by company - fetch individualProcess and collectiveProcess for each result
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
       const filteredByCompany = await Promise.all(
         results.map(async (historyRecord) => {
           const individualProcess = await cachedGet(
             historyRecord.individualProcessId,
           );
-          if (!individualProcess || !individualProcess.collectiveProcessId) return null;
-
-          const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-            return historyRecord;
-          }
-          return null;
+          if (!individualProcess) return null;
+          const collectiveProcess = individualProcess.collectiveProcessId
+            ? await cachedGet(individualProcess.collectiveProcessId)
+            : null;
+          return viewerCanAccessProcess(
+            userProfile.role,
+            currentCompanyIds,
+            individualProcess,
+            collectiveProcess?.companyId,
+          )
+            ? historyRecord
+            : null;
         }),
       );
 
@@ -116,28 +122,12 @@ export const getByIndividualProcess = query({
     individualProcessId: v.id("individualProcesses"),
   },
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-    // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
-    // Check access to this individual process
     const individualProcess = await cachedGet(args.individualProcessId);
-    if (!individualProcess) {
-      throw new Error("Individual process not found");
-    }
-
-    // If client user, verify they have access to this company's processes
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      const collectiveProcess = individualProcess.collectiveProcessId
-        ? await cachedGet(individualProcess.collectiveProcessId)
-        : null;
-      if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-        throw new Error("Access denied to this process");
-      }
+    const viewer = await getViewerForProcess(ctx, individualProcess);
+    if (!viewer || !individualProcess) {
+      return [];
     }
 
     // Get all history records for this individual process

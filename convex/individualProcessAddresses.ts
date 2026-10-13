@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   getCurrentUserProfile,
+  getViewerForProcess,
   tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
@@ -71,15 +72,9 @@ export const listByProcess = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.array(individualProcessAddressValidator),
   handler: async (ctx, args) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) return [];
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) return [];
-    try {
-      await requireClientCanAccessProcess(ctx, userProfile, process);
-    } catch {
-      return [];
-    }
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile) return [];
     return await listProcessAddresses(ctx, args.individualProcessId);
   },
 });
@@ -103,15 +98,9 @@ export const getCurrent = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.union(individualProcessAddressValidator, v.null()),
   handler: async (ctx, args) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) return null;
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) return null;
-    try {
-      await requireClientCanAccessProcess(ctx, userProfile, process);
-    } catch {
-      return null;
-    }
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile) return null;
 
     const addresses = await listProcessAddresses(ctx, args.individualProcessId);
     return addresses.find((address) => address.isCurrent) ?? null;

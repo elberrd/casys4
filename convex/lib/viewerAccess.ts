@@ -4,7 +4,19 @@
  *
  * Queries: anonymous and access-denied callers receive empty/null payloads.
  * Mutations: anonymous (and non-admin, when required) throw and must not write.
+ *
+ * Cross-tenant: client A (currentCompanyIds = {co-a}) must not read or modify
+ * client B data. Use with getViewerForProcess / getViewerForCompany.
  */
+
+import {
+  type ProcessCompanyFields,
+  scopeIndividualProcessesForUser,
+  viewerCanAccessProcess,
+} from "./processAccessScope";
+
+export { scopeIndividualProcessesForUser, viewerCanAccessProcess };
+export type { ProcessCompanyFields };
 
 export const EMPTY_FILLABLE_FIELDS = {
   fillableFields: [] as string[],
@@ -135,11 +147,158 @@ export function publicPreRegisteredEmailFlag(
 export function viewerCanAccessCompany(
   role: string | null | undefined,
   currentCompanyIds: ReadonlySet<string>,
-  companyId: string,
+  companyId: string | undefined,
 ): boolean {
   if (role == null) return false;
   if (role !== "client") return true;
+  if (!companyId) return false;
   return currentCompanyIds.has(companyId);
+}
+
+export function companiesForViewer<T extends { _id: string }>(
+  role: string | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  companies: T[],
+): T[] {
+  if (role == null) return [];
+  if (role !== "client") return companies;
+  return companies.filter((company) => currentCompanyIds.has(company._id));
+}
+
+export function profilesForViewer<T extends { companyId?: string }>(
+  role: string | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  profiles: T[],
+): T[] {
+  if (role == null) return [];
+  if (role !== "client") return profiles;
+  return profiles.filter(
+    (profile) =>
+      Boolean(profile.companyId) && currentCompanyIds.has(profile.companyId!),
+  );
+}
+
+export function personIdsForCurrentCompanies(
+  currentCompanyIds: ReadonlySet<string>,
+  links: Array<{
+    personId?: string;
+    companyId?: string;
+    isCurrent?: boolean;
+  }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const link of links) {
+    if (
+      link.isCurrent &&
+      link.personId &&
+      link.companyId &&
+      currentCompanyIds.has(link.companyId)
+    ) {
+      ids.add(link.personId);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Note/task/history rows may hang off an individual process, a collective
+ * process, or both. Clients need access to at least one linked tenant.
+ */
+export function viewerCanAccessLinkedRecord(args: {
+  role: string | null | undefined;
+  currentCompanyIds: ReadonlySet<string>;
+  individualProcess?: ProcessCompanyFields | null;
+  collectiveCompanyId?: string;
+}): boolean {
+  if (args.role == null) return false;
+  if (args.role !== "client") return true;
+  if (
+    args.individualProcess &&
+    viewerCanAccessProcess(
+      args.role,
+      args.currentCompanyIds,
+      args.individualProcess,
+      args.collectiveCompanyId,
+    )
+  ) {
+    return true;
+  }
+  if (args.collectiveCompanyId) {
+    return viewerCanAccessCompany(
+      args.role,
+      args.currentCompanyIds,
+      args.collectiveCompanyId,
+    );
+  }
+  return false;
+}
+
+export function companyHasLinkedIndividualProcesses(
+  companyId: string,
+  linkedAsApplicant: { _id: string } | null,
+  processes: Array<{
+    companyApplicantId?: string;
+    userApplicantCompanyId?: string;
+  }>,
+): boolean {
+  if (linkedAsApplicant) return true;
+  return processes.some(
+    (process) =>
+      process.companyApplicantId === companyId ||
+      process.userApplicantCompanyId === companyId,
+  );
+}
+
+export function assertWriterCanAccessCompany(
+  role: string | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  companyId: string,
+): void {
+  if (!viewerCanAccessCompany(role, currentCompanyIds, companyId)) {
+    throw new Error(
+      "Access denied: You do not have permission to access this company's data",
+    );
+  }
+}
+
+export function assertWriterCanAccessProcess(
+  role: string | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  process: ProcessCompanyFields | null,
+  collectiveCompanyId?: string,
+): void {
+  if (
+    !viewerCanAccessProcess(
+      role,
+      currentCompanyIds,
+      process,
+      collectiveCompanyId,
+    )
+  ) {
+    throw new Error("Access denied: Process does not belong to your company");
+  }
+}
+
+/** Test helper: client A must not run `write` against client B's resource. */
+export function crossTenantMutationGuard(
+  role: string | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  otherCompanyId: string,
+  write: () => void,
+): { threw: boolean; wrote: boolean; message?: string } {
+  let wrote = false;
+  try {
+    assertWriterCanAccessCompany(role, currentCompanyIds, otherCompanyId);
+    write();
+    wrote = true;
+    return { threw: false, wrote };
+  } catch (error) {
+    return {
+      threw: true,
+      wrote,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /**
@@ -148,14 +307,18 @@ export function viewerCanAccessCompany(
  */
 export function viewerCanAccessStandaloneDocument(
   role: string | null | undefined,
-  clientCompanyId: string | undefined,
+  clientCompanyIds: ReadonlySet<string> | string | undefined,
   document: { companyId?: string },
   personBelongsToClientCompany: boolean,
 ): boolean {
   if (role == null) return false;
   if (role !== "client") return true;
-  if (!clientCompanyId) return false;
-  if (document.companyId && document.companyId === clientCompanyId) return true;
+  const ids =
+    typeof clientCompanyIds === "string"
+      ? new Set([clientCompanyIds])
+      : (clientCompanyIds ?? new Set<string>());
+  if (ids.size === 0) return false;
+  if (document.companyId && ids.has(document.companyId)) return true;
   return personBelongsToClientCompany;
 }
 

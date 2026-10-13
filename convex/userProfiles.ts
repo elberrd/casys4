@@ -3,8 +3,15 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { getCurrentUserProfile } from "./lib/auth";
-import { publicPreRegisteredEmailFlag } from "./lib/viewerAccess";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  requireAdmin,
+} from "./lib/auth";
+import {
+  profilesForViewer,
+  publicPreRegisteredEmailFlag,
+} from "./lib/viewerAccess";
 import { Scrypt } from "lucia";
 
 /**
@@ -119,13 +126,16 @@ export const list = query({
 
     let users = await ctx.db.query("userProfiles").collect();
 
-    // Filter by role-based access control
     if (currentUser.role === "client") {
-      // Clients can only see users from their company
-      if (!currentUser.companyId) {
-        throw new Error("Client user must have a company");
-      }
-      users = users.filter((u) => u.companyId === currentUser.companyId);
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        currentUser,
+      );
+      users = profilesForViewer(
+        currentUser.role,
+        currentCompanyIds,
+        users,
+      );
     }
 
     // Apply optional filters
@@ -209,14 +219,19 @@ export const get = query({
       return null;
     }
 
-    // Check access permissions
-    if (currentUser.role === "client") {
-      // Clients can only view users from their company
+    if (
+      currentUser.role === "client" &&
+      userProfile._id !== currentUser._id
+    ) {
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        currentUser,
+      );
       if (
-        !currentUser.companyId ||
-        userProfile.companyId !== currentUser.companyId
+        profilesForViewer(currentUser.role, currentCompanyIds, [userProfile])
+          .length === 0
       ) {
-        throw new Error("Access denied: Cannot view users from other companies");
+        return null;
       }
     }
 
@@ -247,19 +262,12 @@ export const create = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new Error("Authentication required");
-    }
-
-    // Get current user's profile
-    const currentUser = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Access denied: Admin role required");
+    const currentUser = await requireAdmin(ctx);
+    const userId = currentUser.userId;
+    if (!userId) {
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
     }
 
     // Validate email uniqueness
@@ -454,19 +462,12 @@ export const updateActiveStatus = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new Error("Authentication required");
-    }
-
-    // Get current user's profile
-    const currentUser = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Access denied: Admin role required");
+    const currentUser = await requireAdmin(ctx);
+    const userId = currentUser.userId;
+    if (!userId) {
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
     }
 
     // Get target user profile
@@ -514,19 +515,12 @@ export const updateActiveStatus = mutation({
 export const remove = mutation({
   args: { id: v.id("userProfiles") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new Error("Authentication required");
-    }
-
-    // Get current user's profile
-    const currentUser = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Access denied: Admin role required");
+    const currentUser = await requireAdmin(ctx);
+    const userId = currentUser.userId;
+    if (!userId) {
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
     }
 
     // Prevent self-deletion
@@ -605,11 +599,7 @@ export const preRegisterUser = mutation({
     password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Require admin role
-    const currentUser = await getCurrentUserProfile(ctx);
-    if (currentUser.role !== "admin") {
-      throw new Error("Access denied: Admin role required");
-    }
+    const currentUser = await requireAdmin(ctx);
 
     // Validate email uniqueness
     const existingUser = await ctx.db
@@ -768,10 +758,7 @@ export const resetUserPassword = mutation({
     newPassword: v.string(),
   },
   handler: async (ctx, args) => {
-    const currentUser = await getCurrentUserProfile(ctx);
-    if (currentUser.role !== "admin") {
-      throw new Error("Access denied: Admin role required");
-    }
+    const currentUser = await requireAdmin(ctx);
 
     const targetUser = await ctx.db.get(args.userProfileId);
     if (!targetUser) {

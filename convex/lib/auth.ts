@@ -251,6 +251,43 @@ export async function getViewerForCompany(
 }
 
 /**
+ * Authenticated viewer who may see this collective process, or null when
+ * anonymous / the collective has no company / the company is out of scope.
+ * Admins always pass. Collectives without a company are staff-only.
+ */
+export async function getViewerForCollectiveProcess(
+  ctx: QueryCtx | MutationCtx,
+  collective: Doc<"collectiveProcesses"> | null,
+): Promise<Doc<"userProfiles"> | null> {
+  if (!collective) return null;
+  if (!collective.companyId) {
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) return null;
+    if (userProfile.role === "client") return null;
+    return userProfile;
+  }
+  return getViewerForCompany(ctx, collective.companyId);
+}
+
+/**
+ * Enforce that a client can access a collective process. Admins always pass.
+ */
+export async function requireClientCanAccessCollective(
+  ctx: QueryCtx | MutationCtx,
+  userProfile: Doc<"userProfiles">,
+  collective: Doc<"collectiveProcesses">,
+): Promise<void> {
+  if (userProfile.role !== "client") return;
+  if (!collective.companyId) {
+    throw new Error("Access denied: Process does not belong to your company");
+  }
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+  if (!currentCompanyIds.has(collective.companyId)) {
+    throw new Error("Access denied: Process does not belong to your company");
+  }
+}
+
+/**
  * Check if the current user can access data for a specific company.
  * Admin users can access all companies.
  * Client users can access only companies currently linked via

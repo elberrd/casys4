@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  requireAdmin,
+} from "./lib/auth";
+import { personOwnedByClient } from "./lib/personOwnership";
+import { personIdsForCurrentCompanies } from "./lib/viewerAccess";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
@@ -17,6 +23,15 @@ function getFullName(person: {
   return [person.givenNames, person.middleName, person.surname]
     .filter(Boolean)
     .join(" ");
+}
+
+async function clientCanReadPerson(
+  ctx: Parameters<typeof personOwnedByClient>[0],
+  userProfile: Parameters<typeof personOwnedByClient>[1],
+  personId: Parameters<typeof personOwnedByClient>[2],
+): Promise<boolean> {
+  if (userProfile.role !== "client") return true;
+  return personOwnedByClient(ctx, userProfile, personId);
 }
 
 // Helper function to calculate passport status
@@ -51,25 +66,20 @@ export const list = query({
       passports = passports.filter((p) => p.isActive === args.isActive);
     }
 
-    // Apply role-based access control via person's company
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Get all people associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const companyPeople = await ctx.db
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentLinks = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
         .collect();
-
-      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
-
-      // Filter passports: keep only those for people from client's company
-      passports = passports.filter((passport) =>
-        allowedPersonIds.has(passport.personId),
+      const allowedPersonIds = personIdsForCurrentCompanies(
+        currentCompanyIds,
+        currentLinks,
       );
+      passports = passports.filter((passport) => {
+        const personId = passport.personId;
+        return personId !== undefined && allowedPersonIds.has(personId);
+      });
     }
 
     const passportsWithRelations = await Promise.all(
@@ -135,26 +145,8 @@ export const listByPerson = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Check access permissions for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check if person is associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
-        )
-        .first();
-
-      if (!personCompany) {
-        throw new Error(
-          "Access denied: You do not have permission to view this person's passports",
-        );
-      }
+    if (!(await clientCanReadPerson(ctx, userProfile, args.personId))) {
+      return [];
     }
 
     // Deduped document reads across enriched rows
@@ -201,26 +193,8 @@ export const getActivePassportByPerson = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Check access permissions for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check if person is associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
-        )
-        .first();
-
-      if (!personCompany) {
-        throw new Error(
-          "Access denied: You do not have permission to view this person's passports",
-        );
-      }
+    if (!(await clientCanReadPerson(ctx, userProfile, args.personId))) {
+      return null;
     }
 
     const activePassport = await ctx.db
@@ -260,26 +234,8 @@ export const countByPerson = query({
     // Get current user profile for access control
     const userProfile = await getCurrentUserProfile(ctx);
 
-    // Check access permissions for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check if person is associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", args.personId).eq("companyId", clientCompanyId),
-        )
-        .first();
-
-      if (!personCompany) {
-        throw new Error(
-          "Access denied: You do not have permission to view this person's passports",
-        );
-      }
+    if (!(await clientCanReadPerson(ctx, userProfile, args.personId))) {
+      return 0;
     }
 
     const passports = await ctx.db
@@ -304,26 +260,11 @@ export const get = query({
     const passport = await ctx.db.get(args.id);
     if (!passport) return null;
 
-    // Check access permissions for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check if person is associated with client's company
-      const clientCompanyId = userProfile.companyId; // Assign to const for type narrowing
-      const personCompany = await ctx.db
-        .query("peopleCompanies")
-        .withIndex("by_person_company", (q) =>
-          q.eq("personId", passport.personId).eq("companyId", clientCompanyId),
-        )
-        .first();
-
-      if (!personCompany) {
-        throw new Error(
-          "Access denied: You do not have permission to view this passport",
-        );
-      }
+    if (
+      !passport.personId ||
+      !(await clientCanReadPerson(ctx, userProfile, passport.personId))
+    ) {
+      return null;
     }
 
     const person = passport.personId

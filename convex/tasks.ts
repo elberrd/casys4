@@ -1,7 +1,14 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { mutation, query, type QueryCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  getViewerForCollectiveProcess,
+  getViewerForProcess,
+  requireAdmin,
+} from "./lib/auth";
+import { viewerCanAccessLinkedRecord } from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
@@ -9,6 +16,48 @@ import { dueDateUpdatePatch } from "./lib/dueDateUpdate";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
+}
+
+async function filterTasksForClientViewer<
+  T extends {
+    individualProcessId?: Id<"individualProcesses">;
+    collectiveProcessId?: Id<"collectiveProcesses">;
+  },
+>(
+  ctx: QueryCtx,
+  userProfile: Doc<"userProfiles">,
+  tasks: T[],
+  cachedGet: ReturnType<typeof createCachedGet>,
+): Promise<T[]> {
+  if (userProfile.role !== "client") return tasks;
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+  const visible: T[] = [];
+  for (const task of tasks) {
+    const individualProcess = task.individualProcessId
+      ? await cachedGet(task.individualProcessId)
+      : null;
+    let collectiveCompanyId: string | undefined;
+    if (task.collectiveProcessId) {
+      const collectiveProcess = await cachedGet(task.collectiveProcessId);
+      collectiveCompanyId = collectiveProcess?.companyId;
+    } else if (individualProcess?.collectiveProcessId) {
+      const collectiveProcess = await cachedGet(
+        individualProcess.collectiveProcessId,
+      );
+      collectiveCompanyId = collectiveProcess?.companyId;
+    }
+    if (
+      viewerCanAccessLinkedRecord({
+        role: userProfile.role,
+        currentCompanyIds,
+        individualProcess,
+        collectiveCompanyId,
+      })
+    ) {
+      visible.push(task);
+    }
+  }
+  return visible;
 }
 
 /**
@@ -102,40 +151,12 @@ export const list = query({
       );
     }
 
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter tasks by company - check collectiveProcess.companyId or individualProcess.collectiveProcess.companyId
-      const filteredByCompany = await Promise.all(
-        filteredResults.map(async (task) => {
-          // Check collectiveProcess directly
-          if (task.collectiveProcessId) {
-            const collectiveProcess = await cachedGet(task.collectiveProcessId);
-            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-              return task;
-            }
-          }
-
-          // Check individualProcess's collectiveProcess
-          if (task.individualProcessId) {
-            const individualProcess = await cachedGet(task.individualProcessId);
-            if (individualProcess && individualProcess.collectiveProcessId) {
-              const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
-              if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-                return task;
-              }
-            }
-          }
-
-          return null;
-        })
-      );
-
-      filteredResults = filteredByCompany.filter((t) => t !== null) as typeof filteredResults;
-    }
+    filteredResults = await filterTasksForClientViewer(
+      ctx,
+      userProfile,
+      filteredResults,
+      cachedGet,
+    );
 
     // Enrich with related data
     const enrichedResults = await Promise.all(
@@ -261,30 +282,16 @@ export const get = query({
       return null;
     }
 
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check collectiveProcess directly
-      if (task.collectiveProcessId) {
-        const collectiveProcess = await cachedGet(task.collectiveProcessId);
-        if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-          throw new Error("Access denied: Task does not belong to your company");
-        }
-      }
-
-      // Check individualProcess's collectiveProcess
-      if (task.individualProcessId) {
-        const individualProcess = await cachedGet(task.individualProcessId);
-        if (individualProcess && individualProcess.collectiveProcessId) {
-          const collectiveProcess = await cachedGet(individualProcess.collectiveProcessId);
-          if (!collectiveProcess || collectiveProcess.companyId !== userProfile.companyId) {
-            throw new Error("Access denied: Task does not belong to your company");
-          }
-        }
-      }
+    if (task.individualProcessId) {
+      const process = await cachedGet(task.individualProcessId);
+      const viewer = await getViewerForProcess(ctx, process);
+      if (!viewer) return null;
+    } else if (task.collectiveProcessId) {
+      const collective = await cachedGet(task.collectiveProcessId);
+      const viewer = await getViewerForCollectiveProcess(ctx, collective);
+      if (!viewer) return null;
+    } else if (userProfile.role === "client") {
+      return null;
     }
 
     // Enrich with related data
@@ -408,6 +415,13 @@ export const getMyTasks = query({
           task.dueDate && task.dueDate < today
       );
     }
+
+    results = await filterTasksForClientViewer(
+      ctx,
+      userProfile,
+      results,
+      cachedGet,
+    );
 
     // Enrich with related data
     const enrichedResults = await Promise.all(
