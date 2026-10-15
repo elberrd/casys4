@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeInternationalPhoneInput } from "@/lib/data/countries-phone";
 
 /**
  * Phone Number Validation Utilities
@@ -20,25 +21,35 @@ import { z } from "zod";
  */
 const phoneRegex = /^\+\d{1,4}[\s\-\(\)\.]*[\d\s\-\(\)\.]{6,20}$/;
 
-/**
- * Validates that a phone number:
- * 1. Starts with + followed by country code (1-4 digits)
- * 2. Contains 6-20 digits for the phone number
- * 3. Allows common formatting characters (spaces, hyphens, parentheses, dots)
- */
-export const phoneNumberSchema = z
+const phoneShape = z
   .string()
   .regex(phoneRegex, "Invalid international phone number format. Must start with country code (e.g., +55)")
   .min(8, "Phone number is too short")
   .max(30, "Phone number is too long");
 
 /**
- * Optional phone number validation
- * Accepts empty string or valid phone number
+ * Validates that a phone number:
+ * 1. Starts with + followed by country code (1-4 digits)
+ * 2. Contains 6-20 digits for the phone number
+ * 3. Allows common formatting characters (spaces, hyphens, parentheses, dots)
+ *
+ * Save-path only: strips a duplicated country code (e.g. +555511…) before
+ * the regex. Does not migrate rows already stored.
  */
-export const optionalPhoneNumberSchema = phoneNumberSchema
-  .optional()
-  .or(z.literal(""));
+export const phoneNumberSchema = z
+  .string()
+  .transform((value) => normalizeInternationalPhoneInput(value))
+  .pipe(phoneShape);
+
+/**
+ * Optional phone number validation
+ * Accepts empty string, undefined, or valid phone number
+ */
+export const optionalPhoneNumberSchema = z.union([
+  z.literal(""),
+  z.undefined(),
+  phoneNumberSchema,
+]);
 
 /**
  * Helper function to clean phone number for validation
@@ -68,7 +79,9 @@ export function isValidPhoneLength(phone: string): boolean {
 export const requiredPhoneNumberSchema = z
   .string()
   .min(1, "Phone number is required")
-  .regex(phoneRegex, "Invalid international phone number format. Must start with country code (e.g., +55)")
-  .refine(isValidPhoneLength, {
-    message: "Phone number must have between 7 and 25 digits",
-  });
+  .transform((value) => normalizeInternationalPhoneInput(value))
+  .pipe(
+    phoneShape.refine(isValidPhoneLength, {
+      message: "Phone number must have between 7 and 25 digits",
+    }),
+  );

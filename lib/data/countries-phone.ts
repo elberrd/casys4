@@ -259,23 +259,162 @@ export function searchCountries(query: string): Country[] {
   );
 }
 
+/** National numbers are at most 11 digits (BR mobile). Longer means dial code + national. */
+export const NATIONAL_PHONE_MAX_DIGITS = 11;
+
+export function dialCodeDigits(dialCode: string): string {
+  return dialCode.replace(/\D/g, '');
+}
+
+/**
+ * Longest-prefix country match so +1-809 wins over +1.
+ */
+export function findCountryFromPhoneDigits(digits: string): Country | undefined {
+  const ranked = countries.slice().sort(
+    (left, right) =>
+      dialCodeDigits(right.dialCode).length - dialCodeDigits(left.dialCode).length,
+  );
+  return ranked.find((country) => {
+    const prefix = dialCodeDigits(country.dialCode);
+    return prefix.length > 0 && digits.startsWith(prefix);
+  });
+}
+
+/**
+ * Drop a leading country code only when the digits are longer than a
+ * national number. Brazil DDD 55 must not be stripped from 11-digit input.
+ */
+export function stripLeadingDialCode(
+  nationalDigits: string,
+  dialCode: string,
+): string {
+  const prefix = dialCodeDigits(dialCode);
+  if (
+    prefix &&
+    nationalDigits.startsWith(prefix) &&
+    nationalDigits.length > NATIONAL_PHONE_MAX_DIGITS
+  ) {
+    return nationalDigits.slice(prefix.length);
+  }
+  return nationalDigits;
+}
+
+export function composeInternationalPhone(
+  dialCode: string,
+  nationalOrFull: string,
+): string {
+  const national = stripLeadingDialCode(
+    cleanPhoneNumber(nationalOrFull),
+    dialCode,
+  );
+  return national ? `${dialCode}${national}` : dialCode;
+}
+
+/**
+ * Type/paste resolver for PhoneInput.
+ * Digits that already include the selected dial code (e.g. "5511…") must
+ * not be prefixed again into "+555511…".
+ */
+export function resolvePhoneInputChange(args: {
+  rawInput: string;
+  selectedDialCode: string;
+  startsWithPlus: boolean;
+}): {
+  country?: Country;
+  nationalDigits: string;
+  value: string;
+} {
+  const cleanValue = cleanPhoneNumber(args.rawInput);
+  if (args.startsWithPlus) {
+    const country = findCountryFromPhoneDigits(cleanValue);
+    if (country) {
+      const afterDial = cleanValue.slice(dialCodeDigits(country.dialCode).length);
+      const national = stripLeadingDialCode(afterDial, country.dialCode);
+      return {
+        country,
+        nationalDigits: national,
+        value: composeInternationalPhone(country.dialCode, national),
+      };
+    }
+  }
+
+  const national = stripLeadingDialCode(cleanValue, args.selectedDialCode);
+  return {
+    nationalDigits: national,
+    value: composeInternationalPhone(args.selectedDialCode, national),
+  };
+}
+
+/** Strip a duplicated country code before save. Does not rewrite stored rows. */
+export function normalizeInternationalPhoneInput(phone: string): string {
+  const trimmed = phone.trim();
+  if (!trimmed) return '';
+  const digits = cleanPhoneNumber(trimmed);
+  if (!digits) return '';
+  const country = findCountryFromPhoneDigits(digits);
+  if (!country) {
+    return trimmed.startsWith('+') ? `+${digits}` : digits;
+  }
+  const national = stripLeadingDialCode(
+    digits.slice(dialCodeDigits(country.dialCode).length),
+    country.dialCode,
+  );
+  return composeInternationalPhone(country.dialCode, national);
+}
+
+/**
+ * Report/display formatting for a stored international number.
+ */
+export function formatStoredPhoneNumber(
+  phone: string | null | undefined,
+): string {
+  const trimmed = phone?.trim() ?? '';
+  if (!trimmed) return '';
+  const digits = cleanPhoneNumber(trimmed);
+  if (!digits) return trimmed;
+  const country = findCountryFromPhoneDigits(digits);
+  if (!country) return trimmed;
+  const national = digits.slice(dialCodeDigits(country.dialCode).length);
+  const formattedNational = formatPhoneNumber(national, country);
+  return formattedNational
+    ? `${country.dialCode} ${formattedNational}`
+    : country.dialCode;
+}
+
 /**
  * Format phone number according to country format
  * If no format is specified, returns the raw number
  */
+/**
+ * Brazil landline is DDD + 8 digits: (11) 3333-4444.
+ * Mobile is DDD + 9 digits: (11) 99999-0000.
+ * The country mask is mobile-first; 10-digit nationals must not use it.
+ */
+export function resolvePhoneFormatMask(
+  country: Country,
+  digits: string,
+): string | undefined {
+  if (country.code === 'BR' && digits.length <= 10) {
+    return '(##) ####-####';
+  }
+  return country.format;
+}
+
 export function formatPhoneNumber(phoneNumber: string, country: Country): string {
-  if (!country.format || !phoneNumber) {
+  if (!phoneNumber) {
     return phoneNumber;
   }
 
-  // Remove all non-digit characters
   const digits = phoneNumber.replace(/\D/g, '');
+  const format = resolvePhoneFormatMask(country, digits);
+  if (!format) {
+    return phoneNumber;
+  }
 
-  // Apply format mask
   let formatted = '';
   let digitIndex = 0;
 
-  for (const char of country.format) {
+  for (const char of format) {
     if (char === '#') {
       if (digitIndex < digits.length) {
         formatted += digits[digitIndex];

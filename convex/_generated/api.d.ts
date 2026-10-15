@@ -133,6 +133,7 @@ import type * as seedCompanies from "../seedCompanies.js";
 import type * as seedCountries from "../seedCountries.js";
 import type * as seedDevAdmin from "../seedDevAdmin.js";
 import type * as seedInitialAdmin from "../seedInitialAdmin.js";
+import type * as seedPreviewUser from "../seedPreviewUser.js";
 import type * as states from "../states.js";
 import type * as taskReminders from "../taskReminders.js";
 import type * as tasks from "../tasks.js";
@@ -279,6 +280,7 @@ declare const fullApi: ApiFromModules<{
   seedCountries: typeof seedCountries;
   seedDevAdmin: typeof seedDevAdmin;
   seedInitialAdmin: typeof seedInitialAdmin;
+  seedPreviewUser: typeof seedPreviewUser;
   states: typeof states;
   taskReminders: typeof taskReminders;
   tasks: typeof tasks;

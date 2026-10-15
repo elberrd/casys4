@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { toControlledComboboxValue } from "@/lib/combobox-select";
 
 interface LegalRepresentativeComboboxProps {
   value?: Id<"people"> | "";
@@ -19,9 +20,10 @@ interface LegalRepresentativeComboboxProps {
 }
 
 /**
- * Searchable legal-representative picker. Filters by the person's name
- * (server-side via `people.search` plus cmdk label matching) and keeps the
- * currently selected person visible even when they fall outside the search page.
+ * Searchable legal-representative picker. Filters server-side via
+ * `people.search` (name, email, CPF digits). The Combobox skips cmdk
+ * label filtering so CPF hits are not hidden. The selected person stays
+ * visible even when they fall outside the search page.
  */
 export function LegalRepresentativeCombobox({
   value,
@@ -65,7 +67,7 @@ export function LegalRepresentativeCombobox({
   return (
     <Combobox
       options={options}
-      value={selectedId}
+      value={toControlledComboboxValue(selectedId)}
       onValueChange={onValueChange}
       onSearchChange={setSearch}
       ariaLabel={t("contactPerson")}

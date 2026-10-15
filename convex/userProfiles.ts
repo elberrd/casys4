@@ -8,6 +8,7 @@ import {
   getCurrentUserProfile,
   requireAdmin,
 } from "./lib/auth";
+import { deleteAuthRefreshTokensForSessions } from "./lib/deletionCascades";
 import {
   profilesForViewer,
   publicPreRegisteredEmailFlag,
@@ -539,27 +540,32 @@ export const remove = mutation({
     // - Consider soft delete instead of hard delete
 
     // Clean up auth records if user has a linked auth account
-    if (targetUser.userId) {
+    const authUserId = targetUser.userId;
+    if (authUserId) {
       // Delete authAccounts for this user
       const authAccounts = await ctx.db
         .query("authAccounts")
-        .filter((q) => q.eq(q.field("userId"), targetUser.userId))
+        .filter((q) => q.eq(q.field("userId"), authUserId))
         .collect();
       for (const account of authAccounts) {
         await ctx.db.delete(account._id);
       }
 
-      // Delete auth sessions for this user
+      // Delete auth sessions and their refresh tokens for this user
       const sessions = await ctx.db
         .query("authSessions")
-        .filter((q) => q.eq(q.field("userId"), targetUser.userId))
+        .withIndex("userId", (q) => q.eq("userId", authUserId))
         .collect();
+      await deleteAuthRefreshTokensForSessions(
+        ctx,
+        sessions.map((session) => session._id),
+      );
       for (const session of sessions) {
         await ctx.db.delete(session._id);
       }
 
       // Delete the users record
-      await ctx.db.delete(targetUser.userId);
+      await ctx.db.delete(authUserId);
     }
 
     await ctx.db.delete(id);

@@ -4,6 +4,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
 import { personOwnedByClient } from "./lib/personOwnership";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
+import { PERSON_SEARCH_LIMIT, personMatchesQuery } from "./lib/personSearch";
 import { normalizeString } from "./lib/stringUtils";
 import { cleanDocumentNumber } from "../lib/utils/document-masks";
 import { legacyPersonAddressForReplace } from "../lib/utils/address-fields";
@@ -62,14 +63,10 @@ export const list = query({
       people = people.filter((person) => allowedPersonIds.has(person._id));
     }
 
-    // Filter by search query if provided (accent-insensitive)
+    // Filter by search query if provided (accent-insensitive, digit-normalized CPF)
     if (args.search) {
-      const searchNormalized = normalizeString(args.search);
-      people = people.filter(
-        (person) =>
-          normalizeString(getFullName(person)).includes(searchNormalized) ||
-          (person.email && normalizeString(person.email).includes(searchNormalized)) ||
-          (person.cpf && person.cpf.includes(searchNormalized))
+      people = people.filter((person) =>
+        personMatchesQuery(person, args.search ?? ""),
       );
     }
 
@@ -155,16 +152,9 @@ export const search = query({
       people = people.filter((person) => allowedPersonIds.has(person._id));
     }
 
-    // Accent-insensitive search
-    const queryNormalized = normalizeString(args.query);
     return people
-      .filter(
-        (person) =>
-          normalizeString(getFullName(person)).includes(queryNormalized) ||
-          (person.email && normalizeString(person.email).includes(queryNormalized)) ||
-          (person.cpf && person.cpf.includes(queryNormalized))
-      )
-      .slice(0, 10) // Limit to 10 results for performance
+      .filter((person) => personMatchesQuery(person, args.query))
+      .slice(0, PERSON_SEARCH_LIMIT)
       .map((person) => ({ ...person, fullName: getFullName(person) }));
   },
 });

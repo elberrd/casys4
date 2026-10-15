@@ -41,6 +41,7 @@ import {
   reportFilenameFromDocument,
 } from "../lib/report-templates/process-report-content";
 import { assertObservacoesMaxLength } from "../lib/validations/observacoes";
+import { removeDeliveredDocumentVersion } from "./lib/deletionCascades";
 
 function validateSignatureUploadOptions({
   awaitingSignature,
@@ -1583,8 +1584,10 @@ export const restoreVersion = mutation({
 });
 
 /**
- * Mutation to soft delete a document (admin only)
- * Sets isLatest = false to keep audit trail
+ * Mutation to remove one delivered-document version (admin only).
+ * Deletes that version row only, promotes the previous version when this one
+ * was latest, and deletes storage only when no other documentsDelivered
+ * still references the file.
  */
 export const remove = mutation({
   args: {
@@ -1599,17 +1602,12 @@ export const remove = mutation({
       throw new Error("Document not found");
     }
 
-    // Get related data before soft delete
-    const [individualProcess, documentType, person] = await Promise.all([
-      ctx.db.get(document.individualProcessId),
+    const [documentType, person] = await Promise.all([
       document.documentTypeId ? ctx.db.get(document.documentTypeId) : null,
       document.personId ? ctx.db.get(document.personId) : null,
     ]);
 
-    // Soft delete by marking as not latest
-    await ctx.db.patch(id, {
-      isLatest: false,
-    });
+    await removeDeliveredDocumentVersion(ctx, document);
 
     // Log activity (non-blocking, only if admin has userId)
     try {

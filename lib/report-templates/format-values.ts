@@ -15,6 +15,11 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { getFullName } from "@/lib/utils/person-names";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
 import { formatCandidateAddress } from "@/lib/utils/candidate-address";
+import { formatStoredPhoneNumber } from "@/lib/data/countries-phone";
+import {
+  formatStoredStatusDateTime,
+  STATUS_BUSINESS_TIME_ZONE,
+} from "../../convex/lib/statusDateTime";
 import { isCriminalBackgroundReportName, isProfessionalExperienceReportName } from "./built-in-templates";
 import type { ReportVariableKey } from "./variables";
 
@@ -234,27 +239,17 @@ function formatStatusDateTime(
 ): string {
   const raw = status.date;
   if (raw) {
-    const hasTime = raw.includes("T");
-    const parsed = new Date(hasTime ? raw : `${raw}T00:00:00`);
-    if (!Number.isNaN(parsed.getTime())) {
-      return new Intl.DateTimeFormat(i18n.locale === "en" ? "en-US" : "pt-BR", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        ...(hasTime
-          ? { hour: "2-digit", minute: "2-digit" }
-          : {}),
-      }).format(parsed);
-    }
-    return raw;
+    return formatStoredStatusDateTime(raw, i18n.locale) ?? raw;
   }
 
   return new Intl.DateTimeFormat(i18n.locale === "en" ? "en-US" : "pt-BR", {
+    timeZone: STATUS_BUSINESS_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
   }).format(new Date(status.changedAt));
 }
 
@@ -647,7 +642,9 @@ export function buildReportVariableValues(args: {
       ? formatCPF(legalRepresentative.cpf)
       : "",
     legalRepresentativeEmail: display(legalRepresentative?.email),
-    legalRepresentativePhone: display(legalRepresentative?.phoneNumber),
+    legalRepresentativePhone: formatStoredPhoneNumber(
+      legalRepresentative?.phoneNumber,
+    ),
     legalRepresentativeCargo: display(legalRepresentative?.cargo),
   };
 }

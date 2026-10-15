@@ -37,6 +37,11 @@ import {
   deleteProcessAddresses,
   upsertCurrentAddressFromFields,
 } from "./lib/individualProcessAddresses";
+import {
+  deleteNotesForIndividualProcess,
+  deleteNotificationsForTask,
+  hardDeleteDeliveredDocuments,
+} from "./lib/deletionCascades";
 
 function getFullName(person: {
   givenNames: string;
@@ -517,8 +522,13 @@ export const list = query({
  * Access control: Admins can view any process, clients can only view their company's processes
  */
 export const get = query({
-  args: { id: v.id("individualProcesses") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.string() },
+  handler: async (ctx, { id: rawId }) => {
+    if (!(await tryGetCurrentUserProfile(ctx))) return null;
+
+    const id = ctx.db.normalizeId("individualProcesses", rawId);
+    if (!id) return null;
+
     const process = await ctx.db.get(id);
     if (!process) return null;
 
@@ -2284,15 +2294,16 @@ export const remove = mutation({
     // CASCADE DELETE: Delete all related data
     const deletedAddressesCount = await deleteProcessAddresses(ctx, id);
 
-    // 1. Delete related documents delivered
+    // 1. Delete related documents delivered (storage, conditions, status history)
     const documentsDelivered = await ctx.db
       .query("documentsDelivered")
       .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", id))
       .collect();
 
-    for (const doc of documentsDelivered) {
-      await ctx.db.delete(doc._id);
-    }
+    await hardDeleteDeliveredDocuments(ctx, documentsDelivered, {
+      companyApplicantId: process.companyApplicantId,
+      personId: process.personId,
+    });
 
     // 2. Delete related individual process statuses
     const statuses = await ctx.db
@@ -2321,6 +2332,7 @@ export const remove = mutation({
       .collect();
 
     for (const task of tasks) {
+      await deleteNotificationsForTask(ctx, task);
       await ctx.db.delete(task._id);
     }
 
@@ -2333,6 +2345,9 @@ export const remove = mutation({
     for (const message of requestMessages) {
       await ctx.db.delete(message._id);
     }
+
+    // 6. Hard-delete notes (active and inactive) and their attachments
+    const deletedNotesCount = await deleteNotesForIndividualProcess(ctx, id);
 
     // Finally, delete the individual process itself
     await ctx.db.delete(id);
@@ -2355,6 +2370,7 @@ export const remove = mutation({
             statuses: statuses.length,
             history: history.length,
             tasks: tasks.length,
+            notes: deletedNotesCount,
             addresses: deletedAddressesCount,
           },
         },
