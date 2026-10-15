@@ -37,6 +37,7 @@ import {
   upsertCurrentAddressFromFields,
 } from "./lib/individualProcessAddresses";
 import {
+  deleteNotesForIndividualProcess,
   deleteNotificationsForTask,
   hardDeleteDeliveredDocuments,
 } from "./lib/deletionCascades";
@@ -2361,6 +2362,9 @@ export const remove = mutation({
       await ctx.db.delete(message._id);
     }
 
+    // 6. Hard-delete notes (active and inactive) and their attachments
+    const deletedNotesCount = await deleteNotesForIndividualProcess(ctx, id);
+
     // Finally, delete the individual process itself
     await ctx.db.delete(id);
 
@@ -2382,6 +2386,7 @@ export const remove = mutation({
             statuses: statuses.length,
             history: history.length,
             tasks: tasks.length,
+            notes: deletedNotesCount,
             addresses: deletedAddressesCount,
           },
         },
