@@ -6,6 +6,7 @@ import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { dueDateUpdatePatch } from "./lib/dueDateUpdate";
+import { deleteNotificationsForTask } from "./lib/deletionCascades";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
   return [person.givenNames, person.middleName, person.surname].filter(Boolean).join(" ");
@@ -913,6 +914,7 @@ export const remove = mutation({
     }
 
     if (!userProfile.userId) throw new Error("User must be activated");
+    await deleteNotificationsForTask(ctx, task);
     await ctx.db.delete(id);
 
     // Log activity (non-blocking)
