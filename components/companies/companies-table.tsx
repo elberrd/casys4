@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { toast } from "sonner"
 import {
   useReactTable,
   getCoreRowModel,
@@ -82,8 +81,6 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
       try {
         await onDelete(id)
       } catch (error) {
-        const message = error instanceof Error ? error.message : t("errorDelete")
-        toast.error(message, { id: "company-delete-error" })
         setDeleteDialogDismissed(true)
         throw error
       }

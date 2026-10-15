@@ -920,12 +920,12 @@ test("companies delete UI toasts the refusal reason and does not use native aler
   const en = convexSource("messages/en.json");
 
   assert.match(client, /companyDeleteErrorMessage/);
-  assert.match(client, /from "sonner"/);
-  assert.match(client, /toast\.error\(message/);
+  assert.doesNotMatch(client, /from "sonner"/);
+  assert.doesNotMatch(client, /toast\.error/);
   assert.doesNotMatch(client, /\balert\s*\(/);
   assert.doesNotMatch(client, /\bconfirm\s*\(/);
-  assert.match(table, /from "sonner"/);
-  assert.match(table, /toast\.error\(message/);
+  assert.doesNotMatch(table, /from "sonner"/);
+  assert.doesNotMatch(table, /toast\.error/);
   assert.match(table, /setDeleteDialogDismissed\(true\)/);
   assert.match(
     table,
