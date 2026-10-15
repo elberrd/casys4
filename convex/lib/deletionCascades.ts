@@ -6,7 +6,8 @@ import type { MutationCtx } from "../_generated/server";
  * Pure planners stay runtime-free so node:test can cover each cascade
  * without Convex. No schema changes: notifications use by_user + in-memory
  * filter; refresh tokens use the existing sessionId index; shared storage
- * is detected with existing documentsDelivered / individualProcesses indexes.
+ * is detected with existing documentsDelivered / individualProcesses indexes;
+ * process notes use the existing by_individualProcess index.
  */
 
 export function isDeletedTaskNotification(
@@ -39,6 +40,42 @@ export async function deleteNotificationsForTask(
   const toDelete = selectNotificationsForDeletedTask(notifications, task._id);
   for (const notification of toDelete) {
     await ctx.db.delete(notification._id);
+  }
+  return toDelete.length;
+}
+
+export function selectNotesForDeletedProcess<
+  T extends { individualProcessId?: string },
+>(notes: T[], processId: string): T[] {
+  return notes.filter((note) => note.individualProcessId === processId);
+}
+
+/**
+ * Hard-delete every note on a process (active and inactive) plus attachments
+ * and their storage. Only call from a real individualProcesses.remove.
+ */
+export async function deleteNotesForIndividualProcess(
+  ctx: MutationCtx,
+  processId: Id<"individualProcesses">,
+): Promise<number> {
+  const notes = await ctx.db
+    .query("notes")
+    .withIndex("by_individualProcess", (q) =>
+      q.eq("individualProcessId", processId),
+    )
+    .collect();
+
+  const toDelete = selectNotesForDeletedProcess(notes, processId);
+  for (const note of toDelete) {
+    const attachments = await ctx.db
+      .query("noteAttachments")
+      .withIndex("by_note", (q) => q.eq("noteId", note._id))
+      .collect();
+    for (const attachment of attachments) {
+      await ctx.db.delete(attachment._id);
+      await ctx.storage.delete(attachment.storageId);
+    }
+    await ctx.db.delete(note._id);
   }
   return toDelete.length;
 }

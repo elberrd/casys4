@@ -9,6 +9,7 @@ import {
   isDeletedTaskNotification,
   planDeliveredDocumentVersionRemoval,
   planHardDeletedDeliveredDocuments,
+  selectNotesForDeletedProcess,
   selectNotificationsForDeletedTask,
   selectRefreshTokensForSessions,
   selectUnreferencedStorageIds,
@@ -420,6 +421,53 @@ test("dac75: individualProcesses.remove hard-deletes delivered docs and their st
   );
   assert.match(helper, /selectUnreferencedStorageIds/);
   assert.match(helper, /ctx\.storage\.delete\(storageId\)/);
+});
+
+test("individualProcesses.remove hard-deletes process notes and attachments", () => {
+  assert.deepEqual(
+    selectNotesForDeletedProcess(
+      [
+        { _id: "n1", individualProcessId: "proc_1" },
+        { _id: "n2", individualProcessId: "proc_2" },
+        { _id: "n3", individualProcessId: "proc_1", isActive: false },
+        { _id: "n4" },
+      ],
+      "proc_1",
+    ).map((note) => note._id),
+    ["n1", "n3"],
+  );
+
+  const handler = exportedHandler(
+    convexSource("convex/individualProcesses.ts"),
+    "remove",
+  );
+  assert.match(handler, /deleteNotesForIndividualProcess\(ctx, id\)/);
+  assert.ok(
+    handler.indexOf("deleteNotesForIndividualProcess") <
+      handler.indexOf("await ctx.db.delete(id)"),
+    "notes must be deleted before the process row",
+  );
+
+  const regen = exportedHandler(
+    convexSource("convex/individualProcesses.ts"),
+    "regenerateDocumentChecklist",
+  );
+  assert.doesNotMatch(regen, /deleteNotesForIndividualProcess/);
+
+  const helper = convexSource("convex/lib/deletionCascades.ts");
+  assert.match(
+    helper,
+    /\.query\("notes"\)[\s\S]*withIndex\("by_individualProcess"/,
+  );
+  assert.match(
+    helper,
+    /\.query\("noteAttachments"\)[\s\S]*withIndex\("by_note"/,
+  );
+  assert.match(helper, /ctx\.db\.delete\(note\._id\)/);
+  assert.doesNotMatch(
+    helper.slice(helper.indexOf("deleteNotesForIndividualProcess")),
+    /isActive:\s*false/,
+  );
 });
 
 test("G4 does not add a notifications entityId index or a backfill mutation", () => {
