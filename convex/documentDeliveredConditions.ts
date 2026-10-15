@@ -6,11 +6,13 @@ import { internal } from "./_generated/api";
 import {
   getCurrentUserProfile,
   getViewerForProcess,
+  requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
 import {
   EMPTY_CONDITION_VALIDATION,
   assertAuthenticatedWriter,
+  assertCanWriteOrphanedCondition,
   documentFlagForViewer,
   documentRowsForViewer,
 } from "./lib/viewerAccess";
@@ -29,6 +31,33 @@ async function loadDeliveredDocumentForViewer(
   const userProfile = await getViewerForProcess(ctx, process);
   if (!userProfile || !process) return null;
   return { userProfile, document, process };
+}
+
+/** Toggle access: orphan (doc or process gone) is admin-only; live uses tenant check. */
+async function assertCanWriteDeliveredCondition(
+  ctx: MutationCtx,
+  userProfile: Doc<"userProfiles">,
+  documentsDeliveredId: Id<"documentsDelivered">,
+): Promise<{
+  document: Doc<"documentsDelivered"> | null;
+  process: Doc<"individualProcesses"> | null;
+}> {
+  const document = await ctx.db.get(documentsDeliveredId);
+  const process = document
+    ? await ctx.db.get(document.individualProcessId)
+    : null;
+
+  assertCanWriteOrphanedCondition({
+    documentMissing: document === null,
+    processMissing: process === null,
+    role: userProfile.role,
+  });
+
+  if (document && process) {
+    await requireClientCanAccessProcess(ctx, userProfile, process);
+  }
+
+  return { document, process };
 }
 
 /**
@@ -194,13 +223,20 @@ export const toggleFulfillment = mutation({
   },
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
-    if (!userProfile?.userId) {
-      throw new Error("User must be authenticated");
-    }
-
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Condition not found");
+    }
+
+    await assertCanWriteDeliveredCondition(
+      ctx,
+      userProfile,
+      existing.documentsDeliveredId,
+    );
+
+    const userId = userProfile.userId;
+    if (!userId) {
+      throw new Error("Access denied: Process does not belong to your company");
     }
 
     const now = Date.now();
@@ -208,7 +244,7 @@ export const toggleFulfillment = mutation({
     await ctx.db.patch(args.id, {
       isFulfilled: args.isFulfilled,
       fulfilledAt: args.isFulfilled ? now : undefined,
-      fulfilledBy: args.isFulfilled ? userProfile.userId : undefined,
+      fulfilledBy: args.isFulfilled ? userId : undefined,
       notes: args.notes ?? existing.notes,
     });
 
@@ -221,7 +257,7 @@ export const toggleFulfillment = mutation({
         : null;
 
       await ctx.scheduler.runAfter(0, internal.activityLogs.logActivity, {
-        userId: userProfile.userId,
+        userId,
         action: args.isFulfilled ? "condition_fulfilled" : "condition_unfulfilled",
         entityType: "documentCondition",
         entityId: args.id,
@@ -236,6 +272,27 @@ export const toggleFulfillment = mutation({
       // Non-blocking: don't fail the mutation if logging fails
     }
 
+    return args.id;
+  },
+});
+
+/**
+ * Mutation to remove a delivered-document condition.
+ * Admin-only for any row (live or orphan). Clients never remove.
+ */
+export const remove = mutation({
+  args: {
+    id: v.id("documentDeliveredConditions"),
+  },
+  returns: v.id("documentDeliveredConditions"),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Condition not found");
+    }
+
+    await ctx.db.delete(args.id);
     return args.id;
   },
 });

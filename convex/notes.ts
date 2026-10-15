@@ -1,7 +1,19 @@
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireActiveUserProfile } from "./lib/auth";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+  getViewerForCollectiveProcess,
+  getViewerForProcess,
+  requireActiveUserProfile,
+  requireClientCanAccessCollective,
+  requireClientCanAccessProcess,
+} from "./lib/auth";
+import {
+  allowWriteWhenParentMissing,
+  viewerCanAccessLinkedRecord,
+} from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 import { internal } from "./_generated/api";
 
@@ -112,6 +124,80 @@ function normalizeCommunicationChannel(communicationChannel: string): string {
   return normalized;
 }
 
+async function requireNoteProcessAccess(
+  ctx: MutationCtx,
+  userProfile: Doc<"userProfiles">,
+  individualProcessId?: Id<"individualProcesses">,
+  collectiveProcessId?: Id<"collectiveProcesses">,
+  options?: { allowMissingParent?: boolean; isOwner?: boolean },
+): Promise<void> {
+  const allowMissing = options?.allowMissingParent === true;
+  const isOwner = options?.isOwner === true;
+
+  if (individualProcessId) {
+    const individualProcess = await ctx.db.get(individualProcessId);
+    if (!individualProcess) {
+      if (
+        !allowMissing ||
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+          isOwner,
+        })
+      ) {
+        throw new Error("Individual process not found");
+      }
+    } else {
+      await requireClientCanAccessProcess(ctx, userProfile, individualProcess);
+    }
+  }
+  if (collectiveProcessId) {
+    const collectiveProcess = await ctx.db.get(collectiveProcessId);
+    if (!collectiveProcess) {
+      if (
+        !allowMissing ||
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+          isOwner,
+        })
+      ) {
+        throw new Error("Collective process not found");
+      }
+    } else {
+      await requireClientCanAccessCollective(ctx, userProfile, collectiveProcess);
+    }
+  }
+}
+
+async function noteAccessibleToViewer(
+  ctx: QueryCtx,
+  userProfile: Doc<"userProfiles">,
+  note: Doc<"notes">,
+  cachedGet: ReturnType<typeof createCachedGet>,
+): Promise<boolean> {
+  if (userProfile.role !== "client") return true;
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+  const individualProcess = note.individualProcessId
+    ? await cachedGet(note.individualProcessId)
+    : null;
+  let collectiveCompanyId: string | undefined;
+  if (individualProcess?.collectiveProcessId) {
+    const collective = await cachedGet(individualProcess.collectiveProcessId);
+    collectiveCompanyId = collective?.companyId;
+  }
+  if (note.collectiveProcessId) {
+    const collective = await cachedGet(note.collectiveProcessId);
+    collectiveCompanyId = collective?.companyId ?? collectiveCompanyId;
+  }
+  return viewerCanAccessLinkedRecord({
+    role: userProfile.role,
+    currentCompanyIds,
+    individualProcess,
+    collectiveCompanyId,
+  });
+}
+
 async function scheduleNoteAlarm(
   ctx: MutationCtx,
   noteId: Id<"notes">,
@@ -144,44 +230,13 @@ export const listAll = query({
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
 
-    // Apply role-based access control for client users
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter notes by company - check process ownership
       const filteredByCompany: Doc<"notes">[] = [];
       for (const note of notes) {
-        // Check individualProcess's collectiveProcess company
-        if (note.individualProcessId) {
-          const individualProcess = await cachedGet(note.individualProcessId);
-          if (individualProcess && individualProcess.collectiveProcessId) {
-            const collectiveProcess = await cachedGet(
-              individualProcess.collectiveProcessId
-            );
-            if (
-              collectiveProcess &&
-              collectiveProcess.companyId === userProfile.companyId
-            ) {
-              filteredByCompany.push(note);
-              continue;
-            }
-          }
-        }
-
-        // Check collectiveProcess directly
-        if (note.collectiveProcessId) {
-          const collectiveProcess = await cachedGet(note.collectiveProcessId);
-          if (
-            collectiveProcess &&
-            collectiveProcess.companyId === userProfile.companyId
-          ) {
-            filteredByCompany.push(note);
-          }
+        if (await noteAccessibleToViewer(ctx, userProfile, note, cachedGet)) {
+          filteredByCompany.push(note);
         }
       }
-
       notes = filteredByCompany;
     }
 
@@ -288,15 +343,27 @@ export const list = query({
   },
   returns: v.array(processNoteValidator),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-    // Deduped document reads across enriched rows
-    const cachedGet = createCachedGet(ctx.db);
-
     // Validate that at least one process ID is provided
     if (!args.individualProcessId && !args.collectiveProcessId) {
       throw new Error(
         "Either individualProcessId or collectiveProcessId must be provided"
       );
+    }
+
+    const cachedGet = createCachedGet(ctx.db);
+
+    if (args.individualProcessId) {
+      const process = await ctx.db.get(args.individualProcessId);
+      const viewer = await getViewerForProcess(ctx, process);
+      if (!viewer) {
+        return [];
+      }
+    } else if (args.collectiveProcessId) {
+      const collective = await ctx.db.get(args.collectiveProcessId);
+      const viewer = await getViewerForCollectiveProcess(ctx, collective);
+      if (!viewer) {
+        return [];
+      }
     }
 
     let results: Doc<"notes">[] = [];
@@ -316,47 +383,6 @@ export const list = query({
           q.eq("collectiveProcessId", args.collectiveProcessId).eq("isActive", true)
         )
         .collect();
-    }
-
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter notes by company - check process ownership
-      const filteredByCompany: Doc<"notes">[] = [];
-      for (const note of results) {
-        // Check individualProcess's collectiveProcess company
-        if (note.individualProcessId) {
-          const individualProcess = await cachedGet(note.individualProcessId);
-          if (individualProcess && individualProcess.collectiveProcessId) {
-            const collectiveProcess = await cachedGet(
-              individualProcess.collectiveProcessId
-            );
-            if (
-              collectiveProcess &&
-              collectiveProcess.companyId === userProfile.companyId
-            ) {
-              filteredByCompany.push(note);
-              continue;
-            }
-          }
-        }
-
-        // Check collectiveProcess directly
-        if (note.collectiveProcessId) {
-          const collectiveProcess = await cachedGet(note.collectiveProcessId);
-          if (
-            collectiveProcess &&
-            collectiveProcess.companyId === userProfile.companyId
-          ) {
-            filteredByCompany.push(note);
-          }
-        }
-      }
-
-      results = filteredByCompany;
     }
 
     // Enrich with creator user info
@@ -407,38 +433,18 @@ export const countByIndividualProcess = query({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
-    const userProfile = await getCurrentUserProfile(ctx);
+    const individualProcess = await ctx.db.get(args.individualProcessId);
+    const viewer = await getViewerForProcess(ctx, individualProcess);
+    if (!viewer) {
+      return 0;
+    }
 
-    // Query notes for the individual process using index
     const notes = await ctx.db
       .query("notes")
       .withIndex("by_individualProcess_active", (q) =>
         q.eq("individualProcessId", args.individualProcessId).eq("isActive", true)
       )
       .collect();
-
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check individualProcess's collectiveProcess company
-      const individualProcess = await ctx.db.get(args.individualProcessId);
-      if (!individualProcess || !individualProcess.collectiveProcessId) {
-        return 0;
-      }
-
-      const collectiveProcess = await ctx.db.get(
-        individualProcess.collectiveProcessId
-      );
-      if (
-        !collectiveProcess ||
-        collectiveProcess.companyId !== userProfile.companyId
-      ) {
-        return 0;
-      }
-    }
 
     return notes.length;
   },
@@ -458,40 +464,9 @@ export const get = query({
       return null;
     }
 
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check individualProcess's collectiveProcess company
-      if (note.individualProcessId) {
-        const individualProcess = await ctx.db.get(note.individualProcessId);
-        if (individualProcess && individualProcess.collectiveProcessId) {
-          const collectiveProcess = await ctx.db.get(
-            individualProcess.collectiveProcessId
-          );
-          if (
-            !collectiveProcess ||
-            collectiveProcess.companyId !== userProfile.companyId
-          ) {
-            throw new Error(
-              "Access denied: Note does not belong to your company"
-            );
-          }
-        }
-      }
-
-      // Check collectiveProcess directly
-      if (note.collectiveProcessId) {
-        const collectiveProcess = await ctx.db.get(note.collectiveProcessId);
-        if (
-          !collectiveProcess ||
-          collectiveProcess.companyId !== userProfile.companyId
-        ) {
-          throw new Error("Access denied: Note does not belong to your company");
-        }
-      }
+    const cachedGet = createCachedGet(ctx.db);
+    if (!(await noteAccessibleToViewer(ctx, userProfile, note, cachedGet))) {
+      return null;
     }
 
     // Enrich with creator user info
@@ -572,61 +547,12 @@ export const create = mutation({
     );
     if (args.alarmDate) validateAlarmDate(args.alarmDate);
 
-    // Apply role-based access control for client users
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Check individualProcess's collectiveProcess company
-      if (args.individualProcessId) {
-        const individualProcess = await ctx.db.get(args.individualProcessId);
-        if (!individualProcess) {
-          throw new Error("Individual process not found");
-        }
-        if (individualProcess.collectiveProcessId) {
-          const collectiveProcess = await ctx.db.get(
-            individualProcess.collectiveProcessId
-          );
-          if (
-            !collectiveProcess ||
-            collectiveProcess.companyId !== userProfile.companyId
-          ) {
-            throw new Error(
-              "Access denied: Process does not belong to your company"
-            );
-          }
-        }
-      }
-
-      // Check collectiveProcess directly
-      if (args.collectiveProcessId) {
-        const collectiveProcess = await ctx.db.get(args.collectiveProcessId);
-        if (
-          !collectiveProcess ||
-          collectiveProcess.companyId !== userProfile.companyId
-        ) {
-          throw new Error(
-            "Access denied: Process does not belong to your company"
-          );
-        }
-      }
-    } else {
-      // Admin user - verify process exists
-      if (args.individualProcessId) {
-        const individualProcess = await ctx.db.get(args.individualProcessId);
-        if (!individualProcess) {
-          throw new Error("Individual process not found");
-        }
-      }
-
-      if (args.collectiveProcessId) {
-        const collectiveProcess = await ctx.db.get(args.collectiveProcessId);
-        if (!collectiveProcess) {
-          throw new Error("Collective process not found");
-        }
-      }
-    }
+    await requireNoteProcessAccess(
+      ctx,
+      userProfile,
+      args.individualProcessId,
+      args.collectiveProcessId,
+    );
 
     const now = Date.now();
     const today = getDateInSaoPaulo();
@@ -698,6 +624,17 @@ export const update = mutation({
     if (userProfile.role !== "admin" && note.createdBy !== userProfile.userId) {
       throw new Error("Access denied: Only the note creator or an admin can update this note");
     }
+
+    await requireNoteProcessAccess(
+      ctx,
+      userProfile,
+      note.individualProcessId,
+      note.collectiveProcessId,
+      {
+        allowMissingParent: true,
+        isOwner: note.createdBy === userProfile.userId,
+      },
+    );
 
     // Validate content if provided
     if (args.content !== undefined) {
@@ -803,6 +740,17 @@ export const remove = mutation({
     if (userProfile.role !== "admin" && note.createdBy !== userProfile.userId) {
       throw new Error("Access denied: Only the note creator or an admin can delete this note");
     }
+
+    await requireNoteProcessAccess(
+      ctx,
+      userProfile,
+      note.individualProcessId,
+      note.collectiveProcessId,
+      {
+        allowMissingParent: true,
+        isOwner: note.createdBy === userProfile.userId,
+      },
+    );
 
     // Soft delete
     await ctx.db.patch(id, {

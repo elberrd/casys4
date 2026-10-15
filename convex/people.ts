@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { getClientCurrentCompanyIds, getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import { personOwnedByClient } from "./lib/personOwnership";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
 import { PERSON_SEARCH_LIMIT, personMatchesQuery } from "./lib/personSearch";
 import { normalizeString } from "./lib/stringUtils";
@@ -216,8 +217,7 @@ export const checkCpfDuplicate = query({
     excludePersonId: v.optional(v.id("people")),
   },
   handler: async (ctx, args) => {
-    // Get current user profile for access control
-    await getCurrentUserProfile(ctx);
+    const userProfile = await getCurrentUserProfile(ctx);
 
     // Return available if CPF is empty or undefined
     if (!args.cpf || args.cpf.trim() === "") {
@@ -260,13 +260,17 @@ export const checkCpfDuplicate = query({
       };
     }
 
-    // CPF is taken by another person
+    const owned = await personOwnedByClient(ctx, userProfile, existingPerson._id, {
+      person: existingPerson,
+    });
     return {
       isAvailable: false,
-      existingPerson: {
-        _id: existingPerson._id,
-        fullName: getFullName(existingPerson),
-      },
+      existingPerson: owned
+        ? {
+            _id: existingPerson._id,
+            fullName: getFullName(existingPerson),
+          }
+        : null,
     };
   },
 });
@@ -301,9 +305,7 @@ export const get = query({
       );
 
       if (!hasCurrentCompanyAccess) {
-        throw new Error(
-          "Access denied: You do not have permission to view this person"
-        );
+        return null;
       }
     }
 

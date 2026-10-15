@@ -8,7 +8,16 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import {
+  getClientCurrentCompanyIds,
+  getCurrentUserProfile,
+} from "./lib/auth";
+import {
+  personIdsForCurrentCompanies,
+  scopeIndividualProcessesForUser,
+  viewerCanAccessCompany,
+  viewerCanAccessLinkedRecord,
+} from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: { givenNames: string; middleName?: string; surname?: string }): string {
@@ -32,13 +41,15 @@ export const exportCollectiveProcesses = query({
     // Get all collective processes
     let processes = await ctx.db.query("collectiveProcesses").collect();
 
-    // Apply role-based filtering
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      // Filter to only their company's processes
-      processes = processes.filter((p) => p.companyId === userProfile.companyId);
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      processes = processes.filter((p) =>
+        viewerCanAccessCompany(
+          userProfile.role,
+          currentCompanyIds,
+          p.companyId,
+        ),
+      );
     } else if (args.companyId) {
       // Admin can filter by specific company
       processes = processes.filter((p) => p.companyId === args.companyId);
@@ -137,24 +148,29 @@ export const exportIndividualProcesses = query({
       (p) => p.requestStatus !== "draft"
     );
 
-    // Apply role-based filtering via collective process company
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const collectiveCompanyIdByCollectiveId = new Map<
+        string,
+        string | undefined
+      >();
+      for (const process of processes) {
+        if (!process.collectiveProcessId) continue;
+        if (collectiveCompanyIdByCollectiveId.has(process.collectiveProcessId)) {
+          continue;
+        }
+        const collectiveProcess = await cachedGet(process.collectiveProcessId);
+        collectiveCompanyIdByCollectiveId.set(
+          process.collectiveProcessId,
+          collectiveProcess?.companyId,
+        );
       }
-
-      // Filter by company through collectiveProcess
-      const filteredProcesses = await Promise.all(
-        processes.map(async (process) => {
-          if (!process.collectiveProcessId) return null;
-          const collectiveProcess = await cachedGet(process.collectiveProcessId);
-          if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-            return process;
-          }
-          return null;
-        })
+      processes = scopeIndividualProcessesForUser(
+        userProfile.role,
+        processes,
+        currentCompanyIds,
+        collectiveCompanyIdByCollectiveId,
       );
-      processes = filteredProcesses.filter((p) => p !== null) as typeof processes;
     } else if (args.companyId) {
       // Admin can filter by specific company
       const filteredProcesses = await Promise.all(
@@ -263,22 +279,16 @@ export const exportPeople = query({
     // Get all people
     let people = await ctx.db.query("people").collect();
 
-    // Apply role-based access control via peopleCompanies relationship
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Get all peopleCompanies relationships for client's company
-      const clientCompanyId = userProfile.companyId;
-      const companyPeople = await ctx.db
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentLinks = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
         .collect();
-
-      const allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId));
-
-      // Filter to only people associated with client's company
+      const allowedPersonIds = personIdsForCurrentCompanies(
+        currentCompanyIds,
+        currentLinks,
+      );
       people = people.filter((person) => allowedPersonIds.has(person._id));
     } else if (args.companyId) {
       // Admin can filter by specific company
@@ -361,13 +371,29 @@ export const exportDocuments = query({
     // Filter to latest versions only
     documents = documents.filter((doc) => doc.isLatest);
 
-    // Apply role-based filtering via company
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      // Filter to their company's documents
-      documents = documents.filter((d) => d.companyId === userProfile.companyId);
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const cachedGet = createCachedGet(ctx.db);
+      const scopedDocuments = await Promise.all(
+        documents.map(async (document) => {
+          const process = await cachedGet(document.individualProcessId);
+          if (!process) return null;
+          const collective = process.collectiveProcessId
+            ? await cachedGet(process.collectiveProcessId)
+            : null;
+          return viewerCanAccessLinkedRecord({
+            role: userProfile.role,
+            currentCompanyIds,
+            individualProcess: process,
+            collectiveCompanyId: collective?.companyId ?? document.companyId,
+          })
+            ? document
+            : null;
+        }),
+      );
+      documents = scopedDocuments.filter(
+        (document): document is (typeof documents)[number] => document !== null,
+      );
     } else if (args.companyId) {
       // Admin can filter by specific company
       documents = documents.filter((d) => d.companyId === args.companyId);
@@ -478,23 +504,32 @@ export const exportTasks = query({
     // Get all tasks
     let tasks = await ctx.db.query("tasks").collect();
 
-    // Apply role-based filtering via collective process company
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Filter by company through collectiveProcess
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
       const filteredTasks = await Promise.all(
         tasks.map(async (task) => {
+          const individualProcess = task.individualProcessId
+            ? await cachedGet(task.individualProcessId)
+            : null;
+          let collectiveCompanyId: string | undefined;
           if (task.collectiveProcessId) {
             const collectiveProcess = await cachedGet(task.collectiveProcessId);
-            if (collectiveProcess && collectiveProcess.companyId === userProfile.companyId) {
-              return task;
-            }
+            collectiveCompanyId = collectiveProcess?.companyId;
+          } else if (individualProcess?.collectiveProcessId) {
+            const collectiveProcess = await cachedGet(
+              individualProcess.collectiveProcessId,
+            );
+            collectiveCompanyId = collectiveProcess?.companyId;
           }
-          return null;
-        })
+          return viewerCanAccessLinkedRecord({
+            role: userProfile.role,
+            currentCompanyIds,
+            individualProcess,
+            collectiveCompanyId,
+          })
+            ? task
+            : null;
+        }),
       );
       tasks = filteredTasks.filter((t) => t !== null) as typeof tasks;
     } else if (args.companyId) {

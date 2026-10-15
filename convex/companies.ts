@@ -1,13 +1,18 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import {
-  getCurrentUserProfile,
+  getClientCurrentCompanyIds,
   getViewerForCompany,
   requireAdmin,
-  requireActiveUserProfile,
+  tryGetCurrentUserProfile,
 } from "./lib/auth";
-import { rowsForViewer } from "./lib/viewerAccess";
+import {
+  COMPANY_HAS_PROCESSES_CODE,
+  countLinkedIndividualProcesses,
+  companiesForViewer,
+  rowsForViewer,
+} from "./lib/viewerAccess";
 import { internal } from "./_generated/api";
 import { normalizeString } from "./lib/stringUtils";
 import { createCachedGet } from "./lib/cachedGet";
@@ -46,23 +51,21 @@ export const list = query({
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return [];
+    }
 
     // Deduped document reads across enriched rows
     const cachedGet = createCachedGet(ctx.db);
 
     let companies = await ctx.db.query("companies").collect();
-
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      // Clients can only see their own company
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      companies = companies.filter((c) => c._id === userProfile.companyId);
-    }
-    // Admin users see all companies
+    const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+    companies = companiesForViewer(
+      userProfile.role,
+      currentCompanyIds,
+      companies,
+    );
 
     // Filter by isActive if specified
     if (args.isActive !== undefined) {
@@ -120,22 +123,22 @@ export const list = query({
 export const listActive = query({
   args: {},
   handler: async (ctx) => {
-    // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    if (!userProfile) {
+      return [];
+    }
 
     let companies = await ctx.db
       .query("companies")
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
 
-    // Apply role-based access control
-    if (userProfile.role === "client") {
-      // Clients can only see their own company
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-      companies = companies.filter((c) => c._id === userProfile.companyId);
-    }
+    const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+    companies = companiesForViewer(
+      userProfile.role,
+      currentCompanyIds,
+      companies,
+    );
 
     return companies;
   },
@@ -146,22 +149,16 @@ export const listActive = query({
  * Access control: Admins can view any company, clients can only view their own company
  */
 export const get = query({
-  args: { id: v.id("companies") },
-  handler: async (ctx, { id }) => {
-    // Get current user profile for access control
-    const userProfile = await getCurrentUserProfile(ctx);
+  args: { id: v.string() },
+  handler: async (ctx, { id: rawId }) => {
+    const id = ctx.db.normalizeId("companies", rawId);
+    if (!id) return null;
+
+    const userProfile = await getViewerForCompany(ctx, id);
+    if (!userProfile) return null;
 
     const company = await ctx.db.get(id);
     if (!company) return null;
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || company._id !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company"
-        );
-      }
-    }
 
     // Fetch related data
     const city = company.cityId ? await ctx.db.get(company.cityId) : null;
@@ -413,14 +410,24 @@ export const remove = mutation({
       throw new Error("Company not found");
     }
 
-    // Check if there are main processes associated with this company
     const collectiveProcesses = await ctx.db
       .query("collectiveProcesses")
       .withIndex("by_company", (q) => q.eq("companyId", id))
-      .first();
+      .collect();
 
-    if (collectiveProcesses) {
-      throw new Error("Cannot delete company with associated main processes");
+    // userApplicantCompanyId has no index; schema changes are out of scope.
+    const individualProcesses = await ctx.db
+      .query("individualProcesses")
+      .collect();
+    const count =
+      collectiveProcesses.length +
+      countLinkedIndividualProcesses(id, individualProcesses);
+
+    if (count > 0) {
+      throw new ConvexError({
+        code: COMPANY_HAS_PROCESSES_CODE,
+        count,
+      });
     }
 
     await ctx.db.delete(id);
@@ -490,7 +497,12 @@ export const addEconomicActivity = mutation({
     economicActivityId: v.id("economicActivities"),
   },
   handler: async (ctx, { companyId, economicActivityId }) => {
-    const userProfile = await requireActiveUserProfile(ctx);
+    const userProfile = await requireAdmin(ctx);
+    if (!userProfile.userId) {
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
+    }
 
     // Verify company exists
     const company = await ctx.db.get(companyId);
@@ -538,7 +550,7 @@ export const removeEconomicActivity = mutation({
     economicActivityId: v.id("economicActivities"),
   },
   handler: async (ctx, { companyId, economicActivityId }) => {
-    await getCurrentUserProfile(ctx);
+    await requireAdmin(ctx);
 
     // Find the link
     const link = await ctx.db
@@ -568,7 +580,13 @@ export const setEconomicActivities = mutation({
     economicActivityIds: v.array(v.id("economicActivities")),
   },
   handler: async (ctx, { companyId, economicActivityIds }) => {
-    const userProfile = await requireActiveUserProfile(ctx);
+    const userProfile = await requireAdmin(ctx);
+    const createdBy = userProfile.userId;
+    if (!createdBy) {
+      throw new Error(
+        "User profile not activated. Please contact an administrator to complete your account setup.",
+      );
+    }
 
     // Verify company exists
     const company = await ctx.db.get(companyId);
@@ -602,7 +620,7 @@ export const setEconomicActivities = mutation({
           companyId,
           economicActivityId: activityId,
           createdAt: now,
-          createdBy: userProfile.userId,
+          createdBy,
         })
       )
     );
@@ -619,15 +637,12 @@ export const setEconomicActivities = mutation({
 export const getCompanyDashboardStats = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return {
+        totalCollectiveProcesses: 0,
+        totalIndividualProcesses: 0,
+      };
     }
 
     // Get all collective processes for this company
@@ -663,15 +678,9 @@ export const getCompanyDashboardStats = query({
 export const getCompanyProcessTypeDistribution = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return [];
     }
 
     // Get all collective processes for this company
@@ -728,15 +737,9 @@ export const getCompanyProcessTypeDistribution = query({
 export const getCompanyLegalFrameworkDistribution = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return [];
     }
 
     // Get all collective processes for this company
@@ -793,15 +796,13 @@ export const getCompanyLegalFrameworkDistribution = query({
 export const getCompanyStatusDistribution = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return {
+        distribution: [],
+        emPreparacaoCount: 0,
+        total: 0,
+      };
     }
 
     // Get all collective processes for this company
@@ -876,15 +877,13 @@ export const getCompanyStatusDistribution = query({
 export const getCompanyQualificationStats = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return {
+        withoutQualification: 0,
+        withoutProfExperience: 0,
+        total: 0,
+      };
     }
 
     // Get all collective processes for this company
@@ -937,15 +936,9 @@ export const getProcessesWithMissingData = query({
     missingType: v.optional(v.union(v.literal("qualification"), v.literal("profExperience"), v.literal("both"))),
   },
   handler: async (ctx, { companyId, missingType = "both" }) => {
-    const userProfile = await getCurrentUserProfile(ctx);
-
-    // Check access permissions
-    if (userProfile.role === "client") {
-      if (!userProfile.companyId || companyId !== userProfile.companyId) {
-        throw new Error(
-          "Access denied: You do not have permission to view this company's data"
-        );
-      }
+    const userProfile = await getViewerForCompany(ctx, companyId);
+    if (!userProfile) {
+      return [];
     }
 
     // Get all collective processes for this company

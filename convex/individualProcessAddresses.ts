@@ -3,11 +3,15 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   getCurrentUserProfile,
+  getViewerForProcess,
   tryGetCurrentUserProfile,
   requireAdmin,
   requireClientCanAccessProcess,
 } from "./lib/auth";
-import { assertAuthenticatedWriter } from "./lib/viewerAccess";
+import {
+  allowWriteWhenParentMissing,
+  assertAuthenticatedWriter,
+} from "./lib/viewerAccess";
 import { personOwnedByClient } from "./lib/personOwnership";
 import { logActivitySafely } from "./lib/activityLogger";
 import {
@@ -71,15 +75,9 @@ export const listByProcess = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.array(individualProcessAddressValidator),
   handler: async (ctx, args) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) return [];
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) return [];
-    try {
-      await requireClientCanAccessProcess(ctx, userProfile, process);
-    } catch {
-      return [];
-    }
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile) return [];
     return await listProcessAddresses(ctx, args.individualProcessId);
   },
 });
@@ -103,15 +101,9 @@ export const getCurrent = query({
   args: { individualProcessId: v.id("individualProcesses") },
   returns: v.union(individualProcessAddressValidator, v.null()),
   handler: async (ctx, args) => {
-    const userProfile = await tryGetCurrentUserProfile(ctx);
-    if (!userProfile) return null;
     const process = await ctx.db.get(args.individualProcessId);
-    if (!process) return null;
-    try {
-      await requireClientCanAccessProcess(ctx, userProfile, process);
-    } catch {
-      return null;
-    }
+    const userProfile = await getViewerForProcess(ctx, process);
+    if (!userProfile) return null;
 
     const addresses = await listProcessAddresses(ctx, args.individualProcessId);
     return addresses.find((address) => address.isCurrent) ?? null;
@@ -422,20 +414,28 @@ export const remove = mutation({
     } else {
       const processId = requireProcessId(address);
       const process = await ctx.db.get(processId);
-      if (!process) {
+      if (
+        !process &&
+        !allowWriteWhenParentMissing({
+          parentMissing: true,
+          role: userProfile.role,
+        })
+      ) {
         throw new ConvexError({ code: "INDIVIDUAL_PROCESS_NOT_FOUND" });
       }
       const remaining = (await listProcessAddresses(ctx, processId)).filter(
         (item) => item._id !== args.id,
       );
-      if (address.isCurrent && remaining.length > 0) {
+      if (process && address.isCurrent && remaining.length > 0) {
         throw new ConvexError({ code: "CURRENT_ADDRESS_REQUIRED" });
       }
       await ctx.db.delete(args.id);
-      if (remaining.length === 0) {
-        await denormalizeCurrentAddressToProcess(ctx, processId, null);
-      } else {
-        assertCurrentAddressInvariant(remaining);
+      if (process) {
+        if (remaining.length === 0) {
+          await denormalizeCurrentAddressToProcess(ctx, processId, null);
+        } else {
+          assertCurrentAddressInvariant(remaining);
+        }
       }
     }
 

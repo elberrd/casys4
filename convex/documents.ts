@@ -2,11 +2,16 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import {
+  getClientCurrentCompanyIds,
   getCurrentUserProfile,
   requireAdmin,
   tryGetCurrentUserProfile,
 } from "./lib/auth";
-import { rowsForViewer, viewerCanAccessStandaloneDocument } from "./lib/viewerAccess";
+import {
+  personIdsForCurrentCompanies,
+  rowsForViewer,
+  viewerCanAccessStandaloneDocument,
+} from "./lib/viewerAccess";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { buildChangedFields, logActivitySafely } from "./lib/activityLogger";
@@ -30,18 +35,22 @@ function getFullName(person: { givenNames: string; middleName?: string; surname?
  *   1. Document is tied to their company (companyId matches)
  *   2. Document is tied to a person who belongs to their company (via peopleCompanies)
  */
-async function personBelongsToClientCompany(
+async function personBelongsToCurrentCompanies(
   ctx: QueryCtx | MutationCtx,
   personId: Id<"people">,
-  clientCompanyId: Id<"companies">,
+  currentCompanyIds: Set<Id<"companies">>,
 ): Promise<boolean> {
-  const personCompany = await ctx.db
+  if (currentCompanyIds.size === 0) return false;
+  const links = await ctx.db
     .query("peopleCompanies")
-    .withIndex("by_person_company", (q) =>
-      q.eq("personId", personId).eq("companyId", clientCompanyId),
-    )
-    .first();
-  return personCompany !== null;
+    .withIndex("by_person", (q) => q.eq("personId", personId))
+    .collect();
+  return links.some(
+    (link) =>
+      link.isCurrent &&
+      link.companyId &&
+      currentCompanyIds.has(link.companyId),
+  );
 }
 
 async function canAccessDocument(
@@ -50,23 +59,28 @@ async function canAccessDocument(
   userProfile: Doc<"userProfiles"> | null,
 ): Promise<boolean> {
   if (!userProfile) return false;
+  if (userProfile.role !== "client") {
+    return viewerCanAccessStandaloneDocument(
+      userProfile.role,
+      undefined,
+      document,
+      false,
+    );
+  }
 
+  const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
   let personLinked = false;
-  if (
-    userProfile.role === "client" &&
-    userProfile.companyId &&
-    document.personId
-  ) {
-    personLinked = await personBelongsToClientCompany(
+  if (document.personId) {
+    personLinked = await personBelongsToCurrentCompanies(
       ctx,
       document.personId,
-      userProfile.companyId,
+      currentCompanyIds,
     );
   }
 
   return viewerCanAccessStandaloneDocument(
     userProfile.role,
-    userProfile.companyId,
+    currentCompanyIds,
     document,
     personLinked,
   );
@@ -128,24 +142,20 @@ export const list = query({
     }
 
     // Apply role-based access control
-    let allowedPersonIds: Set<Id<"people">> | null = null;
+    let allowedPersonIds: Set<string> | null = null;
     if (userProfile.role === "client") {
-      if (!userProfile.companyId) {
-        throw new Error("Client user must have a company assignment");
-      }
-
-      // Get all people associated with client's company
-      const clientCompanyId = userProfile.companyId;
-      const companyPeople = await ctx.db
+      const currentCompanyIds = await getClientCurrentCompanyIds(ctx, userProfile);
+      const currentLinks = await ctx.db
         .query("peopleCompanies")
-        .withIndex("by_company", (q) => q.eq("companyId", clientCompanyId))
+        .withIndex("by_isCurrent", (q) => q.eq("isCurrent", true))
         .collect();
+      allowedPersonIds = personIdsForCurrentCompanies(
+        currentCompanyIds,
+        currentLinks,
+      );
 
-      allowedPersonIds = new Set(companyPeople.map((pc) => pc.personId).filter((id): id is Id<"people"> => id !== undefined));
-
-      // Filter standalone documents
       documents = documents.filter((doc) => {
-        if (doc.companyId && doc.companyId === userProfile.companyId) {
+        if (doc.companyId && currentCompanyIds.has(doc.companyId)) {
           return true;
         }
         if (doc.personId && allowedPersonIds!.has(doc.personId)) {
@@ -330,12 +340,10 @@ export const get = query({
     const document = await ctx.db.get(args.id);
     if (!document) return null;
 
-    const userProfile = await getCurrentUserProfile(ctx);
+    const userProfile = await tryGetCurrentUserProfile(ctx);
     const hasAccess = await canAccessDocument(ctx, document, userProfile);
     if (!hasAccess) {
-      throw new Error(
-        "Access denied: You do not have permission to view this document"
-      );
+      return null;
     }
 
     const documentType = document.documentTypeId ? await ctx.db.get(document.documentTypeId) : null;
