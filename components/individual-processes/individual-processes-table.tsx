@@ -684,7 +684,7 @@ export function IndividualProcessesTable({
     onDelete: async (id: Id<"individualProcesses">) => {
       if (onDelete) await onDelete(id);
     },
-    entityName: "individual process",
+    entityName: t("entityName"),
   });
 
   // Destructure to get stable function references
@@ -2704,7 +2704,7 @@ export function IndividualProcessesTable({
         open={deleteConfirmation.isOpen}
         onOpenChange={deleteConfirmation.handleCancel}
         onConfirm={deleteConfirmation.handleConfirm}
-        entityName="individual process"
+        entityName={t("entityName")}
         isDeleting={deleteConfirmation.isDeleting}
       />
 

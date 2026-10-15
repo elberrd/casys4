@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
 import { CompanyInfoCard } from "@/components/companies/dashboard/company-info-card"
@@ -18,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Edit } from "lucide-react"
 
 interface CompanyDashboardPageProps {
-  companyId: Id<"companies">
+  companyId: string
 }
 
 export function CompanyDashboardPage({ companyId }: CompanyDashboardPageProps) {
@@ -85,26 +84,26 @@ export function CompanyDashboardPage({ companyId }: CompanyDashboardPageProps) {
         </div>
 
         {/* Company Information Card */}
-        <CompanyInfoCard companyId={companyId} />
+        <CompanyInfoCard companyId={company._id} />
 
         {/* Dashboard Statistics */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Process Count Overview - Spans full width */}
           <div className="lg:col-span-2">
-            <ProcessCountCard companyId={companyId} />
+            <ProcessCountCard companyId={company._id} />
           </div>
 
           {/* Status Distribution */}
-          <StatusDistributionCard companyId={companyId} />
+          <StatusDistributionCard companyId={company._id} />
 
           {/* Missing Data Alert */}
-          <MissingDataCard companyId={companyId} />
+          <MissingDataCard companyId={company._id} />
 
           {/* Authorization Types */}
-          <AuthorizationTypesCard companyId={companyId} />
+          <AuthorizationTypesCard companyId={company._id} />
 
           {/* Legal Frameworks */}
-          <LegalFrameworksCard companyId={companyId} />
+          <LegalFrameworksCard companyId={company._id} />
         </div>
       </div>
 
@@ -112,7 +111,7 @@ export function CompanyDashboardPage({ companyId }: CompanyDashboardPageProps) {
       <CompanyFormDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
-        companyId={companyId}
+        companyId={company._id}
         onSuccess={() => {
           setEditDialogOpen(false)
           router.refresh()
