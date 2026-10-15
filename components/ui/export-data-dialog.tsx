@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { useQuery, useConvex } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -29,7 +29,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { format } from "date-fns"
+import { format, type Locale } from "date-fns"
+import { enUS, ptBR } from "date-fns/locale"
 import { Calendar as CalendarIcon, Download, FileDown, Loader2 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -50,6 +51,54 @@ export interface ExportDataDialogProps {
   }
 }
 
+function ExportDatePicker({
+  label,
+  value,
+  onChange,
+  placeholder,
+  dateLocale,
+}: {
+  label: string
+  value: Date | undefined
+  onChange: (date: Date | undefined) => void
+  placeholder: string
+  dateLocale: Locale
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full justify-start text-left font-normal",
+              !value && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {value ? format(value, "PPP", { locale: dateLocale }) : placeholder}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={value}
+            locale={dateLocale}
+            onSelect={(date) => {
+              onChange(date)
+              if (date) setOpen(false)
+            }}
+            autoFocus
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
 export function ExportDataDialog({
   children,
   defaultExportType = "collectiveProcesses",
@@ -57,6 +106,8 @@ export function ExportDataDialog({
 }: ExportDataDialogProps) {
   const t = useTranslations("Export")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
+  const dateLocale = locale === "pt" ? ptBR : enUS
 
   const [open, setOpen] = useState(false)
   const [exportType, setExportType] = useState<ExportType>(defaultExportType)
@@ -197,57 +248,20 @@ export function ExportDataDialog({
 
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{t("dateFrom")}</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateFrom && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, "PPP") : t("selectDate")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateFrom}
-                    onSelect={setDateFrom}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("dateTo")}</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateTo && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, "PPP") : t("selectDate")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateTo}
-                    onSelect={setDateTo}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            <ExportDatePicker
+              label={t("dateFrom")}
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder={t("selectDate")}
+              dateLocale={dateLocale}
+            />
+            <ExportDatePicker
+              label={t("dateTo")}
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder={t("selectDate")}
+              dateLocale={dateLocale}
+            />
           </div>
 
           {/* Status Filter (for applicable types) */}

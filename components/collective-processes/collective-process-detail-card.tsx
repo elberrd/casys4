@@ -1,28 +1,11 @@
 "use client"
 
-import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
-import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
-import { Edit, AlertCircle, Building2, User, MapPin, Globe2, Calendar, CheckCircle, XCircle, RotateCcw } from "lucide-react"
+import { Edit, AlertCircle, Building2, User, MapPin, Globe2, Calendar } from "lucide-react"
 import { Id } from "@/convex/_generated/dataModel"
 
 interface CollectiveProcessDetailCardProps {
@@ -94,19 +77,6 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
   const t = useTranslations('CollectiveProcesses')
   const tCommon = useTranslations('Common')
   const router = useRouter()
-  const { toast } = useToast()
-
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
-  const [reopenDialogOpen, setReopenDialogOpen] = useState(false)
-  const [cancelNotes, setCancelNotes] = useState("")
-  const [cancelIndividuals, setCancelIndividuals] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-
-  // TODO: Remove these - status is now calculated from individual processes
-  // const completeProcess = useMutation(api.collectiveProcesses.complete)
-  // const cancelProcess = useMutation(api.collectiveProcesses.cancel)
-  // const reopenProcess = useMutation(api.collectiveProcesses.reopen)
 
   const handleEdit = () => {
     router.push(`/collective-processes/${collectiveProcess._id}/edit`)
@@ -115,90 +85,6 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString()
   }
-
-  // Check if all individuals are completed or cancelled
-  const allIndividualsComplete = (collectiveProcess.individualProcesses || []).every(
-    (ip) => ip.status === "completed" || ip.status === "cancelled"
-  ) && (collectiveProcess.individualProcesses?.length ?? 0) > 0
-
-  // TODO: Remove these handlers - status is now calculated automatically
-  // const handleComplete = async () => {
-  //   setIsLoading(true)
-  //   try {
-  //     await completeProcess({ id: collectiveProcess._id })
-  //     toast({
-  //       title: t('completeSuccess'),
-  //       description: t('completeSuccessDescription'),
-  //     })
-  //     setCompleteDialogOpen(false)
-  //     router.refresh()
-  //   } catch (error: any) {
-  //     toast({
-  //       title: t('completeError'),
-  //       description: error.message,
-  //       variant: "destructive",
-  //     })
-  //   } finally {
-  //     setIsLoading(false)
-  //   }
-  // }
-
-  // const handleCancel = async () => {
-  //   if (!cancelNotes.trim()) {
-  //     toast({
-  //       title: t('cancelError'),
-  //       description: t('cancelNotesRequired'),
-  //       variant: "destructive",
-  //     })
-  //     return
-  //   }
-
-  //   setIsLoading(true)
-  //   try {
-  //     await cancelProcess({
-  //       id: collectiveProcess._id,
-  //       notes: cancelNotes,
-  //       cancelIndividuals,
-  //     })
-  //     toast({
-  //       title: t('cancelSuccess'),
-  //       description: t('cancelSuccessDescription'),
-  //     })
-  //     setCancelDialogOpen(false)
-  //     setCancelNotes("")
-  //     setCancelIndividuals(false)
-  //     router.refresh()
-  //   } catch (error: any) {
-  //     toast({
-  //       title: t('cancelError'),
-  //       description: error.message,
-  //       variant: "destructive",
-  //     })
-  //   } finally {
-  //     setIsLoading(false)
-  //   }
-  // }
-
-  // const handleReopen = async () => {
-  //   setIsLoading(true)
-  //   try {
-  //     await reopenProcess({ id: collectiveProcess._id })
-  //     toast({
-  //       title: t('reopenSuccess'),
-  //       description: t('reopenSuccessDescription'),
-  //     })
-  //     setReopenDialogOpen(false)
-  //     router.refresh()
-  //   } catch (error: any) {
-  //     toast({
-  //       title: t('reopenError'),
-  //       description: error.message,
-  //       variant: "destructive",
-  //     })
-  //   } finally {
-  //     setIsLoading(false)
-  //   }
-  // }
 
   return (
     <Card>
@@ -225,31 +111,6 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
               <Edit className="mr-2 h-4 w-4" />
               {tCommon('edit')}
             </Button>
-
-            {/* TODO: Status action buttons deprecated - main process status is now calculated automatically */}
-            {/* Mark Complete Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {collectiveProcess.status === "in_progress" && allIndividualsComplete && (
-              <Button onClick={() => setCompleteDialogOpen(true)} variant="default">
-                <CheckCircle className="mr-2 h-4 w-4" />
-                {t('markComplete')}
-              </Button>
-            )} */}
-
-            {/* Cancel Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {collectiveProcess.status !== "cancelled" && collectiveProcess.status !== "completed" && (
-              <Button onClick={() => setCancelDialogOpen(true)} variant="destructive">
-                <XCircle className="mr-2 h-4 w-4" />
-                {t('cancelProcess')}
-              </Button>
-            )} */}
-
-            {/* Reopen Button - DEPRECATED - status now calculated from individual processes */}
-            {/* {(collectiveProcess.status === "completed" || collectiveProcess.status === "cancelled") && (
-              <Button onClick={() => setReopenDialogOpen(true)} variant="outline">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                {t('reopenProcess')}
-              </Button>
-            )} */}
           </div>
         </div>
       </CardHeader>
@@ -372,94 +233,6 @@ export function CollectiveProcessDetailCard({ collectiveProcess }: CollectivePro
           </div>
         </div>
       </CardContent>
-
-      {/* TODO: These dialogs are deprecated - main process status is now calculated from individual processes */}
-      {/* Complete Dialog - DEPRECATED */}
-      {/* <AlertDialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('completeDialogTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('completeDialogDescription')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>
-              {tCommon('cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleComplete} disabled={isLoading}>
-              {isLoading ? t('completing') : t('markComplete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog> */}
-
-      {/* Cancel Dialog - DEPRECATED */}
-      {/* <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('cancelDialogTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('cancelDialogDescription')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="cancel-notes">{t('cancellationNotes')}</Label>
-              <Textarea
-                id="cancel-notes"
-                placeholder={t('cancellationNotesPlaceholder')}
-                value={cancelNotes}
-                onChange={(e) => setCancelNotes(e.target.value)}
-                disabled={isLoading}
-                rows={4}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="cancel-individuals"
-                checked={cancelIndividuals}
-                onCheckedChange={(checked) => setCancelIndividuals(checked as boolean)}
-                disabled={isLoading}
-              />
-              <Label
-                htmlFor="cancel-individuals"
-                className="text-sm font-normal cursor-pointer"
-              >
-                {t('cancelIndividualProcesses')}
-              </Label>
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>
-              {tCommon('cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel} disabled={isLoading}>
-              {isLoading ? t('cancelling') : t('cancelProcess')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog> */}
-
-      {/* Reopen Dialog - DEPRECATED */}
-      {/* <AlertDialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('reopenDialogTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('reopenDialogDescription')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>
-              {tCommon('cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleReopen} disabled={isLoading}>
-              {isLoading ? t('reopening') : t('reopenProcess')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog> */}
     </Card>
   )
 }

@@ -516,10 +516,13 @@ export const list = query({
  * Access control: Admins can view any process, clients can only view their company's processes
  */
 export const get = query({
-  args: { id: v.id("individualProcesses") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.string() },
+  handler: async (ctx, { id: rawId }) => {
     const userProfile = await tryGetCurrentUserProfile(ctx);
     if (!userProfile) return null;
+
+    const id = ctx.db.normalizeId("individualProcesses", rawId);
+    if (!id) return null;
 
     const process = await ctx.db.get(id);
     if (!process) return null;

@@ -1751,6 +1751,7 @@
     "notes": "Notes",
     "isActive": "Active",
     "selectDocumentType": "Select a document type",
+    "documentTypeRequired": "Document type is required",
     "selectPerson": "Select a person (optional)",
     "selectCompany": "Select a company (optional)",
     "noDocumentTypes": "No document types found",

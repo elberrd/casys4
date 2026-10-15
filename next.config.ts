@@ -72,10 +72,12 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   org: sentryOrg,
   project: sentryProject,
   authToken: sentryAuthToken,
-  silent: true,
+  silent: !process.env.CI,
   telemetry: false,
+  widenClientFileUpload: true,
   sourcemaps: {
     disable: !uploadSourcemaps,
+    deleteSourcemapsAfterUpload: true,
   },
   release: {
     name: process.env.VERCEL_GIT_COMMIT_SHA,

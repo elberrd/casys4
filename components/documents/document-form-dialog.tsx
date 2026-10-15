@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation } from "convex/react";
@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
-import { documentSchema, type DocumentFormData } from "@/lib/validations/documents";
+import { documentFormSchema, type DocumentFormData } from "@/lib/validations/documents";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { UserApplicantSelector } from "@/components/individual-processes/user-applicant-selector";
@@ -70,8 +70,13 @@ export function DocumentFormDialog({
   const updateDocument = useMutation(api.documents.update);
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
 
+  const schema = useMemo(
+    () => documentFormSchema(t("documentTypeRequired")),
+    [t],
+  );
+
   const form = useForm<DocumentFormData>({
-    resolver: zodResolver(documentSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       documentTypeId: "",
@@ -247,7 +252,10 @@ export function DocumentFormDialog({
               name="documentTypeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("documentType")}</FormLabel>
+                  <FormLabel>
+                    {t("documentType")}
+                    <span className="text-destructive"> *</span>
+                  </FormLabel>
                   <FormControl>
                     <Combobox
                       options={documentTypes.map((type) => ({
