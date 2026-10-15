@@ -70,6 +70,7 @@ import {
   type PassportValidityStatus,
 } from "@/lib/passport";
 import { toast } from "sonner";
+import { canBeConvexDocumentId } from "@/lib/convex-document-id";
 
 function getPassportStatusVariant(status: PassportValidityStatus | null) {
   switch (status) {
@@ -188,9 +189,11 @@ export function IndividualProcessDetailClient({
     return () => window.removeEventListener("popstate", restoreReportSession);
   }, [processId]);
 
-  const individualProcess = useQuery(api.individualProcesses.get, {
-    id: processId,
-  });
+  const processIdInvalid = !canBeConvexDocumentId(processId);
+  const individualProcess = useQuery(
+    api.individualProcesses.get,
+    processIdInvalid ? "skip" : { id: processId },
+  );
   const personCurrentAddress = useQuery(
     api.individualProcessAddresses.getCurrentByPerson,
     individualProcess?.personId
@@ -311,22 +314,7 @@ export function IndividualProcessDetailClient({
           },
         ];
 
-  if (individualProcess === undefined) {
-    return (
-      <>
-        <DashboardPageHeader breadcrumbs={breadcrumbs} />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-10 w-24" />
-          </div>
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </>
-    );
-  }
-
-  if (individualProcess === null) {
+  if (processIdInvalid || individualProcess === null) {
     return (
       <>
         <DashboardPageHeader breadcrumbs={breadcrumbs} />
@@ -343,6 +331,21 @@ export function IndividualProcessDetailClient({
               {t("backToList")}
             </Button>
           </div>
+        </div>
+      </>
+    );
+  }
+
+  if (individualProcess === undefined) {
+    return (
+      <>
+        <DashboardPageHeader breadcrumbs={breadcrumbs} />
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+          <Skeleton className="h-64 w-full" />
         </div>
       </>
     );
