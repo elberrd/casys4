@@ -77,9 +77,12 @@ import {
   countries,
   type Country,
   findCountryByCode,
-  findCountryByDialCode,
   formatPhoneNumber,
   cleanPhoneNumber,
+  dialCodeDigits,
+  findCountryFromPhoneDigits,
+  normalizeInternationalPhoneInput,
+  resolvePhoneInputChange,
 } from '@/lib/data/countries-phone';
 
 /**
@@ -122,86 +125,65 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
 
     // Parse initial value to detect country code and phone number
     React.useEffect(() => {
-      if (value) {
-        const cleanValue = cleanPhoneNumber(value);
-
-        // Try to detect country from dial code
-        if (cleanValue.startsWith('+') || value.startsWith('+')) {
-          for (const country of countries) {
-            const dialCodeDigits = cleanPhoneNumber(country.dialCode);
-            if (cleanValue.startsWith(dialCodeDigits)) {
-              setSelectedCountry(country);
-              setPhoneNumber(cleanValue.slice(dialCodeDigits.length));
-              return;
-            }
-          }
-        }
-
-        // If no country detected, use the phone as-is
-        setPhoneNumber(cleanValue);
+      if (!value) {
+        setPhoneNumber('');
+        return;
       }
-    }, [value]);
 
-    // Handle phone number input change
-    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const inputValue = e.target.value;
-      const cleanValue = cleanPhoneNumber(inputValue);
-
-      // Check if user is typing a dial code
-      if (inputValue.startsWith('+')) {
-        for (const country of countries) {
-          const dialCodeDigits = cleanPhoneNumber(country.dialCode);
-          if (cleanValue.startsWith(dialCodeDigits)) {
-            if (country.code !== selectedCountry.code) {
-              setSelectedCountry(country);
-              const phoneOnly = cleanValue.slice(dialCodeDigits.length);
-              setPhoneNumber(phoneOnly);
-              onChange?.(selectedCountry.dialCode + phoneOnly);
-              return;
-            }
-          }
-        }
+      const normalized = normalizeInternationalPhoneInput(value);
+      const cleanValue = cleanPhoneNumber(normalized);
+      const country = findCountryFromPhoneDigits(cleanValue);
+      if (country) {
+        setSelectedCountry(country);
+        setPhoneNumber(cleanValue.slice(dialCodeDigits(country.dialCode).length));
+        return;
       }
 
       setPhoneNumber(cleanValue);
-      onChange?.(selectedCountry.dialCode + cleanValue);
+    }, [value]);
+
+    const applyResolvedPhone = (
+      rawInput: string,
+      startsWithPlus: boolean,
+    ) => {
+      const resolved = resolvePhoneInputChange({
+        rawInput,
+        selectedDialCode: selectedCountry.dialCode,
+        startsWithPlus,
+      });
+      if (resolved.country) {
+        setSelectedCountry(resolved.country);
+      }
+      setPhoneNumber(resolved.nationalDigits);
+      onChange?.(resolved.value);
+    };
+
+    // Handle phone number input change
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      applyResolvedPhone(e.target.value, e.target.value.startsWith('+'));
     };
 
     // Handle country selection
     const handleCountrySelect = (countryCode: string) => {
       const country = findCountryByCode(countryCode);
       if (country) {
+        const resolved = resolvePhoneInputChange({
+          rawInput: phoneNumber,
+          selectedDialCode: country.dialCode,
+          startsWithPlus: false,
+        });
         setSelectedCountry(country);
+        setPhoneNumber(resolved.nationalDigits);
         setOpen(false);
-        // Update the value with new country code
-        onChange?.(country.dialCode + phoneNumber);
+        onChange?.(resolved.value);
       }
     };
 
     // Handle paste to accept both formatted and unformatted
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       const pastedText = e.clipboardData.getData('text');
-      const cleanValue = cleanPhoneNumber(pastedText);
-
-      // Try to detect country from pasted dial code
-      if (pastedText.startsWith('+')) {
-        for (const country of countries) {
-          const dialCodeDigits = cleanPhoneNumber(country.dialCode);
-          if (cleanValue.startsWith(dialCodeDigits)) {
-            e.preventDefault();
-            setSelectedCountry(country);
-            const phoneOnly = cleanValue.slice(dialCodeDigits.length);
-            setPhoneNumber(phoneOnly);
-            onChange?.(country.dialCode + phoneOnly);
-            return;
-          }
-        }
-      }
-
-      // If no country detected from paste, just update the phone number
       e.preventDefault();
-      setPhoneNumber(cleanValue);
-      onChange?.(selectedCountry.dialCode + cleanValue);
+      applyResolvedPhone(pastedText, pastedText.trim().startsWith('+'));
     };
 
     // Format the display value

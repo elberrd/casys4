@@ -23,3 +23,28 @@ export function filterComboboxOptionByLabel(
   const labelNormalized = normalizeString(option.label);
   return labelNormalized.includes(searchNormalized) ? 1 : 0;
 }
+
+/**
+ * When the parent already filtered via `onSearchChange` (people.search),
+ * cmdk must not re-filter by label. CPF digit queries match on the server
+ * but never appear in the name-only option label.
+ */
+export function shouldFilterComboboxOnClient(
+  hasServerSearch: boolean,
+): boolean {
+  return !hasServerSearch;
+}
+
+export function scoreComboboxOption(args: {
+  optionValue: string;
+  search: string;
+  options: ReadonlyArray<ComboboxFilterOption>;
+  serverFiltered: boolean;
+}): number {
+  if (args.serverFiltered) return 1;
+  return filterComboboxOptionByLabel(
+    args.optionValue,
+    args.search,
+    args.options,
+  );
+}

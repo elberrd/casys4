@@ -28,6 +28,7 @@ const confirmationSource = read("components/ui/confirmation-dialog.tsx");
 const fieldsSource = read(
   "components/individual-processes/candidate-address-fields.tsx",
 );
+const candidateAddressLibSource = read("lib/utils/candidate-address.ts");
 const detailSource = read(
   "app/[locale]/(dashboard)/individual-processes/[id]/individual-process-detail-client.tsx",
 );
@@ -167,5 +168,6 @@ test("c) insert stores UF and the shared formatter hides BRASIL", () => {
   assert.match(detailSource, /formatCurrentProcessAddress\(processCurrentAddress\)/);
   assert.match(tableSource, /formatAddressCityState\(address\)/);
   assert.match(dialogSource, /withNormalizedBrazilState/);
-  assert.match(fieldsSource, /normalizeBrazilStateCode/);
+  assert.match(fieldsSource, /nextStateAddressFields/);
+  assert.match(candidateAddressLibSource, /normalizeBrazilStateCode/);
 });

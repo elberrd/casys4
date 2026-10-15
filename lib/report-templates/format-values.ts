@@ -15,6 +15,7 @@ import { formatCPF } from "@/lib/utils/document-masks";
 import { getFullName } from "@/lib/utils/person-names";
 import { formatResidenceDuration } from "@/lib/utils/residence-duration";
 import { formatCandidateAddress } from "@/lib/utils/candidate-address";
+import { formatStoredPhoneNumber } from "@/lib/data/countries-phone";
 import {
   formatStoredStatusDateTime,
   STATUS_BUSINESS_TIME_ZONE,
@@ -641,7 +642,9 @@ export function buildReportVariableValues(args: {
       ? formatCPF(legalRepresentative.cpf)
       : "",
     legalRepresentativeEmail: display(legalRepresentative?.email),
-    legalRepresentativePhone: display(legalRepresentative?.phoneNumber),
+    legalRepresentativePhone: formatStoredPhoneNumber(
+      legalRepresentative?.phoneNumber,
+    ),
     legalRepresentativeCargo: display(legalRepresentative?.cargo),
   };
 }

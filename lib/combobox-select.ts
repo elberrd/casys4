@@ -19,3 +19,33 @@ export function toggleOffComboboxSelection<T extends string>(
 ): T | undefined {
   return optionValue === selectedValue ? undefined : (optionValue as T);
 }
+
+/**
+ * Keep a Combobox controlled when the form stores "" for “no selection”.
+ * Passing `undefined` makes it uncontrolled, so the X button leaves the
+ * previous `internalValue` visible after the parent clears the field.
+ */
+export function toControlledComboboxValue<T extends string>(
+  value: T | "" | undefined,
+): T | "" {
+  return value ?? "";
+}
+
+/**
+ * Displayed Combobox value after the parent stores "" and the X is clicked.
+ * Controlled empty string must win over a stale internal selection.
+ */
+export function resolveComboboxSelectedValue<T extends string>(
+  value: T | "" | undefined,
+  internalValue: T | undefined,
+): T | "" | undefined {
+  if (value !== undefined) {
+    return value === "" ? undefined : value;
+  }
+  return internalValue;
+}
+
+/** Always drop the uncontrolled cache when the user clicks X. */
+export function nextComboboxInternalValueAfterClear(): undefined {
+  return undefined;
+}
