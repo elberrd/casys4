@@ -39,6 +39,7 @@ import { useTranslations } from "next-intl"
 import { companySchema, CompanyFormData, resolveCompanyGroupFormId } from "@/lib/validations/companies"
 import { Id } from "@/convex/_generated/dataModel"
 import { useToast } from "@/hooks/use-toast"
+import { queryListOrEmpty } from "@/lib/query-list"
 import { EconomicActivityQuickCreateDialog } from "@/components/economic-activities"
 
 interface CompanyFormDialogProps {
@@ -64,9 +65,13 @@ export function CompanyFormDialog({
     companyId ? { id: companyId } : "skip"
   )
 
-  const cities = useQuery(api.cities.listWithRelations, {}) ?? []
-  const economicActivities = useQuery(api.economicActivities.listActive, {}) ?? []
-  const companyGroups = useQuery(api.companyGroups.listActive, {}) ?? []
+  const cities = queryListOrEmpty(useQuery(api.cities.listWithRelations, {}))
+  const economicActivities = queryListOrEmpty(
+    useQuery(api.economicActivities.listActive, {}),
+  )
+  const companyGroups = queryListOrEmpty(
+    useQuery(api.companyGroups.listActive, {}),
+  )
   const companyEconomicActivities = useQuery(
     api.companies.getEconomicActivities,
     companyId ? { companyId } : "skip"
