@@ -7,16 +7,14 @@ import { CircleHelp, Loader2, Search } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
-import {
-  BRAZIL_COUNTRY_CODE,
-  getBrazilStateName,
-  normalizeBrazilStateCode,
-} from "@/lib/data/brazil-states";
+import { BRAZIL_COUNTRY_CODE } from "@/lib/data/brazil-states";
 import {
   applyCandidateAddressDefaults,
   applyCepLookupResult,
   isBrazilAddressSelected,
   isNonEmptyLegacyAddress,
+  nextCountryAddressFields,
+  nextStateAddressFields,
   type AddressCountryMode,
   type CandidateAddressValue,
 } from "@/lib/utils/candidate-address";
@@ -314,42 +312,24 @@ export function CandidateAddressFields({
 
   const handleCountryChange = (nextCode: string | undefined) => {
     if (isPerson && nextCode === BRAZIL_COUNTRY_CODE) return;
-    if (!nextCode) {
-      merge({
-        addressCountryCode: "",
-        addressCountryName: "",
-        addressStateCode: "",
-        addressStateName: "",
-        addressCity: "",
-      });
-      return;
-    }
     const selected = countries.find((country) => country.isoCode === nextCode);
-    merge({
-      addressCountryCode: nextCode,
-      addressCountryName: selected?.name ?? nextCode,
-      addressStateCode: "",
-      addressStateName: "",
-      addressCity: "",
+    const next = nextCountryAddressFields({
+      currentCountryCode: value.addressCountryCode,
+      nextCode,
+      countryName: selected?.name,
     });
+    if (next) merge(next);
   };
 
   const handleStateChange = (nextCode: string | undefined) => {
     const selected = states.find((state) => state.isoCode === nextCode);
-    if (!isPerson) {
-      const uf = normalizeBrazilStateCode(nextCode, selected?.name);
-      merge({
-        addressStateCode: uf ?? nextCode ?? "",
-        addressStateName: uf ? getBrazilStateName(uf) : (selected?.name ?? ""),
-        addressCity: "",
-      });
-      return;
-    }
-    merge({
-      addressStateCode: nextCode ?? "",
-      addressStateName: selected?.name ?? "",
-      addressCity: "",
+    const next = nextStateAddressFields({
+      currentStateCode: value.addressStateCode,
+      nextCode,
+      nextStateName: selected?.name,
+      mode: isPerson ? "person" : "process",
     });
+    if (next) merge(next);
   };
 
   const handleLookupCep = async () => {

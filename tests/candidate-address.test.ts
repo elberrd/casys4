@@ -7,6 +7,7 @@ import {
   applyCepLookupResult,
   EMPTY_CANDIDATE_ADDRESS_FORM,
   formatCandidateAddress,
+  nextStateAddressFields,
   formatCurrentPersonAddress,
   formatCurrentProcessAddress,
   isBrazilAddressSelected,
@@ -337,5 +338,17 @@ test("process card current address comes from the process table, never the perso
   assert.equal(
     legacyAddressDisplayText("Rua da Liberdade, Lisboa"),
     "Rua da Liberdade, Lisboa",
+  );
+});
+
+test("re-selecting the current UF does not clear the city", () => {
+  assert.equal(
+    nextStateAddressFields({
+      currentStateCode: "SP",
+      nextCode: "SP",
+      nextStateName: "São Paulo",
+      mode: "process",
+    }),
+    null,
   );
 });
