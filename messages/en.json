@@ -3077,8 +3077,8 @@
       "approved": "Approved",
       "rejected": "Rejected"
     },
-    "deleteDocument": "Delete Document",
-    "deleteDocumentDescription": "Are you sure you want to delete this document? This action cannot be undone.",
+    "deleteDocument": "Remove version",
+    "deleteDocumentDescription": "This version will be permanently deleted. If a previous version exists, it becomes current again. Older versions remain.",
     "deleteDocumentSuccess": "Document deleted successfully",
     "deleteDocumentError": "Error deleting document",
     "unlinkFromStatus": "Unlink from Status",
@@ -3372,8 +3372,8 @@
     "versionNotesPlaceholder": "Add observations about this version...",
     "versionNotesSaved": "Notes saved",
     "versionNotesError": "Error saving notes",
-    "deleteDocument": "Delete Document",
-    "deleteDocumentConfirm": "Are you sure you want to delete this document? This action cannot be undone.",
+    "deleteDocument": "Remove version",
+    "deleteDocumentConfirm": "This version will be permanently deleted. If a previous version exists, it becomes current again. Older versions remain.",
     "deleteSuccess": "Document deleted successfully",
     "deleteError": "Error deleting document",
     "validity": {

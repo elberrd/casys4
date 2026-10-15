@@ -3102,8 +3102,8 @@
       "approved": "Aprovado",
       "rejected": "Rejeitado"
     },
-    "deleteDocument": "Remover Documento",
-    "deleteDocumentDescription": "Tem certeza que deseja remover este documento? Esta ação não pode ser desfeita.",
+    "deleteDocument": "Remover versão",
+    "deleteDocumentDescription": "Esta versão será excluída em definitivo. Se existir uma versão anterior, ela volta a ser a atual. As versões mais antigas permanecem.",
     "deleteDocumentSuccess": "Documento removido com sucesso",
     "deleteDocumentError": "Erro ao remover documento",
     "unlinkFromStatus": "Desvincular do Andamento",
@@ -3397,8 +3397,8 @@
     "versionNotesPlaceholder": "Adicione observações sobre esta versão...",
     "versionNotesSaved": "Observações salvas",
     "versionNotesError": "Erro ao salvar observações",
-    "deleteDocument": "Remover Documento",
-    "deleteDocumentConfirm": "Tem certeza que deseja remover este documento? Esta ação não pode ser desfeita.",
+    "deleteDocument": "Remover versão",
+    "deleteDocumentConfirm": "Esta versão será excluída em definitivo. Se existir uma versão anterior, ela volta a ser a atual. As versões mais antigas permanecem.",
     "deleteSuccess": "Documento removido com sucesso",
     "deleteError": "Erro ao remover documento",
     "validity": {
