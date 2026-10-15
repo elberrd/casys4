@@ -826,6 +826,7 @@
     "newProcess": "New Individual Process",
     "createDescription": "Add a person to an immigration process",
     "deleteConfirm": "Are you sure you want to delete this individual process?",
+    "entityName": "individual process",
     "personName": "Candidate",
     "person": "Candidate",
     "collectiveProcess": "Collective Process",

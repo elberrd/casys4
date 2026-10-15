@@ -149,8 +149,11 @@ export const listActive = query({
  * Access control: Admins can view any company, clients can only view their own company
  */
 export const get = query({
-  args: { id: v.id("companies") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.string() },
+  handler: async (ctx, { id: rawId }) => {
+    const id = ctx.db.normalizeId("companies", rawId);
+    if (!id) return null;
+
     const userProfile = await getViewerForCompany(ctx, id);
     if (!userProfile) return null;
 
