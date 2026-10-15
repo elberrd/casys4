@@ -113,7 +113,7 @@ export const create = mutation({
   },
   returns: v.id("companyGroups"),
   handler: async (ctx, args) => {
-    await getCurrentUserProfile(ctx);
+    await requireAdmin(ctx);
 
     if (!args.name || args.name.trim().length === 0) {
       throw new Error("Name is required");

@@ -16,6 +16,28 @@ export type ProcessCompanyFields = {
   collectiveProcessId?: string;
 };
 
+export function viewerCanAccessProcess(
+  role: ProcessAccessRole | null | undefined,
+  currentCompanyIds: ReadonlySet<string>,
+  process: ProcessCompanyFields | null | undefined,
+  collectiveCompanyId?: string,
+): boolean {
+  if (role == null || !process) return false;
+  if (role !== "client") return true;
+  const collectiveMap = new Map<string, string | undefined>();
+  if (process.collectiveProcessId) {
+    collectiveMap.set(process.collectiveProcessId, collectiveCompanyId);
+  }
+  return (
+    scopeIndividualProcessesForUser(
+      role,
+      [process],
+      currentCompanyIds,
+      collectiveMap,
+    ).length === 1
+  );
+}
+
 export function scopeIndividualProcessesForUser<T extends ProcessCompanyFields>(
   role: ProcessAccessRole | null | undefined,
   processes: T[],

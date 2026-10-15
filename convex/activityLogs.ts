@@ -1,7 +1,16 @@
 import { v } from "convex/values";
 import { query, action, internalMutation, QueryCtx } from "./_generated/server";
 import { Id, DataModel } from "./_generated/dataModel";
-import { getCurrentUserProfile, requireAdmin } from "./lib/auth";
+import {
+  getCurrentUserProfile,
+  getViewerForCollectiveProcess,
+  getViewerForCompany,
+  getViewerForProcess,
+  requireAdmin,
+  tryGetCurrentUserProfile,
+} from "./lib/auth";
+import { personOwnedByClient } from "./lib/personOwnership";
+import { rowsForViewer } from "./lib/viewerAccess";
 import { createCachedGet } from "./lib/cachedGet";
 
 function getFullName(person: {
@@ -205,6 +214,145 @@ function getEntityTypeCandidates(entityType: string): string[] {
   const canonical = ENTITY_TYPE_CANONICAL.get(key) ?? entityType;
   const canonicalKey = canonical.replace(/[^a-z0-9]/gi, "").toLowerCase();
   return ENTITY_TYPE_GROUPS[canonicalKey] ?? [canonical];
+}
+
+async function viewerCanAccessActivityEntity(
+  ctx: QueryCtx,
+  entityType: string,
+  entityId: string,
+): Promise<boolean> {
+  const userProfile = await tryGetCurrentUserProfile(ctx);
+  if (!userProfile) return false;
+  if (userProfile.role !== "client") return true;
+
+  const key = normalizeEntityType(entityType)
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+
+  if (key === "company" || key === "companies") {
+    const id = ctx.db.normalizeId("companies", entityId);
+    if (!id) return false;
+    return Boolean(await getViewerForCompany(ctx, id));
+  }
+
+  if (key === "individualprocess" || key === "individualprocesses") {
+    const id = ctx.db.normalizeId("individualProcesses", entityId);
+    if (!id) return false;
+    const process = await ctx.db.get(id);
+    return Boolean(await getViewerForProcess(ctx, process));
+  }
+
+  if (key === "collectiveprocess" || key === "collectiveprocesses") {
+    const id = ctx.db.normalizeId("collectiveProcesses", entityId);
+    if (!id) return false;
+    const collective = await ctx.db.get(id);
+    return Boolean(await getViewerForCollectiveProcess(ctx, collective));
+  }
+
+  if (key === "person" || key === "people") {
+    const id = ctx.db.normalizeId("people", entityId);
+    if (!id) return false;
+    return personOwnedByClient(ctx, userProfile, id);
+  }
+
+  if (
+    key === "document" ||
+    key === "documents" ||
+    key === "documentsdelivered"
+  ) {
+    const deliveredId = ctx.db.normalizeId("documentsDelivered", entityId);
+    if (deliveredId) {
+      const document = await ctx.db.get(deliveredId);
+      if (!document) return false;
+      const process = await ctx.db.get(document.individualProcessId);
+      return Boolean(await getViewerForProcess(ctx, process));
+    }
+    const standaloneId = ctx.db.normalizeId("documents", entityId);
+    if (!standaloneId) return false;
+    const document = await ctx.db.get(standaloneId);
+    if (!document) return false;
+    if (document.companyId) {
+      return Boolean(await getViewerForCompany(ctx, document.companyId));
+    }
+    if (document.individualProcessId) {
+      const process = await ctx.db.get(document.individualProcessId);
+      return Boolean(await getViewerForProcess(ctx, process));
+    }
+    return false;
+  }
+
+  if (key === "task" || key === "tasks") {
+    const id = ctx.db.normalizeId("tasks", entityId);
+    if (!id) return false;
+    const task = await ctx.db.get(id);
+    if (!task) return false;
+    if (task.individualProcessId) {
+      const process = await ctx.db.get(task.individualProcessId);
+      return Boolean(await getViewerForProcess(ctx, process));
+    }
+    if (task.collectiveProcessId) {
+      const collective = await ctx.db.get(task.collectiveProcessId);
+      return Boolean(await getViewerForCollectiveProcess(ctx, collective));
+    }
+    return false;
+  }
+
+  if (key === "note" || key === "notes") {
+    const id = ctx.db.normalizeId("notes", entityId);
+    if (!id) return false;
+    const note = await ctx.db.get(id);
+    if (!note) return false;
+    if (note.individualProcessId) {
+      const process = await ctx.db.get(note.individualProcessId);
+      return Boolean(await getViewerForProcess(ctx, process));
+    }
+    if (note.collectiveProcessId) {
+      const collective = await ctx.db.get(note.collectiveProcessId);
+      return Boolean(await getViewerForCollectiveProcess(ctx, collective));
+    }
+    return false;
+  }
+
+  if (key === "passport" || key === "passports") {
+    const id = ctx.db.normalizeId("passports", entityId);
+    if (!id) return false;
+    const passport = await ctx.db.get(id);
+    if (!passport?.personId) return false;
+    return personOwnedByClient(ctx, userProfile, passport.personId);
+  }
+
+  if (key === "processrequest" || key === "processrequests") {
+    const id = ctx.db.normalizeId("individualProcesses", entityId);
+    if (!id) return false;
+    const process = await ctx.db.get(id);
+    return Boolean(await getViewerForProcess(ctx, process));
+  }
+
+  if (key === "documentcondition" || key === "documentdeliveredcondition") {
+    const id = ctx.db.normalizeId("documentDeliveredConditions", entityId);
+    if (!id) return false;
+    const condition = await ctx.db.get(id);
+    if (!condition) return false;
+    const document = await ctx.db.get(condition.documentsDeliveredId);
+    if (!document) return false;
+    const process = await ctx.db.get(document.individualProcessId);
+    return Boolean(await getViewerForProcess(ctx, process));
+  }
+
+  if (key === "userprofile" || key === "userprofiles") {
+    const id = ctx.db.normalizeId("userProfiles", entityId);
+    if (!id) return false;
+    const profile = await ctx.db.get(id);
+    if (!profile) return false;
+    if (profile._id === userProfile._id) return true;
+    if (profile.companyId) {
+      return Boolean(await getViewerForCompany(ctx, profile.companyId));
+    }
+    return false;
+  }
+
+  // Global catalog / unknown entities: clients do not read other tenants' logs.
+  return false;
 }
 
 type LogUserInfo = {
@@ -504,7 +652,15 @@ export const getEntityHistory = query({
     entityId: v.string(),
   },
   handler: async (ctx, args) => {
-    await getCurrentUserProfile(ctx); // Ensure authenticated
+    const userProfile = await tryGetCurrentUserProfile(ctx);
+    const canAccess = await viewerCanAccessActivityEntity(
+      ctx,
+      args.entityType,
+      args.entityId,
+    );
+    if (!userProfile || !canAccess) {
+      return rowsForViewer(null, false, []);
+    }
 
     const entityTypeCandidates = getEntityTypeCandidates(args.entityType);
     const logsByType = await Promise.all(
@@ -777,7 +933,11 @@ export const getIndividualProcessFullHistory = query({
     processId: v.id("individualProcesses"),
   },
   handler: async (ctx, args) => {
-    await getCurrentUserProfile(ctx); // Ensure authenticated
+    const process = await ctx.db.get(args.processId);
+    const viewer = await getViewerForProcess(ctx, process);
+    if (!viewer) {
+      return rowsForViewer(null, false, []);
+    }
 
     const processId = args.processId;
 

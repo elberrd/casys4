@@ -11,6 +11,8 @@ import { CompanyFormDialog } from "@/components/companies/company-form-dialog"
 import { CompaniesTable } from "@/components/companies/companies-table"
 import { Id } from "@/convex/_generated/dataModel"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { companyDeleteErrorMessage } from "@/lib/company-delete-error"
 
 export function CompaniesClient() {
   const t = useTranslations('Companies')
@@ -38,13 +40,12 @@ export function CompaniesClient() {
   }
 
   const handleDelete = async (id: Id<"companies">) => {
-    if (confirm(t('deleteConfirm'))) {
-      try {
-        await deleteCompany({ id })
-      } catch (error) {
-        console.error("Error deleting company:", error)
-        alert(t('errorDelete'))
-      }
+    try {
+      await deleteCompany({ id })
+    } catch (error) {
+      const message = companyDeleteErrorMessage(error, t)
+      toast.error(message, { id: "company-delete-error" })
+      throw new Error(message)
     }
   }
 

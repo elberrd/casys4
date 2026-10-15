@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   useReactTable,
   getCoreRowModel,
@@ -73,14 +74,30 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
   const t = useTranslations('Companies')
   const tCommon = useTranslations('Common')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [deleteDialogDismissed, setDeleteDialogDismissed] = useState(false)
 
   // Delete confirmation for single item
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: Id<"companies">) => {
-      if (onDelete) await onDelete(id)
+      try {
+        await onDelete(id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t("errorDelete")
+        toast.error(message, { id: "company-delete-error" })
+        setDeleteDialogDismissed(true)
+        throw error
+      }
     },
-    entityName: "company",
+    entityName: t("entityName"),
+    onError: () => {
+      setDeleteDialogDismissed(true)
+    },
   })
+
+  const confirmCompanyDelete = useCallback((id: Id<"companies">) => {
+    setDeleteDialogDismissed(false)
+    deleteConfirmation.confirmDelete(id)
+  }, [deleteConfirmation.confirmDelete])
 
   // Bulk delete confirmation for multiple items
   const bulkDeleteConfirmation = useBulkDeleteConfirmation({
@@ -208,7 +225,7 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
               {
                 label: tCommon('delete'),
                 icon: <Trash2 className="h-4 w-4" />,
-                onClick: () => deleteConfirmation.confirmDelete(row.original._id),
+                onClick: () => confirmCompanyDelete(row.original._id),
                 variant: "destructive" as const,
                 separator: true,
               },
@@ -220,7 +237,7 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
         enableHiding: false,
       },
     ],
-    [t, tCommon, onEdit, onDelete, onView, deleteConfirmation.confirmDelete]
+    [t, tCommon, onEdit, onDelete, onView, confirmCompanyDelete]
   )
 
   const table = useReactTable({
@@ -285,10 +302,15 @@ export function CompaniesTable({ companies, onEdit, onDelete, onView }: Companie
 
       {/* Delete confirmation dialogs */}
       <DeleteConfirmationDialog
-        open={deleteConfirmation.isOpen}
-        onOpenChange={deleteConfirmation.handleCancel}
+        open={deleteConfirmation.isOpen && !deleteDialogDismissed}
+        onOpenChange={(open) => {
+          if (!open) {
+            deleteConfirmation.handleCancel()
+          }
+        }}
         onConfirm={deleteConfirmation.handleConfirm}
-        entityName="company"
+        entityName={t("entityName")}
+        description={t("deleteConfirm")}
         isDeleting={deleteConfirmation.isDeleting}
       />
 
