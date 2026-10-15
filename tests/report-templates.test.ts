@@ -269,6 +269,8 @@ test("formats individual process fields with the labels shown to staff", () => {
   assert.match(values.monthlyAmountToReceive, /14.000,00|14,000.00/);
   assert.match(values.statusHistory, /Em Trâmite/);
   assert.match(values.statusHistory, /Em Preparação/);
+  assert.match(values.statusHistory, /14:32/);
+  assert.match(values.statusHistory, /09:00/);
   assert.equal(values.currentStatus, "Em Trâmite");
 });
 

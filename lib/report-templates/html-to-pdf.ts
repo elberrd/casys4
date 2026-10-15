@@ -101,6 +101,82 @@ function loadIframeDocument(html: string): Promise<{
   });
 }
 
+export const REPORT_PDF_IMAGE_FORMAT = "JPEG";
+export const REPORT_PDF_JPEG_QUALITY = 0.85;
+export const REPORT_PDF_IMAGE_COMPRESSION = "FAST" as const;
+
+export type PdfPageSlice = {
+  sourceY: number;
+  sliceHeight: number;
+  destHeightMm: number;
+};
+
+/**
+ * Page-sized crops of a tall html2canvas bitmap so each PDF page embeds only
+ * its slice (JPEG), instead of the full PNG on every page.
+ */
+export function pdfPageSlicesForCanvas(
+  canvasWidth: number,
+  canvasHeight: number,
+  pageWidthMm: number,
+  pageHeightMm: number,
+): PdfPageSlice[] {
+  if (canvasWidth <= 0 || canvasHeight <= 0) {
+    return [{ sourceY: 0, sliceHeight: 1, destHeightMm: pageHeightMm }];
+  }
+
+  const imgHeightMm = (canvasHeight * pageWidthMm) / canvasWidth;
+  const pxPerMm = canvasWidth / pageWidthMm;
+  const pageCount = Math.max(1, Math.ceil(imgHeightMm / pageHeightMm - 1e-6));
+  const slices: PdfPageSlice[] = [];
+
+  for (let i = 0; i < pageCount; i++) {
+    const sourceY = Math.min(
+      canvasHeight,
+      Math.floor(i * pageHeightMm * pxPerMm),
+    );
+    const nextY =
+      i === pageCount - 1
+        ? canvasHeight
+        : Math.min(canvasHeight, Math.floor((i + 1) * pageHeightMm * pxPerMm));
+    const sliceHeight = Math.max(1, nextY - sourceY);
+    slices.push({
+      sourceY,
+      sliceHeight,
+      destHeightMm: sliceHeight / pxPerMm,
+    });
+  }
+
+  return slices;
+}
+
+function canvasSliceToJpeg(
+  source: HTMLCanvasElement,
+  slice: PdfPageSlice,
+): string {
+  const pageCanvas = document.createElement("canvas");
+  pageCanvas.width = source.width;
+  pageCanvas.height = slice.sliceHeight;
+  const ctx = pageCanvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to create PDF page canvas");
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+  ctx.drawImage(
+    source,
+    0,
+    slice.sourceY,
+    source.width,
+    slice.sliceHeight,
+    0,
+    0,
+    source.width,
+    slice.sliceHeight,
+  );
+  return pageCanvas.toDataURL("image/jpeg", REPORT_PDF_JPEG_QUALITY);
+}
+
 export async function htmlToPdfBlob(html: string): Promise<Blob> {
   const isolatedHtml = buildIsolatedReportHtml(html);
   const { iframe, paper } = await loadIframeDocument(isolatedHtml);
@@ -122,23 +198,32 @@ export async function htmlToPdfBlob(html: string): Promise<Blob> {
       orientation: "portrait",
       unit: "mm",
       format: "a4",
+      compress: true,
     });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/png");
+    const slices = pdfPageSlicesForCanvas(
+      canvas.width,
+      canvas.height,
+      pageWidth,
+      pageHeight,
+    );
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
+      if (!slice) continue;
+      if (i > 0) pdf.addPage();
+      const imgData = canvasSliceToJpeg(canvas, slice);
+      pdf.addImage(
+        imgData,
+        REPORT_PDF_IMAGE_FORMAT,
+        0,
+        0,
+        pageWidth,
+        slice.destHeightMm,
+        undefined,
+        REPORT_PDF_IMAGE_COMPRESSION,
+      );
     }
 
     return pdf.output("blob");
