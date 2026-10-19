@@ -3904,6 +3904,18 @@ export const changeStatus = mutation({
 });
 
 /**
+ * A document another process of the same company can reuse: the latest
+ * version, with a file, in a status that has been delivered.
+ */
+function isReusableCompanyDocument(doc: Doc<"documentsDelivered">): boolean {
+  return (
+    doc.isLatest &&
+    Boolean(doc.storageId || doc.fileUrl) &&
+    ["uploaded", "approved", "under_review"].includes(doc.status)
+  );
+}
+
+/**
  * Query to list company documents available for reuse
  * Finds documents of the same type from other processes of the same company
  */
@@ -3947,20 +3959,20 @@ export const listCompanyDocumentsForReuse = query({
       processId: Id<"individualProcesses">;
     }> = [];
 
-    for (const process of otherProcesses) {
-      const docs = await ctx.db
-        .query("documentsDelivered")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", process._id))
-        .collect();
+    // Read only this document type inside each process, not every document
+    const matchingDocsByProcess = await Promise.all(
+      otherProcesses.map(async (process) => {
+        const docs = await ctx.db
+          .query("documentsDelivered")
+          .withIndex("by_individualProcess_documentType", (q) =>
+            q.eq("individualProcessId", process._id).eq("documentTypeId", documentTypeId)
+          )
+          .collect();
+        return { process, matchingDocs: docs.filter(isReusableCompanyDocument) };
+      })
+    );
 
-      const matchingDocs = docs.filter(
-        (doc) =>
-          doc.documentTypeId === documentTypeId &&
-          doc.isLatest &&
-          (doc.storageId || doc.fileUrl) &&
-          ["uploaded", "approved", "under_review"].includes(doc.status)
-      );
-
+    for (const { process, matchingDocs } of matchingDocsByProcess) {
       if (matchingDocs.length > 0) {
         const person = await cachedGet(process.personId);
         const personName = person ? getFullName(person) : undefined;
@@ -3997,46 +4009,68 @@ export const listCompanyDocumentsForReuse = query({
 });
 
 /**
- * Returns documentTypeIds that have at least one reusable document from other processes of the same company.
- * Used to conditionally show the reuse button in the UI.
+ * Returns the company document types of `excludeProcessId` that have at least
+ * one reusable document in another process of the same company.
+ * Used to conditionally show the reuse button in the UI, which only appears on
+ * company documents of the process being viewed — so those are the only types
+ * searched for.
  */
 export const getReusableDocumentTypeIds = query({
   args: {
     companyApplicantId: v.id("companies"),
     excludeProcessId: v.id("individualProcesses"),
   },
+  returns: v.array(v.id("documentTypes")),
   handler: async (ctx, { companyApplicantId, excludeProcessId }) => {
     await requireAdmin(ctx);
 
-    const processes = await ctx.db
+    const ownDocs = await ctx.db
+      .query("documentsDelivered")
+      .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", excludeProcessId))
+      .collect();
+    const ownTypeIds = [
+      ...new Set(
+        ownDocs
+          .map((doc) => doc.documentTypeId)
+          .filter((id): id is Id<"documentTypes"> => id !== undefined)
+      ),
+    ];
+    const ownTypes = await Promise.all(ownTypeIds.map((id) => ctx.db.get(id)));
+    const pendingTypeIds = new Set(
+      ownTypes
+        .filter((type): type is Doc<"documentTypes"> => type?.isCompanyDocument === true)
+        .map((type) => type._id)
+    );
+    if (pendingTypeIds.size === 0) return [];
+
+    // Newest processes first, stopping once every type has a match: a reusable
+    // document is almost always found in the first few processes, so a large
+    // company's history is not read on every checklist render.
+    const reusableTypeIds: Id<"documentTypes">[] = [];
+    const companyProcesses = ctx.db
       .query("individualProcesses")
       .withIndex("by_companyApplicant", (q) => q.eq("companyApplicantId", companyApplicantId))
-      .collect();
+      .order("desc");
+    for await (const process of companyProcesses) {
+      if (process._id === excludeProcessId) continue;
 
-    const otherProcesses = processes.filter((p) => p._id !== excludeProcessId);
-    if (otherProcesses.length === 0) return [];
-
-    const reusableTypeIds = new Set<string>();
-
-    for (const process of otherProcesses) {
-      const docs = await ctx.db
-        .query("documentsDelivered")
-        .withIndex("by_individualProcess", (q) => q.eq("individualProcessId", process._id))
-        .collect();
-
-      for (const doc of docs) {
-        if (
-          doc.documentTypeId &&
-          doc.isLatest &&
-          (doc.storageId || doc.fileUrl) &&
-          ["uploaded", "approved", "under_review"].includes(doc.status)
-        ) {
-          reusableTypeIds.add(doc.documentTypeId);
+      for (const documentTypeId of [...pendingTypeIds]) {
+        const docs = await ctx.db
+          .query("documentsDelivered")
+          .withIndex("by_individualProcess_documentType", (q) =>
+            q.eq("individualProcessId", process._id).eq("documentTypeId", documentTypeId)
+          )
+          .collect();
+        if (docs.some(isReusableCompanyDocument)) {
+          pendingTypeIds.delete(documentTypeId);
+          reusableTypeIds.push(documentTypeId);
         }
       }
+
+      if (pendingTypeIds.size === 0) break;
     }
 
-    return Array.from(reusableTypeIds);
+    return reusableTypeIds;
   },
 });
 

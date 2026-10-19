@@ -76,6 +76,10 @@ import { useBulkDeleteConfirmation } from "@/hooks/use-bulk-delete-confirmation"
 import { useGroupKeyboardShortcuts } from "@/lib/hooks/use-group-keyboard-shortcuts";
 import { IndividualProcessNotesModal } from "./individual-process-notes-modal";
 import {
+  PendingDocsCountCell,
+  PendingDocsCountsContext,
+} from "./pending-docs-count-cell";
+import {
   getFieldMetadata,
   getOrderedFilledFieldEntries,
 } from "@/lib/individual-process-fields";
@@ -290,6 +294,8 @@ interface IndividualProcessesTableProps {
   onExportSnapshotChange?: (snapshot: IndividualProcessesExportSnapshot) => void;
   // Whether to show the column visibility toggle button
   showColumnVisibility?: boolean;
+  // Rows don't carry pendingDocsCount; load it for the rows on screen instead
+  lazyPendingDocsCounts?: boolean;
 }
 
 export function IndividualProcessesTable({
@@ -353,6 +359,7 @@ export function IndividualProcessesTable({
   onRestoreNewestFirst,
   onExportSnapshotChange,
   showColumnVisibility = true,
+  lazyPendingDocsCounts = false,
 }: IndividualProcessesTableProps) {
   const t = useTranslations("IndividualProcesses");
   const tCommon = useTranslations("Common");
@@ -1684,25 +1691,13 @@ export function IndividualProcessesTable({
             <FileWarning className="h-4 w-4" />
           </DataGridColumnHeader>
         ),
-        cell: ({ row }) => {
-          const count = row.original.pendingDocsCount || 0;
-          if (count === 0) {
-            return (
-              <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
-                {t("pendingDocsUpToDate")}
-              </Badge>
-            );
-          }
-          return (
-            <Badge
-              variant="outline"
-              className="gap-1 text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300"
-            >
-              <FileWarning className="h-3 w-3" />
-              {t("pendingDocsCount", { count })}
-            </Badge>
-          );
-        },
+        cell: ({ row }) => (
+          <PendingDocsCountCell
+            processId={row.original._id}
+            count={row.original.pendingDocsCount}
+          />
+        ),
+        sortUndefined: "last",
         enableSorting: true,
         enableHiding: true,
       },
@@ -1881,8 +1876,38 @@ export function IndividualProcessesTable({
     ],
   );
 
+  // Pending-document counts are loaded on demand (see lazyPendingDocsCounts):
+  // only for the rows on the current page, or for every row while the table is
+  // sorted by that column, since sorting needs all of them.
+  const isSortingByPendingDocs = sorting.some((s) => s.id === "pendingDocs");
+  const [loadedPendingDocsCounts, setLoadedPendingDocsCounts] = useState<
+    ReadonlyMap<Id<"individualProcesses">, number>
+  >(() => new Map());
+  const allProcessIdsKey = useMemo(
+    () =>
+      lazyPendingDocsCounts && isSortingByPendingDocs
+        ? individualProcesses.map((p) => p._id).sort().join(",")
+        : "",
+    [lazyPendingDocsCounts, isSortingByPendingDocs, individualProcesses],
+  );
+  const tableData = useMemo(
+    () =>
+      lazyPendingDocsCounts && isSortingByPendingDocs
+        ? individualProcesses.map((p) => ({
+            ...p,
+            pendingDocsCount: loadedPendingDocsCounts.get(p._id),
+          }))
+        : individualProcesses,
+    [
+      lazyPendingDocsCounts,
+      isSortingByPendingDocs,
+      individualProcesses,
+      loadedPendingDocsCounts,
+    ],
+  );
+
   const table = useReactTable({
-    data: individualProcesses,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -1912,6 +1937,46 @@ export function IndividualProcessesTable({
       pagination,
     },
   });
+
+  const pageProcessIdsKey = table
+    .getRowModel()
+    .rows.filter((row) => !row.getIsGrouped())
+    .map((row) => row.original._id)
+    .sort()
+    .join(",");
+  const pendingDocsCountIdsKey = !lazyPendingDocsCounts
+    ? ""
+    : isSortingByPendingDocs
+      ? allProcessIdsKey
+      : columnVisibility.pendingDocs !== false
+        ? pageProcessIdsKey
+        : "";
+  const pendingDocsCountsArgs = useMemo(
+    () =>
+      pendingDocsCountIdsKey
+        ? {
+            processIds: pendingDocsCountIdsKey.split(
+              ",",
+            ) as Id<"individualProcesses">[],
+          }
+        : ("skip" as const),
+    [pendingDocsCountIdsKey],
+  );
+  const pendingDocsCounts = useQuery(
+    api.individualProcesses.getPendingDocsCounts,
+    pendingDocsCountsArgs,
+  );
+  // Keep counts already seen so paging back shows them while the page reloads
+  useEffect(() => {
+    if (!pendingDocsCounts) return;
+    setLoadedPendingDocsCounts((previous) => {
+      const next = new Map(previous);
+      for (const { processId, count } of pendingDocsCounts) {
+        next.set(processId, count);
+      }
+      return next;
+    });
+  }, [pendingDocsCounts]);
 
   useEffect(() => {
     if (!onExportSnapshotChange) return;
@@ -2688,14 +2753,18 @@ export function IndividualProcessesTable({
             ]}
           />
         )}
-        <DataGridContainer className="overflow-hidden w-full max-w-full">
-          <ScrollArea className="w-full max-w-full">
-            <div className="w-fit min-w-full">
-              <DataGridTable />
-            </div>
-            <ScrollBar orientation="horizontal" className="h-3" />
-          </ScrollArea>
-        </DataGridContainer>
+        <PendingDocsCountsContext.Provider
+          value={lazyPendingDocsCounts ? loadedPendingDocsCounts : null}
+        >
+          <DataGridContainer className="overflow-hidden w-full max-w-full">
+            <ScrollArea className="w-full max-w-full">
+              <div className="w-fit min-w-full">
+                <DataGridTable />
+              </div>
+              <ScrollBar orientation="horizontal" className="h-3" />
+            </ScrollArea>
+          </DataGridContainer>
+        </PendingDocsCountsContext.Provider>
         <DataGridPagination />
       </div>
 

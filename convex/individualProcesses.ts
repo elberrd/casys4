@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   getCurrentUserProfile,
@@ -7,6 +12,7 @@ import {
   requireAdmin,
   getClientCurrentCompanyIds,
   getViewerForProcess,
+  getIndividualProcessCompanyIds,
 } from "./lib/auth";
 import { enrichFilledFieldsData } from "./lib/filledFields";
 import { createCachedGet } from "./lib/cachedGet";
@@ -141,6 +147,25 @@ async function describeConflictingProcess(
       ? { legalFrameworkName: legalFramework.name }
       : {}),
   };
+}
+
+/**
+ * Number of pending documents (latest version still "not_started") in a process.
+ */
+async function countPendingDocs(
+  ctx: QueryCtx,
+  individualProcessId: Id<"individualProcesses">,
+): Promise<number> {
+  const docs = await ctx.db
+    .query("documentsDelivered")
+    .withIndex("by_individualProcess_status_latest", (q) =>
+      q
+        .eq("individualProcessId", individualProcessId)
+        .eq("status", "not_started")
+        .eq("isLatest", true),
+    )
+    .collect();
+  return docs.length;
 }
 
 /**
@@ -336,18 +361,14 @@ export const list = query({
             )
             .collect()
             .then((notes) => notes.length),
-          // Count pending documents (status="not_started", latest version) for this process.
-          // Uses the by_individualProcess_status index to read only "not_started"
-          // rows instead of every document for the process.
-          ctx.db
-            .query("documentsDelivered")
-            .withIndex("by_individualProcess_status", (q) =>
-              q
-                .eq("individualProcessId", process._id)
-                .eq("status", "not_started"),
-            )
-            .collect()
-            .then((docs) => docs.filter((d) => d.isLatest !== false).length),
+          // Clients sort and filter the whole list by pending documents, so they
+          // get the count for every row. Other roles fetch it per visible page
+          // through getPendingDocsCounts: counting here read every placeholder
+          // document in the system and made each document write re-run the
+          // whole list.
+          userProfile.role === "client"
+            ? countPendingDocs(ctx, process._id)
+            : undefined,
         ]);
 
         // Get caseStatus from the most recent activeStatus (not from process.caseStatusId which may be stale)
@@ -482,7 +503,7 @@ export const list = query({
           ...(userProfile.role === "admin" ? { requesterProfile } : {}),
           consulate: enrichedConsulate, // Include consulate with city, state, country
           notesCount, // Include notes count for the process
-          pendingDocsCount, // Count of documents with status="not_started" (client portal badge)
+          pendingDocsCount, // Count of documents with status="not_started" (clients only; see getPendingDocsCounts)
           exigenciaDocs, // Documents linked to the active exigência status (empty unless caseStatus is "exigencia")
         };
       }),
@@ -514,6 +535,58 @@ export const list = query({
     }
 
     return searchFilteredResults.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+/**
+ * Pending-document counts for the given processes — the rows currently on
+ * screen in the processes table, or every row while it is sorted by that
+ * column. Kept out of `list` so a document write only re-runs this small query
+ * for the rows that are visible.
+ */
+export const getPendingDocsCounts = query({
+  args: {
+    processIds: v.array(v.id("individualProcesses")),
+  },
+  returns: v.array(
+    v.object({
+      processId: v.id("individualProcesses"),
+      count: v.number(),
+    }),
+  ),
+  handler: async (ctx, { processIds }) => {
+    const userProfile = await getCurrentUserProfile(ctx);
+    const uniqueIds = [...new Set(processIds)];
+
+    let accessibleIds = uniqueIds;
+    if (userProfile.role === "client") {
+      const currentCompanyIds = await getClientCurrentCompanyIds(
+        ctx,
+        userProfile,
+      );
+      const allowed = await Promise.all(
+        uniqueIds.map(async (id) => {
+          const process = await ctx.db.get(id);
+          if (!process) return false;
+          const processCompanyIds = await getIndividualProcessCompanyIds(
+            ctx,
+            process,
+          );
+          for (const companyId of processCompanyIds) {
+            if (currentCompanyIds.has(companyId)) return true;
+          }
+          return false;
+        }),
+      );
+      accessibleIds = uniqueIds.filter((_, index) => allowed[index]);
+    }
+
+    return await Promise.all(
+      accessibleIds.map(async (processId) => ({
+        processId,
+        count: await countPendingDocs(ctx, processId),
+      })),
+    );
   },
 });
 

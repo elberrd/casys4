@@ -904,9 +904,19 @@ export default defineSchema({
     .index("by_documentType", ["documentTypeId"])
     .index("by_requirement", ["documentRequirementId"])
     .index("by_status", ["status"])
-    // Lets the list query count pending ("not_started") documents per process by
-    // reading only those rows, instead of reading every document for the process.
-    .index("by_individualProcess_status", ["individualProcessId", "status"])
+    // Lets pending-document counts read only the latest "not_started" rows of a
+    // process, instead of every document (or every old placeholder version).
+    .index("by_individualProcess_status_latest", [
+      "individualProcessId",
+      "status",
+      "isLatest",
+    ])
+    // Lets company-document reuse look up one document type inside a process
+    // without reading the rest of that process's documents.
+    .index("by_individualProcess_documentType", [
+      "individualProcessId",
+      "documentTypeId",
+    ])
     .index("by_person", ["personId"])
     .index("by_company", ["companyId"])
     .index("by_latest", ["isLatest"])

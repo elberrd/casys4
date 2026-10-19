@@ -549,18 +549,28 @@ export async function autoReuseCompanyDocuments(
     )
     .collect();
 
-  // Collect all candidate source documents from other processes
+  // Collect all candidate source documents from other processes, reading only
+  // the document types this process is waiting for
+  const neededTypeIds = [
+    ...new Set(companyPendingDocs.map((doc) => doc.documentTypeId!)),
+  ];
   const sourceByType = new Map<string, (typeof pendingDocs)[number]>();
   for (const otherProcess of otherProcesses) {
     if (otherProcess._id === individualProcessId) continue;
-    const docs = await ctx.db
-      .query("documentsDelivered")
-      .withIndex("by_individualProcess", (q) =>
-        q.eq("individualProcessId", otherProcess._id),
-      )
-      .collect();
+    const docsByType = await Promise.all(
+      neededTypeIds.map((documentTypeId) =>
+        ctx.db
+          .query("documentsDelivered")
+          .withIndex("by_individualProcess_documentType", (q) =>
+            q
+              .eq("individualProcessId", otherProcess._id)
+              .eq("documentTypeId", documentTypeId),
+          )
+          .collect(),
+      ),
+    );
 
-    for (const doc of docs) {
+    for (const doc of docsByType.flat()) {
       if (
         doc.documentTypeId &&
         doc.isLatest &&
