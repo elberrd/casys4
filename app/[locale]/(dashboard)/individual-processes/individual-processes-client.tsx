@@ -1284,6 +1284,7 @@ export function IndividualProcessesClient() {
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
           showColumnVisibility={!isClient}
+          lazyPendingDocsCounts={Boolean(userProfile) && !isClient}
           sorting={sorting}
           onSortingChange={setSorting}
           onRestoreNewestFirst={isAdmin ? handleRestoreNewestFirst : undefined}
