@@ -1,0 +1,30 @@
+# Typecheck and unit tests on the pinned Node LTS. No Convex deploy.
+# `pnpm lint` is not run here: next lint already fails on main with
+# pre-existing @typescript-eslint/no-explicit-any (production build skips it).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: node -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec tsc -p convex/tsconfig.json --noEmit
+      - run: pnpm exec tsx --test tests/*.test.ts
