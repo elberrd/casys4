@@ -4653,7 +4653,9 @@ export const submitInformationFields = mutation({
         value: v.any(),
       })
     ),
+    receivedDate: v.optional(v.string()),
   },
+  returns: v.id("documentsDelivered"),
   handler: async (ctx, args) => {
     const userProfile = await getCurrentUserProfile(ctx);
     if (!userProfile.userId) {
@@ -4711,12 +4713,18 @@ export const submitInformationFields = mutation({
 
     const now = Date.now();
     const processStatusAtUpload = await getProcessStatusAtUpload(ctx, process);
+    const receivedAt = args.receivedDate
+      ? resolveDocumentReceivedAt({
+          requestedDate: args.receivedDate,
+          userRole: userProfile.role,
+          now,
+        })
+      : (existingDoc ? getDocumentReceivedAt(existingDoc) ?? now : now);
 
     if (existingDoc) {
       // Bump version 0 (placeholder) → 1 on first fill; preserve existing for re-edit
       const newVersion = existingDoc.version > 0 ? existingDoc.version : 1;
       const createdAt = getDocumentCreatedAt(existingDoc);
-      const receivedAt = getDocumentReceivedAt(existingDoc) ?? now;
       // Update the existing record - auto-approve
       await ctx.db.patch(existingDoc._id, {
         status: "approved",
@@ -4762,10 +4770,10 @@ export const submitInformationFields = mutation({
       mimeType: "application/x-info-only",
       status: "approved",
       uploadedBy: userProfile.userId,
-      uploadedAt: now,
+      uploadedAt: receivedAt,
       createdAt: now,
       waitingStartedAt: process.createdAt,
-      receivedAt: now,
+      receivedAt,
       reviewedBy: userProfile.userId,
       reviewedAt: now,
       version: 1,
